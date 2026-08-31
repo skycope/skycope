@@ -169,19 +169,6 @@
     outline-offset: 4px;
   }
 
-  .hint {
-    position: fixed;
-    z-index: 1;
-    right: 1.5rem;
-    top: 50%;
-    margin: 0;
-    font-size: .6rem;
-    letter-spacing: .08em;
-    opacity: .34;
-    writing-mode: vertical-rl;
-    transform: translateY(-50%);
-  }
-
   @keyframes float {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-3px); }
@@ -190,10 +177,6 @@
   @keyframes blink {
     0%, 38%, 100% { opacity: 1; }
     52%, 86% { opacity: .16; }
-  }
-
-  @media (max-width: 520px) {
-    .hint { display: none; }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -218,8 +201,6 @@
   <button type="button" data-scene="1" aria-pressed="false">dusk</button>
   <button type="button" data-scene="2" aria-pressed="false">night</button>
 </nav>
-
-<p class="hint" aria-hidden="true">follow the light</p>
 
 <script type="module" src="/src/main.js"></script>
 </body>

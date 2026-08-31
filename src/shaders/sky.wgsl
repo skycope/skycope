@@ -19,16 +19,16 @@ fn palette(day: vec3f, dusk: vec3f, night: vec3f) -> vec3f {
 
 fn cloud_field(position: vec2f, offset: vec2f, speed: f32) -> f32 {
   let drift = position + offset + vec2f(atmosphere.time * speed, 0.0);
-  let warp_amount = fbmPerlin2d(drift * 0.82, 3, 2.07, 0.5);
+  let warp_amount = fbmPerlin2d(drift * 0.82, 2, 2.07, 0.5);
   let warp = vec2f(warp_amount, -warp_amount) * 0.38;
-  let body = fbmPerlin2d(drift * 1.18 + warp, 4, 2.13, 0.5);
+  let body = fbmPerlin2d(drift * 1.18 + warp, 3, 2.13, 0.5);
   let detail = perlin2d(drift * 5.2 + warp);
   return body * 0.88 + detail * 0.12;
 }
 
 fn cloud_wisp(position: vec2f, offset: vec2f, speed: f32) -> f32 {
   let drift = position + offset + vec2f(atmosphere.time * speed, 0.0);
-  return fbmPerlin2d(drift, 3, 2.11, 0.5);
+  return fbmPerlin2d(drift, 2, 2.11, 0.5);
 }
 
 fn stars(sky_uv: vec2f) -> f32 {
@@ -50,7 +50,7 @@ fn stars(sky_uv: vec2f) -> f32 {
 fn aurora(p: vec2f, sky_uv: vec2f) -> f32 {
   let distortion = fbmPerlin2d(
     vec2f(p.x * 0.72 + atmosphere.time * 0.018, p.y * 1.8),
-    4,
+    3,
     2.08,
     0.5,
   );
@@ -71,7 +71,7 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
     cos(atmosphere.time * 0.06) * 0.01,
   );
   let parallax = (atmosphere.pointer - 0.5) * vec2f(0.17, 0.085) + ambient_drift;
-  let night_amount = smoothstep(1.18, 2.0, atmosphere.scene);
+  let night_amount = smoothstep(0.96, 2.0, atmosphere.scene);
 
   let horizon = palette(
     vec3f(0.72, 0.94, 1.0),
@@ -126,18 +126,16 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
       * (0.012 / (moon_distance * moon_distance + 0.018))
       * night_amount;
 
-  if (night_amount > 0.001) {
-    let aurora_amount = aurora(p, sky_uv);
-    let aurora_mix = 0.5 + 0.5 * sin(p.x * 1.4 + atmosphere.time * 0.07);
-    let aurora_color = mix(
-      vec3f(0.08, 0.9, 0.72),
-      vec3f(0.65, 0.3, 1.0),
-      aurora_mix,
-    );
-    color = color
-      + vec3f(0.82, 0.9, 1.0) * stars(sky_uv) * night_amount
-      + aurora_color * aurora_amount * night_amount * 0.32;
-  }
+  let aurora_amount = aurora(p, sky_uv);
+  let aurora_mix = 0.5 + 0.5 * sin(p.x * 1.4 + atmosphere.time * 0.07);
+  let aurora_color = mix(
+    vec3f(0.08, 0.9, 0.72),
+    vec3f(0.65, 0.3, 1.0),
+    aurora_mix,
+  );
+  color = color
+    + vec3f(0.82, 0.9, 1.0) * stars(sky_uv) * night_amount
+    + aurora_color * aurora_amount * night_amount * 0.32;
 
   let cloud_position = vec2f(p.x * 0.62, p.y * 1.16) + parallax;
   let cloud_main = cloud_field(cloud_position, vec2f(2.1, 4.7), 0.022);

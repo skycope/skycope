@@ -7,6 +7,7 @@ const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
 const state = {
   currentScene: 0,
   targetScene: 0,
+  sceneVelocity: 0,
   pointer: [0.5, 0.5],
   targetPointer: [0.5, 0.5],
   gpu: null,
@@ -16,7 +17,10 @@ const state = {
 start();
 
 async function start() {
-  setScene(sceneForCurrentTime());
+  const initialScene = sceneForCurrentTime();
+  state.currentScene = initialScene;
+  state.targetScene = initialScene;
+  setScene(initialScene);
   connectControls();
 
   try {
@@ -70,15 +74,14 @@ function recenterPointer() {
 
 async function startAtmosphere() {
   const gpu = await init();
-  const output = surface(gpu, canvas, { dpr: [1, 1.35] });
+  const output = surface(gpu, canvas, { dpr: [1, 1] });
   const atmosphere = effect(gpu, skyShader, {
     label: "skycope-atmosphere",
     set: { atmosphere: createUniforms(output.size, 0) },
   });
   const gpuClock = clock(gpu);
 
-  state.gpu = gpu;
-  state.loop = frameLoop(gpu, (currentFrame) => {
+  const renderFrame = (currentFrame) => {
     easeInteraction(gpuClock.deltaTime);
     atmosphere.set({
       atmosphere: createUniforms(
@@ -87,7 +90,12 @@ async function startAtmosphere() {
       ),
     });
     currentFrame.pass(output, atmosphere);
-  }, { fps: motionPreference.matches ? 2 : 60 });
+  };
+
+  state.gpu = gpu;
+  state.loop = motionPreference.matches
+    ? frameLoop(gpu, renderFrame, { fps: 2 })
+    : frameLoop(gpu, renderFrame);
 }
 
 function createUniforms(resolution, time) {
@@ -100,11 +108,44 @@ function createUniforms(resolution, time) {
 }
 
 function easeInteraction(deltaTime) {
-  const sceneEasing = motionPreference.matches ? 1 : 1 - Math.exp(-deltaTime * 3.2);
+  if (motionPreference.matches) {
+    state.currentScene = state.targetScene;
+    state.sceneVelocity = 0;
+  } else {
+    smoothScene(Math.min(deltaTime, 1 / 20));
+  }
+
   const pointerEasing = motionPreference.matches ? 1 : 1 - Math.exp(-deltaTime * 5.5);
-  state.currentScene += (state.targetScene - state.currentScene) * sceneEasing;
   state.pointer[0] += (state.targetPointer[0] - state.pointer[0]) * pointerEasing;
   state.pointer[1] += (state.targetPointer[1] - state.pointer[1]) * pointerEasing;
+}
+
+function smoothScene(deltaTime) {
+  const smoothTime = 0.64;
+  const maxSpeed = 1.05;
+  const omega = 2 / smoothTime;
+  const decayInput = omega * deltaTime;
+  const decay = 1 / (
+    1
+    + decayInput
+    + 0.48 * decayInput * decayInput
+    + 0.235 * decayInput * decayInput * decayInput
+  );
+  const originalTarget = state.targetScene;
+  const maxChange = maxSpeed * smoothTime;
+  let change = state.currentScene - state.targetScene;
+  change = Math.max(-maxChange, Math.min(maxChange, change));
+
+  const adjustedTarget = state.currentScene - change;
+  const velocityStep = (state.sceneVelocity + omega * change) * deltaTime;
+  state.sceneVelocity = (state.sceneVelocity - omega * velocityStep) * decay;
+
+  const nextScene = adjustedTarget + (change + velocityStep) * decay;
+  const crossedTarget = (originalTarget - state.currentScene > 0)
+    === (nextScene > originalTarget);
+
+  state.currentScene = crossedTarget ? originalTarget : nextScene;
+  if (crossedTarget) state.sceneVelocity = 0;
 }
 
 function stopAtmosphere() {
