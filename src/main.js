@@ -34,15 +34,16 @@ function connectControls() {
   });
 
   window.addEventListener("pointermove", updatePointer, { passive: true });
+  document.documentElement.addEventListener("pointerleave", recenterPointer, { passive: true });
 }
 
 function setScene(scene) {
   state.targetScene = scene;
   document.body.dataset.scene = String(scene);
   document.querySelector('meta[name="theme-color"]').content = [
-    "#76bce8",
-    "#5f4b88",
-    "#061127",
+    "#4db8f5",
+    "#8a63c7",
+    "#17295f",
   ][scene];
 
   sceneButtons.forEach((button) => {
@@ -62,9 +63,14 @@ function updatePointer(event) {
   state.targetPointer[1] = 1 - event.clientY / window.innerHeight;
 }
 
+function recenterPointer() {
+  state.targetPointer[0] = 0.5;
+  state.targetPointer[1] = 0.5;
+}
+
 async function startAtmosphere() {
   const gpu = await init();
-  const output = surface(gpu, canvas, { dpr: [1, 1.6] });
+  const output = surface(gpu, canvas, { dpr: [1, 1.35] });
   const atmosphere = effect(gpu, skyShader, {
     label: "skycope-atmosphere",
     set: { atmosphere: createUniforms(output.size, 0) },
@@ -73,7 +79,7 @@ async function startAtmosphere() {
 
   state.gpu = gpu;
   state.loop = frameLoop(gpu, (currentFrame) => {
-    easeInteraction();
+    easeInteraction(gpuClock.deltaTime);
     atmosphere.set({
       atmosphere: createUniforms(
         output.size,
@@ -81,7 +87,7 @@ async function startAtmosphere() {
       ),
     });
     currentFrame.pass(output, atmosphere);
-  }, { fps: motionPreference.matches ? 2 : 30 });
+  }, { fps: motionPreference.matches ? 2 : 60 });
 }
 
 function createUniforms(resolution, time) {
@@ -93,11 +99,12 @@ function createUniforms(resolution, time) {
   };
 }
 
-function easeInteraction() {
-  const easing = motionPreference.matches ? 1 : 0.055;
-  state.currentScene += (state.targetScene - state.currentScene) * easing;
-  state.pointer[0] += (state.targetPointer[0] - state.pointer[0]) * easing;
-  state.pointer[1] += (state.targetPointer[1] - state.pointer[1]) * easing;
+function easeInteraction(deltaTime) {
+  const sceneEasing = motionPreference.matches ? 1 : 1 - Math.exp(-deltaTime * 3.2);
+  const pointerEasing = motionPreference.matches ? 1 : 1 - Math.exp(-deltaTime * 5.5);
+  state.currentScene += (state.targetScene - state.currentScene) * sceneEasing;
+  state.pointer[0] += (state.targetPointer[0] - state.pointer[0]) * pointerEasing;
+  state.pointer[1] += (state.targetPointer[1] - state.pointer[1]) * pointerEasing;
 }
 
 function stopAtmosphere() {
