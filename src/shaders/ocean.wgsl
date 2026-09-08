@@ -46,7 +46,11 @@ fn ocean(
   footprint: mat2x2f, distance: f32, settings: OceanSettings,
   noise: texture_3d<f32>, filtering: sampler, sky_texture: texture_2d<f32>,
 ) -> vec3f {
-  let grazing = smoothstep(0.015, 0.10, -ray.y);
+  // Keep most wave slope even at grazing angles: distant water must stay
+  // textured so the sun path breaks into streaks instead of a smooth band.
+  // The projected-footprint filtering inside the wave functions handles the
+  // aliasing this clamp used to hide.
+  let grazing = smoothstep(0.002, 0.04, -ray.y) * (0.55 + 0.45 * smoothstep(0.01, 0.09, -ray.y));
   let normal = normalize(vec3f(-waves.y * grazing, 1.0, -waves.z * grazing));
   let view = -ray;
   let nv = max(dot(normal, view), 0.01);
@@ -58,7 +62,19 @@ fn ocean(
   let shore = 4.0 + p.z * 0.075 + sin(p.z * 0.026) * 7.0;
   let depth = max(0.0, (shore - p.x) * 0.15);
   let water = mix(shallow, deep, smoothstep(0.1, 1.8, depth));
-  var reflection = mix(sky, coast_palette(vec3f(0.19, 0.38, 0.52), vec3f(0.32, 0.24, 0.31), vec3f(0.020, 0.04, 0.08), settings.scene), smoothstep(0.0, 0.65, reflected.y));
+  // Off-screen reflections fall back to the sky sampled at the horizon along
+  // this ray's azimuth, not a flat palette: water warms toward the sun and
+  // cools away from it, so the sunset gradient carries across the whole sea.
+  let horizon_dir = normalize(vec3f(ray.x, 0.05, ray.z));
+  let horizon_depth = max(dot(horizon_dir, vec3f(0.0, 0.104528, 0.994522)), 0.2);
+  let horizon_uv = clamp(vec2f(
+    0.5 + horizon_dir.x * 0.9 / horizon_depth * settings.resolution.y / settings.resolution.x,
+    0.5 - dot(horizon_dir, vec3f(0.0, 0.994522, -0.104528)) * 0.9 / horizon_depth,
+  ), vec2f(0.001), vec2f(0.999));
+  let horizon_sky = textureSampleLevel(sky_texture, filtering, horizon_uv, 0.0).rgb;
+  let zenith = coast_palette(vec3f(0.19, 0.38, 0.52), vec3f(0.30, 0.22, 0.26), vec3f(0.020, 0.04, 0.08), settings.scene)
+    * (0.35 + dot(horizon_sky, vec3f(0.333)) * 1.3);
+  var reflection = mix(horizon_sky, zenith, smoothstep(0.0, 0.65, reflected.y) * 0.85);
   let reflected_depth = dot(reflected, vec3f(0.0, 0.104528, 0.994522));
   let reflected_uv = vec2f(0.5 + reflected.x * 0.9 / max(reflected_depth, 0.01) * settings.resolution.y / settings.resolution.x,
     0.5 - dot(reflected, vec3f(0.0, 0.994522, -0.104528)) * 0.9 / max(reflected_depth, 0.01));
@@ -77,7 +93,10 @@ fn ocean(
 
   // Unresolved waves become surface roughness, conserving their broad reflection.
   // This keeps the sun path soft at the horizon without hard clipping or square glints.
-  let alpha = sqrt(0.016 + waves.w * 2.0 + min(length(settings.wind), 12.0) * 0.0008);
+  // A generous roughness floor keeps the sun path broad, as in reference
+  // sunset photographs: the band should reach from the horizon to the viewer,
+  // its width carried by wave-slope variance rather than a mirror stripe.
+  let alpha = sqrt(0.03 + waves.w * 5.0 + min(length(settings.wind), 12.0) * 0.003);
   let half_vector = normalize(light + view);
   let nh = max(dot(normal, half_vector), 0.0);
   let nl = max(dot(normal, light), 0.0);
@@ -88,11 +107,29 @@ fn ocean(
   let masking = smith(nv, a2) * smith(nl, a2);
   let reflection_fresnel = 0.02 + 0.98 * pow(1.0 - vh, 5.0);
   let specular = distribution * masking * reflection_fresnel / (4.0 * nv);
-  let sun_up = smoothstep(-0.03, 0.08, light.y);
+  // A second, much rougher lobe carries the path's scattered tail: with a low
+  // sun the tight lobe hugs the horizon, while steep near-field facets only
+  // catch light through this wide tail — together they stretch the glitter
+  // band from the horizon down to the viewer, as in sunset photographs.
+  let a2_tail = min(0.35, a2 * 8.0);
+  let tail_denominator = nh * nh * (a2_tail - 1.0) + 1.0;
+  let tail = a2_tail / max(3.141593 * tail_denominator * tail_denominator, 0.000001)
+    * smith(nv, a2_tail) * smith(nl, a2_tail) * reflection_fresnel / (4.0 * nv);
+  let sun_up = smoothstep(-0.02, 0.04, light.y);
   let sunlight = coast_palette(vec3f(1.0, 0.90, 0.72), vec3f(1.0, 0.59, 0.30), vec3f(0.20, 0.30, 0.44), settings.scene);
-  let energy = specular * sun_up * (1.0 - settings.overcast * 0.85) * 3.2;
+  // Patchy glitter: reference sun paths are sparkle fields crossed by dark
+  // troughs, not a smooth band. Two advected noise scales modulate the energy.
+  let glitter = field(p.xz * vec2f(0.33, 0.11) + vec2f(settings.time * 0.03, 0.0), noise, filtering) * 0.65
+    + field(p.xz * vec2f(0.071, 0.052) - vec2f(settings.time * 0.012, 0.0), noise, filtering) * 0.35;
+  let energy = (specular + tail * 0.8) * sun_up * (1.0 - settings.overcast * 0.85)
+    * 4.5 * (0.45 + glitter * 1.1);
   // Bounded exposure rolls highlights toward the light colour, never a clipped plateau.
   color = mix(color, sunlight, 1.0 - exp(-energy));
+  // Facets mirror-aligned with the sun over-expose past the warm path colour
+  // toward white — the scattered fringe stays orange, the core reads as the
+  // sun itself, matching reference photographs.
+  let core = 1.0 - exp(-specular * sun_up * (1.0 - settings.overcast * 0.85) * (0.3 + glitter) * 1.4);
+  color = mix(color, vec3f(1.0, 0.985, 0.94), core * core);
 
   let shore_noise = field(p.xz * 0.85, noise, filtering);
   let breaker = sin(depth * 11.0 + settings.time * 0.22 + shore_noise * 1.5);
@@ -118,7 +155,7 @@ fn wave_surface(p: vec2f, footprint: mat2x2f, settings: OceanSettings, geometry:
   let speed = length(settings.wind);
   let wind_angle = atan2(settings.wind.y + 0.01, settings.wind.x + 0.01);
   var frequency = 0.4;
-  var amplitude = 0.075 + min(speed * 0.003, 0.035);
+  var amplitude = 0.09 + min(speed * 0.003, 0.035);
   var result = vec4f(0.0);
   for (var i = 0; i < 6; i++) {
     if (geometry && i >= 3) { break; }
@@ -152,7 +189,7 @@ fn wave_surface(p: vec2f, footprint: mat2x2f, settings: OceanSettings, geometry:
 fn ripple_surface(p: vec2f, footprint: mat2x2f, time: f32, noise: texture_3d<f32>, filtering: sampler) -> vec4f {
   var rotation = mat2x2f(vec2f(0.8, 0.6), vec2f(-0.6, 0.8));
   var frequency = 0.75;
-  var amplitude = 0.07;
+  var amplitude = 0.09;
   var slope = vec2f(0.0);
   var variance = 0.0;
   let pixel_size = max(length(footprint[0]), length(footprint[1]));

@@ -270,7 +270,7 @@ async function startAtmosphere() {
       state.pointer,
       state.weather?.cover ?? 0,
       state.time,
-      Math.hypot(...(state.weather?.wind ?? [0, 0])),
+      state.weather?.wind ?? [0, 0],
     );
   };
   document.body.dataset.renderer = "webgpu";

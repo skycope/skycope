@@ -12,6 +12,14 @@ test("seeded habitats contain multiple growth layers without planting in the sea
     );
     assert.ok(new Set(plants.map((p) => p.ecotype)).size >= 3);
     assert.ok(plants.every((p) => p.x > shoreline(p.z) && p.height > 0));
+    // Coastal exposure keeps canopy interior: no full-height tree at the edge.
+    const trees = plants.filter((p) => p.kind === "tree");
+    assert.ok(trees.some((p) => p.form === "snag" || p.form === "sapling"));
+    assert.ok(
+      trees.every(
+        (p) => p.x - shoreline(p.z) > 12 || p.interior < 0.6,
+      ),
+    );
     assert.deepEqual(plants, vegetationLayout(seed));
     assert.notDeepEqual(plants, vegetationLayout(seed + 1));
   }
@@ -20,8 +28,13 @@ test("seeded habitats contain multiple growth layers without planting in the sea
 test("procedural growth stays finite and within the instancing budget", () => {
   const plants = createVegetation(1847);
   assert.ok(plants.wood.length < 100000);
-  assert.ok(plants.leaves.length < 350000);
-  for (const instance of [...plants.wood, ...plants.leaves]) {
+  assert.ok(plants.leaves.length < 120000);
+  assert.ok(plants.clusters.length > 10000 && plants.clusters.length < 120000);
+  for (const instance of [
+    ...plants.wood,
+    ...plants.leaves,
+    ...plants.clusters,
+  ]) {
     assert.ok(instance.position.toArray().every(Number.isFinite));
     assert.ok(
       instance.scale.toArray().every((v) => Number.isFinite(v) && v > 0),
