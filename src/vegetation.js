@@ -1,5 +1,11 @@
 import * as THREE from "three";
-import { terrainHeight, shoreline, noise2, smoothstep } from "./terrain.js";
+import {
+  terrainHeight,
+  shoreDistance,
+  islandPoint,
+  noise2,
+  smoothstep,
+} from "./terrain.js";
 import { seededRandom } from "./random.js";
 
 // Prevailing south-easter blows onshore. Exposure "flags" coastal crowns: they
@@ -55,6 +61,7 @@ export function createVegetation(seed) {
     if (plant.kind === "fern") growFern(root, plant.height, random, wood, leaves);
     else if (plant.kind === "grass")
       growGrass(root, plant.height, plant.dune, random, leaves);
+    else if (plant.kind === "moss") growMoss(root, plant.height, random, clusters);
     else if (plant.kind === "shrub")
       growShrub(root, plant, ecotypes[plant.ecotype], random, wood, clusters);
     else
@@ -66,6 +73,7 @@ export function createVegetation(seed) {
         random,
         wood,
         clusters,
+        leaves,
       );
   }
   return { wood, leaves, clusters, plants: layout.length };
@@ -81,9 +89,9 @@ export function vegetationLayout(seed) {
   const patch = random() * 1000;
   const ecotypes = growthTraits(seed);
   for (let i = 0; i < 1400; i++) {
-    const z = 7 + random() * 205;
+    const theta = random() * Math.PI * 2;
     const inland = 5 + random() * 58;
-    const x = shoreline(z) + inland;
+    const { x, z } = islandPoint(theta, inland);
     const shelter = noise2(x * 0.085 + patch, z * 0.06 + patch);
     const edge = smoothstep(4, 13, inland);
     if (random() > (0.16 + shelter * 0.8) * (0.25 + edge * 0.75)) continue;
@@ -139,10 +147,10 @@ export function vegetationLayout(seed) {
     occupied.get(key).push(plant);
   }
   // Ecotone: dune grass and sparse low scrub soften the beach-forest line.
-  for (let i = 0; i < 380; i++) {
-    const z = 4 + random() * 200;
+  for (let i = 0; i < 550; i++) {
+    const theta = random() * Math.PI * 2;
     const inland = 2.2 + random() * 7;
-    const x = shoreline(z) + inland;
+    const { x, z } = islandPoint(theta, inland);
     if (noise2(x * 0.3 + patch, z * 0.22) < 0.36) continue;
     const scrubby = random() < 0.16 && inland > 4;
     plants.push({
@@ -160,15 +168,25 @@ export function vegetationLayout(seed) {
   }
   // Lower layers occur in patches, leaving some visible soil and paths between them.
   for (let i = 0; i < 2300; i++) {
-    const z = 4 + random() * 155;
+    const theta = random() * Math.PI * 2;
     const inland = 3.5 + random() * 30;
-    const x = shoreline(z) + inland;
+    const { x, z } = islandPoint(theta, inland);
     if (noise2(x * 0.2 + patch, z * 0.16) < 0.27) continue;
     const choice = random();
     const kind =
-      choice < 0.32 && inland > 7 ? "fern" : choice < 0.6 ? "shrub" : "grass";
+      choice < 0.24 && inland > 7
+        ? "fern"
+        : choice < 0.38 && inland > 9
+          ? "moss"
+          : choice < 0.58
+            ? "shrub"
+            : "grass";
     const height =
-      kind === "shrub" ? 0.7 + random() * 1.4 : 0.25 + random() * 0.85;
+      kind === "shrub"
+        ? 0.7 + random() * 1.4
+        : kind === "moss"
+          ? 0.08 + random() * 0.16
+          : 0.25 + random() * 0.85;
     plants.push({
       kind,
       dune: false,
@@ -246,7 +264,11 @@ function archetype(plant) {
 function crownRadius(plant, traits) {
   return Math.max(
     0.7,
-    plant.height * traits.spread * archetype(plant).spread * 0.55,
+    plant.height *
+      traits.spread *
+      archetype(plant).spread *
+      0.55 *
+      (HABITS[traits.habit]?.spread ?? 1),
   );
 }
 
@@ -254,10 +276,18 @@ function mix(a, b, t) {
   return a + (b - a) * t;
 }
 
-function growTree(root, plant, traits, crowns, random, wood, clusters) {
-  const arche = archetype(plant);
-  const height = plant.height;
+function growTree(root, plant, traits, crowns, random, wood, clusters, leaves) {
   const snag = plant.form === "snag";
+  if (traits.habit === "palm" && !snag) {
+    growPalm(root, plant, traits, random, wood, leaves);
+    return;
+  }
+  const habit = HABITS[traits.habit] ?? {};
+  const arche = { ...archetype(plant) };
+  if (habit.flatten) arche.flatten = habit.flatten;
+  if (habit.droop) arche.droop = habit.droop;
+  if (habit.lift) arche.lift = habit.lift;
+  const height = plant.height;
   const bark = snag
     ? new THREE.Color().setHSL(0.1, 0.04, 0.4 + random() * 0.12)
     : new THREE.Color(traits.bark).multiplyScalar(0.55 + random() * 0.35);
@@ -289,7 +319,7 @@ function growTree(root, plant, traits, crowns, random, wood, clusters) {
   const crownCenter = spine[3]
     .clone()
     .addScaledVector(PREVAILING, flag * crownR * 0.4);
-  crownCenter.y = root.y + height * 0.68;
+  crownCenter.y = root.y + height * (habit.center ?? 0.68);
   const neighbours = crowns.filter(
     (c) =>
       (c.x !== plant.x || c.z !== plant.z) &&
@@ -308,6 +338,8 @@ function growTree(root, plant, traits, crowns, random, wood, clusters) {
     color,
     bark,
     neighbours,
+    vines: Boolean(habit.vines) && detail,
+    floor: root.y,
     random,
     wood,
     clusters,
@@ -365,6 +397,8 @@ function colonizeCrown(options) {
     color,
     bark,
     neighbours,
+    vines = false,
+    floor = -1000,
     random,
     wood,
     clusters,
@@ -540,6 +574,134 @@ function colonizeCrown(options) {
       );
     }
   }
+  // Weeping crowns hang leafy vines from their upper branches.
+  if (vines) {
+    const strands = 2 + Math.floor(random() * 3);
+    for (let v = 0; v < strands; v++) {
+      const pick =
+        seeds.length +
+        Math.floor(random() * Math.max(1, nx.length - seeds.length));
+      if (pick >= nx.length || ny[pick] < crownCenter.y) continue;
+      let previous = new THREE.Vector3(nx[pick], ny[pick], nz[pick]);
+      const drift = new THREE.Vector3(
+        (random() - 0.5) * 0.3,
+        0,
+        (random() - 0.5) * 0.3,
+      );
+      const drop = (1.2 + random() * 2.2) / 5;
+      const vineColor = color.clone().offsetHSL(0.02, 0.06, -0.02);
+      for (let s = 1; s <= 5; s++) {
+        const next = previous
+          .clone()
+          .add(drift)
+          .add(
+            new THREE.Vector3(
+              (random() - 0.5) * 0.25,
+              -drop,
+              (random() - 0.5) * 0.25,
+            ),
+          );
+        if (next.y < floor + 0.4) break;
+        branch(wood, previous, next, 0.012, bark);
+        if (s > 1)
+          cluster(
+            clusters,
+            next,
+            0.16 + random() * 0.14,
+            0.6,
+            new THREE.Vector3(random() - 0.5, -0.7, random() - 0.5).normalize(),
+            random() * 6.28,
+            vineColor.clone().multiplyScalar(0.7 + random() * 0.4),
+          );
+        previous = next;
+      }
+    }
+  }
+}
+
+// Palms skip crown colonization: a curved trunk carries a whorl of arching
+// pinnate fronds, grown with the fern's paired-leaflet logic at tree scale.
+function growPalm(root, plant, traits, random, wood, leaves) {
+  const height = plant.height * (1.05 + random() * 0.25);
+  const bark = new THREE.Color().setHSL(
+    0.09 + random() * 0.03,
+    0.12,
+    0.3 + random() * 0.1,
+  );
+  const color = new THREE.Color().setHSL(
+    traits.hue + (random() - 0.5) * 0.03,
+    0.3 + random() * 0.15,
+    traits.light + 0.02,
+  );
+  const lean = new THREE.Vector3(
+    (random() - 0.4) * 0.3 + PREVAILING.x * plant.exposure * 0.2,
+    1,
+    (random() - 0.5) * 0.3,
+  ).multiplyScalar(height);
+  let previous = root;
+  for (let i = 1; i <= 4; i++) {
+    const point = root.clone().addScaledVector(lean, i / 4);
+    point.x += Math.sin(i * 1.3 + height) * height * 0.03;
+    branch(wood, previous, point, height * 0.022 * (1 - i * 0.12), bark);
+    previous = point;
+  }
+  const top = previous;
+  const fronds = 8 + Math.floor(random() * 5);
+  for (let f = 0; f < fronds; f++) {
+    const azimuth = f * GOLDEN_ANGLE + random() * 0.4;
+    let direction = new THREE.Vector3(
+      Math.cos(azimuth),
+      0.85 + random() * 0.5,
+      Math.sin(azimuth),
+    ).normalize();
+    let point = top.clone();
+    const frondLength = height * (0.34 + random() * 0.16);
+    for (let s = 1; s <= 5; s++) {
+      const next = point.clone().addScaledVector(direction, frondLength / 5);
+      branch(wood, point, next, height * 0.006 * (1 - s * 0.14), bark);
+      const t = s / 5;
+      for (const side of [-1, 1]) {
+        leaf(
+          leaves,
+          next,
+          frondLength * 0.05 * (1 - t * 0.6),
+          frondLength * 0.22 * (1 - t * 0.55),
+          new THREE.Euler(1.15, -azimuth + side * 1.25, side * (0.35 + t * 0.3)),
+          color,
+          random,
+        );
+      }
+      direction = direction.clone();
+      direction.y -= 0.4;
+      direction.normalize();
+      point = next;
+    }
+  }
+}
+
+// Moss grows as flattened cushions hugging the ground in shaded interior soil.
+function growMoss(root, height, random, clusters) {
+  const color = new THREE.Color().setHSL(
+    0.26 + random() * 0.08,
+    0.4,
+    0.13 + random() * 0.08,
+  );
+  const cushions = 3 + Math.floor(random() * 3);
+  for (let i = 0; i < cushions; i++) {
+    const position = root
+      .clone()
+      .add(new THREE.Vector3((random() - 0.5) * 0.8, 0, (random() - 0.5) * 0.8));
+    position.y = terrainHeight(position.x, position.z) + 0.01;
+    cluster(
+      clusters,
+      position,
+      0.1 + height * random(),
+      0.2,
+      new THREE.Vector3((random() - 0.5) * 0.3, 1, (random() - 0.5) * 0.3).normalize(),
+      random() * 6.28,
+      color.clone().multiplyScalar(0.8 + random() * 0.35),
+    );
+  }
 }
 
 function growFern(root, height, random, wood, leaves) {
@@ -596,6 +758,25 @@ function growGrass(root, height, dune, random, leaves) {
       color,
       random,
     );
+  }
+  // Some interior tufts send up taller pale seed stalks.
+  if (!dune && random() < 0.35) {
+    const pale = color.clone().offsetHSL(-0.05, -0.12, 0.1);
+    for (let s = 0; s < 2; s++) {
+      leaf(
+        leaves,
+        root,
+        0.012 + random() * 0.008,
+        height * (0.9 + random() * 0.7),
+        new THREE.Euler(
+          (random() - 0.5) * 0.5,
+          random() * 6.28,
+          (random() - 0.5) * 0.5,
+        ),
+        pale,
+        random,
+      );
+    }
   }
 }
 

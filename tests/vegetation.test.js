@@ -1,24 +1,24 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { vegetationLayout, createVegetation } from "../src/vegetation.js";
-import { shoreline } from "../src/terrain.js";
+import { shoreDistance } from "../src/terrain.js";
 
 test("seeded habitats contain multiple growth layers without planting in the sea", () => {
   for (const seed of [1, 1847, 4294967295]) {
     const plants = vegetationLayout(seed);
     assert.deepEqual(
       new Set(plants.map((p) => p.kind)),
-      new Set(["tree", "fern", "shrub", "grass"]),
+      new Set(["tree", "fern", "shrub", "grass", "moss"]),
     );
     assert.ok(new Set(plants.map((p) => p.ecotype)).size >= 3);
-    assert.ok(plants.every((p) => p.x > shoreline(p.z) && p.height > 0));
+    assert.ok(
+      plants.every((p) => shoreDistance(p.x, p.z) > 0 && p.height > 0),
+    );
     // Coastal exposure keeps canopy interior: no full-height tree at the edge.
     const trees = plants.filter((p) => p.kind === "tree");
     assert.ok(trees.some((p) => p.form === "snag" || p.form === "sapling"));
     assert.ok(
-      trees.every(
-        (p) => p.x - shoreline(p.z) > 12 || p.interior < 0.6,
-      ),
+      trees.every((p) => shoreDistance(p.x, p.z) > 12 || p.interior < 0.6),
     );
     assert.deepEqual(plants, vegetationLayout(seed));
     assert.notDeepEqual(plants, vegetationLayout(seed + 1));

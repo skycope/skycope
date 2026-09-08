@@ -24,7 +24,7 @@ import {
   WEATHER_REFRESH_MS,
   WEATHER_MAX_AGE_MS,
 } from "./weather.js";
-import { terrainHeight, shoreline } from "./terrain.js";
+import { terrainHeight, shoreDistance, ISLAND } from "./terrain.js";
 
 // Free flight around the coast. The default matches the original fixed view:
 // (6, 4.5, 0) coast metres, heading 315°, pitched 6° above the horizon.
@@ -429,9 +429,15 @@ function updateFlight(dt) {
   flight.x += hx * cp * speed;
   flight.z += hz * cp * speed;
   flight.y += Math.sin(flight.pitch) * speed;
-  flight.x = Math.min(92, Math.max(-90, flight.x));
-  flight.z = Math.min(216, Math.max(-14, flight.z));
-  const overLand = flight.x > shoreline(flight.z) - 6;
+  // Stay within sight of the island, above the terrain, below the cloud deck.
+  const dx = flight.x - ISLAND.x;
+  const dz = flight.z - ISLAND.z;
+  const range = Math.hypot(dx, dz);
+  if (range > 160) {
+    flight.x = ISLAND.x + (dx / range) * 160;
+    flight.z = ISLAND.z + (dz / range) * 160;
+  }
+  const overLand = shoreDistance(flight.x, flight.z) > -6;
   const floor = overLand ? terrainHeight(flight.x, flight.z) + 1.5 : 1.3;
   flight.y = Math.min(70, Math.max(floor, flight.y));
 }

@@ -27,7 +27,9 @@ export fn ocean_view(
   let right = vec3f(0.707107, 0.0, 0.707107);
   let forward = vec3f(-0.707107, 0.0, 0.707107);
   let direction = vec3f(dot(ray, right), ray.y, dot(ray, forward));
-  if (direction.z <= 0.0 || direction.y >= -0.0001) { return sky; }
+  // The ocean is boundless: every ray below the horizon meets water. The
+  // island's terrain mesh covers the sea surface it stands on.
+  if (direction.y >= -0.0001) { return sky; }
   let light = vec3f(dot(sunlight, right), sunlight.y, dot(sunlight, forward));
   let eye = settings.eye;
   if (eye.y <= 0.2) { return sky; }
@@ -74,9 +76,8 @@ fn ocean(
   let fresnel = 0.02 + 0.98 * pow(1.0 - nv, 5.0);
   let deep = coast_palette(vec3f(0.035, 0.19, 0.22), vec3f(0.055, 0.12, 0.14), vec3f(0.008, 0.023, 0.038), settings.scene);
   let shallow = coast_palette(vec3f(0.11, 0.33, 0.27), vec3f(0.17, 0.24, 0.18), vec3f(0.018, 0.055, 0.058), settings.scene);
-  // Match terrain.js. The beach stays fixed; trees, noise and wave phases change by seed.
-  let shore = 4.0 + p.z * 0.075 + sin(p.z * 0.026) * 7.0;
-  let depth = max(0.0, (shore - p.x) * 0.15);
+  // Match terrain.js. The island stays fixed; trees, noise and wave phases change by seed.
+  let depth = max(0.0, shore_metrics(p.xz).x) * 0.15;
   let water = mix(shallow, deep, smoothstep(0.1, 1.8, depth));
   // Off-screen reflections fall back to the sky sampled at the horizon along
   // this ray's azimuth, not a flat palette: water warms toward the sun and
@@ -159,16 +160,31 @@ fn ocean(
   return mix(color, sky, 1.0 - exp(-distance * 0.0018));
 }
 
-// Height, x/z slopes, and variance of subpixel waves. Work in shoreline coordinates:
-// shorter wavelengths in shallow water turn crests toward the beach. A weaker mirrored
-// wave travels back offshore with the same frequency/phase and decays away from land.
+// Signed shore geometry for the island, matching terrain.js: (offshore
+// distance, unit radial x, unit radial z, tangential arc coordinate).
+// Offshore is positive out at sea and negative inland.
+fn shore_metrics(p: vec2f) -> vec4f {
+  let d = p - vec2f(58.0, 70.0);
+  let r = max(length(d), 0.001);
+  let theta = atan2(d.y, d.x);
+  let radius = 62.0 + 14.0 * sin(2.0 * theta + 0.8)
+    + 7.0 * sin(3.0 * theta + 2.1) + 3.5 * sin(7.0 * theta + 4.5);
+  return vec4f(r - radius, d.x / r, d.y / r, theta * 62.0);
+}
+
+// Height, x/z slopes, and variance of subpixel waves. Work in shore-relative
+// coordinates: shorter wavelengths in shallow water turn crests toward the
+// beach all around the island. A weaker mirrored wave travels back offshore
+// with the same frequency/phase and decays away from land.
 fn wave_surface(p: vec2f, footprint: mat2x2f, settings: OceanSettings, geometry: bool) -> vec4f {
-  let shore = 4.0 + p.y * 0.075 + sin(p.y * 0.026) * 7.0;
-  let shore_slope = 0.075 + cos(p.y * 0.026) * 0.182;
-  let offshore = max(0.0, shore - p.x);
+  let metrics = shore_metrics(p);
+  let offshore = max(0.0, metrics.x);
+  let radial = metrics.yz;
+  let tangent = vec2f(-metrics.z, metrics.y);
+  let along_coord = metrics.w;
   let shallows = exp(-offshore / 12.0);
   let refracted_distance = offshore + 9.0 * (1.0 - shallows);
-  let distance_gradient = vec2f(-1.0, shore_slope) * (1.0 + 0.75 * shallows);
+  let distance_gradient = radial * (1.0 + 0.75 * shallows);
   let envelope = smoothstep(0.0, 2.5, offshore);
   let return_strength = 0.22 * exp(-offshore / 18.0);
   let speed = length(settings.wind);
@@ -186,10 +202,10 @@ fn wave_surface(p: vec2f, footprint: mat2x2f, settings: OceanSettings, geometry:
     let offset = random * 6.283185;
     // A deliberately calm presentation clock; weather still controls amplitude/direction.
     let travel = settings.time * 0.22 * sqrt(9.81 * frequency);
-    let incoming_phase = (-refracted_distance * across + p.y * along) * frequency - travel + offset;
-    let returning_phase = (refracted_distance * across + p.y * along) * frequency - travel + offset;
-    let incoming_gradient = (-distance_gradient * across + vec2f(0.0, along)) * frequency;
-    let returning_gradient = (distance_gradient * across + vec2f(0.0, along)) * frequency;
+    let incoming_phase = (-refracted_distance * across + along_coord * along) * frequency - travel + offset;
+    let returning_phase = (refracted_distance * across + along_coord * along) * frequency - travel + offset;
+    let incoming_gradient = (-distance_gradient * across + tangent * along) * frequency;
+    let returning_gradient = (distance_gradient * across + tangent * along) * frequency;
     let projected = max(abs(dot(incoming_gradient, footprint[0])), abs(dot(incoming_gradient, footprint[1])));
     let retained = exp(-0.65 * projected * projected);
     let reflected = return_strength / (1.0 + index * 0.3);

@@ -1,5 +1,12 @@
 import * as THREE from "three";
-import { terrainHeight, shoreline, noise2, smoothstep } from "./terrain.js";
+import {
+  terrainHeight,
+  shoreDistance,
+  islandPoint,
+  ISLAND,
+  noise2,
+  smoothstep,
+} from "./terrain.js";
 import { seededRandom } from "./random.js";
 import { createVegetation } from "./vegetation.js";
 
@@ -175,11 +182,10 @@ function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = 
 }
 
 function addGround(scene, shared) {
-  const width = 100;
-  const depth = 225;
-  const geometry = new THREE.PlaneGeometry(width, depth, 160, 200);
+  const size = 190;
+  const geometry = new THREE.PlaneGeometry(size, size, 190, 190);
   geometry.rotateX(-Math.PI / 2);
-  geometry.translate(40, 0, depth / 2);
+  geometry.translate(ISLAND.x, 0, ISLAND.z);
   const position = geometry.attributes.position;
   const colors = new Float32Array(position.count * 3);
   // An ecotone replaces the hard beach-forest line: sand grades through dry
@@ -193,7 +199,7 @@ function addGround(scene, shared) {
   for (let i = 0; i < position.count; i++) {
     const x = position.getX(i);
     const z = position.getZ(i);
-    const inland = x - shoreline(z);
+    const inland = shoreDistance(x, z);
     const dither = noise2(x * 0.7, z * 0.7) * 4 - 2;
     position.setY(i, terrainHeight(x, z));
     color.copy(wetSand).lerp(sand, smoothstep(-0.2, 2, inland));
@@ -341,9 +347,8 @@ function addInstances(scene, geometry, material, instances, shadows) {
 
 function addRocks(scene, random, shared) {
   const rocks = [];
-  for (let i = 0; i < 140; i++) {
-    const z = 8 + random() * 180;
-    const x = shoreline(z) + random() * 7 - 2;
+  for (let i = 0; i < 230; i++) {
+    const { x, z } = islandPoint(random() * Math.PI * 2, random() * 7 - 2);
     const size = 0.15 + random() ** 3 * 1.2;
     rocks.push({
       position: new THREE.Vector3(x, terrainHeight(x, z) + size * 0.25, z),
