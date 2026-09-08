@@ -327,22 +327,34 @@ function rockGeometry() {
   return geometry;
 }
 
+// Instances are bucketed into ground chunks so the camera frustum culls whole
+// regions in both the colour and shadow passes: flying at ground level draws a
+// fraction of the island instead of every triangle every frame. Chunks share
+// one geometry and material, so the cost is only a few extra draw calls.
 function addInstances(scene, geometry, material, instances, shadows) {
-  const mesh = new THREE.InstancedMesh(geometry, material, instances.length);
-  const transform = new THREE.Object3D();
-  for (let i = 0; i < instances.length; i++) {
-    const instance = instances[i];
-    transform.position.copy(instance.position);
-    transform.scale.copy(instance.scale);
-    transform.rotation.copy(instance.rotation);
-    transform.updateMatrix();
-    mesh.setMatrixAt(i, transform.matrix);
-    if (instance.color) mesh.setColorAt(i, instance.color);
+  const chunks = new Map();
+  for (const instance of instances) {
+    const key = `${Math.floor(instance.position.x / 28)},${Math.floor(instance.position.z / 28)}`;
+    if (!chunks.has(key)) chunks.set(key, []);
+    chunks.get(key).push(instance);
   }
-  mesh.castShadow = shadows;
-  mesh.receiveShadow = true;
-  mesh.computeBoundingSphere();
-  scene.add(mesh);
+  const transform = new THREE.Object3D();
+  for (const bucket of chunks.values()) {
+    const mesh = new THREE.InstancedMesh(geometry, material, bucket.length);
+    for (let i = 0; i < bucket.length; i++) {
+      const instance = bucket[i];
+      transform.position.copy(instance.position);
+      transform.scale.copy(instance.scale);
+      transform.rotation.copy(instance.rotation);
+      transform.updateMatrix();
+      mesh.setMatrixAt(i, transform.matrix);
+      if (instance.color) mesh.setColorAt(i, instance.color);
+    }
+    mesh.castShadow = shadows;
+    mesh.receiveShadow = true;
+    mesh.computeBoundingSphere();
+    scene.add(mesh);
+  }
 }
 
 function addRocks(scene, random, shared) {

@@ -8,7 +8,7 @@ export function createLandscape(canvas, seed) {
     canvas,
     alpha: true,
     antialias: true,
-    powerPreference: "low-power",
+    powerPreference: "high-performance",
   });
   renderer.setClearColor(0x000000, 0);
   renderer.setPixelRatio(1);

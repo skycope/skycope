@@ -74,10 +74,15 @@ clockwise from north**; do not substitute the old radians/south-based convention
 The shader uses east / up / north coordinates and radians. Palette transitions
 follow solar altitude, including twilight, rather than fixed clock cutoffs.
 
-The camera faces **northwest (315°), tilted 6° above the horizon**. Sun, moon and
-constellations move through this fixed view; they are not moved into frame when
-actually elsewhere. Cursor movement changes the view by less than a degree.
-Sun and moon discs are slightly enlarged for the illustration. The sun uses a pixel-width antialiased edge and clips each fragment below the sea horizon. Coast, forest and cloud
+The home view faces **northwest (315°), tilted 6° above the horizon**, and the
+visitor can fly: dragging looks around, W/S is throttle, the arrow keys turn and
+pitch, and H returns home. Both the WGSL passes and the Three.js camera read the
+same flight state (position in coast metres, azimuth, pitch); keep them aligned.
+Flight is bounded to 160 m around the island centre, above the terrain, and
+below the cloud deck. Sun, moon and constellations occupy their true directions;
+they are not moved into frame when actually elsewhere. Sun and moon discs are
+slightly enlarged for the illustration. The sun uses a pixel-width antialiased
+edge and clips each fragment below the sea horizon. Island, forest and cloud
 geometry are illustrative, while celestial positions and weather inputs are data based.
 
 The night atlas contains 2,851 catalog stars through magnitude 5.5 and all 88
@@ -89,13 +94,16 @@ refraction and local light pollution are omitted. See [data notes](src/data/READ
 
 Each page load chooses a fresh random seed for trees, shrubs, rocks, cloud noise,
 and wave phases. Time, celestial positions and weather are independent of that seed.
-The coastline stays fixed so the water and beach agree. For reproducible visual QA,
+The land is an island: a closed shore curve whose radius varies around a fixed
+centre (`terrain.js`), surrounded by boundless ocean. The island stays fixed so
+the water and beach agree. For reproducible visual QA,
 open `/?seed=1847`; use a positive 32-bit integer. The current seed is also exposed
 on the sky canvas as `data-seed`. No seed controls or extra text appear in the UI.
 
-Water uses separate scales of detail. Six broad swells use shoreline coordinates:
-crests shorten and turn into the shallows, with a smaller phase-matched returning
-wave fading offshore. Only the first three broad swells displace ray intersections,
+Water uses separate scales of detail. Six broad swells use shore-relative
+(radial/tangential) coordinates: crests shorten and turn toward the beach all
+around the island, with a smaller phase-matched returning wave fading offshore.
+Only the first three broad swells displace ray intersections,
 with displacement fading toward grazing angles. Fine detail uses four rotated,
 advected procedural noise gradients. This avoids tracing tiny waves with unstable
 intersection steps and avoids repeating high-frequency sine interference patterns.
