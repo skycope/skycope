@@ -1,14 +1,130 @@
-import { hash2 } from "@vgpu/wgsl-std/hash";
-import { fbmPerlin2d, perlin2d } from "@vgpu/wgsl-std/noise/perlin";
-
-struct Atmosphere {
-  resolution: vec2f,
-  pointer: vec2f,
-  time: f32,
-  scene: f32,
-};
+import { Atmosphere, view_ray } from "./view.wgsl";
 
 @group(0) @binding(0) var<uniform> atmosphere: Atmosphere;
+@group(0) @binding(1) var cloudNoise: texture_3d<f32>;
+@group(0) @binding(2) var cloudSampler: sampler;
+@group(0) @binding(3) var starAtlas: texture_2d<f32>;
+
+@fragment
+fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
+  let lean = (atmosphere.pointer - 0.5) * vec2f(0.014, 0.009);
+  let eye = vec3f(lean.x * 1.6, 1.6, lean.y);
+  let ray = view_ray(uv, atmosphere.resolution, atmosphere.pointer);
+  let night = smoothstep(1.0, 2.0, atmosphere.scene);
+  let sun = atmosphere.sun;
+  let moon = atmosphere.moon;
+  let light = normalize(mix(sun, moon, night));
+
+  let sky = atmosphere_color(ray, sun, moon, night);
+  let clouds = render_clouds(eye, ray, light, sky, night);
+  return clouds;
+}
+
+fn atmosphere_color(ray: vec3f, sun: vec3f, moon: vec3f, night: f32) -> vec3f {
+  let horizon = palette(vec3f(0.67, 0.81, 0.83), vec3f(0.84, 0.62, 0.51), vec3f(0.14, 0.22, 0.38));
+  let zenith = palette(vec3f(0.16, 0.39, 0.58), vec3f(0.20, 0.26, 0.40), vec3f(0.018, 0.035, 0.095));
+  var color = mix(horizon, zenith, pow(clamp(ray.y * 1.8 + 0.18, 0.0, 1.0), 0.7));
+  let sun_distance = length(ray - sun);
+  let warm = palette(vec3f(1.0, 0.77, 0.43), vec3f(1.0, 0.53, 0.28), vec3f(0.32, 0.46, 0.8));
+  let glow = exp(-sun_distance * 6.0) * 0.18 + exp(-sun_distance * 22.0) * 0.12;
+  color += (warm * glow) * (1.0 - night) * smoothstep(-0.02, 0.005, sun.y);
+
+  // Thin ice-cloud veil at a distant altitude: different perspective and drift.
+  let high_position = ray.xz * (18.0 / max(ray.y + 0.23, 0.07));
+  let wisps = noise3(vec3f(high_position * vec2f(0.065, 0.22), 7.0) + vec3f(atmosphere.time * 0.004, 0.0, 0.0));
+  let veil = smoothstep(0.58, 0.85, wisps) * smoothstep(0.08, 0.4, ray.y);
+  color = mix(color, palette(vec3f(0.87, 0.94, 1.0), vec3f(0.93, 0.57, 0.55), vec3f(0.24, 0.32, 0.47)), veil * 0.38 * atmosphere.weather.z);
+
+  if (night > 0.001) {
+    let moon_distance = length(ray - moon);
+    let moon_disc = 1.0 - smoothstep(0.010, 0.012, moon_distance);
+    let moon_right = normalize(cross(vec3f(0.0, 1.0, 0.0), moon));
+    let moon_up = cross(moon, moon_right);
+    let moon_uv = vec2f(dot(ray - moon, moon_right), dot(ray - moon, moon_up)) / 0.012;
+    let phase_angle = atmosphere.celestial.z * 6.283185;
+    let limb = vec2f(sin(atmosphere.celestial.w), cos(atmosphere.celestial.w));
+    let face = sqrt(max(0.0, 1.0 - dot(moon_uv, moon_uv)));
+    let illumination = smoothstep(-0.06, 0.06, dot(moon_uv, limb) * abs(sin(phase_angle)) - face * cos(phase_angle));
+    let crater = noise3((ray - moon) * 320.0 + 21.0);
+    let moon_visibility = smoothstep(-0.01, 0.02, moon.y);
+    color += vec3f(0.86, 0.91, 0.79) * moon_disc * (0.03 + illumination * 0.97) * (0.82 + crater * 0.18) * night * moon_visibility;
+    color += vec3f(0.13, 0.21, 0.34) * exp(-moon_distance * 16.0) * night * moon_visibility * (0.5 - 0.5 * cos(phase_angle));
+    color += star_field(ray) * night;
+
+  }
+  let overcast = smoothstep(0.55, 1.0, atmosphere.weather.w);
+  let gray = dot(color, vec3f(0.25, 0.55, 0.2));
+  return mix(color, vec3f(gray) * vec3f(0.86, 0.93, 1.0), overcast * 0.62);
+}
+
+fn render_clouds(eye: vec3f, ray: vec3f, light: vec3f, sky: vec3f, night: f32) -> vec4f {
+  var radiance = vec3f(0.0);
+  var transmission = 1.0;
+  let sunlight = palette(vec3f(1.06, 1.01, 0.90), vec3f(1.25, 0.64, 0.35), vec3f(0.48, 0.62, 0.76));
+  let shadow = palette(vec3f(0.27, 0.43, 0.65), vec3f(0.29, 0.22, 0.40), vec3f(0.045, 0.08, 0.17));
+  let ambient = palette(vec3f(0.52, 0.68, 0.82), vec3f(0.55, 0.34, 0.48), vec3f(0.13, 0.21, 0.34));
+  let light_visibility = smoothstep(-0.035, 0.08, light.y);
+  let alignment = max(dot(ray, light), 0.0);
+  let silver = pow(alignment, 18.0) * (1.0 - night * 0.35) * light_visibility;
+  let steps = u32(atmosphere.steps);
+
+  // Quadratic spacing resolves nearby billows; far clouds cost fewer samples.
+  // Empty space is cheap, and opaque rays terminate early.
+  for (var i = 0u; i < 64u; i++) {
+    if (i >= steps || transmission < 0.018) { break; }
+    let fraction = (f32(i) + 0.5) / atmosphere.steps;
+    let distance = 1.0 + fraction * fraction * 44.0;
+    let step_size = (2.0 * fraction * 44.0) / atmosphere.steps;
+    let position = eye + ray * distance;
+    if (position.y < -4.0 || position.y > 8.0) { continue; }
+    let density = cloud_density(position);
+    if (density < 0.012) { continue; }
+
+    let optical_depth = cloud_density(position + light * 0.45) * 0.5
+      + cloud_density(position + light * 1.25) * 0.85
+      + cloud_density(position + light * 2.8) * 1.1;
+    let direct = exp(-optical_depth * 1.7);
+    let powder = 1.0 - exp(-density * 2.4);
+    let sky_light = smoothstep(-2.0, 2.0, position.y) * 0.20;
+    var lighting = shadow * (0.5 + powder * 0.25) + ambient * (0.16 + sky_light);
+    lighting += sunlight * direct * (0.70 + silver * 0.8) * (1.0 - atmosphere.weather.w * 0.35) * light_visibility;
+    lighting += sunlight * silver * exp(-density * 2.0) * 0.18;
+    let haze = 1.0 - exp(-distance * 0.019);
+    lighting = mix(lighting, sky, haze * 0.72);
+    let alpha = 1.0 - exp(-density * step_size * 1.9);
+    radiance += lighting * alpha * transmission;
+    transmission *= 1.0 - alpha;
+  }
+  return vec4f(radiance + sky * transmission, transmission);
+}
+
+fn cloud_density(position: vec3f) -> f32 {
+  let drift = -vec3f(atmosphere.wind.x, 0.0, atmosphere.wind.y) * atmosphere.time * 0.012;
+  let p = position + drift;
+  // Three cloud decks respond to the provider’s low, middle and high coverage.
+  let lower = smoothstep(-3.8, -1.6, p.y) * (1.0 - smoothstep(-0.5, 2.0, p.y));
+  let upper = smoothstep(4.0, 5.1, p.y) * (1.0 - smoothstep(5.6, 7.5, p.y));
+  let middle = smoothstep(1.8, 3.0, p.y) * (1.0 - smoothstep(3.5, 4.6, p.y));
+  let profile = max(max(lower, upper * 0.92), middle);
+  let coverage = max(max(lower * atmosphere.weather.x, upper * atmosphere.weather.z), middle * atmosphere.weather.y);
+  if (profile < 0.01 || coverage < 0.01) { return 0.0; }
+  let q = p * vec3f(0.29, 0.40, 0.29) + vec3f(3.1, 8.4, 1.7);
+  let body = noise3(q) * 0.57 + noise3(q * 2.03 + 13.7) * 0.28 + noise3(q * 4.11 + 7.3) * 0.15;
+  let erosion = noise3(q * 8.2) * 0.07;
+  let threshold = mix(0.66, 0.18, pow(coverage, 0.65));
+  return max((body * profile - threshold - erosion) * 3.8, 0.0);
+}
+
+fn star_field(ray: vec3f) -> vec3f {
+  let latitude = atmosphere.celestial.y;
+  let declination = asin(clamp(ray.z * cos(latitude) + ray.y * sin(latitude), -1.0, 1.0));
+  let hour_angle = atan2(-ray.x, ray.y * cos(latitude) - ray.z * sin(latitude));
+  let ra = atmosphere.celestial.x - hour_angle;
+  let coordinates = vec2f(fract(ra / 6.283185), 0.5 - declination / 3.141593);
+  let stars = textureSampleLevel(starAtlas, cloudSampler, coordinates, 0.0).rgb;
+  let shimmer = 0.90 + 0.10 * sin(atmosphere.time * 0.6 + ra * 110.0);
+  return stars * shimmer * smoothstep(0.0, 0.10, ray.y);
+}
 
 fn palette(day: vec3f, dusk: vec3f, night: vec3f) -> vec3f {
   if (atmosphere.scene < 1.0) {
@@ -17,158 +133,9 @@ fn palette(day: vec3f, dusk: vec3f, night: vec3f) -> vec3f {
   return mix(dusk, night, smoothstep(1.0, 2.0, atmosphere.scene));
 }
 
-fn cloud_field(position: vec2f, offset: vec2f, speed: f32) -> f32 {
-  let drift = position + offset + vec2f(atmosphere.time * speed, 0.0);
-  let warp_amount = fbmPerlin2d(drift * 0.82, 2, 2.07, 0.5);
-  let warp = vec2f(warp_amount, -warp_amount) * 0.38;
-  let body = fbmPerlin2d(drift * 1.18 + warp, 3, 2.13, 0.5);
-  let detail = perlin2d(drift * 5.2 + warp);
-  return body * 0.88 + detail * 0.12;
-}
-
-fn cloud_wisp(position: vec2f, offset: vec2f, speed: f32) -> f32 {
-  let drift = position + offset + vec2f(atmosphere.time * speed, 0.0);
-  return fbmPerlin2d(drift, 2, 2.11, 0.5);
-}
-
-fn stars(sky_uv: vec2f) -> f32 {
-  let star_grid = sky_uv * vec2f(178.0, 106.0);
-  let star_id = floor(star_grid);
-  let star_cell = fract(star_grid) - 0.5;
-  let random = hash2(star_id);
-  let core = select(
-    0.0,
-    1.0 - smoothstep(0.012, 0.11, length(star_cell)),
-    random.x > 0.987,
-  );
-  let twinkle = 0.58 + 0.42 * sin(
-    atmosphere.time * (0.8 + random.y * 2.7) + random.x * 24.0
-  );
-  return core * twinkle * smoothstep(0.25, 0.92, sky_uv.y);
-}
-
-fn aurora(p: vec2f, sky_uv: vec2f) -> f32 {
-  let distortion = fbmPerlin2d(
-    vec2f(p.x * 0.72 + atmosphere.time * 0.018, p.y * 1.8),
-    3,
-    2.08,
-    0.5,
-  );
-  let center = 0.43
-    + sin(p.x * 1.45 + atmosphere.time * 0.14) * 0.08
-    + distortion * 0.16;
-  let ribbon = exp(-pow(abs(p.y - center) * 4.8, 2.0));
-  return ribbon * smoothstep(0.38, 0.9, sky_uv.y);
-}
-
-@fragment
-fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
-  let sky_uv = vec2f(uv.x, 1.0 - uv.y);
-  let aspect = atmosphere.resolution.x / atmosphere.resolution.y;
-  let p = (sky_uv * 2.0 - 1.0) * vec2f(aspect, 1.0);
-  let ambient_drift = vec2f(
-    sin(atmosphere.time * 0.08) * 0.016,
-    cos(atmosphere.time * 0.06) * 0.01,
-  );
-  let parallax = (atmosphere.pointer - 0.5) * vec2f(0.17, 0.085) + ambient_drift;
-  let night_amount = smoothstep(0.96, 2.0, atmosphere.scene);
-
-  let horizon = palette(
-    vec3f(0.72, 0.94, 1.0),
-    vec3f(1.0, 0.58, 0.42),
-    vec3f(0.25, 0.36, 0.65),
-  );
-  let zenith = palette(
-    vec3f(0.035, 0.46, 0.88),
-    vec3f(0.22, 0.11, 0.52),
-    vec3f(0.018, 0.035, 0.13),
-  );
-  var color = mix(horizon, zenith, smoothstep(0.02, 1.0, sky_uv.y));
-
-  let sun_position = mix(
-    vec2f(aspect * 0.35, 0.22),
-    vec2f(aspect * 0.38, -0.18),
-    smoothstep(0.0, 1.0, atmosphere.scene),
-  );
-  let sun_distance = length(p - sun_position - parallax * 0.5);
-  let sun_glow = 0.026 / (sun_distance * sun_distance + 0.025);
-  let sun_disc = 1.0 - smoothstep(0.045, 0.075, sun_distance);
-  let sun_color = palette(
-    vec3f(1.0, 0.82, 0.34),
-    vec3f(1.0, 0.43, 0.18),
-    vec3f(0.0),
-  );
-  color = color + sun_color
-    * (sun_glow * 0.23 + sun_disc * 0.9)
-    * (1.0 - night_amount);
-  let sun_halo = exp(-sun_distance * 4.0) * (1.0 - night_amount);
-  let prism_halo = exp(-pow((sun_distance - 0.22) * 13.0, 2.0))
-    * (1.0 - night_amount);
-  color = color
-    + palette(
-      vec3f(0.3, 0.15, 0.025),
-      vec3f(0.38, 0.08, 0.18),
-      vec3f(0.0),
-    ) * sun_halo * 0.12
-    + vec3f(0.24, 0.07, 0.2) * prism_halo * 0.055;
-
-  let moon_position = vec2f(aspect * 0.35, 0.32) + parallax * 0.5;
-  let moon_distance = length(p - moon_position);
-  let moon_disc = 1.0 - smoothstep(0.045, 0.064, moon_distance);
-  let moon_shade = smoothstep(
-    -0.18,
-    0.55,
-    perlin2d((p - moon_position) * 42.0),
-  );
-  color = color
-    + vec3f(0.68, 0.82, 1.0) * moon_disc * (0.68 + moon_shade * 0.29) * night_amount
-    + vec3f(0.18, 0.38, 0.76)
-      * (0.012 / (moon_distance * moon_distance + 0.018))
-      * night_amount;
-
-  let aurora_amount = aurora(p, sky_uv);
-  let aurora_mix = 0.5 + 0.5 * sin(p.x * 1.4 + atmosphere.time * 0.07);
-  let aurora_color = mix(
-    vec3f(0.08, 0.9, 0.72),
-    vec3f(0.65, 0.3, 1.0),
-    aurora_mix,
-  );
-  color = color
-    + vec3f(0.82, 0.9, 1.0) * stars(sky_uv) * night_amount
-    + aurora_color * aurora_amount * night_amount * 0.32;
-
-  let cloud_position = vec2f(p.x * 0.62, p.y * 1.16) + parallax;
-  let cloud_main = cloud_field(cloud_position, vec2f(2.1, 4.7), 0.022);
-  let cloud_far = cloud_wisp(
-    vec2f(p.x * 0.44, p.y * 1.58) - parallax * 0.55,
-    vec2f(12.4, -3.1),
-    -0.01,
-  );
-  let cloud_band = smoothstep(0.03, 0.22, sky_uv.y)
-    * (1.0 - smoothstep(0.8, 1.04, sky_uv.y));
-  let cloud_shadow = smoothstep(-0.18, 0.29, cloud_main) * cloud_band;
-  let cloud_light = smoothstep(0.08, 0.56, cloud_main) * cloud_band;
-  let cloud_wisps = smoothstep(0.18, 0.54, cloud_far)
-    * smoothstep(0.45, 0.74, sky_uv.y)
-    * (1.0 - smoothstep(0.88, 1.0, sky_uv.y));
-  let shadow_color = palette(
-    vec3f(0.38, 0.65, 0.82),
-    vec3f(0.55, 0.32, 0.56),
-    vec3f(0.1, 0.17, 0.35),
-  );
-  let light_color = palette(
-    vec3f(1.0, 0.99, 0.97),
-    vec3f(1.0, 0.73, 0.65),
-    vec3f(0.45, 0.55, 0.82),
-  );
-  color = mix(color, shadow_color, cloud_shadow * 0.36);
-  color = mix(color, light_color, cloud_light * 0.76);
-  color = mix(color, light_color, cloud_wisps * 0.2);
-
-  let vignette = 1.0 - dot(sky_uv - 0.5, sky_uv - 0.5) * 0.34;
-  let pixel = floor(sky_uv * atmosphere.resolution);
-  let grain = (hash2(pixel).x - 0.5) / 255.0;
-  color = clamp(color * vignette + grain, vec3f(0.0), vec3f(1.0));
-
-  return vec4f(color, 1.0);
+fn noise3(p: vec3f) -> f32 {
+  let cell = floor(p);
+  let f = fract(p);
+  let blend = f * f * (3.0 - 2.0 * f);
+  return textureSampleLevel(cloudNoise, cloudSampler, (cell + blend + 0.5) / 64.0, 0.0).r;
 }

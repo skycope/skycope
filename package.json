@@ -6,10 +6,14 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "check:shader": "vgpu check --require-validation src/shaders/sky.wgsl",
-    "test": "npm run check:shader && npm run build"
+    "check:shader": "vgpu check --require-validation src/shaders/sky.wgsl src/shaders/water.wgsl",
+    "test": "npm run test:data && npm run check:shader && npm run build",
+    "test:data": "node --test",
+    "render:sky": "node scripts/render-sky.mjs"
   },
   "dependencies": {
+    "suncalc": "^2.0.2",
+    "three": "^0.185.1",
     "vgpu": "^0.3.1"
   },
   "devDependencies": {
