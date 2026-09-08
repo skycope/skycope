@@ -56,23 +56,41 @@ export function createLandscape(canvas, seed) {
 
   const sunWorld = new THREE.Vector3(0, 1, 0);
   const sunView = new THREE.Vector3();
+  const lookDirection = new THREE.Vector3();
+  const lookRight = new THREE.Vector3();
+  const lookUp = new THREE.Vector3();
+  const lookTarget = new THREE.Vector3();
 
   return {
-    render(celestial, pointer, cover, time, wind) {
+    render(celestial, pointer, cover, time, wind, flight) {
       forest.updateWind(time, wind);
-      const key = `${celestial.sunAltitude.toFixed(1)}:${celestial.scene.toFixed(2)}:${cover.toFixed(2)}`;
+      const sinA = Math.sin(flight.azimuth);
+      const cosA = Math.cos(flight.azimuth);
+      const hx = (sinA + cosA) * Math.SQRT1_2;
+      const hz = (cosA - sinA) * Math.SQRT1_2;
+      // The shadow frustum follows the camera in coarse steps, so flying only
+      // occasionally re-renders the map rather than every frame.
+      const anchorX = Math.round((flight.x + hx * 28) / 24) * 24;
+      const anchorZ = Math.round((flight.z + hz * 28) / 24) * 24;
+      const key = `${celestial.sunAltitude.toFixed(1)}:${celestial.scene.toFixed(2)}:${cover.toFixed(2)}:${anchorX}:${anchorZ}`;
       if (key !== previousLighting) {
         previousLighting = key;
+        sun.target.position.set(anchorX, 0, -anchorZ);
         updateLighting(celestial, cover);
         renderer.shadowMap.needsUpdate = true;
       }
-      const leanX = (pointer[0] - 0.5) * 0.014;
-      const leanY = (pointer[1] - 0.5) * 0.009;
-      camera.lookAt(
-        6 + leanX,
-        4.5 + 0.104528 * 0.9 + 0.994522 * leanY,
-        -0.994522 * 0.9 + 0.104528 * leanY,
-      );
+      // The Three scene mirrors coast z (the land group is z-flipped).
+      camera.position.set(flight.x, flight.y, -flight.z);
+      const cp = Math.cos(flight.pitch);
+      lookDirection.set(hx * cp, Math.sin(flight.pitch), -hz * cp);
+      lookRight.set(hz, 0, hx);
+      lookUp.crossVectors(lookRight, lookDirection);
+      lookTarget
+        .copy(camera.position)
+        .add(lookDirection)
+        .addScaledVector(lookRight, (pointer[0] - 0.5) * 0.014)
+        .addScaledVector(lookUp, (pointer[1] - 0.5) * 0.009);
+      camera.lookAt(lookTarget);
       camera.updateMatrixWorld();
       // Leaf translucency and glints follow the light in view space. Overcast
       // and low light retract them so night foliage never glows.

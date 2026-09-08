@@ -24,6 +24,22 @@ import {
   WEATHER_REFRESH_MS,
   WEATHER_MAX_AGE_MS,
 } from "./weather.js";
+import { terrainHeight, shoreline } from "./terrain.js";
+
+// Free flight around the coast. The default matches the original fixed view:
+// (6, 4.5, 0) coast metres, heading 315°, pitched 6° above the horizon.
+const HOME = {
+  x: 6,
+  y: 4.5,
+  z: 0,
+  azimuth: (315 * Math.PI) / 180,
+  pitch: 0.10472,
+  throttle: 0,
+};
+const FLIGHT_KEYS = new Set([
+  "w", "a", "s", "d", "q", "e", " ", "shift",
+  "arrowup", "arrowdown", "arrowleft", "arrowright",
+]);
 
 const canvas = document.querySelector("#sky");
 const slider = document.querySelector("#time");
@@ -39,6 +55,9 @@ const state = {
   celestial: null,
   pointer: [0.5, 0.5],
   targetPointer: [0.5, 0.5],
+  flight: { ...HOME },
+  keys: new Set(),
+  dragging: false,
   weather: null,
   weatherRequest: null,
   weatherTimer: null,
@@ -95,7 +114,16 @@ function connectControls() {
   window.addEventListener(
     "pointermove",
     (event) => {
-      if (event.pointerType === "touch" || motionPreference.matches) return;
+      if (motionPreference.matches) return;
+      if (state.dragging) {
+        state.flight.azimuth -= event.movementX * 0.0032;
+        state.flight.pitch = Math.min(
+          1.15,
+          Math.max(-0.65, state.flight.pitch + event.movementY * 0.0032),
+        );
+        return;
+      }
+      if (event.pointerType === "touch") return;
       state.targetPointer = [
         event.clientX / window.innerWidth,
         1 - event.clientY / window.innerHeight,
@@ -103,6 +131,43 @@ function connectControls() {
     },
     { ...options, passive: true },
   );
+  window.addEventListener(
+    "pointerdown",
+    (event) => {
+      // Dragging the scene looks around; the floating controls keep working.
+      if (motionPreference.matches) return;
+      if (event.target.closest("button, input, a")) return;
+      state.dragging = true;
+    },
+    options,
+  );
+  for (const end of ["pointerup", "pointercancel"])
+    window.addEventListener(end, () => (state.dragging = false), options);
+  window.addEventListener(
+    "keydown",
+    (event) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const key = event.key.toLowerCase();
+      if (key === "h" && event.target === document.body) {
+        Object.assign(state.flight, HOME);
+        renderStill();
+        return;
+      }
+      if (!FLIGHT_KEYS.has(key) || motionPreference.matches) return;
+      if (event.target !== document.body && key.startsWith("arrow")) return;
+      if (event.target !== document.body && event.target.tagName !== "CANVAS")
+        return;
+      state.keys.add(key);
+      event.preventDefault();
+    },
+    options,
+  );
+  window.addEventListener(
+    "keyup",
+    (event) => state.keys.delete(event.key.toLowerCase()),
+    options,
+  );
+  window.addEventListener("blur", () => state.keys.clear(), options);
   document.documentElement.addEventListener(
     "pointerleave",
     () => {
@@ -258,6 +323,7 @@ async function startAtmosphere() {
       state.pointer = state.pointer.map(
         (value, i) => value + (state.targetPointer[i] - value) * easing,
       );
+      updateFlight(dt);
       adaptQuality(gpuClock.deltaTime);
     }
     const uniforms = createUniforms();
@@ -271,6 +337,7 @@ async function startAtmosphere() {
       state.weather?.cover ?? 0,
       state.time,
       state.weather?.wind ?? [0, 0],
+      state.flight,
     );
   };
   document.body.dataset.renderer = "webgpu";
@@ -325,7 +392,48 @@ function createUniforms() {
     ],
     wind: weather?.wind ?? [0, 0],
     rain: weather?.rain ?? 0,
+    flight: [
+      state.flight.x,
+      state.flight.y,
+      state.flight.z,
+      state.flight.azimuth,
+    ],
+    pitch: state.flight.pitch,
   };
+}
+
+// Fly where the camera looks. The bounds keep the illusion intact: above the
+// terrain, inside the modelled stretch of coast, below the cloud deck.
+function updateFlight(dt) {
+  const keys = state.keys;
+  const flight = state.flight;
+  const held = (...names) => names.some((name) => keys.has(name));
+  // Flight-sim controls: throttle and turn. W/S sets the throttle, the craft
+  // keeps gliding; arrows steer (left/right turn, up/down pitch).
+  const turn = (held("arrowright", "d") ? 1 : 0) - (held("arrowleft", "a") ? 1 : 0);
+  const tilt = (held("arrowup") ? 1 : 0) - (held("arrowdown") ? 1 : 0);
+  const throttle = (held("w", "e", " ") ? 1 : 0) - (held("s", "q", "shift") ? 1 : 0);
+  flight.azimuth += turn * dt * 1.4;
+  flight.pitch = Math.min(1.15, Math.max(-0.65, flight.pitch + tilt * dt * 0.8));
+  flight.throttle = Math.min(
+    1,
+    Math.max(0, (flight.throttle ?? 0) + throttle * dt * 0.8),
+  );
+  if (!flight.throttle) return;
+  const speed = flight.throttle * 16 * dt;
+  const sin = Math.sin(flight.azimuth);
+  const cos = Math.cos(flight.azimuth);
+  const hx = (sin + cos) * Math.SQRT1_2;
+  const hz = (cos - sin) * Math.SQRT1_2;
+  const cp = Math.cos(flight.pitch);
+  flight.x += hx * cp * speed;
+  flight.z += hz * cp * speed;
+  flight.y += Math.sin(flight.pitch) * speed;
+  flight.x = Math.min(92, Math.max(-90, flight.x));
+  flight.z = Math.min(216, Math.max(-14, flight.z));
+  const overLand = flight.x > shoreline(flight.z) - 6;
+  const floor = overLand ? terrainHeight(flight.x, flight.z) + 1.5 : 1.3;
+  flight.y = Math.min(70, Math.max(floor, flight.y));
 }
 
 function adaptQuality(deltaTime) {

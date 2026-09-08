@@ -8,8 +8,14 @@ import { Atmosphere, view_ray } from "./view.wgsl";
 @fragment
 fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   let lean = (atmosphere.pointer - 0.5) * vec2f(0.014, 0.009);
-  let eye = vec3f(lean.x * 1.6, 1.6, lean.y);
-  let ray = view_ray(uv, atmosphere.resolution, atmosphere.pointer);
+  // Flight shifts the cloud volume gently: the miniature cloud space maps tens
+  // of metres of travel to fractions of its 44-unit ray range.
+  let eye = vec3f(
+    lean.x * 1.6 + atmosphere.flight.x * 0.012,
+    max(0.4, 1.6 + (atmosphere.flight.y - 4.5) * 0.02),
+    lean.y - atmosphere.flight.z * 0.012,
+  );
+  let ray = view_ray(uv, atmosphere.resolution, atmosphere.pointer, atmosphere.flight.w, atmosphere.pitch);
   let night = smoothstep(1.0, 2.0, atmosphere.scene);
   let sun = atmosphere.sun;
   let moon = atmosphere.moon;

@@ -8,13 +8,14 @@ import { ocean_view, OceanSettings } from "./ocean.wgsl";
 
 @fragment
 fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
-  let ray = view_ray(uv, atmosphere.resolution, atmosphere.pointer);
+  let ray = view_ray(uv, atmosphere.resolution, atmosphere.pointer, atmosphere.flight.w, atmosphere.pitch);
   let night = smoothstep(1.0, 2.0, atmosphere.scene);
   let light = normalize(mix(atmosphere.sun, atmosphere.moon, night));
   let sky_sample = textureSampleLevel(skyTexture, filtering, uv, 0.0);
   let sky = sky_sample.rgb;
   let settings = OceanSettings(atmosphere.time, atmosphere.scene, atmosphere.wind,
-    atmosphere.weather.w, atmosphere.resolution, atmosphere.seed);
+    atmosphere.weather.w, atmosphere.resolution, atmosphere.seed,
+    atmosphere.flight.xyz, atmosphere.flight.w, atmosphere.pitch);
   var color = ocean_view(ray, light, sky, settings, cloudNoise, filtering, skyTexture);
   // The direct disc is composited through cloud transmission. Water uses its
   // integrated BRDF instead of reflecting a low-resolution disc a second time.

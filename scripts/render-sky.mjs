@@ -96,6 +96,8 @@ for (const [name, time, weather, rain] of [
     weather,
     wind: [2, 1],
     rain,
+    flight: [6, 4.5, 0, (315 * Math.PI) / 180],
+    pitch: 0.10472,
   };
   shader.set({ atmosphere: { ...atmosphere, resolution: skyTarget.size } });
   water.set({ atmosphere });

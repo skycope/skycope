@@ -6,7 +6,19 @@ export struct OceanSettings {
   overcast: f32,
   resolution: vec2f,
   seed: f32,
+  eye: vec3f,
+  azimuth: f32,
+  pitch: f32,
 };
+
+// Camera basis in coast-local coordinates (x offshore-to-inland, z along the
+// shore): the world heading rotated 45°, used for footprint filtering and the
+// screen-space sky-texture lookups.
+fn coast_forward(azimuth: f32, pitch: f32) -> vec3f {
+  let hx = (sin(azimuth) + cos(azimuth)) * 0.707107;
+  let hz = (cos(azimuth) - sin(azimuth)) * 0.707107;
+  return vec3f(hx * cos(pitch), sin(pitch), hz * cos(pitch));
+}
 
 export fn ocean_view(
   ray: vec3f, sunlight: vec3f, sky: vec3f,
@@ -17,15 +29,19 @@ export fn ocean_view(
   let direction = vec3f(dot(ray, right), ray.y, dot(ray, forward));
   if (direction.z <= 0.0 || direction.y >= -0.0001) { return sky; }
   let light = vec3f(dot(sunlight, right), sunlight.y, dot(sunlight, forward));
-  let eye = vec3f(6.0, 4.5, 0.0);
+  let eye = settings.eye;
+  if (eye.y <= 0.2) { return sky; }
   var distance = -eye.y / direction.y;
   // Only broad swells displace the intersection. Fine waves shade its normal;
   // tracing them with Newton steps produces discontinuous roots and dotted bands.
   // A ray covers more sea at grazing angles. Filter before sampling, not afterwards:
   // averaging already-aliased normals cannot remove distant stripes or sparkles.
-  let pixel_angle = dot(direction, vec3f(0.0, 0.104528, 0.994522)) / (settings.resolution.y * 0.9);
-  let horizontal = vec2f(distance * pixel_angle, 0.0);
-  let vertical = (vec2f(0.0, -0.104528) - direction.xz * 0.994522 / direction.y) * distance * pixel_angle;
+  let forward_c = coast_forward(settings.azimuth, settings.pitch);
+  let right_c = normalize(vec3f(forward_c.z, 0.0, -forward_c.x));
+  let up_c = cross(forward_c, right_c);
+  let pixel_angle = max(dot(direction, forward_c), 0.05) / (settings.resolution.y * 0.9);
+  let horizontal = right_c.xz * distance * pixel_angle;
+  let vertical = (up_c.xz - direction.xz * up_c.y / direction.y) * distance * pixel_angle;
   let footprint = mat2x2f(horizontal, vertical);
   let displacement = smoothstep(0.10, 0.28, -direction.y);
   for (var i = 0; i < 3; i++) {
@@ -65,19 +81,22 @@ fn ocean(
   // Off-screen reflections fall back to the sky sampled at the horizon along
   // this ray's azimuth, not a flat palette: water warms toward the sun and
   // cools away from it, so the sunset gradient carries across the whole sea.
+  let forward_c = coast_forward(settings.azimuth, settings.pitch);
+  let right_c = normalize(vec3f(forward_c.z, 0.0, -forward_c.x));
+  let up_c = cross(forward_c, right_c);
   let horizon_dir = normalize(vec3f(ray.x, 0.05, ray.z));
-  let horizon_depth = max(dot(horizon_dir, vec3f(0.0, 0.104528, 0.994522)), 0.2);
+  let horizon_depth = max(dot(horizon_dir, forward_c), 0.2);
   let horizon_uv = clamp(vec2f(
-    0.5 + horizon_dir.x * 0.9 / horizon_depth * settings.resolution.y / settings.resolution.x,
-    0.5 - dot(horizon_dir, vec3f(0.0, 0.994522, -0.104528)) * 0.9 / horizon_depth,
+    0.5 + dot(horizon_dir, right_c) * 0.9 / horizon_depth * settings.resolution.y / settings.resolution.x,
+    0.5 - dot(horizon_dir, up_c) * 0.9 / horizon_depth,
   ), vec2f(0.001), vec2f(0.999));
   let horizon_sky = textureSampleLevel(sky_texture, filtering, horizon_uv, 0.0).rgb;
   let zenith = coast_palette(vec3f(0.19, 0.38, 0.52), vec3f(0.30, 0.22, 0.26), vec3f(0.020, 0.04, 0.08), settings.scene)
     * (0.35 + dot(horizon_sky, vec3f(0.333)) * 1.3);
   var reflection = mix(horizon_sky, zenith, smoothstep(0.0, 0.65, reflected.y) * 0.85);
-  let reflected_depth = dot(reflected, vec3f(0.0, 0.104528, 0.994522));
-  let reflected_uv = vec2f(0.5 + reflected.x * 0.9 / max(reflected_depth, 0.01) * settings.resolution.y / settings.resolution.x,
-    0.5 - dot(reflected, vec3f(0.0, 0.994522, -0.104528)) * 0.9 / max(reflected_depth, 0.01));
+  let reflected_depth = dot(reflected, forward_c);
+  let reflected_uv = vec2f(0.5 + dot(reflected, right_c) * 0.9 / max(reflected_depth, 0.01) * settings.resolution.y / settings.resolution.x,
+    0.5 - dot(reflected, up_c) * 0.9 / max(reflected_depth, 0.01));
   if (reflected_depth > 0.0 && all(reflected_uv > vec2f(0.0)) && all(reflected_uv < vec2f(1.0))) {
     // Integrate a small reflection cone: sampling the sun disc at a single point
     // creates pinprick aliases even when the wave normals themselves are filtered.
