@@ -60,3 +60,29 @@ export function smoothstep(a, b, x) {
   const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
 }
+
+// The ground mesh (forest.js) samples terrainHeight on this grid. Anything
+// that stands on the ground (the cat, its paw prints) uses groundHeight: the
+// mesh's own piecewise-linear surface, so feet neither float nor sink.
+export const GROUND = { size: 190, segments: 380 };
+
+export function groundHeight(x, z) {
+  const cell = GROUND.size / GROUND.segments;
+  const u = (x - ISLAND.x + GROUND.size / 2) / cell;
+  const v = (z - ISLAND.z + GROUND.size / 2) / cell;
+  const i = Math.floor(u);
+  const j = Math.floor(v);
+  const fu = u - i;
+  const fv = v - j;
+  const x0 = ISLAND.x - GROUND.size / 2 + i * cell;
+  const z0 = ISLAND.z - GROUND.size / 2 + j * cell;
+  // PlaneGeometry splits each cell along the (0,1)-(1,0) diagonal.
+  const h01 = terrainHeight(x0, z0 + cell);
+  const h10 = terrainHeight(x0 + cell, z0);
+  if (fu + fv <= 1) {
+    const h00 = terrainHeight(x0, z0);
+    return h00 + fu * (h10 - h00) + fv * (h01 - h00);
+  }
+  const h11 = terrainHeight(x0 + cell, z0 + cell);
+  return h11 + (1 - fu) * (h01 - h11) + (1 - fv) * (h10 - h11);
+}

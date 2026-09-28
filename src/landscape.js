@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import { createForest } from "./forest.js";
 import { createFauna } from "./fauna.js";
+import { createCat } from "./cat.js";
+import { createCritters } from "./critters.js";
 import { horizonRadiance, skyIrradianceRatio } from "./sunlight.js";
 
 // The mesh layer tonemaps with the same ACES fit as the WebGPU water pass, so
@@ -16,12 +18,16 @@ THREE.ShaderChunk.tonemapping_pars_fragment =
 
 // Geometry shares the sky shader's 315° heading, 6° pitch, and projection.
 // WebGL handles mesh depth/shadows; WebGPU handles the sky and water behind it.
-export function createLandscape(canvas, seed) {
+// `light` budgets (phones): no MSAA, a smaller shadow map.
+export function createLandscape(canvas, seed, { light = false } = {}) {
   const renderer = new THREE.WebGLRenderer({
     canvas,
     alpha: true,
-    antialias: true,
-    powerPreference: "high-performance",
+    antialias: !light,
+    // The cat's see-through silhouette uses the stencil buffer (cat.js).
+    stencil: true,
+    // Same GPU as the WebGPU passes (see main.js), and the quiet one.
+    powerPreference: "low-power",
   });
   renderer.setClearColor(0x000000, 0);
   renderer.setPixelRatio(1);
@@ -37,27 +43,32 @@ export function createLandscape(canvas, seed) {
   const camera = new THREE.PerspectiveCamera(
     (2 * Math.atan(0.5 / 0.9) * 180) / Math.PI,
     1,
-    0.2,
-    280,
+    0.05,
+    230,
   );
   camera.position.set(6, 4.5, 0);
   const land = new THREE.Group();
   land.scale.z = -1;
   const forest = createForest(land, seed);
   const fauna = createFauna(land, seed);
+  const cat = createCat(land);
+  const critters = createCritters(land, seed, forest.obstacles.flowers);
   scene.add(land);
 
   const ambient = new THREE.HemisphereLight(0xc3e0eb, 0x28381d, 1.3);
   const sun = new THREE.DirectionalLight(0xffe9c2, 2.5);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  // The camera stays near the cat, so the shadow map only has to cover the
+  // ground around it: a 64 m square (3 cm texels at 2048²), re-rendered when
+  // the cat has walked 10 m, rather than 90 m around a free-flying camera.
+  sun.shadow.mapSize.setScalar(light ? 1024 : 2048);
   Object.assign(sun.shadow.camera, {
-    left: -45,
-    right: 45,
-    top: 45,
-    bottom: -45,
+    left: -32,
+    right: 32,
+    top: 32,
+    bottom: -32,
     near: 1,
-    far: 180,
+    far: 160,
   });
   sun.shadow.normalBias = 0.02;
   sun.shadow.bias = -0.0003;
@@ -65,6 +76,8 @@ export function createLandscape(canvas, seed) {
   scene.add(ambient, sun, sun.target);
   let previousLighting = "";
   let skyRatio = [1, 1, 1];
+  const prints = cat.prints;
+  let interest = null;
   const perf = new URLSearchParams(window.location.search).has("perf");
   let perfFrame = 0;
 
@@ -75,21 +88,36 @@ export function createLandscape(canvas, seed) {
   const lookRight = new THREE.Vector3();
   const lookUp = new THREE.Vector3();
   const lookTarget = new THREE.Vector3();
+  const raycaster = new THREE.Raycaster();
+  const ndc = new THREE.Vector2();
 
   return {
     // `?perf` QA: lets the console toggle scene parts to attribute cost.
     scene,
-    render(celestial, pointer, cover, time, wind, flight, lighting) {
+    obstacles: forest.obstacles,
+    // A screen point (−1…1) to a ray in coast metres, for tap-to-walk.
+    pick(x, y) {
+      ndc.set(x, y);
+      raycaster.setFromCamera(ndc, camera);
+      const { origin, direction } = raycaster.ray;
+      return {
+        origin: [origin.x, origin.y, -origin.z],
+        direction: [direction.x, direction.y, -direction.z],
+      };
+    },
+    render({ celestial, cover, time, wind, view: flight, lighting, pose, dt, surface, onStep }) {
+      const pointer = [0.5, 0.5];
+      const night = THREE.MathUtils.smoothstep(celestial.scene, 1, 2);
       forest.updateWind(time, wind);
-      fauna.update(time, wind, THREE.MathUtils.smoothstep(celestial.scene, 1, 2));
+      fauna.update(time, wind, night);
       const sinA = Math.sin(flight.azimuth);
       const cosA = Math.cos(flight.azimuth);
       const hx = (sinA + cosA) * Math.SQRT1_2;
       const hz = (cosA - sinA) * Math.SQRT1_2;
       // The shadow frustum follows the camera in coarse steps, so flying only
       // occasionally re-renders the map rather than every frame.
-      const anchorX = Math.round((flight.x + hx * 28) / 24) * 24;
-      const anchorZ = Math.round((flight.z + hz * 28) / 24) * 24;
+      const anchorX = Math.round((pose.x + hx * 8) / 10) * 10;
+      const anchorZ = Math.round((pose.z + hz * 8) / 10) * 10;
       const key = `${celestial.sunAltitude.toFixed(1)}:${celestial.scene.toFixed(2)}:${cover.toFixed(2)}:${anchorX}:${anchorZ}`;
       if (key !== previousLighting) {
         previousLighting = key;
@@ -114,7 +142,6 @@ export function createLandscape(canvas, seed) {
       camera.updateMatrixWorld();
       // Leaf translucency and glints follow the light in view space. Overcast
       // and low light retract them so night foliage never glows.
-      const night = THREE.MathUtils.smoothstep(celestial.scene, 1, 2);
       sunView.copy(sunWorld).transformDirection(camera.matrixWorldInverse);
       forest.updateSun(
         sunView,
@@ -124,6 +151,14 @@ export function createLandscape(canvas, seed) {
           (1 - night * 0.9) *
           Math.min(1, sun.intensity / 2),
       );
+      prints.update(time);
+      cat.update(pose, dt, time, surface, onStep, {
+        night,
+        direct: THREE.MathUtils.smoothstep(sunWorld.y, 0, 0.3) * (1 - cover * 0.9),
+        sunX: sunWorld.x,
+        sunZ: -sunWorld.z,
+      });
+      interest = critters.update(dt, time, pose, night);
       renderer.render(scene, camera);
       if (perf && ++perfFrame % 90 === 0) {
         // `?perf` QA: readPixels forces the GPU to drain, so timing a burst of
@@ -143,12 +178,21 @@ export function createLandscape(canvas, seed) {
         canvas.dataset.drawCalls = String(renderer.info.render.calls);
       }
     },
+    get interest() {
+      return interest;
+    },
+    addPrint(...args) {
+      prints.add(...args);
+    },
     resize(width, height, quality = 1) {
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
+      // The mesh layer is MSAA'd, so it needs fewer pixels than the sea:
+      // 1.6 MP (0.8 MP on phones), scaled down further by adaptive quality.
+      const budget = light ? 800000 : 1600000;
       const scale =
-        Math.min(2, Math.sqrt(2500000 / (width * height))) *
-        Math.max(0.8, quality);
+        Math.min(window.devicePixelRatio || 1, 1.5, Math.sqrt(budget / (width * height))) *
+        Math.max(0.6, quality);
       renderer.setSize(
         Math.round(width * scale),
         Math.round(height * scale),

@@ -122,16 +122,60 @@
         visibility: hidden;
         transition: visibility 1s;
       }
+      html,
+      body {
+        overscroll-behavior: none;
+      }
+      body {
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+      }
       .sky-meta {
         position: fixed;
         z-index: 2;
-        inset: 2rem 2.2rem auto;
-        display: flex;
+        inset: 1.6rem 2rem auto;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        grid-template-areas: "place name meta";
         align-items: start;
-        justify-content: space-between;
         gap: 1rem;
         font-size: 0.65rem;
         line-height: 1.9;
+      }
+      .sky-meta > .place-wrap {
+        grid-area: place;
+      }
+      .sky-meta > h1 {
+        grid-area: name;
+      }
+      .sky-meta > .conditions {
+        grid-area: meta;
+        justify-self: end;
+        display: flex;
+        gap: 0.9rem;
+        align-items: start;
+      }
+      .panel-anchor {
+        position: relative;
+      }
+      .toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.2rem 0 0.2rem 0.4rem;
+        border: 0;
+        background: none;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+      }
+      .toggle:hover > span:first-child {
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+      .toggle[aria-expanded="true"] .chevron {
+        transform: translateY(1px) rotate(225deg);
       }
       .place {
         display: flex;
@@ -149,21 +193,6 @@
       .conditions {
         position: relative;
       }
-      #weather-toggle {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.2rem 0 0.2rem 0.4rem;
-        border: 0;
-        background: none;
-        color: inherit;
-        font: inherit;
-        cursor: pointer;
-      }
-      #weather-toggle:hover #conditions {
-        text-decoration: underline;
-        text-underline-offset: 3px;
-      }
       .chevron {
         width: 5px;
         height: 5px;
@@ -173,10 +202,8 @@
         opacity: 0.7;
         transition: transform 0.2s ease;
       }
-      #weather-toggle[aria-expanded="true"] .chevron {
-        transform: translateY(1px) rotate(225deg);
-      }
-      .weather-panel {
+      .weather-panel,
+      .time-panel {
         position: absolute;
         right: 0;
         top: calc(100% + 0.6rem);
@@ -193,7 +220,8 @@
         text-align: left;
         line-height: 1.4;
       }
-      .weather-panel[hidden] {
+      .weather-panel[hidden],
+      .time-panel[hidden] {
         display: none;
       }
       .presets {
@@ -254,63 +282,19 @@
         font-size: 0.48rem;
         opacity: 0.6;
       }
-      main {
-        position: absolute;
-        z-index: 1;
-        left: 50%;
-        top: 45%;
-        transform: translate(-50%, -50%);
-        text-align: center;
-        width: max-content;
-        max-width: 100%;
-        padding: 2rem;
-      }
-      main::before {
-        content: "";
-        position: absolute;
-        z-index: -1;
-        inset: -2rem;
-        background: radial-gradient(
-          ellipse,
-          rgba(225, 237, 237, 0.28),
-          transparent 68%
-        );
-        pointer-events: none;
-      }
-      body[data-scene="2"] main::before {
-        background: radial-gradient(
-          ellipse,
-          rgba(13, 29, 43, 0.5),
-          transparent 68%
-        );
-      }
       h1 {
         margin: 0;
-        font-size: clamp(1.7rem, 1rem + 2vw, 2.7rem);
+        font-size: clamp(1rem, 0.7rem + 1vw, 1.45rem);
         font-weight: 400;
-        letter-spacing: -0.08em;
-        text-shadow: 0 2px 18px rgba(210, 225, 233, 0.13);
+        line-height: 1.2;
+        letter-spacing: -0.06em;
+        text-align: center;
+        white-space: nowrap;
+        text-shadow: 0 1px 14px rgba(20, 40, 55, 0.18);
       }
       .cursor {
         opacity: 0.45;
         animation: blink 2.4s steps(1) infinite;
-      }
-      .time-control {
-        position: fixed;
-        z-index: 2;
-        bottom: max(2.5rem, env(safe-area-inset-bottom));
-        left: 50%;
-        transform: translateX(-50%);
-        width: min(326px, calc(100% - 3rem));
-        padding: 1rem 1.1rem 0.6rem;
-        border: 1px solid rgba(255, 255, 255, 0.25);
-        border-radius: 8px;
-        background: rgba(225, 236, 240, 0.14);
-        box-shadow:
-          0 8px 40px rgba(17, 33, 54, 0.08),
-          inset 0 1px rgba(255, 255, 255, 0.14);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
       }
       .time-heading {
         display: flex;
@@ -420,7 +404,7 @@
         pointer-events: none;
       }
       .preview-note {
-        margin: 0.75rem 0 0.1rem;
+        margin: 0.5rem 0 0;
         text-align: center;
         font-size: 0.48rem;
         opacity: 0.55;
@@ -428,6 +412,68 @@
       }
       body[data-preview="true"] .preview-note {
         display: block;
+      }
+      .corner {
+        position: fixed;
+        z-index: 2;
+        right: 1.6rem;
+        bottom: max(1.4rem, env(safe-area-inset-bottom));
+      }
+      #sound {
+        display: grid;
+        place-items: center;
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        background: rgba(225, 236, 240, 0.14);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        color: inherit;
+        cursor: pointer;
+      }
+      #sound svg {
+        width: 16px;
+        height: 16px;
+      }
+      #sound[aria-pressed="false"] .waves {
+        display: none;
+      }
+      #sound[aria-pressed="true"] .mute {
+        display: none;
+      }
+      #hint {
+        position: fixed;
+        z-index: 2;
+        left: 50%;
+        bottom: max(1.8rem, env(safe-area-inset-bottom));
+        transform: translateX(-50%);
+        margin: 0;
+        padding: 0.45rem 0.8rem;
+        border-radius: 999px;
+        background: rgba(20, 35, 45, 0.22);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        color: #f3f1e8;
+        font-size: 0.55rem;
+        white-space: nowrap;
+        pointer-events: none;
+        transition: opacity 1.2s ease 0.5s;
+      }
+      #hint[data-hidden="true"] {
+        opacity: 0;
+      }
+      #hint .touch {
+        display: none;
+      }
+      @media (pointer: coarse) {
+        #hint .touch {
+          display: inline;
+        }
+        #hint .mouse {
+          display: none;
+        }
       }
       a {
         color: inherit;
@@ -444,25 +490,24 @@
           opacity: 0;
         }
       }
-      @media (max-width: 600px) {
+      @media (max-width: 640px) {
         .sky-meta {
-          inset: 1.3rem 1.3rem auto;
+          inset: max(0.9rem, env(safe-area-inset-top)) 1rem auto;
+          grid-template-columns: auto 1fr;
+          grid-template-areas: "name name" "place meta";
+          row-gap: 0.3rem;
           font-size: 0.56rem;
         }
-        .time-control {
-          bottom: max(2.7rem, env(safe-area-inset-bottom));
+        .sky-meta > .conditions {
+          gap: 0.5rem;
+        }
+        .corner {
+          right: 1rem;
         }
       }
       @media (max-height: 480px) {
         .sky-meta {
-          inset: 1rem;
-        }
-        main {
-          top: 40%;
-        }
-        .time-control {
-          bottom: 1rem;
-          padding-top: 0.4rem;
+          inset: 0.8rem 1rem auto;
         }
       }
       @media (prefers-reduced-motion: reduce) {
@@ -480,7 +525,7 @@
     <canvas id="sky" aria-hidden="true"></canvas>
     <canvas id="landscape" aria-hidden="true"></canvas>
     <header class="sky-meta">
-      <div>
+      <div class="place-wrap">
         <div class="place">
           <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path
@@ -491,9 +536,46 @@
           ><span>cape town</span>
         </div>
       </div>
+      <h1>sky cope<span class="cursor">_</span></h1>
       <div class="conditions">
+        <div class="panel-anchor">
+          <button
+            id="time-toggle"
+            class="toggle"
+            type="button"
+            aria-expanded="false"
+            aria-controls="time-panel"
+            aria-label="Time of day"
+          >
+            <span>--:--</span>
+            <span class="chevron" aria-hidden="true"></span>
+          </button>
+          <section id="time-panel" class="time-panel" aria-label="Sky time preview" hidden>
+            <div class="time-heading">
+              <label for="time">time · SAST</label
+              ><output id="time-label" for="time">--:--</output
+              ><button id="live" type="button" aria-pressed="true">live</button>
+            </div>
+            <input
+              id="time"
+              type="range"
+              min="0"
+              max="1439"
+              step="1"
+              value="720"
+              aria-label="Preview Cape Town time of day"
+            />
+            <div class="time-scale" aria-hidden="true">
+              <span>00</span><span>06</span><span>12</span><span>18</span
+              ><span>24</span>
+            </div>
+            <p class="preview-note">preview · current weather</p>
+          </section>
+        </div>
+        <div class="panel-anchor">
         <button
           id="weather-toggle"
+          class="toggle"
           type="button"
           aria-expanded="false"
           aria-controls="weather-panel"
@@ -534,35 +616,22 @@
             live data: <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">open-meteo</a> model
           </p>
         </section>
+        </div>
       </div>
     </header>
-    <main>
-      <h1>sky cope<span class="cursor">_</span></h1>
-    </main>
-    <section class="time-control" aria-label="Sky time preview">
-      <div class="time-heading">
-        <label for="time">time · SAST</label
-        ><output id="time-label" for="time">--:--</output
-        ><button id="live" type="button" aria-pressed="true">live</button>
-      </div>
-      <input
-        id="time"
-        type="range"
-        min="0"
-        max="1439"
-        step="1"
-        value="720"
-        aria-label="Preview Cape Town time of day"
-      />
-      <div class="time-scale" aria-hidden="true">
-        <span>00</span><span>06</span><span>12</span><span>18</span
-        ><span>24</span>
-      </div>
-      <p class="preview-note">preview · current weather</p>
-      <p class="preview-note">
-        w/s throttle · arrows turn &amp; pitch · drag to look · h home
-      </p>
-    </section>
+    <p id="hint">
+      <span class="mouse">click to walk · drag to look · wasd · shift run · space jump · m meow</span
+      ><span class="touch">tap to walk · drag to look · pinch to zoom · tap the cat</span>
+    </p>
+    <div class="corner">
+      <button id="sound" type="button" aria-pressed="true" aria-label="Sound">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true">
+          <path d="M2 6h3l4-3v10l-4-3H2z" fill="currentColor" stroke="none" />
+          <path class="waves" d="M11 5.5c1 1.4 1 3.6 0 5M13 3.5c2 2.5 2 6.5 0 9" />
+          <path class="mute" d="M11 6l4 4M15 6l-4 4" />
+        </svg>
+      </button>
+    </div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

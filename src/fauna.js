@@ -150,6 +150,7 @@ export function createFauna(group, seed) {
       roughness: 0.8,
       side: THREE.DoubleSide,
     });
+    material.customProgramCacheKey = () => `flock-${spec.flapRate}`;
     material.onBeforeCompile = (shader) => {
       shader.uniforms.time = uniforms.time;
       shader.vertexShader = shader.vertexShader

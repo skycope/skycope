@@ -60,6 +60,10 @@ reduced-motion mode, background/resume, and with the weather endpoint blocked.
 | `src/vegetation.js`      | Growth traits, habitat placement, trees, ferns, grass and fynbos         |
 | `src/forest.js`          | Instanced plants, flowers, granite, ground and bark detail shaders, LOD  |
 | `src/fauna.js`           | Gulls, cormorants and a dolphin pod                                      |
+| `src/walker.js`          | Cat movement, collisions, follow camera                                  |
+| `src/cat.js`             | Tabby model, coat shader, fur shells, gait/IK, tail, whiskers, prints    |
+| `src/critters.js`        | Butterflies, fireflies and ghost crabs                                   |
+| `src/sound.js`           | Synthesized ambience and cat sounds (WebAudio)                           |
 | `src/random.js`          | Reload seed, reproducible random streams                                 |
 | `src/terrain.js`         | Terrain and shoreline functions                                          |
 | `src/cloud-noise.js`     | Deterministic 64³ cloud noise texture, generated once                    |
@@ -97,12 +101,19 @@ clockwise from north**; do not substitute the old radians/south-based convention
 The shader uses east / up / north coordinates and radians. Palette transitions
 follow solar altitude, including twilight, rather than fixed clock cutoffs.
 
-The home view faces **northwest (315°), tilted 6° above the horizon**, and the
-visitor can fly: dragging looks around, W/S is throttle, the arrow keys turn and
-pitch, and H returns home. Both the WGSL passes and the Three.js camera read the
-same flight state (position in coast metres, azimuth, pitch); keep them aligned.
-Flight is bounded to 160 m around the island centre, above the terrain, and
-below the cloud deck. Sun, moon and constellations occupy their true directions;
+The visitor is a brown tabby cat on the beach below the original view
+(`src/walker.js`, `src/cat.js`). WASD/arrows walk relative to the camera,
+shift runs, space jumps (onto boulders), M meows; click or tap the ground to
+walk there, tap the cat to hear it, drag to orbit, scroll or pinch to zoom, H
+returns home. A follow camera sits ~3 m behind and above the cat, clear of the
+ground and the sea. Both the WGSL passes and the Three.js camera read that
+camera (`walker.camera`: coast metres, azimuth, pitch); keep them aligned. The
+cat walks on the ground mesh's exact surface (`groundHeight`) and on each
+boulder's rasterized top, is blocked by trunks and steep rock, and stops at the
+swash. Its gait blends walk → trot → gallop, paws plant in the world, and it
+sits and purrs when idle. Paw prints fade (fast in the swash). Butterflies,
+fireflies and ghost crabs (`src/critters.js`) flee it. All sound is
+synthesized in `src/sound.js` and starts on the first gesture. Sun, moon and constellations occupy their true directions;
 they are not moved into frame when actually elsewhere. The sun disc is
 slightly enlarged and the moon about four times, so its face reads. The sun uses a pixel-width antialiased
 edge and clips each fragment below the sea horizon. Island, forest and cloud
@@ -218,12 +229,12 @@ breathing cycles (clipped at the surface). Birds roost at night.
   integral (Hillaire 2020; it was 1.6 ms of per-pixel integrals at 1 M pixels),
   then the **cloud march at a quarter of the sky's pixels**, each texel tracing
   one pixel of its 2×2 block in a rotating jitter, then a **resolve** at up to
-  **1,000,000 pixels** that takes the fresh sample where it matches and otherwise
+  **450,000 pixels** (220,000 on phones) that takes the fresh sample where it matches and otherwise
   reprojects last frame's cloud layer into the current view, clamped to the
   fresh neighbourhood so moving cloud never ghosts (MRT: the sky for the water
   pass, and the cloud layer as history). A resize, time scrub, weather change or
   returning home resets the history; reduced-motion stills render four frames.
-  Then water and the final composite at up to **3.5 million pixels / 2× DPR**.
+  Then water and the final composite at up to **1.5 million pixels / 1.5× DPR** (650,000 / 1.25× on phones).
   Adaptive cloud quality never reduces the water resolution.
 - The water pass skips work nobody sees: sea under the island (its calm-sea hit
   is more than 1.5 m inland, where the terrain mesh is opaque), seabed shading
@@ -243,7 +254,9 @@ breathing cycles (clipped at the surface). Birds roost at night.
   fill-bound (a tiny canvas costs nearly the same), so distant shoots keep a
   stable half, then a third, grown to cover the same canopy area (3.3 M → 1.7 M
   visible triangles at the home view). The mesh canvas caps at
-  2.5 million pixels with MSAA. Sun shadows use one 2048² map, updated only when
+  1.6 million pixels with MSAA (0.8 million without MSAA on phones). Rendering
+  is capped at 60 fps, 30 once the cat has settled, on the low-power GPU. Sun
+  shadows use one 2048² map over 64 m around the cat, updated only when
   lighting changes. Individual leaf tips flutter in a vertex shader.
 - A 256 KiB repeating noise volume avoids hashing many noise octaves per sample.
   The constellation atlas is uploaded once (2048 × 1024 RGBA, 8 MiB), and the

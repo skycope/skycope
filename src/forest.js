@@ -2,6 +2,7 @@ import * as THREE from "three";
 import {
   terrainHeight,
   shoreDistance,
+  GROUND,
   islandPoint,
   ISLAND,
   noise2,
@@ -30,6 +31,7 @@ export function createForest(scene, seed) {
   const { wood: trunks, leaves, clusters, flowers, turf, layout } = createVegetation(seed);
   const rocks = addRocks(scene, random, shared);
   createSurf(scene, rocks, shared);
+  const obstacles = obstaclesFor(layout, rocks);
   addGround(scene, shared, occludersFor(layout, rocks));
   const woodMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff,
@@ -77,7 +79,8 @@ export function createForest(scene, seed) {
   patchMaterial(bladeMaterial, shared, { sway: true, flutter: 0.08, foliage: true, bent: 0.45 });
   addInstances(scene, leafGeometry(1), bladeMaterial, leaves, true, [
     { geometry: leafGeometry(0), keep: (l) => l.scale.y > 0.18 || l.scale.x > 0.05, distance: 24 },
-    { geometry: leafGeometry(0), keep: (l) => l.scale.y > 0.5, distance: 64 },
+    { geometry: leafGeometry(0), keep: (l) => l.scale.y > 0.5, distance: 56 },
+    { geometry: leafGeometry(0), keep: (l) => l.scale.y > 1.2, distance: 90 },
   ]);
   // Turf shades as a soft lawn (normals bent up) and only near clumps cast
   // shadows; far away a sparse subset stands in for the rest.
@@ -87,11 +90,10 @@ export function createForest(scene, seed) {
     side: THREE.DoubleSide,
   });
   patchMaterial(turfMaterial, shared, { sway: true, flutter: 0.05, foliage: true, bent: 0.55 });
-  addInstances(scene, turfGeometry(9), turfMaterial, turf, false, {
-    geometry: turfGeometry(4),
-    keep: (t) => t.far,
-    grow: 1.35,
-  });
+  addInstances(scene, turfGeometry(9), turfMaterial, turf, false, [
+    { geometry: turfGeometry(4), keep: (t) => t.far, grow: 1.35 },
+    { keep: () => false, distance: 70 },
+  ]);
   // Petals are thin and backlit like leaves; they share the flutter and the
   // translucency, with a satin sheen instead of a waxy one.
   const petalMaterial = new THREE.MeshStandardMaterial({
@@ -102,11 +104,13 @@ export function createForest(scene, seed) {
   });
   patchMaterial(petalMaterial, shared, { sway: true, flutter: 0.04, foliage: true, bent: 0.35 });
   addInstances(scene, white(daisyGeometry()), petalMaterial, flowers.daisy, false, { keep: () => false });
-  addInstances(scene, white(proteaGeometry(18)), petalMaterial, flowers.protea, true, { geometry: white(proteaGeometry(8)) });
-  addInstances(scene, white(pincushionGeometry()), petalMaterial, flowers.pincushion, true, { geometry: white(pincushionGeometry(1)) });
-  addInstances(scene, spikeGeometry(), petalMaterial, flowers.spike, true, { geometry: spikeGeometry(14) });
+  addInstances(scene, white(proteaGeometry(18)), petalMaterial, flowers.protea, true, [{ geometry: white(proteaGeometry(8)) }, { keep: () => false, distance: 80 }]);
+  addInstances(scene, white(pincushionGeometry()), petalMaterial, flowers.pincushion, true, [{ geometry: white(pincushionGeometry(1)) }, { keep: () => false, distance: 80 }]);
+  addInstances(scene, spikeGeometry(), petalMaterial, flowers.spike, true, [{ geometry: spikeGeometry(14) }, { keep: () => false, distance: 95 }]);
   addInstances(scene, white(bellGeometry()), petalMaterial, flowers.bell, false, { keep: () => false });
   return {
+    // Trunks and boulders, for the cat to walk around (or climb).
+    obstacles,
     updateWind(time, wind) {
       shared.breezeTime.value = time;
       const speed = Math.hypot(wind[0], wind[1]);
@@ -246,7 +250,11 @@ const GROUND_COLOUR_GLSL = /* glsl */ `
 // granite, leaf litter); only centimetre detail is evaluated per pixel.
 vec2 coast = vec2( vWorld.x, -vWorld.z );
 float inland = dShore( coast );
-float grain = dNoise( coast * 38.0 ) * 0.6 + dNoise( coast * 90.0 ) * 0.4;
+// Metres per pixel. Grain finer than ~2 pixels is replaced by its mean, not
+// sampled: sampled, it shimmered as the camera moved.
+float px = max( fwidth( coast.x ), fwidth( coast.y ) );
+float grain = mix( dNoise( coast * 38.0 ), 0.5, smoothstep( 0.2, 0.5, px * 38.0 ) ) * 0.6
+  + mix( dNoise( coast * 90.0 ), 0.5, smoothstep( 0.2, 0.5, px * 90.0 ) ) * 0.4;
 float mottled = vGroundMask.x;
 float rocky = vGroundMask.y;
 float litter = vGroundMask.z;
@@ -265,8 +273,83 @@ if ( rocky > 0.01 ) {
   diffuseColor.rgb = mix( diffuseColor.rgb, granite, rocky );
 }
 diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.19, 0.12, 0.06 ) * ( 0.7 + grain * 0.6 ), litter * 0.55 );
-float detailHeight = grain * 0.004 + ripple * 0.012 * dry + mottled * 0.03 * ( 1.0 - wet ) + rocky * strata * 0.08;
-float detailRoughness = mix( mix( 0.95, 0.9, rocky ), 0.28, wet );
+// Cat-scale clutter, one object per cell: pebbles and shells on the sand
+// (thickest along the wrack line, with stranded kelp), fallen leaves and
+// twigs under the trees. It fades out where an object would span less than
+// a few pixels, so distant ground costs no more than before.
+float nearDetail = 1.0 - smoothstep( 0.006, 0.014, px );
+float clutterHeight = 0.0;
+float clutterGloss = 0.0;
+if ( nearDetail > 0.01 ) {
+  float wrack = smoothstep( 0.7, 1.2, inland ) * ( 1.0 - smoothstep( 2.2, 3.4, inland ) );
+  float sandy = smoothstep( 0.35, 0.9, inland ) * ( 1.0 - smoothstep( 6.0, 9.5, inland ) ) * ( 1.0 - rocky );
+  if ( sandy > 0.01 ) {
+    vec2 g = coast * 9.0;
+    vec2 id = floor( g );
+    vec2 f = fract( g );
+    if ( dHash( id + 3.7 ) < mix( 0.05, 0.22, wrack ) * ( 0.4 + dNoise( coast * 0.7 + 4.0 ) * 1.2 ) ) {
+      vec2 c = 0.3 + 0.4 * vec2( dHash( id + 1.3 ), dHash( id + 7.9 ) );
+      float ang = dHash( id + 5.1 ) * 6.283;
+      vec2 q = mat2( cos( ang ), -sin( ang ), sin( ang ), cos( ang ) ) * ( f - c );
+      float size = 0.07 + dHash( id + 9.2 ) * 0.15;
+      float shell = step( 0.78, dHash( id + 2.2 ) );
+      vec2 e = q / ( size * vec2( 1.0, mix( 0.72, 0.85, shell ) ) );
+      float d = length( e );
+      float cover = ( 1.0 - smoothstep( 0.82, 1.0, d ) ) * sandy * nearDetail;
+      // Beach pebbles: granite greys, iron browns, the odd pale quartz.
+      float kind = dHash( id + 4.4 );
+      vec3 pebble = kind < 0.45 ? mix( vec3( 0.22, 0.21, 0.2 ), vec3( 0.4, 0.38, 0.35 ), dHash( id + 8.8 ) )
+        : kind < 0.85 ? mix( vec3( 0.3, 0.22, 0.15 ), vec3( 0.46, 0.36, 0.25 ), dHash( id + 8.8 ) )
+        : vec3( 0.5, 0.48, 0.44 );
+      pebble *= 0.85 + dNoise( g * 9.0 ) * 0.3;
+      // Shells: a ribbed fan, cream to pink, darker at the hinge.
+      float ribs = 0.78 + 0.22 * sin( atan( e.y, e.x + 1.2 ) * 22.0 );
+      vec3 shellColour = mix( vec3( 0.86, 0.8, 0.7 ), vec3( 0.82, 0.56, 0.5 ), dHash( id + 6.6 ) ) * ribs * ( 0.75 + 0.25 * smoothstep( -1.0, 0.2, e.x ) );
+      // A soft contact shadow round each one.
+      diffuseColor.rgb *= 1.0 - ( 1.0 - smoothstep( 1.0, 1.35, d ) ) * step( 0.82, d ) * 0.3 * sandy * nearDetail;
+      diffuseColor.rgb = mix( diffuseColor.rgb, mix( pebble, shellColour, shell ), cover );
+      // Half-buried: a low dome, matte when dry.
+      clutterHeight = cover * sqrt( max( 0.0, 1.0 - d * d ) ) * size * 0.025;
+      clutterGloss = cover * mix( 0.0, 0.12, shell );
+    }
+    // Stranded kelp in drifts along the wrack line.
+  }
+  float floorMix = max( litter, smoothstep( 9.0, 15.0, inland ) * 0.7 ) * ( 1.0 - rocky ) * nearDetail;
+  if ( floorMix > 0.02 ) {
+    // Fallen leaves: pointed ovals, veined, in autumn browns to fresh green.
+    vec2 g = coast * 13.0;
+    vec2 id = floor( g );
+    vec2 f = fract( g );
+    if ( dHash( id + 8.1 ) < 0.6 ) {
+      vec2 c = 0.3 + 0.4 * vec2( dHash( id + 2.9 ), dHash( id + 6.3 ) );
+      float ang = dHash( id + 1.7 ) * 6.283;
+      vec2 q = mat2( cos( ang ), -sin( ang ), sin( ang ), cos( ang ) ) * ( f - c );
+      float len = 0.18 + dHash( id + 3.3 ) * 0.2;
+      float halfWidth = len * 0.42 * ( 1.0 - pow( abs( q.x ) / len, 2.0 ) );
+      float leaf = ( 1.0 - smoothstep( halfWidth * 0.8, halfWidth, abs( q.y ) ) ) * step( abs( q.x ), len ) * floorMix;
+      float vein = 1.0 - smoothstep( 0.0, 0.012, abs( q.y ) ) * 0.25;
+      vec3 leafColour = mix( mix( vec3( 0.36, 0.2, 0.07 ), vec3( 0.55, 0.36, 0.1 ), dHash( id + 4.8 ) ), vec3( 0.25, 0.3, 0.1 ), step( 0.8, dHash( id + 9.9 ) ) );
+      diffuseColor.rgb = mix( diffuseColor.rgb, leafColour * vein * ( 0.8 + grain * 0.3 ), leaf * 0.9 );
+      clutterHeight += leaf * 0.002;
+    }
+    // Twigs: one thin, slightly bent stick per 25 cm cell, sometimes none.
+    vec2 t = coast * 4.0;
+    vec2 tid = floor( t );
+    vec2 tf = fract( t ) - 0.5;
+    if ( dHash( tid + 12.3 ) < 0.45 ) {
+      float ang = dHash( tid + 4.1 ) * 3.1416;
+      vec2 axis = vec2( cos( ang ), sin( ang ) );
+      float along = clamp( dot( tf, axis ), -0.38, 0.38 );
+      vec2 nearest = axis * along + vec2( -axis.y, axis.x ) * along * along * 0.4;
+      float width = 0.016 + dHash( tid + 7.7 ) * 0.02;
+      float twig = ( 1.0 - smoothstep( width * 0.6, width, length( tf - nearest ) ) ) * floorMix;
+      diffuseColor.rgb = mix( diffuseColor.rgb * ( 1.0 - ( 1.0 - smoothstep( width, width * 2.5, length( tf - nearest ) ) ) * 0.25 * floorMix ), vec3( 0.2, 0.13, 0.08 ), twig );
+      clutterHeight += twig * 0.006;
+    }
+  }
+}
+float detailHeight = grain * 0.004 + ripple * 0.012 * dry + mottled * 0.03 * ( 1.0 - wet ) + rocky * strata * 0.08 + clutterHeight;
+float detailRoughness = mix( mix( mix( 0.95, 0.9, rocky ), 0.28, wet ), 0.35, clutterGloss );
 `;
 
 const ROCK_COLOUR_GLSL = /* glsl */ `
@@ -278,9 +361,17 @@ vec3 q = vWorld * 1.0;
 float footprint = max( max( fwidth( vWorld.x ), fwidth( vWorld.y ) ), fwidth( vWorld.z ) );
 float veins = dFbmFiltered( vec2( q.x + q.y * 0.7, q.z - q.y * 0.4 ) * 2.2, footprint * 2.6 );
 float crystals = mix( dNoise( coast * 22.0 + q.y * 17.0 ), 0.5, smoothstep( 0.2, 0.5, footprint * 28.0 ) );
+// Up close, granite's own grain: pale feldspar, glassy quartz and black
+// biotite flecks a few millimetres across, filtered away with distance.
+vec2 gq = vec2( q.x + q.z * 0.6, q.y + q.z * 0.8 );
+float fleckFade = 1.0 - smoothstep( 0.15, 0.45, footprint * 160.0 );
+float feldspar = dNoise( gq * 70.0 ) * fleckFade;
+float biotite = smoothstep( 0.72, 0.82, dNoise( gq * 160.0 + 3.0 ) ) * fleckFade;
 // Speckled granite: feldspar and quartz grains in a grey matrix.
 diffuseColor.rgb *= 0.62 + veins * 0.42 + crystals * 0.1;
 diffuseColor.rgb *= mix( vec3( 1.0 ), vec3( 1.06, 0.98, 0.9 ), smoothstep( 0.45, 0.7, veins ) );
+diffuseColor.rgb *= mix( vec3( 1.0 ), vec3( 1.18, 1.1, 1.02 ), smoothstep( 0.55, 0.8, feldspar ) );
+diffuseColor.rgb *= 1.0 - biotite * 0.65;
 // Lichen grows in rosettes on the lit tops: multi-scale, pale grey-green
 // and ochre, never flat splats.
 float up = max( ( vec4( normalize( vNormal ), 0.0 ) * viewMatrix ).y, 0.0 );
@@ -296,7 +387,7 @@ diffuseColor.rgb *= 1.0 - streak * 0.3;
 float runup = 0.25 + 0.35 * pow( 0.5 + 0.5 * sin( breezeTime * 0.9 + vWorld.x * 0.7 - vWorld.z * 0.5 ), 3.0 );
 float tide = 1.0 - smoothstep( runup * 0.4, runup, vWorld.y + ( dNoise( coast * 6.0 ) - 0.5 ) * 0.08 );
 diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * 0.42, tide );
-float detailHeight = veins * 0.05 + crystals * 0.003;
+float detailHeight = veins * 0.05 + crystals * 0.003 + feldspar * 0.0012 - biotite * 0.0008;
 float detailRoughness = mix( 0.85, 0.3, tide );
 `;
 
@@ -357,6 +448,11 @@ float dShore( vec2 p ) {
 `;
 
 function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = false, ground = false, rock = false, bark = false, bent = 0, fade = false } = {}) {
+  // three caches programs by onBeforeCompile's source text, which is the same
+  // for every patched material: key them by their options, or a material
+  // silently runs another's shader (blades with the clusters' flutter).
+  const key = JSON.stringify({ sway, flutter, foliage, ground, rock, bark, bent, fade });
+  material.customProgramCacheKey = () => key;
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, shared);
     shader.vertexShader = WIND_GLSL +
@@ -481,6 +577,75 @@ function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = 
   };
 }
 
+// What the cat collides with. Trunks are circles; rocks are domes it can
+// climb or jump onto (height above the centre falls off to their rim).
+function obstaclesFor(layout, rocks) {
+  const trunks = layout
+    .filter((p) => p.kind === "tree")
+    .map((p) => ({ x: p.x, z: p.z, r: p.height * 0.034 + 0.02 }));
+  const domes = rockSurfaces(rocks);
+  // Flowering fynbos, where butterflies feed.
+  const flowers = layout
+    .filter((p) => ["protea", "erica", "daisies", "aloe"].includes(p.kind))
+    .map((p) => ({ x: p.x, z: p.z, h: p.height }));
+  return { trunks, domes, flowers };
+}
+
+// Each rock's true top surface, rasterized from its mesh into a small height
+// tile (6 cm cells): what the cat stands on, climbs, and is blocked by.
+function rockSurfaces(rocks) {
+  const source = rockGeometry(3);
+  const position = source.attributes.position;
+  const index = source.index.array;
+  const matrix = new THREE.Matrix4();
+  const quaternion = new THREE.Quaternion();
+  const v = new THREE.Vector3();
+  const cell = 0.06;
+  return rocks.map((rock) => {
+    matrix.compose(rock.position, quaternion.setFromEuler(rock.rotation), rock.scale);
+    const xs = new Float32Array(position.count);
+    const ys = new Float32Array(position.count);
+    const zs = new Float32Array(position.count);
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (let i = 0; i < position.count; i++) {
+      v.fromBufferAttribute(position, i).applyMatrix4(matrix);
+      xs[i] = v.x;
+      ys[i] = v.y;
+      zs[i] = v.z;
+      minX = Math.min(minX, v.x);
+      maxX = Math.max(maxX, v.x);
+      minZ = Math.min(minZ, v.z);
+      maxZ = Math.max(maxZ, v.z);
+    }
+    const nx = Math.ceil((maxX - minX) / cell) + 1;
+    const nz = Math.ceil((maxZ - minZ) / cell) + 1;
+    const heights = new Float32Array(nx * nz).fill(-Infinity);
+    for (let t = 0; t < index.length; t += 3) {
+      const a = index[t], b = index[t + 1], c = index[t + 2];
+      const ax = xs[a], az = zs[a], bx = xs[b], bz = zs[b], cx = xs[c], cz = zs[c];
+      const det = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz);
+      if (Math.abs(det) < 1e-9) continue;
+      const i0 = Math.max(0, Math.ceil((Math.min(ax, bx, cx) - minX) / cell));
+      const i1 = Math.min(nx - 1, Math.floor((Math.max(ax, bx, cx) - minX) / cell));
+      const j0 = Math.max(0, Math.ceil((Math.min(az, bz, cz) - minZ) / cell));
+      const j1 = Math.min(nz - 1, Math.floor((Math.max(az, bz, cz) - minZ) / cell));
+      for (let i = i0; i <= i1; i++)
+        for (let j = j0; j <= j1; j++) {
+          const px = minX + i * cell;
+          const pz = minZ + j * cell;
+          const w0 = ((bz - cz) * (px - cx) + (cx - bx) * (pz - cz)) / det;
+          const w1 = ((cz - az) * (px - cx) + (ax - cx) * (pz - cz)) / det;
+          const w2 = 1 - w0 - w1;
+          if (w0 < -1e-6 || w1 < -1e-6 || w2 < -1e-6) continue;
+          const y = w0 * ys[a] + w1 * ys[b] + w2 * ys[c];
+          const k = j * nx + i;
+          if (y > heights[k]) heights[k] = y;
+        }
+    }
+    return { x0: minX, z0: minZ, cell, nx, nz, heights, x: rock.position.x, z: rock.position.z, r: Math.max(maxX - minX, maxZ - minZ) / 2 };
+  });
+}
+
 // Baked ambient occlusion on the ground: every plant and rock darkens the
 // soil around it, broadly under a canopy and tightly at the base, so things
 // sit in the ground instead of on it. This is most of what keeps an overcast
@@ -528,8 +693,8 @@ function occludersFor(layout, rocks) {
 }
 
 function addGround(scene, shared, occluders) {
-  const size = 190;
-  const geometry = new THREE.PlaneGeometry(size, size, 380, 380);
+  const { size, segments } = GROUND;
+  const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
   const occlusion = occlusionField(occluders);
   geometry.rotateX(-Math.PI / 2);
   geometry.translate(ISLAND.x, 0, ISLAND.z);
@@ -960,7 +1125,16 @@ function shootShare(shoot) {
 // beyond LOD_DISTANCE it swaps to a cheaper geometry and drops instances the
 // eye cannot resolve (fine twigs, tiny blades), which is where most triangles
 // were being spent. Chunks share geometry and material; the cost is draw calls.
-const CHUNK = 28;
+// LOD distances are measured to the chunk centre, so each threshold is pushed
+// out by most of the chunk's half-diagonal: a chunk no longer swaps detail
+// (or drops shoots) while its near edge is right beside the camera, which
+// read as plants glitching in and out. Hysteresis stops it flickering on the
+// boundary as the cat walks back and forth.
+const CHUNK = 20;
+const CHUNK_MARGIN = CHUNK * 0.55;
+const LOD_HYSTERESIS = 0.12;
+// Leaves sway up to ~1.5 m from their rest pose: cull with that margin.
+const SWAY_MARGIN = 1.5;
 const UP = new THREE.Vector3(0, 1, 0);
 const LOD_DISTANCE = 42;
 function addInstances(scene, geometry, material, instances, shadows, far = null) {
@@ -996,6 +1170,7 @@ function addInstances(scene, geometry, material, instances, shadows, far = null)
     mesh.castShadow = shadows;
     mesh.receiveShadow = true;
     mesh.computeBoundingSphere();
+    mesh.boundingSphere.radius += SWAY_MARGIN;
     return mesh;
   };
   // `far` is one LOD level or a list of them, nearest first.
@@ -1014,14 +1189,14 @@ function addInstances(scene, geometry, material, instances, shadows, far = null)
     lod.addLevel(near, 0);
     levels.forEach((level, index) => {
       const kept = level.keep ? bucket.filter(level.keep) : bucket;
-      const distance = level.distance ?? LOD_DISTANCE * (index + 1);
+      const distance = (level.distance ?? LOD_DISTANCE * (index + 1)) + CHUNK_MARGIN;
       if (!kept.length) {
-        lod.addLevel(new THREE.Object3D(), distance);
+        lod.addLevel(new THREE.Object3D(), distance, LOD_HYSTERESIS);
         return;
       }
       const mesh = build(level.geometry ?? geometry, kept, level);
       mesh.position.sub(centre);
-      lod.addLevel(mesh, distance);
+      lod.addLevel(mesh, distance, LOD_HYSTERESIS);
     });
     scene.add(lod);
   }

@@ -2,7 +2,6 @@ import {
   clock,
   effect,
   frame,
-  frameLoop,
   init,
   pingPong,
   sampler,
@@ -27,28 +26,44 @@ import {
   WEATHER_REFRESH_MS,
   WEATHER_MAX_AGE_MS,
 } from "./weather.js";
-import { terrainHeight, shoreDistance, ISLAND } from "./terrain.js";
+import { groundHeight, shoreDistance, ISLAND } from "./terrain.js";
 import { lightingAt } from "./sunlight.js";
 import { createWeatherPanel } from "./weather-panel.js";
+import { createWalker, surfaceKind } from "./walker.js";
+import { createSound } from "./sound.js";
 
-// Free flight around the coast. The default matches the original fixed view:
-// (6, 4.5, 0) coast metres, heading 315°, pitched 6° above the horizon.
-const HOME = {
-  x: 6,
-  y: 4.5,
-  z: 0,
-  azimuth: (315 * Math.PI) / 180,
-  pitch: 0.10472,
-  throttle: 0,
-};
-const FLIGHT_KEYS = new Set([
-  "w", "a", "s", "d", "q", "e", " ", "shift",
+// You are a cat: WASD/arrows walk (relative to the camera), shift runs,
+// space jumps, M meows. Click or tap the ground to walk there; drag orbits
+// the follow camera; scroll or pinch zooms.
+const WALK_KEYS = new Set([
+  "w", "a", "s", "d", " ", "shift", "m",
   "arrowup", "arrowdown", "arrowleft", "arrowright",
 ]);
+
+// Phones and small or low-core machines get a lighter budget throughout.
+const LIGHT =
+  window.matchMedia("(pointer: coarse)").matches ||
+  (navigator.hardwareConcurrency ?? 8) <= 4 ||
+  Math.min(window.screen.width, window.screen.height) < 700;
+// Pixel budgets. The old free-flight camera needed 3.5 MP of sea and 1 MP of
+// sky; the follow camera frames a small cat, and the sky and sea upscale
+// smoothly, so these are 2–4× fewer pixels.
+const WATER_PIXELS = LIGHT ? 650000 : 1500000;
+const SKY_PIXELS = LIGHT ? 220000 : 450000;
+const MAX_DPR = LIGHT ? 1.25 : 1.5;
+// Frame pacing: 60 fps at most (a 120 Hz display otherwise renders twice
+// as often for no visible gain), 30 once the cat has settled and nothing is
+// being pressed. The small tolerance keeps vsync jitter from skipping frames.
+const ACTIVE_FPS = 60;
+const IDLE_FPS = 30;
 
 
 const canvas = document.querySelector("#sky");
 const slider = document.querySelector("#time");
+const timeToggle = document.querySelector("#time-toggle");
+const timePanel = document.querySelector("#time-panel");
+const soundButton = document.querySelector("#sound");
+const hint = document.querySelector("#hint");
 const liveButton = document.querySelector("#live");
 const timeLabel = document.querySelector("#time-label");
 const weatherLabel = document.querySelector("#conditions");
@@ -60,10 +75,19 @@ const state = {
   debugMinutes: null,
   celestial: null,
   pointer: [0.5, 0.5],
-  targetPointer: [0.5, 0.5],
-  flight: { ...HOME },
+  // The camera the WebGPU passes and Three.js share (walker.camera).
+  flight: null,
+  walker: null,
+  sound: createSound(),
   keys: new Set(),
+  jump: false,
   dragging: false,
+  pointers: new Map(),
+  pinch: 0,
+  lastInput: 0,
+  lastFrame: 0,
+  lastChirp: -10,
+  hintShown: true,
   // The renderer reads `weather`: the live forecast, or the panel's override.
   weather: null,
   liveWeather: null,
@@ -86,6 +110,7 @@ const state = {
   atmosphere: null,
   water: null,
   loop: null,
+  raf: 0,
   renderFrame: null,
   time: 24,
   frameMs: 16.7,
@@ -146,54 +171,104 @@ function connectControls() {
     },
     options,
   );
-  window.addEventListener(
-    "pointermove",
-    (event) => {
-      if (motionPreference.matches) return;
-      if (state.dragging) {
-        state.flight.azimuth -= event.movementX * 0.0032;
-        state.flight.pitch = Math.min(
-          1.15,
-          Math.max(-0.65, state.flight.pitch + event.movementY * 0.0032),
-        );
-        return;
-      }
-      if (event.pointerType === "touch") return;
-      state.targetPointer = [
-        event.clientX / window.innerWidth,
-        1 - event.clientY / window.innerHeight,
-      ];
-    },
-    { ...options, passive: true },
-  );
+  // Panels: the time slider lives tucked away under the clock, top right.
+  timeToggle.addEventListener("click", () => showTime(timePanel.hidden), options);
   window.addEventListener(
     "pointerdown",
     (event) => {
-      // Dragging the scene looks around; the floating controls keep working.
-      if (motionPreference.matches) return;
-      if (event.target.closest("button, input, a, .weather-panel")) return;
-      state.dragging = true;
+      if (!timePanel.hidden && !timePanel.contains(event.target) && !timeToggle.contains(event.target))
+        showTime(false);
     },
     options,
   );
+  soundButton.addEventListener(
+    "click",
+    () => {
+      state.sound.start();
+      state.sound.setEnabled(!state.sound.enabled);
+      soundButton.setAttribute("aria-pressed", String(state.sound.enabled));
+    },
+    options,
+  );
+  const scene = (event) => !event.target.closest("button, input, a, .weather-panel, .time-panel");
+  window.addEventListener(
+    "pointerdown",
+    (event) => {
+      state.sound.start();
+      if (motionPreference.matches || !scene(event)) return;
+      state.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, at: performance.now() });
+      state.dragging = true;
+      state.lastInput = performance.now();
+      if (state.pointers.size === 2) state.pinch = pinchDistance();
+    },
+    options,
+  );
+  window.addEventListener(
+    "pointermove",
+    (event) => {
+      const p = state.pointers.get(event.pointerId);
+      if (!p || !state.walker) return;
+      const dx = event.clientX - p.x;
+      const dy = event.clientY - p.y;
+      p.x = event.clientX;
+      p.y = event.clientY;
+      state.lastInput = performance.now();
+      if (state.pointers.size === 2) {
+        const d = pinchDistance();
+        if (state.pinch > 0 && d > 0) state.walker.zoom(state.pinch / d);
+        state.pinch = d;
+        return;
+      }
+      // Drag the world: orbit the cat.
+      if (Math.hypot(event.clientX - p.startX, event.clientY - p.startY) > 6)
+        state.walker.orbit(-dx * 0.006, dy * 0.004);
+    },
+    { ...options, passive: true },
+  );
   for (const end of ["pointerup", "pointercancel"])
-    window.addEventListener(end, () => (state.dragging = false), options);
+    window.addEventListener(
+      end,
+      (event) => {
+        const p = state.pointers.get(event.pointerId);
+        state.pointers.delete(event.pointerId);
+        state.dragging = state.pointers.size > 0;
+        state.pinch = 0;
+        // A tap, not a drag: walk there (or pet the cat).
+        if (p && end === "pointerup" && Math.hypot(event.clientX - p.startX, event.clientY - p.startY) < 8 && performance.now() - p.at < 500)
+          tap(event.clientX, event.clientY);
+      },
+      options,
+    );
+  window.addEventListener(
+    "wheel",
+    (event) => {
+      if (!state.walker || !scene(event)) return;
+      state.walker.zoom(Math.exp(event.deltaY * 0.0012));
+      state.lastInput = performance.now();
+      event.preventDefault();
+    },
+    { ...options, passive: false },
+  );
   window.addEventListener(
     "keydown",
     (event) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       const key = event.key.toLowerCase();
-      if (key === "h" && event.target === document.body) {
-        Object.assign(state.flight, HOME);
+      state.sound.start();
+      // Sliders keep their arrow keys; a focused button gives up space.
+      if (event.target.closest?.("input, select, textarea")) return;
+      if (key === " " && event.target.closest?.("button")) event.target.blur();
+      if (key === "h") {
+        state.walker?.home();
         resetSkyHistory();
         renderStill();
         return;
       }
-      if (!FLIGHT_KEYS.has(key) || motionPreference.matches) return;
-      if (event.target !== document.body && key.startsWith("arrow")) return;
-      if (event.target !== document.body && event.target.tagName !== "CANVAS")
-        return;
+      if (!WALK_KEYS.has(key) || motionPreference.matches) return;
+      if (key === " " && !event.repeat) state.jump = true;
+      if (key === "m" && !event.repeat) meow();
       state.keys.add(key);
+      state.lastInput = performance.now();
       event.preventDefault();
     },
     options,
@@ -204,13 +279,6 @@ function connectControls() {
     options,
   );
   window.addEventListener("blur", () => state.keys.clear(), options);
-  document.documentElement.addEventListener(
-    "pointerleave",
-    () => {
-      state.targetPointer = [0.5, 0.5];
-    },
-    options,
-  );
   window.addEventListener("resize", resizeAtmosphere, options);
   document.addEventListener(
     "visibilitychange",
@@ -228,13 +296,85 @@ function connectControls() {
   );
   motionPreference.addEventListener(
     "change",
-    () => {
-      state.pointer = [0.5, 0.5];
-      state.targetPointer = [0.5, 0.5];
-      syncLoop();
-    },
+    () => syncLoop(),
     options,
   );
+}
+
+function showTime(open) {
+  timePanel.hidden = !open;
+  timeToggle.setAttribute("aria-expanded", String(open));
+}
+
+function pinchDistance() {
+  const [a, b] = [...state.pointers.values()];
+  return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+}
+
+function meow() {
+  state.walker?.meow();
+  state.sound.meow();
+}
+
+// Tap the cat to hear it; tap the ground to walk there. The ray is marched
+// against the walkable surface (ground mesh and boulder tops).
+function tap(clientX, clientY) {
+  if (!state.landscape || !state.walker) return;
+  const { origin, direction } = state.landscape.pick(
+    (clientX / window.innerWidth) * 2 - 1,
+    1 - (clientY / window.innerHeight) * 2,
+  );
+  const cat = state.walker.cat;
+  // Distance from the cat's middle to the ray.
+  const cx = cat.x - origin[0];
+  const cy = cat.y + 0.15 - origin[1];
+  const cz = cat.z - origin[2];
+  const along = cx * direction[0] + cy * direction[1] + cz * direction[2];
+  const miss = Math.hypot(cx - direction[0] * along, cy - direction[1] * along, cz - direction[2] * along);
+  if (along > 0 && miss < 0.25 + along * 0.02) {
+    meow();
+    return;
+  }
+  let previous = 0;
+  for (let t = 0.3; t < 90; t += Math.max(0.05, t * 0.02)) {
+    const x = origin[0] + direction[0] * t;
+    const y = origin[1] + direction[1] * t;
+    const z = origin[2] + direction[2] * t;
+    if (y < state.walker.surface(x, z)) {
+      // Bisect for the crossing.
+      let lo = previous;
+      let hi = t;
+      for (let i = 0; i < 8; i++) {
+        const mid = (lo + hi) / 2;
+        const my = origin[1] + direction[1] * mid;
+        if (my < state.walker.surface(origin[0] + direction[0] * mid, origin[2] + direction[2] * mid)) hi = mid;
+        else lo = mid;
+      }
+      const hx = origin[0] + direction[0] * hi;
+      const hz = origin[2] + direction[2] * hi;
+      if (shoreDistance(hx, hz) > 0.3) state.walker.walkTo(hx, hz);
+      else state.walker.walkTo(...pullInland(hx, hz));
+      dismissHint();
+      return;
+    }
+    if (y < -1) break;
+    previous = t;
+  }
+}
+
+// A tap on the sea walks the cat to the water's edge instead.
+function pullInland(x, z) {
+  const dx = ISLAND.x - x;
+  const dz = ISLAND.z - z;
+  const r = Math.hypot(dx, dz) || 1;
+  const pull = 0.6 - shoreDistance(x, z);
+  return [x + (dx / r) * pull, z + (dz / r) * pull];
+}
+
+function dismissHint() {
+  if (!state.hintShown) return;
+  state.hintShown = false;
+  hint.dataset.hidden = "true";
 }
 
 function updateTime() {
@@ -242,6 +382,7 @@ function updateTime() {
   state.date = live ? new Date() : dateAtCapeMinutes(state.debugMinutes);
   state.celestial = skyAt(state.date);
   timeLabel.textContent = capeTime(state.date);
+  timeToggle.querySelector("span").textContent = `${capeTime(state.date)}${live ? "" : " · preview"}`;
   slider.value = String(live ? capeMinutes(state.date) : state.debugMinutes);
   slider.setAttribute(
     "aria-valuetext",
@@ -316,7 +457,9 @@ function applyWeather() {
 }
 
 async function startAtmosphere() {
-  const gpu = await init();
+  // Low power: the sky and sea are cheap now, and a discrete GPU would spin
+  // up fans for no visible gain.
+  const gpu = await init({ powerPreference: "low-power" });
   if (state.disposed) {
     gpu.dispose();
     return;
@@ -400,7 +543,10 @@ async function startAtmosphere() {
   state.landscape = createLandscape(
     document.querySelector("#landscape"),
     state.seed,
+    { light: LIGHT },
   );
+  state.walker = createWalker(state.landscape.obstacles);
+  state.flight = state.walker.camera;
   state.landscape.resize(window.innerWidth, window.innerHeight);
   await tablePass.compile(skyTable);
   await cloudPass.compile(cloudTarget);
@@ -416,11 +562,7 @@ async function startAtmosphere() {
     const dt = Math.min(gpuClock.deltaTime, 0.05);
     if (!motionPreference.matches) {
       state.time += dt;
-      const easing = 1 - Math.exp(-dt * 2.5);
-      state.pointer = state.pointer.map(
-        (value, i) => value + (state.targetPointer[i] - value) * easing,
-      );
-      updateFlight(dt);
+      updateCat(dt);
       adaptQuality(gpuClock.deltaTime);
     }
     const uniforms = createUniforms();
@@ -455,15 +597,18 @@ async function startAtmosphere() {
       pitch: state.flight.pitch,
       pointer: [...state.pointer],
     };
-    state.landscape.render(
-      state.celestial,
-      state.pointer,
-      state.weather?.cover ?? 0,
-      state.time,
-      state.weather?.wind ?? [0, 0],
-      state.flight,
-      state.lighting,
-    );
+    state.landscape.render({
+      celestial: state.celestial,
+      cover: state.weather?.cover ?? 0,
+      time: state.time,
+      wind: state.weather?.wind ?? [0, 0],
+      view: state.flight,
+      lighting: state.lighting,
+      pose: state.walker.cat,
+      dt: motionPreference.matches ? 0 : dt,
+      surface: state.walker.surface,
+      onStep: footstep,
+    });
   };
   document.body.dataset.renderer = "webgpu";
   syncLoop();
@@ -474,7 +619,7 @@ function cloudSize() {
   const width = window.innerWidth;
   const height = window.innerHeight;
   const scale =
-    Math.min(1, Math.sqrt(1000000 / (width * height))) * state.quality;
+    Math.min(1, Math.sqrt(SKY_PIXELS / (width * height))) * state.quality;
   return [
     Math.max(1, Math.round(width * scale)),
     Math.max(1, Math.round(height * scale)),
@@ -484,18 +629,21 @@ function cloudSize() {
 function waterSize() {
   const width = window.innerWidth;
   const height = window.innerHeight;
-  const scale = Math.min(
-    window.devicePixelRatio || 1,
-    2,
-    Math.sqrt(3500000 / (width * height)),
-  );
+  const scale =
+    Math.min(window.devicePixelRatio || 1, MAX_DPR, Math.sqrt(WATER_PIXELS / (width * height))) *
+    Math.max(0.75, Math.sqrt(state.quality));
   return [
     Math.max(1, Math.round(width * scale)),
     Math.max(1, Math.round(height * scale)),
   ];
 }
 
+// Until the walker exists (the landscape builds it), shaders compile against
+// the old home view.
+const FIRST_VIEW = { x: 6, y: 4.5, z: 0, azimuth: (315 * Math.PI) / 180, pitch: 0.10472 };
+
 function createUniforms() {
+  const view = state.flight ?? FIRST_VIEW;
   const sky = state.celestial;
   const weather = state.weather;
   const light = (state.lighting = lightingAt(sky, weather));
@@ -504,7 +652,7 @@ function createUniforms() {
     pointer: state.pointer,
     time: state.time,
     scene: sky.scene,
-    steps: state.quality < 0.85 ? 40 : 56,
+    steps: LIGHT || state.quality < 0.85 ? 32 : 44,
     seed: (state.seed % 65536) / 65536,
     sun: sky.sun,
     moon: sky.moon,
@@ -518,13 +666,8 @@ function createUniforms() {
     ],
     wind: weather?.wind ?? [0, 0],
     rain: weather?.rain ?? 0,
-    flight: [
-      state.flight.x,
-      state.flight.y,
-      state.flight.z,
-      state.flight.azimuth,
-    ],
-    pitch: state.flight.pitch,
+    flight: [view.x, view.y, view.z, view.azimuth],
+    pitch: view.pitch,
     light: [...light.direct, light.exposure],
     ambient: [...light.sky, light.night],
     // Filled in per frame for the sky passes; unused by the water pass.
@@ -533,44 +676,74 @@ function createUniforms() {
   };
 }
 
-// Fly where the camera looks. The bounds keep the illusion intact: above the
-// terrain, inside the modelled stretch of coast, below the cloud deck.
-function updateFlight(dt) {
+// The cat walks; the camera follows. Keys are camera-relative.
+function updateCat(dt) {
   const keys = state.keys;
-  const flight = state.flight;
   const held = (...names) => names.some((name) => keys.has(name));
-  // Flight-sim controls: throttle and turn. W/S sets the throttle, the craft
-  // keeps gliding; arrows steer (left/right turn, up/down pitch).
-  const turn = (held("arrowright", "d") ? 1 : 0) - (held("arrowleft", "a") ? 1 : 0);
-  const tilt = (held("arrowup") ? 1 : 0) - (held("arrowdown") ? 1 : 0);
-  const throttle = (held("w", "e", " ") ? 1 : 0) - (held("s", "q", "shift") ? 1 : 0);
-  flight.azimuth += turn * dt * 1.4;
-  flight.pitch = Math.min(1.15, Math.max(-0.65, flight.pitch + tilt * dt * 0.8));
-  flight.throttle = Math.min(
-    1,
-    Math.max(0, (flight.throttle ?? 0) + throttle * dt * 0.8),
+  const move = [
+    (held("d", "arrowright") ? 1 : 0) - (held("a", "arrowleft") ? 1 : 0),
+    (held("w", "arrowup") ? 1 : 0) - (held("s", "arrowdown") ? 1 : 0),
+  ];
+  if (move[0] || move[1]) dismissHint();
+  const walker = state.walker;
+  const cat = walker.update(
+    dt,
+    { move, run: held("shift"), jump: state.jump, rain: (state.weather?.rain ?? 0) > 0.5 },
+    state.landscape.interest,
   );
-  if (!flight.throttle) return;
-  const speed = flight.throttle * 16 * dt;
-  const sin = Math.sin(flight.azimuth);
-  const cos = Math.cos(flight.azimuth);
-  const hx = (sin + cos) * Math.SQRT1_2;
-  const hz = (cos - sin) * Math.SQRT1_2;
-  const cp = Math.cos(flight.pitch);
-  flight.x += hx * cp * speed;
-  flight.z += hz * cp * speed;
-  flight.y += Math.sin(flight.pitch) * speed;
-  // Stay within sight of the island, above the terrain, below the cloud deck.
-  const dx = flight.x - ISLAND.x;
-  const dz = flight.z - ISLAND.z;
-  const range = Math.hypot(dx, dz);
-  if (range > 160) {
-    flight.x = ISLAND.x + (dx / range) * 160;
-    flight.z = ISLAND.z + (dz / range) * 160;
+  state.jump = false;
+  for (const event of walker.events.splice(0)) {
+    if (event.type === "jump") state.sound.jump();
+    if (event.type === "land") {
+      state.sound.land(event.speed);
+      for (const front of [true, false])
+        for (const side of [-1, 1])
+          footstep(side < 0 ? "l" : "r", cat.x + Math.cos(cat.heading) * side * 0.05 + Math.sin(cat.heading) * (front ? 0.13 : -0.12), cat.z - Math.sin(cat.heading) * side * 0.05 + Math.cos(cat.heading) * (front ? 0.13 : -0.12), cat.heading, front, true);
+    }
   }
-  const overLand = shoreDistance(flight.x, flight.z) > -6;
-  const floor = overLand ? terrainHeight(flight.x, flight.z) + 1.5 : 1.3;
-  flight.y = Math.min(70, Math.max(floor, flight.y));
+  // Purr once settled; chirrup at something new to watch.
+  state.sound.setPurr(cat.sit > 0.9 && cat.idle > 8);
+  const interest = state.landscape.interest;
+  if (interest?.near && state.time - state.lastChirp > 12) {
+    state.lastChirp = state.time;
+    state.sound.chirrup();
+  }
+  // The soundscape from where the cat stands.
+  const inland = shoreDistance(cat.x, cat.z);
+  const seaX = cat.x - ISLAND.x;
+  const seaZ = cat.z - ISLAND.z;
+  const r = Math.hypot(seaX, seaZ) || 1;
+  const yaw = state.flight.azimuth + Math.PI / 4;
+  const wind = state.weather?.wind ?? [0, 0];
+  state.sound.update({
+    sea: 1 - smooth(0, 30, inland),
+    seaPan: (seaX / r) * Math.cos(yaw) - (seaZ / r) * Math.sin(yaw),
+    wind: Math.hypot(wind[0], wind[1]),
+    rain: state.weather?.rain ?? 0,
+    night: smooth(1, 2, state.celestial.scene),
+    trees: smooth(8, 16, inland),
+  });
+}
+
+// A paw lands: a print in the ground and a step you can hear.
+function footstep(leg, x, z, heading, front, silent = false) {
+  const cat = state.walker.cat;
+  const kind = surfaceKind(x, z, cat.onRock);
+  const inland = shoreDistance(x, z);
+  const e = 0.05;
+  const y = groundHeight(x, z);
+  const nx = groundHeight(x - e, z) - groundHeight(x + e, z);
+  const nz = groundHeight(x, z - e) - groundHeight(x, z + e);
+  const n = Math.hypot(nx, 2 * e, nz);
+  const depth = [0, 1, 0.85, 0.55, 0.3][kind];
+  const wet = 1 - smooth(0.6, 2, inland);
+  state.landscape.addPrint(state.time, x, y, z, heading, front, [nx / n, (2 * e) / n, nz / n], depth, wet);
+  if (!silent) state.sound.step(kind, cat.running, leg.startsWith("l") ? -0.15 : 0.15);
+}
+
+function smooth(a, b, x) {
+  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
 }
 
 function adaptQuality(deltaTime) {
@@ -580,7 +753,7 @@ function adaptQuality(deltaTime) {
   if (state.sampleCount < 180 || state.time - state.lastQualityChange < 8)
     return;
   const previous = state.quality;
-  if (state.frameMs > 24) state.quality = Math.max(0.6, state.quality - 0.12);
+  if (state.frameMs > 24) state.quality = Math.max(0.5, state.quality - 0.12);
   else if (state.frameMs < 18)
     state.quality = Math.min(1, state.quality + 0.06);
   if (previous !== state.quality) {
@@ -600,11 +773,22 @@ function resizeAtmosphere() {
 }
 
 function syncLoop() {
-  state.loop?.stop();
-  state.loop = null;
+  cancelAnimationFrame(state.raf);
+  state.raf = 0;
   if (!state.gpu || !state.renderFrame || document.hidden) return;
   if (motionPreference.matches) renderStill();
-  else state.loop = frameLoop(state.gpu, state.renderFrame);
+  else state.raf = requestAnimationFrame(tick);
+}
+
+function tick(timestamp) {
+  state.raf = requestAnimationFrame(tick);
+  const cat = state.walker?.cat;
+  const settled =
+    cat && cat.idle > 6 && performance.now() - state.lastInput > 6000 && !state.keys.size;
+  const interval = 1000 / (settled ? IDLE_FPS : ACTIVE_FPS);
+  if (timestamp - state.lastFrame < interval - 3) return;
+  state.lastFrame = timestamp;
+  frame(state.gpu, state.renderFrame);
 }
 
 function renderStill() {
@@ -637,7 +821,7 @@ function resetSkyHistory() {
 
 function useFallback(error) {
   document.body.dataset.renderer = "fallback";
-  state.loop?.stop();
+  cancelAnimationFrame(state.raf);
   const gpu = state.gpu;
   state.gpu = null;
   state.output = null;
@@ -654,7 +838,8 @@ function stopAtmosphere() {
   clearInterval(state.clockTimer);
   clearInterval(state.weatherTimer);
   state.weatherRequest?.abort();
-  state.loop?.stop();
+  cancelAnimationFrame(state.raf);
+  state.sound.dispose();
   state.gpu?.dispose();
   state.landscape?.dispose();
 }
