@@ -36,7 +36,31 @@ export function starCatalogCells(list, [width, height] = CATALOG_SIZE) {
       break;
     }
   }
+  // Empty cells within a star's search window get flux -1: the shader reads
+  // its own cell first and, finding exactly 0, knows no star can touch the
+  // pixel and skips the neighbourhood search (most of the sky).
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (cells[(y * width + x) * 4 + 2] <= 0) continue;
+      for (let dy = -1; dy <= 1; dy++) {
+        const row = y + dy;
+        if (row < 0 || row >= height) continue;
+        const reach = searchReach(row, height);
+        for (let dx = -reach; dx <= reach; dx++) {
+          const i = (row * width + ((x + dx + width) % width)) * 4 + 2;
+          if (cells[i] === 0) cells[i] = -1;
+        }
+      }
+    }
+  }
   return cells;
+}
+
+// Cells searched either side in right ascension; must match catalog_stars
+// in night.wgsl (wider toward the poles, where cells narrow).
+function searchReach(row, height) {
+  const dec = (0.5 - (row + 0.5) / height) * Math.PI;
+  return Math.min(5, Math.max(1, Math.ceil(1.2 / Math.max(Math.cos(dec), 0.2))));
 }
 
 export function halfFloats(values) {

@@ -59,11 +59,14 @@ export function createForest(scene, seed) {
     foliage: true,
     bent: 0.5,
   });
+  // The island carries ~200k shoots, and past ~60 m each covers only a few
+  // pixels: the layer was bound by vertex work on pixel-sized triangles, not
+  // by fill. Far levels keep a half, then a third, of the shoots (a stable
+  // per-shoot choice), grown so the canopy covers the same area.
   addInstances(scene, clusterGeometry(6), clusterMaterial, clusters, true, [
-    // Near foliage is fill-rate bound (layered double-sided cards), so the
-    // lighter levels start early; the size boost keeps crowns as full.
-    { geometry: clusterGeometry(5, 0), grow: 1.1, distance: 22 },
-    { geometry: clusterGeometry(3, 0), grow: 1.32, distance: 58 },
+    { geometry: clusterGeometry(3, 0), grow: 1.18, distance: 22 },
+    { geometry: clusterGeometry(2, 0), grow: 1.35 * Math.SQRT2, keep: (c) => shootShare(c) < 0.5, distance: 58 },
+    { geometry: clusterGeometry(1, 0), grow: 1.9 * Math.sqrt(3), keep: (c) => shootShare(c) < 0.34, distance: 100 },
   ]);
   const bladeMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff,
@@ -943,6 +946,13 @@ function rockGeometry(detail = 4) {
 
 function softMin(a, b, k = 9) {
   return -Math.log(Math.exp(-k * a) + Math.exp(-k * b)) / k;
+}
+
+// A stable pseudo-random number per shoot, by position: far levels keep
+// the shoots below a share, so each coarser level keeps a subset of the last.
+function shootShare(shoot) {
+  const h = Math.sin(shoot.position.x * 12.9898 + shoot.position.z * 78.233 + shoot.position.y * 37.719) * 43758.5453;
+  return h - Math.floor(h);
 }
 
 // Instances are bucketed into ground chunks so the camera frustum culls whole

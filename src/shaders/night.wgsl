@@ -125,6 +125,10 @@ export fn catalog_stars(eq: vec3f, catalog: texture_2d<f32>, pixel: f32, time: f
   let dec = asin(clamp(eq.z, -1.0, 1.0));
   let coord = vec2f(fract(ra / TAU), 0.5 - dec / 3.141593) * dims;
   let base = vec2i(floor(coord));
+  // Exactly zero: no star within the search window (see star-catalog.js).
+  if (textureLoad(catalog, vec2i((base.x + size.x) % size.x, clamp(base.y, 0, size.y - 1)), 0).b == 0.0) {
+    return vec3f(0.0);
+  }
   let sigma = pixel * 0.72;
   // Cells narrow toward the poles; search wider in right ascension there.
   let reach = i32(clamp(ceil(1.2 / max(cos(dec), 0.2)), 1.0, 5.0));

@@ -4,10 +4,13 @@ import {
   frame,
   frameLoop,
   init,
+  pingPong,
   sampler,
   surface,
   target,
 } from "vgpu";
+import skyTableShader from "./shaders/sky-table.wgsl";
+import cloudShader from "./shaders/clouds.wgsl";
 import skyShader from "./shaders/sky.wgsl";
 import waterShader from "./shaders/water.wgsl";
 import { createCloudNoise } from "./cloud-noise.js";
@@ -73,6 +76,13 @@ const state = {
   gpu: null,
   output: null,
   skyTarget: null,
+  // Sky passes (see sky.wgsl): the scattering table, the quarter-resolution
+  // cloud march, and the resolve's history ping-pong. skyFrames counts frames
+  // since the history was last invalidated.
+  skyTable: null,
+  cloudTarget: null,
+  skyFrames: 0,
+  previousView: null,
   atmosphere: null,
   water: null,
   loop: null,
@@ -122,6 +132,7 @@ function connectControls() {
     "input",
     () => {
       state.debugMinutes = Number(slider.value);
+      resetSkyHistory();
       updateTime();
     },
     options,
@@ -130,6 +141,7 @@ function connectControls() {
     "click",
     () => {
       state.debugMinutes = null;
+      resetSkyHistory();
       updateTime();
     },
     options,
@@ -173,6 +185,7 @@ function connectControls() {
       const key = event.key.toLowerCase();
       if (key === "h" && event.target === document.body) {
         Object.assign(state.flight, HOME);
+        resetSkyHistory();
         renderStill();
         return;
       }
@@ -277,6 +290,7 @@ async function refreshWeather() {
 
 // One place decides what the renderer sees and what the label says.
 function applyWeather() {
+  resetSkyHistory();
   const override = state.weatherOverride;
   const live = state.liveWeather;
   state.weather = override ?? live;
@@ -315,24 +329,50 @@ async function startAtmosphere() {
     alphaMode: "opaque",
   });
   state.output = output;
-  const skyTarget = target(gpu, { size: cloudSize(), format: "rgba16float" });
+  // The resolved sky alternates between two MRT targets: colour 0 is the sky
+  // the water reads, colour 1 the cloud layer the next frame reprojects.
+  const [skyWidth, skyHeight] = cloudSize();
+  const skyTarget = pingPong(gpu, skyWidth, skyHeight, {
+    colors: [{ format: "rgba16float" }, { format: "rgba16float" }],
+  });
   state.skyTarget = skyTarget;
+  const skyTable = target(gpu, { size: [256, 128], format: "rgba16float" });
+  state.skyTable = skyTable;
+  const cloudTarget = target(gpu, { size: quarterSize(cloudSize()), format: "rgba16float" });
+  state.cloudTarget = cloudTarget;
   const noise = createCloudNoise(gpu.gpu, state.seed);
   const stars = createStarAtlas(gpu.gpu);
   const starCatalog = createStarCatalog(gpu.gpu);
+  const skySampler = sampler(gpu, {
+    minFilter: "linear",
+    magFilter: "linear",
+    addressModeU: "repeat",
+    addressModeV: "repeat",
+    addressModeW: "repeat",
+  });
+  const tablePass = effect(gpu, skyTableShader, {
+    label: "skycope-sky-table",
+    set: { atmosphere: createUniforms() },
+  });
+  const cloudPass = effect(gpu, cloudShader, {
+    label: "skycope-clouds",
+    set: {
+      atmosphere: createUniforms(),
+      cloudNoise: noise.createView(),
+      cloudSampler: skySampler,
+      skyTable: skyTable.color,
+    },
+  });
   const atmosphere = effect(gpu, skyShader, {
     label: "skycope-cape-town",
     set: {
       atmosphere: createUniforms(),
       cloudNoise: noise.createView(),
       starAtlas: stars.createView(),
-      cloudSampler: sampler(gpu, {
-        minFilter: "linear",
-        magFilter: "linear",
-        addressModeU: "repeat",
-        addressModeV: "repeat",
-        addressModeW: "repeat",
-      }),
+      cloudSampler: skySampler,
+      skyTable: skyTable.color,
+      cloudLayer: cloudTarget.color,
+      cloudHistory: skyTarget.read.colors[1],
     },
   });
   state.atmosphere = atmosphere;
@@ -341,7 +381,7 @@ async function startAtmosphere() {
     set: {
       atmosphere: createUniforms(),
       cloudNoise: noise.createView(),
-      skyTexture: skyTarget.color,
+      skyTexture: skyTarget.write.color,
       starCatalog: starCatalog.createView(),
       // Repeat: the ocean tiles the noise volume across the whole sea. Sky
       // lookups clamp their own coordinates.
@@ -362,7 +402,9 @@ async function startAtmosphere() {
     state.seed,
   );
   state.landscape.resize(window.innerWidth, window.innerHeight);
-  await atmosphere.compile({ colors: [skyTarget.format] });
+  await tablePass.compile(skyTable);
+  await cloudPass.compile(cloudTarget);
+  await atmosphere.compile(skyTarget.write);
   await water.compile({ colors: [output.format] });
   if (state.disposed) return;
   gpu.onError(useFallback);
@@ -382,10 +424,37 @@ async function startAtmosphere() {
       adaptQuality(gpuClock.deltaTime);
     }
     const uniforms = createUniforms();
-    atmosphere.set({ atmosphere: { ...uniforms, resolution: skyTarget.size } });
-    water.set({ atmosphere: uniforms, skyTexture: skyTarget.color });
-    currentFrame.pass(skyTarget, atmosphere);
+    // Temporal clouds: each frame marches one pixel of every 2x2 block, in
+    // turn; the resolve reprojects the rest from last frame's cloud layer.
+    const jitter = JITTER[state.skyFrames % 4];
+    const view = state.previousView ?? state.flight;
+    const skyUniforms = {
+      ...uniforms,
+      resolution: skyTarget.write.size,
+      temporal: [jitter[0], jitter[1], state.skyFrames > 0 ? 1 : 0, 0],
+      previous: [view.azimuth, view.pitch, ...(view.pointer ?? state.pointer)],
+    };
+    tablePass.set({ atmosphere: skyUniforms });
+    cloudPass.set({ atmosphere: skyUniforms });
+    // Textures are rebound every frame: the history alternates, and a resize
+    // replaces the cloud layer's texture.
+    atmosphere.set({
+      atmosphere: skyUniforms,
+      cloudLayer: cloudTarget.color,
+      cloudHistory: skyTarget.read.colors[1],
+    });
+    water.set({ atmosphere: uniforms, skyTexture: skyTarget.write.color });
+    currentFrame.pass(skyTable, tablePass);
+    currentFrame.pass(cloudTarget, cloudPass);
+    currentFrame.pass(skyTarget.write, atmosphere);
     currentFrame.pass(output, water);
+    skyTarget.swap();
+    state.skyFrames++;
+    state.previousView = {
+      azimuth: state.flight.azimuth,
+      pitch: state.flight.pitch,
+      pointer: [...state.pointer],
+    };
     state.landscape.render(
       state.celestial,
       state.pointer,
@@ -458,6 +527,9 @@ function createUniforms() {
     pitch: state.flight.pitch,
     light: [...light.direct, light.exposure],
     ambient: [...light.sky, light.night],
+    // Filled in per frame for the sky passes; unused by the water pass.
+    temporal: [0, 0, 0, 0],
+    previous: [0, 0, 0, 0],
   };
 }
 
@@ -519,7 +591,10 @@ function adaptQuality(deltaTime) {
 
 function resizeAtmosphere() {
   state.output?.resize(waterSize());
-  state.skyTarget?.resize(cloudSize());
+  state.skyTarget?.read.resize(cloudSize());
+  state.skyTarget?.write.resize(cloudSize());
+  state.cloudTarget?.resize(quarterSize(cloudSize()));
+  resetSkyHistory();
   state.landscape?.resize(window.innerWidth, window.innerHeight, state.quality);
   renderStill();
 }
@@ -539,8 +614,25 @@ function renderStill() {
     state.renderFrame &&
     !document.hidden
   ) {
-    frame(state.gpu, state.renderFrame);
+    // Four frames: one per cloud jitter, so a still has full-resolution clouds.
+    resetSkyHistory();
+    for (let i = 0; i < 4; i++) frame(state.gpu, state.renderFrame);
   }
+}
+
+// Sub-pixel order within each 2x2 block: diagonals first, so two frames
+// already cover the block evenly.
+const JITTER = [[0, 0], [1, 1], [1, 0], [0, 1]];
+
+function quarterSize([width, height]) {
+  return [Math.ceil(width / 2), Math.ceil(height / 2)];
+}
+
+// Discontinuities (time scrubbing, new weather, a resize, returning home)
+// make last frame's clouds useless: rebuild them from fresh samples.
+function resetSkyHistory() {
+  state.skyFrames = 0;
+  state.previousView = null;
 }
 
 function useFallback(error) {

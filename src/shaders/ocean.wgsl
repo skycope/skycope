@@ -43,6 +43,11 @@ export fn ocean_view(
   let eye = settings.eye;
   if (eye.y <= 0.2) { return sky; }
   var distance = -eye.y / direction.y;
+  // Sea the island stands on is hidden by its terrain mesh on the land
+  // layer (terrain is above sea level everywhere inland), so a ray whose
+  // calm-sea hit lies clearly inland is never seen: skip its shading. The
+  // margin keeps the soft waterline band, where the ground fades out, shaded.
+  if (shore_metrics((eye + direction * distance).xz).x < -1.5) { return sky; }
   // Only broad swells displace the intersection. Fine waves shade its normal;
   // tracing them with Newton steps produces discontinuous roots and dotted bands.
   // A ray covers more sea at grazing angles. Filter before sampling, not afterwards:
@@ -55,7 +60,8 @@ export fn ocean_view(
   let vertical = (up_c.xz - direction.xz * up_c.y / direction.y) * distance * pixel_angle;
   let footprint = mat2x2f(horizontal, vertical);
   let displacement = smoothstep(0.10, 0.28, -direction.y);
-  for (var i = 0; i < 3; i++) {
+  // Grazing rays (most of the distant sea) take no displacement at all.
+  for (var i = 0; i < select(0, 3, displacement > 0.0); i++) {
     let p = eye + direction * distance;
     let wave = wave_surface(p.xz, footprint, settings, true) * displacement;
     let derivative = min(direction.y - dot(wave.yz, direction.xz), -0.035);
@@ -125,16 +131,22 @@ fn ocean(
   let refracted = refract(ray, normal, 0.7519);
   let down = max(-refracted.y, 0.05);
   let path = min(depth / down, 60.0);
-  let bed = p.xz + refracted.xz * path;
-  let bed_depth = seabed_depth(max(0.0, shore_metrics(bed).x));
-  let light_down = max(-refract(-light, vec3f(0.0, 1.0, 0.0), 0.7519).y, 0.2);
-  // Light reaching the seabed: the sun through the column plus diffuse sky.
-  // Lambertian: irradiance / π. Sky irradiance is roughly π × zenith radiance.
-  let bed_light = (direct * sun_up * max(light.y, 0.0) * 0.3183 * exp(-ABSORPTION * bed_depth / light_down)
-      * caustics(bed, settings.time, noise, filtering, bed_depth)
-    + settings.skylight * exp(-ABSORPTION * bed_depth * 1.2)) * seabed_shadows(bed, settings, noise, filtering);
-  let bed_colour = seabed(bed, offshore, settings, noise, filtering) * bed_light;
   let column = exp(-(ABSORPTION + SCATTERING) * path);
+  var bed_colour = vec3f(0.0);
+  // Deep water hides the bottom: when less than ~0.1% of the seabed's light
+  // could survive the round trip (blue, the most penetrating), its texture,
+  // caustics and shadows cannot show, so they are not evaluated.
+  if (column.b * exp(-ABSORPTION.b * depth * 1.2) > 0.0012) {
+    let bed = p.xz + refracted.xz * path;
+    let bed_depth = seabed_depth(max(0.0, shore_metrics(bed).x));
+    let light_down = max(-refract(-light, vec3f(0.0, 1.0, 0.0), 0.7519).y, 0.2);
+    // Light reaching the seabed: the sun through the column plus diffuse sky.
+    // Lambertian: irradiance / π. Sky irradiance is roughly π × zenith radiance.
+    let bed_light = (direct * sun_up * max(light.y, 0.0) * 0.3183 * exp(-ABSORPTION * bed_depth / light_down)
+        * caustics(bed, settings.time, noise, filtering, bed_depth)
+      + settings.skylight * exp(-ABSORPTION * bed_depth * 1.2)) * seabed_shadows(bed, settings, noise, filtering);
+    bed_colour = seabed(bed, offshore, settings, noise, filtering) * bed_light;
+  }
   // Single scattering in the water column: sunlight scattered back toward the
   // eye, tinted by the absorption it survived. This is the colour of deep water.
   let sigma_t = ABSORPTION + SCATTERING;
@@ -308,6 +320,12 @@ fn kelp_canopy(p: vec2f, offshore: f32, settings: OceanSettings, noise: texture_
 // breaker line is textured, and its residue decays into streaks and cells.
 fn surf_foam(p: vec2f, offshore: f32, waves: vec4f, footprint: mat2x2f, settings: OceanSettings,
   noise: texture_3d<f32>, filtering: sampler) -> f32 {
+  // Foam lives only in the surf zone, on the swash line, and (in wind) on
+  // offshore whitecaps; everywhere else skip its texture lookups.
+  let wind = length(settings.wind);
+  let whitecaps = smoothstep(5.0, 11.0, wind) * smoothstep(8.0, 20.0, offshore);
+  let surf_zone = 1.0 - smoothstep(0.6, 2.4, seabed_depth(offshore));
+  if (surf_zone <= 0.0 && offshore > 1.5 && whitecaps <= 0.0) { return 0.0; }
   let pixel = max(length(footprint[0]), length(footprint[1]));
   let lace = field(p * 1.4 + vec2f(settings.time * 0.04, 0.0), noise, filtering) * 0.55
     + field(p * 3.7 - vec2f(0.0, settings.time * 0.05), noise, filtering) * 0.3
@@ -315,14 +333,12 @@ fn surf_foam(p: vec2f, offshore: f32, waves: vec4f, footprint: mat2x2f, settings
   let bubbles = mix(lace, 0.55, smoothstep(0.08, 0.6, pixel));
   // Breakers: bands travelling shoreward whose phase shares the swell clock.
   let metrics = shore_metrics(p);
-  let depth = seabed_depth(offshore);
   let surge = settings.time * 0.13 + field(vec2f(metrics.w * 0.05, 0.0), noise, filtering) * 2.0;
   let breaker_phase = fract(offshore * 0.11 + surge);
   // Waves break in sets, and a crest breaks along only part of its length.
   let set_strength = smoothstep(0.35, 0.7, field(vec2f(metrics.w * 0.04 - settings.time * 0.02, offshore * 0.05), noise, filtering));
   let breaking = smoothstep(0.84, 0.93, breaker_phase) * (1.0 - smoothstep(0.95, 1.0, breaker_phase)) * set_strength;
   let residue = (1.0 - smoothstep(0.0, 0.8, breaker_phase)) * 0.5 * set_strength;
-  let surf_zone = 1.0 - smoothstep(0.6, 2.4, depth);
   // Swash: a thin, broken lace line where each wave runs up the sand.
   let run_up = 0.35 + 0.3 * sin(settings.time * 0.4 + metrics.w * 0.08);
   let swash = (1.0 - smoothstep(0.0, run_up, abs(offshore - run_up * 0.5)));
@@ -330,9 +346,8 @@ fn surf_foam(p: vec2f, offshore: f32, waves: vec4f, footprint: mat2x2f, settings
   foam = max(foam, swash * smoothstep(0.5, 0.7, bubbles));
   foam *= smoothstep(0.42, 0.68, bubbles + breaking * 0.25);
   // Whitecaps: wind above ~5 m/s breaks the steepest crests offshore.
-  let wind = length(settings.wind);
   let crest = smoothstep(0.05, 0.14, waves.x) * smoothstep(0.6, 0.75, lace);
-  foam = max(foam, crest * smoothstep(5.0, 11.0, wind) * smoothstep(8.0, 20.0, offshore) * 0.8);
+  foam = max(foam, crest * whitecaps * 0.8);
   return clamp(foam, 0.0, 1.0) * 0.92;
 }
 

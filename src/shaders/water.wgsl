@@ -59,16 +59,21 @@ fn night_sky(ray: vec3f, night: f32, clear: f32, background: f32) -> vec3f {
   // burning to white, and it shows pale by day as the real Moon does. The
   // disc is drawn about four times its true 0.26° radius, like the sun,
   // so its face reads.
-  let moonlight = sun_radiance(atmosphere.moon) * min(atmosphere.light.w, 0.95);
-  let moon = moon_disc(ray, atmosphere.moon, atmosphere.sun, sidereal, latitude, pixel, 0.019, moonlight);
-  var light = moon.rgb * moon.a * clear;
+  var light = vec3f(0.0);
+  var moon_cover = 0.0;
+  if (length(ray - atmosphere.moon) < 0.019 + pixel * 2.0) {
+    let moonlight = sun_radiance(atmosphere.moon) * min(atmosphere.light.w, 0.95);
+    let moon = moon_disc(ray, atmosphere.moon, atmosphere.sun, sidereal, latitude, pixel, 0.019, moonlight);
+    light = moon.rgb * moon.a * clear;
+    moon_cover = moon.a;
+  }
   if (night > 0.001) {
     let eq = equatorial_from_local(ray, sidereal, latitude);
     let airmass = 1.0 / max(ray.y, 0.02);
     let extinction = exp(-0.28 * (airmass - 1.0)) * smoothstep(0.0, 0.05, ray.y);
     let stars = catalog_stars(eq, starCatalog, pixel, atmosphere.time, airmass, background)
       + faint_stars(eq, pixel, background);
-    light += stars * extinction * night * clear * (1.0 - moon.a);
+    light += stars * extinction * night * clear * (1.0 - moon_cover);
   }
   return light;
 }

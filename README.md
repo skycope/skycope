@@ -48,7 +48,11 @@ reduced-motion mode, background/resume, and with the weather endpoint blocked.
 | `src/surf.js`            | Foam collars, lapping ripples and spray where the sea meets boulders     |
 | `src/shaders/atmosphere.wgsl` | Rayleigh/Mie/ozone scattering, transmittance, the one tonemap       |
 | `src/sunlight.js`        | CPU twin of the scattering model: exposure, sun and sky light per frame  |
-| `src/shaders/sky.wgsl`   | Sky radiance, cloud volumes and lighting, moon, stars                    |
+| `src/shaders/sky-table.wgsl` | Per-frame sky-view table of the scattering integral (sun and moon)   |
+| `src/shaders/clouds.wgsl` | Quarter-resolution, jittered cloud march                                |
+| `src/shaders/sky.wgsl`   | Sky resolve: temporal cloud reconstruction, background, Milky Way       |
+| `src/shaders/skyview.wgsl` | Shared table mapping, overcast grading, moonlight, volume noise       |
+| `src/shaders/night.wgsl` | Stars, Milky Way, Moon                                                   |
 | `src/shaders/view.wgsl`  | Shared camera projection and uniform layout                              |
 | `src/shaders/water.wgsl` | Sharp water composite, sun disc, rain, tonemap and final colour          |
 | `src/shaders/ocean.wgsl` | Swells, ripples, reflection, seabed, caustics, kelp, glitter, foam       |
@@ -210,9 +214,24 @@ breathing cycles (clipped at the surface). Birds roost at night.
 
 ## Render budget and lifecycle
 
-- Two WebGPU passes: clouds at most **1,000,000 shaded pixels**, then water and the
-  final composite at up to **3.5 million pixels / 2× DPR**. Adaptive cloud quality
-  never reduces the water resolution. The remaining pixel accent is typography.
+- Four WebGPU passes. The sky: a 256 × 128 **sky-view table** of the scattering
+  integral (Hillaire 2020; it was 1.6 ms of per-pixel integrals at 1 M pixels),
+  then the **cloud march at a quarter of the sky's pixels**, each texel tracing
+  one pixel of its 2×2 block in a rotating jitter, then a **resolve** at up to
+  **1,000,000 pixels** that takes the fresh sample where it matches and otherwise
+  reprojects last frame's cloud layer into the current view, clamped to the
+  fresh neighbourhood so moving cloud never ghosts (MRT: the sky for the water
+  pass, and the cloud layer as history). A resize, time scrub, weather change or
+  returning home resets the history; reduced-motion stills render four frames.
+  Then water and the final composite at up to **3.5 million pixels / 2× DPR**.
+  Adaptive cloud quality never reduces the water resolution.
+- The water pass skips work nobody sees: sea under the island (its calm-sea hit
+  is more than 1.5 m inland, where the terrain mesh is opaque), seabed shading
+  where the water column hides the bottom, foam lookups away from surf and
+  whitecaps, wave intersection steps at grazing angles (zero displacement),
+  and star searches where the catalog grid marks no star nearby. At 2560 × 1368
+  water and 1368 × 731 sky this took the WebGPU frame from 7–10 ms to 2.5–3.4 ms
+  on an Apple GPU, with sky and visible sea identical to within 5/255.
 - Up to 56 primary ray samples, quadratically spaced for nearby detail. Empty
   space is skipped and opaque rays exit early. Three secondary samples estimate
   cloud self-shadowing; directional light, ambient fill and haze add depth.
@@ -220,15 +239,17 @@ breathing cycles (clipped at the surface). Birds roost at night.
   the water/sky canvas. Both cameras share position, heading, pitch and FOV.
   Geometry uses instancing and no per-tree scene graph. Each 28 m chunk is a
   `THREE.LOD`: beyond 42 m it swaps to cheaper leaf/cluster/branch/rock geometry and
-  drops unresolvable twigs, blades and flowers (at the home view this cut visible
-  triangles from 3.4 M to 1.3–1.6 M). The mesh canvas caps at
+  drops unresolvable twigs, blades and flowers. The layer is vertex-bound, not
+  fill-bound (a tiny canvas costs nearly the same), so distant shoots keep a
+  stable half, then a third, grown to cover the same canopy area (3.3 M → 1.7 M
+  visible triangles at the home view). The mesh canvas caps at
   2.5 million pixels with MSAA. Sun shadows use one 2048² map, updated only when
   lighting changes. Individual leaf tips flutter in a vertex shader.
 - A 256 KiB repeating noise volume avoids hashing many noise octaves per sample.
   The constellation atlas is uploaded once (2048 × 1024 RGBA, 8 MiB), and the
   star catalog grid once (1024 × 512 RGBA16F, 4 MiB).
 - Rendering follows the display refresh through `requestAnimationFrame`, without a second FPS cutoff that can skip near-boundary frames. Sustained slow frames reduce resolution and sample
-  count; recovery is gradual. The water budget is fixed. No full-resolution bloom or temporal history buffers.
+  count; recovery is gradual. The water budget is fixed. No full-resolution bloom; the only history buffer is the cloud layer.
 - Hidden tabs stop rendering and skip weather fetches. Resuming refreshes stale
   weather. Reduced motion stops the animation loop and redraws only for clock,
   control, weather or size updates; pointer movement is disabled.

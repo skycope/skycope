@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { PNG } from "pngjs";
 import { resolveShader } from "@vgpu/wgsl/runtime";
 import { fileURLToPath } from "node:url";
-import { init, effect, frame, target, sampler, timer } from "vgpu/node";
+import { init, effect, frame, target, sampler, timer, pingPong } from "vgpu/node";
 import { createCloudNoise } from "../src/cloud-noise.js";
 import { skyAt } from "../src/astronomy.js";
 import { lightingAt } from "../src/sunlight.js";
@@ -38,29 +38,41 @@ gpu.gpu.queue.writeTexture(
   CATALOG_SIZE,
 );
 const output = target(gpu, { size: [1000, 700], format: "rgba8unorm" });
-const skyTarget = target(gpu, { size: [700, 490], format: "rgba16float" });
-const shader = effect(
-  gpu,
+// The site's sky passes (see src/main.js): scattering table, quarter-
+// resolution cloud march, and the resolve with its cloud history.
+const wgsl = async (name) =>
   (
     await resolveShader({
-      entry: fileURLToPath(new URL("../src/shaders/sky.wgsl", import.meta.url)),
+      entry: fileURLToPath(new URL(`../src/shaders/${name}`, import.meta.url)),
       validate: "off",
     })
-  ).wgsl,
-  {
-    set: {
-      cloudNoise: noise.createView(),
-      starAtlas: stars.createView(),
-      cloudSampler: sampler(gpu, {
-        minFilter: "linear",
-        magFilter: "linear",
-        addressModeU: "repeat",
-        addressModeV: "repeat",
-        addressModeW: "repeat",
-      }),
-    },
+  ).wgsl;
+const skySampler = sampler(gpu, {
+  minFilter: "linear",
+  magFilter: "linear",
+  addressModeU: "repeat",
+  addressModeV: "repeat",
+  addressModeW: "repeat",
+});
+const skyColors = { colors: [{ format: "rgba16float" }, { format: "rgba16float" }] };
+const skyTarget = pingPong(gpu, 700, 490, skyColors);
+const tableTarget = target(gpu, { size: [256, 128], format: "rgba16float" });
+const cloudTarget = target(gpu, { size: [350, 245], format: "rgba16float" });
+const table = effect(gpu, await wgsl("sky-table.wgsl"), { set: {} });
+const clouds = effect(gpu, await wgsl("clouds.wgsl"), {
+  set: { cloudNoise: noise.createView(), cloudSampler: skySampler, skyTable: tableTarget.color },
+});
+const shader = effect(gpu, await wgsl("sky.wgsl"), {
+  set: {
+    cloudNoise: noise.createView(),
+    starAtlas: stars.createView(),
+    cloudSampler: skySampler,
+    skyTable: tableTarget.color,
+    cloudLayer: cloudTarget.color,
+    cloudHistory: skyTarget.read.colors[1],
   },
-);
+});
+const JITTER = [[0, 0], [1, 1], [1, 0], [0, 1]];
 const water = effect(
   gpu,
   (
@@ -74,7 +86,7 @@ const water = effect(
   {
     set: {
       cloudNoise: noise.createView(),
-      skyTexture: skyTarget.color,
+      skyTexture: skyTarget.write.color,
       starCatalog: starCatalog.createView(),
       filtering: sampler(gpu, {
         minFilter: "linear",
@@ -88,8 +100,10 @@ const water = effect(
 );
 const gpuTimer = timer(gpu);
 const timings = [];
-gpuTimer.onResults((spans) => timings.push(spans.sky + spans.water));
-await shader.compile(skyTarget);
+gpuTimer.onResults((spans) => timings.push(spans.table + spans.clouds + spans.sky + spans.water));
+await table.compile(tableTarget);
+await clouds.compile(cloudTarget);
+await shader.compile(skyTarget.write);
 await water.compile(output);
 // Optional view: [heading in degrees, pitch in radians]; default is home.
 for (const [name, time, weather, rain, view] of [
@@ -112,8 +126,9 @@ for (const [name, time, weather, rain, view] of [
 ]) {
   if (name === "horizon" || name === "after-sunset") {
     output.resize([1600, 900]);
-    skyTarget.resize([1000, 562]);
-    water.set({ skyTexture: skyTarget.color });
+    skyTarget.read.resize([1000, 562]);
+    skyTarget.write.resize([1000, 562]);
+    cloudTarget.resize([500, 281]);
   }
   const sky = skyAt(new Date(time));
   const light = lightingAt(sky);
@@ -135,16 +150,30 @@ for (const [name, time, weather, rain, view] of [
     flight: [6, 4.5, 0, ((view?.[0] ?? 315) * Math.PI) / 180],
     pitch: view?.[1] ?? 0.10472,
   };
-  shader.set({ atmosphere: { ...atmosphere, resolution: skyTarget.size } });
-  water.set({ atmosphere });
   timings.length = 0;
   const start = performance.now();
+  // A still camera: the clouds' history converges after four frames, one
+  // per jitter, exactly as on the site.
   for (let i = 0; i < 24; i++) {
+    const [jx, jy] = JITTER[i % 4];
+    const skyAtmosphere = {
+      ...atmosphere,
+      resolution: skyTarget.write.size,
+      temporal: [jx, jy, i > 0 ? 1 : 0, 0],
+      previous: [atmosphere.flight[3], atmosphere.pitch, 0.5, 0.5],
+    };
+    table.set({ atmosphere: skyAtmosphere });
+    clouds.set({ atmosphere: skyAtmosphere });
+    shader.set({ atmosphere: skyAtmosphere, cloudLayer: cloudTarget.color, cloudHistory: skyTarget.read.colors[1] });
+    water.set({ atmosphere: { ...atmosphere, temporal: [0, 0, 0, 0], previous: [0, 0, 0, 0] }, skyTexture: skyTarget.write.color });
     frame(gpu, (f) => {
-      f.pass({ target: skyTarget, timer: gpuTimer.span("sky") }, shader);
+      f.pass({ target: tableTarget, timer: gpuTimer.span("table") }, table);
+      f.pass({ target: cloudTarget, timer: gpuTimer.span("clouds") }, clouds);
+      f.pass({ target: skyTarget.write, timer: gpuTimer.span("sky") }, shader);
       f.pass({ target: output, timer: gpuTimer.span("water") }, water);
     });
     await gpu.gpu.queue.onSubmittedWorkDone();
+    skyTarget.swap();
   }
   await gpu.settled();
   const pixels = await output.read();
