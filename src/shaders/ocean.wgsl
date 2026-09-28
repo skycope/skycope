@@ -400,22 +400,28 @@ fn wave_surface(p: vec2f, footprint: mat2x2f, settings: OceanSettings, geometry:
   let open_sea = smoothstep(8.0, 70.0, offshore);
   if (open_sea > 0.001) {
     result *= 1.0 - open_sea * 0.65;
-    var f = 0.33;
-    var a = (0.1 + min(speed * 0.004, 0.05)) * open_sea;
-    for (var j = 0; j < 6; j++) {
+    var f = 0.3;
+    var a = (0.09 + min(speed * 0.004, 0.05)) * open_sea;
+    // Ten trains at irrational direction offsets and jittered frequencies, each
+    // modulated by its own slow group envelope: real swell arrives in groups,
+    // and the varying amplitudes stop the trains locking into a lattice.
+    for (var j = 0; j < 10; j++) {
       if (geometry && j >= 3) { break; }
       let index = f32(j);
-      let spread = sin(index * 3.883 + settings.seed * 17.0) * 0.8;
-      let angle = wind_angle + spread;
+      let jitter = fract(sin(index * 12.9898 + settings.seed * 78.233) * 43758.5453);
+      let spread = (fract(index * 0.618034 + settings.seed * 3.7) - 0.5) * 2.2;
+      let angle = wind_angle + spread * (0.35 + 0.35 * jitter);
       let k = vec2f(cos(angle), sin(angle)) * f;
-      let phase = dot(k, p) - settings.time * 0.22 * sqrt(9.81 * f) + index * 1.7 + settings.seed * 40.0;
+      let phase = dot(k, p) - settings.time * 0.22 * sqrt(9.81 * f) + jitter * 6.283185;
       let projected = max(abs(dot(k, footprint[0])), abs(dot(k, footprint[1])));
       let retained = exp(-0.65 * projected * projected);
+      let group_p = p * (0.011 + jitter * 0.008) + vec2f(index * 7.31, index * 3.17) - k * settings.time * 0.05;
+      let group = 0.35 + 1.1 * smoothstep(0.2, 0.8, value_noise(group_p));
       let s = sin(phase);
-      result += vec4f(s + 0.18 * (s * s - 0.5), k * cos(phase) * (1.0 + 0.36 * s), 0.0) * a * retained;
-      result.w += pow(a * f, 2.0) * (1.0 - retained * retained) * 0.5;
-      f *= 1.27;
-      a *= 0.74;
+      result += vec4f(s + 0.18 * (s * s - 0.5), k * cos(phase) * (1.0 + 0.36 * s), 0.0) * a * group * retained;
+      result.w += pow(a * group * f, 2.0) * (1.0 - retained * retained) * 0.5;
+      f *= 1.17 + jitter * 0.16;
+      a *= 0.8;
     }
   }
   return result;
@@ -432,9 +438,13 @@ fn ripple_surface(p: vec2f, footprint: mat2x2f, settings: OceanSettings, noise: 
   var slope = vec2f(0.0);
   var variance = 0.0;
   let pixel_size = max(length(footprint[0]), length(footprint[1]));
+  // Domain warp by a kilometre-scale field: the 64-cell noise volume would
+  // otherwise tile visibly every few tens of metres at these frequencies.
+  let warp = vec2f(value_noise(p * 0.017 + vec2f(3.1, 7.7)), value_noise(p * 0.017 + vec2f(11.3, 1.9))) * 24.0;
+  let pw = p + warp;
   for (var i = 0; i < 5; i++) {
     let retained = exp(-0.7 * pow(frequency * pixel_size, 2.0));
-    let q = rotation * p * frequency + vec2f(time * 0.018, time * 0.009) * (1.0 + f32(i) * 0.4);
+    let q = rotation * pw * frequency + vec2f(f32(i) * 17.13, f32(i) * 5.71) + vec2f(time * 0.018, time * 0.009) * (1.0 + f32(i) * 0.4);
     let z = 11.3 + f32(i) * 9.17 + time * (0.012 + f32(i) * 0.01);
     let dx = volume(vec3f(q + vec2f(0.2, 0.0), z), noise, filtering)
       - volume(vec3f(q - vec2f(0.2, 0.0), z), noise, filtering);
@@ -465,6 +475,19 @@ fn field(p: vec2f, noise: texture_3d<f32>, filtering: sampler) -> f32 {
   let f = fract(p);
   let blend = f * f * (3.0 - 2.0 * f);
   return textureSampleLevel(noise, filtering, vec3f((cell + blend + 0.5) / 64.0, 0.37), 0.0).r;
+}
+
+// Hash-based value noise: aperiodic, for large-scale modulation where the
+// tiling noise texture would repeat.
+fn value_noise(p: vec2f) -> f32 {
+  let i = floor(p);
+  let f = fract(p);
+  let u = f * f * (3.0 - 2.0 * f);
+  let a = hash22(i).x;
+  let b = hash22(i + vec2f(1.0, 0.0)).x;
+  let c = hash22(i + vec2f(0.0, 1.0)).x;
+  let d = hash22(i + vec2f(1.0, 1.0)).x;
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
 }
 
 fn hash22(p: vec2f) -> vec2f {

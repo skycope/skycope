@@ -9,6 +9,7 @@ import {
 } from "./terrain.js";
 import { seededRandom } from "./random.js";
 import { createVegetation } from "./vegetation.js";
+import { createSurf } from "./surf.js";
 
 // All assets are built from geometry. No downloaded or generated images/textures.
 // Materials share one uniform set: three wind bands in the vertex stage, and
@@ -21,10 +22,13 @@ export function createForest(scene, seed) {
     sunDirView: { value: new THREE.Vector3(0, 1, 0) },
     sunTint: { value: new THREE.Color(1, 0.92, 0.75) },
     sunGlow: { value: 1 },
+    // Lambert-lit white (sun/π + sky), set from the shared lighting model.
+    foamLight: { value: new THREE.Color(1, 1, 1) },
   };
   const random = seededRandom(seed);
   const { wood: trunks, leaves, clusters, flowers, turf, layout } = createVegetation(seed);
   const rocks = addRocks(scene, random, shared);
+  createSurf(scene, rocks, shared);
   addGround(scene, shared, occludersFor(layout, rocks));
   const woodMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff,
@@ -101,6 +105,9 @@ export function createForest(scene, seed) {
       shared.breezeStrength.value = Math.min(1.5, 0.15 + speed / 8);
       if (speed > 0.5)
         shared.breezeDir.value.set(wind[0] / speed, wind[1] / speed);
+    },
+    updateFoamLight(rgb) {
+      shared.foamLight.value.setRGB(rgb[0], rgb[1], rgb[2]);
     },
     updateSun(directionView, tint, glow) {
       shared.sunDirView.value.copy(directionView);
@@ -224,17 +231,28 @@ float detailRoughness = mix( mix( 0.95, 0.9, rocky ), 0.28, wet );
 const ROCK_COLOUR_GLSL = /* glsl */ `
 #include <color_fragment>
 vec2 coast = vec2( vWorld.x, -vWorld.z );
-float veins = dFbm( vec2( vWorld.x + vWorld.y * 0.7, vWorld.z - vWorld.y * 0.4 ) * 3.0 );
-float crystals = dNoise( coast * 60.0 + vWorld.y * 40.0 );
-diffuseColor.rgb *= 0.72 + veins * 0.45 + crystals * 0.12;
-// Lichen on top surfaces, a dark wet band near the waterline, barnacles below.
+vec3 q = vWorld * 1.0;
+float veins = dFbm( vec2( q.x + q.y * 0.7, q.z - q.y * 0.4 ) * 2.2 );
+float crystals = dNoise( coast * 22.0 + q.y * 17.0 );
+// Speckled granite: feldspar and quartz grains in a grey matrix.
+diffuseColor.rgb *= 0.62 + veins * 0.42 + crystals * 0.1;
+diffuseColor.rgb *= mix( vec3( 1.0 ), vec3( 1.06, 0.98, 0.9 ), smoothstep( 0.45, 0.7, veins ) );
+// Lichen grows in rosettes on the lit tops: multi-scale, pale grey-green
+// and ochre, never flat splats.
 float up = abs( normalize( cross( dFdx( vWorld ), dFdy( vWorld ) ) ).y );
-float lichen = smoothstep( 0.55, 0.7, dNoise( coast * 4.0 + vWorld.y * 3.0 ) ) * smoothstep( 0.4, 0.8, up );
-diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.45, 0.4, 0.12 ), lichen * 0.55 );
-float tide = 1.0 - smoothstep( 0.05, 0.5, vWorld.y );
-diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * 0.45, tide );
-float detailHeight = veins * 0.05 + crystals * 0.004;
-float detailRoughness = mix( 0.85, 0.35, tide );
+float rosette = dNoise( coast * 3.0 + q.y * 2.0 ) * 0.55 + dNoise( coast * 9.0 - q.y * 5.0 ) * 0.3 + crystals * 0.15;
+float lichen = smoothstep( 0.6, 0.72, rosette ) * smoothstep( 0.45, 0.85, up );
+vec3 lichenColour = mix( vec3( 0.42, 0.44, 0.34 ), vec3( 0.48, 0.38, 0.14 ), dNoise( coast * 1.3 ) );
+diffuseColor.rgb = mix( diffuseColor.rgb, lichenColour, lichen * 0.4 );
+// Dark rain streaks down the flanks.
+float streak = smoothstep( 0.62, 0.8, dNoise( vec2( ( q.x + q.z ) * 4.0, q.y * 0.6 ) ) ) * ( 1.0 - up );
+diffuseColor.rgb *= 1.0 - streak * 0.3;
+// Wave run-up wets the rock in a band that rises and drains with each swell.
+float runup = 0.25 + 0.35 * pow( 0.5 + 0.5 * sin( breezeTime * 0.9 + vWorld.x * 0.7 - vWorld.z * 0.5 ), 3.0 );
+float tide = 1.0 - smoothstep( runup * 0.4, runup, vWorld.y + ( dNoise( coast * 6.0 ) - 0.5 ) * 0.08 );
+diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * 0.42, tide );
+float detailHeight = veins * 0.05 + crystals * 0.003;
+float detailRoughness = mix( 0.85, 0.3, tide );
 `;
 
 // Bark: vertical fissures and plates around the stem, lichen on the
@@ -481,7 +499,6 @@ function addGround(scene, shared, occluders) {
   }
   geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
   geometry.computeVertexNormals();
-  const normals = geometry.attributes.normal;
   const masks = new Float32Array(position.count * 3);
   const fbm = (x, z) =>
     noise2(x, z) * 0.5 + noise2(x * 2.1 + 5, z * 2.1) * 0.27 + noise2(x * 4.3, z * 4.3 + 3) * 0.15 + noise2(x * 8.7 + 1, z * 8.7) * 0.08;
@@ -489,7 +506,12 @@ function addGround(scene, shared, occluders) {
     const x = position.getX(i);
     const z = position.getZ(i);
     const inland = shoreDistance(x, z);
-    const steep = smoothstep(0.84, 0.66, normals.getY(i));
+    // Slope from the analytic terrain over ~1.5 m, not faceted mesh normals:
+    // thresholding per-vertex normals painted stepped patches along the grid.
+    const gx = (terrainHeight(x + 0.75, z) - terrainHeight(x - 0.75, z)) / 1.5;
+    const gz = (terrainHeight(x, z + 0.75) - terrainHeight(x, z - 0.75)) / 1.5;
+    const upness = 1 / Math.sqrt(1 + gx * gx + gz * gz);
+    const steep = smoothstep(0.8, 0.55, upness + (noise2(x * 0.4, z * 0.4) - 0.5) * 0.12);
     masks[i * 3] = fbm(x * 0.9, z * 0.9);
     masks[i * 3 + 1] = Math.max(steep, smoothstep(0.62, 0.76, fbm(x * 0.13 + 4, z * 0.13)) * smoothstep(14, 24, inland));
     masks[i * 3 + 2] = smoothstep(0.52, 0.72, fbm(x * 2.3 + 9, z * 2.3)) * smoothstep(6, 12, inland);
@@ -896,9 +918,10 @@ function addRocks(scene, random, shared, rocks = rockLayout(random)) {
     clippingPlanes: [new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.1)],
   });
   patchMaterial(material, shared, { rock: true, fade: true });
-  addInstances(scene, rockGeometry(4), material, rocks, true, {
-    geometry: rockGeometry(2),
-  });
+  addInstances(scene, rockGeometry(5), material, rocks, true, [
+    { geometry: rockGeometry(3), distance: 30 },
+    { geometry: rockGeometry(2), distance: 80 },
+  ]);
   return rocks;
 }
 
@@ -935,7 +958,7 @@ function rockLayout(random) {
         ),
         scale: new THREE.Vector3(size, size * (0.65 + random() * 0.3), size * (0.8 + random() * 0.3)),
         rotation: new THREE.Euler(random() * 0.6, random() * 6, random() * 0.6),
-        color: new THREE.Color().setHSL(0.08 + random() * 0.05, 0.1, grey),
+        color: new THREE.Color().setHSL(0.08 + random() * 0.05, 0.08, grey * 0.8),
       });
     }
   }

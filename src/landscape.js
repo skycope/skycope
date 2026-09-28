@@ -209,6 +209,9 @@ export function createLandscape(canvas, seed) {
     );
     // Overcast skies are brighter overall than the clear zenith alone.
     ambient.intensity = Math.PI * skyPeak * (1 + cover * 0.45);
+    forest.updateFoamLight(
+      lighting.direct.map((v, i) => (v * Math.max(sunWorld.y, 0) * overcast) / Math.PI + sky[i] * 1.1),
+    );
     scene.fog.color.setRGB(horizon[0], horizon[1], horizon[2]);
     // Grey the haze under cloud, as the sky pass does.
     if (cover > 0.55) {
