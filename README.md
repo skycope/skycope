@@ -22,8 +22,8 @@ Optional offline visual and performance checks:
 npm run render:sky -- /tmp/skycope-qa
 ```
 
-In the browser, QA-only query parameters: `?weather=clear|cloudy|rain` pins a
-weather fixture (labelled as such) instead of the live forecast; `?perf` records
+In the browser, `?weather=clear|cloudy|overcast|rain|storm` opens on that weather
+preset (the same as choosing it in the weather panel); `?perf` records
 mesh-layer GPU time (`data-mesh-ms`, via a `readPixels`-synced render burst every
 90 frames), triangles and draw calls on the landscape canvas, and exposes the live
 state as `window.skycope` (for example to aim `flight` at the sun).
@@ -43,6 +43,8 @@ reduced-motion mode, background/resume, and with the weather endpoint blocked.
 | `src/main.js`            | Controls, resource lifetime, clocks, uniforms, adaptive render budget    |
 | `src/astronomy.js`       | Cape Town dates, sun/moon positions, sidereal rotation                   |
 | `src/weather.js`         | Open-Meteo request and validation; no rendering code                     |
+| `src/weather-panel.js`   | Weather panel: live, presets, and cloud/wind/rain sliders                |
+| `src/surf.js`            | Foam collars, lapping ripples and spray where the sea meets boulders     |
 | `src/shaders/atmosphere.wgsl` | Rayleigh/Mie/ozone scattering, transmittance, the one tonemap       |
 | `src/sunlight.js`        | CPU twin of the scattering model: exposure, sun and sky light per frame  |
 | `src/shaders/sky.wgsl`   | Sky radiance, cloud volumes and lighting, moon, stars                    |
@@ -75,7 +77,14 @@ Low/mid/high cloud cover drives three separate cloud decks, wind drives drift,
 and precipitation drives rain. In a clear forecast the sky is clear. A failed
 refresh retains data for at most 90 minutes and labels it delayed; unavailable or
 stale data gets an explicit unavailable label and a neutral clear rendering.
-No API key or visitor geolocation is used. The weather text links to the provider.
+No API key or visitor geolocation is used.
+
+The weather label opens a panel: **live** follows the forecast; **clear, cloudy,
+overcast, rain, storm** are presets; the cloud, wind speed, wind direction and rain
+sliders set any sky by hand. Chosen weather is labelled "· set". Live data keeps
+refreshing underneath, and choosing live returns to it. Weather also shapes the
+light model: cloud cover turns the blue skylight into grey diffuse light and rain
+dims it, for clouds, sea and land alike (`lightingAt(celestial, weather)`).
 
 [SunCalc 2](https://github.com/mourner/suncalc) calculates the apparent sun and moon
 positions and lunar illumination. **Version 2 returns degrees, with azimuth

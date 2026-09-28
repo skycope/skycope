@@ -124,7 +124,8 @@ fn render_clouds(eye: vec3f, ray: vec3f, sun: vec3f, moon: vec3f, sky: vec3f, ni
     var lighting = direct_light * beer * mix(1.0, powder, 0.5) * phase * 0.075 * dim;
     lighting += sky_up * (0.55 + height_light * 0.7) + sky_side * 0.25;
     // Deep, low decks are dark underneath: little light survives the column.
-    lighting *= 1.0 - atmosphere.weather.x * atmosphere.weather.w * 0.5 * (1.0 - height_light);
+    lighting *= (1.0 - atmosphere.weather.x * atmosphere.weather.w * 0.5 * (1.0 - height_light))
+      * (1.0 - smoothstep(0.3, 8.0, atmosphere.rain) * 0.4);
     let haze = 1.0 - exp(-distance * 0.021);
     lighting = mix(lighting, sky, haze * 0.75);
     let alpha = 1.0 - exp(-density * step_size * 1.9);

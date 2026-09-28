@@ -117,7 +117,11 @@ function moonScale(moon, phase) {
 }
 
 // Everything the renderers need about light this frame, in exposed linear units.
-export function lightingAt(celestial) {
+// Weather shapes the skylight: a cloud deck turns the blue zenith into grey
+// diffuse light, and rain thickens it into gloom. The direct sun stays
+// unattenuated here (clouds' sunlit sides need it); each surface applies the
+// cloud cover to its own direct term.
+export function lightingAt(celestial, weather = null) {
   const night = smoothstep(1, 2, celestial.scene);
   const zenith = skyRadiance([0, 1, 0], celestial.sun, 5);
   // Adapt like an eye: hold the zenith steady through the golden hour, then
@@ -137,7 +141,14 @@ export function lightingAt(celestial) {
   const sky = zenith.map(
     (v, c) => (v + moonSky[c] * moonK * 0.6) * exposure + [0.004, 0.007, 0.014][c] * night,
   );
-  return { exposure, direct, sky, night };
+  const cover = weather?.cover ?? 0;
+  const rain = weather?.rain ?? 0;
+  const gloom = 1 - 0.45 * smoothstep(0.3, 8, rain) - 0.12 * smoothstep(0.6, 1, cover);
+  const grey = luminance(sky);
+  const overcastSky = sky.map(
+    (v, c) => (v + (grey * [0.96, 0.99, 1.05][c] - v) * Math.min(1, cover * 0.85)) * gloom,
+  );
+  return { exposure, direct, sky: overcastSky, night, gloom, cover };
 }
 
 // Horizon colour toward a heading, for fog and distant haze on the land layer.

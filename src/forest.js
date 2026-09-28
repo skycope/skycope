@@ -58,8 +58,10 @@ export function createForest(scene, seed) {
     bent: 0.62,
   });
   addInstances(scene, clusterGeometry(6), clusterMaterial, clusters, true, [
-    { geometry: clusterGeometry(4, true), grow: 1.12, distance: 38 },
-    { geometry: clusterGeometry(2, true), grow: 1.45, distance: 85 },
+    // Near foliage is fill-rate bound (layered double-sided cards), so the
+    // lighter levels start early; the size boost keeps crowns as full.
+    { geometry: clusterGeometry(4, true), grow: 1.12, distance: 22 },
+    { geometry: clusterGeometry(2, true), grow: 1.45, distance: 58 },
   ]);
   const bladeMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff,
@@ -68,8 +70,8 @@ export function createForest(scene, seed) {
   });
   patchMaterial(bladeMaterial, shared, { sway: true, flutter: 0.08, foliage: true, bent: 0.45 });
   addInstances(scene, leafGeometry(), bladeMaterial, leaves, true, [
-    { geometry: leafGeometry(true), keep: (l) => l.scale.y > 0.18 || l.scale.x > 0.05, distance: 32 },
-    { geometry: leafGeometry(true), keep: (l) => l.scale.y > 0.5, distance: 80 },
+    { geometry: leafGeometry(true), keep: (l) => l.scale.y > 0.18 || l.scale.x > 0.05, distance: 24 },
+    { geometry: leafGeometry(true), keep: (l) => l.scale.y > 0.5, distance: 64 },
   ]);
   // Turf shades as a soft lawn (normals bent up) and only near clumps cast
   // shadows; far away a sparse subset stands in for the rest.
@@ -919,8 +921,8 @@ function addRocks(scene, random, shared, rocks = rockLayout(random)) {
   });
   patchMaterial(material, shared, { rock: true, fade: true });
   addInstances(scene, rockGeometry(5), material, rocks, true, [
-    { geometry: rockGeometry(3), distance: 30 },
-    { geometry: rockGeometry(2), distance: 80 },
+    { geometry: rockGeometry(3), distance: 22 },
+    { geometry: rockGeometry(2), distance: 60 },
   ]);
   return rocks;
 }

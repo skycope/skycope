@@ -26,6 +26,7 @@ import {
 } from "./weather.js";
 import { terrainHeight, shoreDistance, ISLAND } from "./terrain.js";
 import { lightingAt } from "./sunlight.js";
+import { createWeatherPanel } from "./weather-panel.js";
 
 // Free flight around the coast. The default matches the original fixed view:
 // (6, 4.5, 0) coast metres, heading 315°, pitched 6° above the horizon.
@@ -42,14 +43,6 @@ const FLIGHT_KEYS = new Set([
   "arrowup", "arrowdown", "arrowleft", "arrowright",
 ]);
 
-// Visual-QA only: `?weather=clear|cloudy|rain` pins a fixture instead of the
-// live forecast, so glitter, sunsets and storms can be checked on demand.
-const WEATHER_FIXTURES = {
-  clear: { low: 0, mid: 0, high: 0.15, cover: 0.05, rain: 0, wind: [3, 1.5], temperature: 21, description: "clear sky (fixture)" },
-  cloudy: { low: 0.55, mid: 0.2, high: 0.4, cover: 0.6, rain: 0, wind: [4, 2], temperature: 18, description: "partly cloudy (fixture)" },
-  rain: { low: 0.95, mid: 0.75, high: 0.8, cover: 1, rain: 3, wind: [8, 4], temperature: 14, description: "rain (fixture)" },
-};
-const weatherFixture = WEATHER_FIXTURES[new URLSearchParams(window.location.search).get("weather")];
 
 const canvas = document.querySelector("#sky");
 const slider = document.querySelector("#time");
@@ -68,7 +61,11 @@ const state = {
   flight: { ...HOME },
   keys: new Set(),
   dragging: false,
+  // The renderer reads `weather`: the live forecast, or the panel's override.
   weather: null,
+  liveWeather: null,
+  weatherOverride: null,
+  weatherPanel: null,
   weatherRequest: null,
   weatherTimer: null,
   clockTimer: null,
@@ -95,6 +92,19 @@ start();
 
 async function start() {
   connectControls();
+  // `?weather=clear|cloudy|overcast|rain|storm` opens on that preset.
+  state.weatherPanel = createWeatherPanel({
+    toggle: document.querySelector("#weather-toggle"),
+    panel: document.querySelector("#weather-panel"),
+    initial: new URLSearchParams(window.location.search).get("weather"),
+    signal: events.signal,
+    onChange(override) {
+      state.weatherOverride = override;
+      applyWeather();
+    },
+  });
+  state.weatherOverride = state.weatherPanel.initial;
+  applyWeather();
   updateTime();
   refreshWeather();
   state.clockTimer = setInterval(updateTime, 1000);
@@ -149,7 +159,7 @@ function connectControls() {
     (event) => {
       // Dragging the scene looks around; the floating controls keep working.
       if (motionPreference.matches) return;
-      if (event.target.closest("button, input, a")) return;
+      if (event.target.closest("button, input, a, .weather-panel")) return;
       state.dragging = true;
     },
     options,
@@ -196,8 +206,8 @@ function connectControls() {
       syncLoop();
       if (
         !document.hidden &&
-        (!state.weather ||
-          Date.now() - state.weather.observedAt > WEATHER_REFRESH_MS)
+        (!state.liveWeather ||
+          Date.now() - state.liveWeather.observedAt > WEATHER_REFRESH_MS)
       )
         refreshWeather();
     },
@@ -242,36 +252,53 @@ function updateTime() {
 }
 
 async function refreshWeather() {
-  if (weatherFixture) {
-    state.weather = { ...weatherFixture, observedAt: Date.now() };
-    weatherLabel.textContent = `${state.weather.temperature}° · ${state.weather.description}`;
-    return;
-  }
   if (document.hidden || state.weatherRequest || state.disposed) return;
   const request = new AbortController();
   state.weatherRequest = request;
   const timeout = setTimeout(() => request.abort(), 12000);
   try {
-    state.weather = await fetchWeather(request.signal);
-    weatherLabel.textContent = `${state.weather.temperature}° · ${state.weather.description}`;
-    weatherLabel.title = `Cape Town weather model, updated ${capeTime(new Date(state.weather.observedAt))} SAST · Open-Meteo`;
-    document.body.dataset.weather = "live";
+    state.liveWeather = await fetchWeather(request.signal);
+    state.liveStatus = "live";
   } catch (error) {
     if (state.disposed) return;
     const fresh =
-      state.weather &&
-      Date.now() - state.weather.observedAt < WEATHER_MAX_AGE_MS;
-    weatherLabel.textContent = fresh
-      ? `${state.weather.temperature}° · weather delayed`
-      : "weather unavailable";
-    if (!fresh) state.weather = null;
-    document.body.dataset.weather = fresh ? "delayed" : "unavailable";
+      state.liveWeather &&
+      Date.now() - state.liveWeather.observedAt < WEATHER_MAX_AGE_MS;
+    if (!fresh) state.liveWeather = null;
+    state.liveStatus = fresh ? "delayed" : "unavailable";
     console.warn("Cape Town weather:", error.message);
   } finally {
     clearTimeout(timeout);
     state.weatherRequest = null;
-    renderStill();
+    state.weatherPanel?.setLive(state.liveWeather);
+    applyWeather();
   }
+}
+
+// One place decides what the renderer sees and what the label says.
+function applyWeather() {
+  const override = state.weatherOverride;
+  const live = state.liveWeather;
+  state.weather = override ?? live;
+  // Rainy, heavy skies are dark enough to need light text.
+  document.body.dataset.gloom = String(
+    (state.weather?.rain ?? 0) > 1.5 || (state.weather?.cover ?? 0) > 0.97,
+  );
+  if (override) {
+    const temperature = override.temperature ?? live?.temperature;
+    weatherLabel.textContent = `${temperature != null ? `${temperature}° · ` : ""}${override.description} · set`;
+    weatherLabel.title = "Chosen weather, not the live forecast. Open to return to live.";
+    document.body.dataset.weather = "set";
+  } else if (live) {
+    const delayed = state.liveStatus === "delayed";
+    weatherLabel.textContent = `${live.temperature}° · ${delayed ? "weather delayed" : live.description}`;
+    weatherLabel.title = `Cape Town weather model, updated ${capeTime(new Date(live.observedAt))} SAST · Open-Meteo`;
+    document.body.dataset.weather = state.liveStatus ?? "live";
+  } else {
+    weatherLabel.textContent = state.liveStatus === "unavailable" ? "weather unavailable" : "weather…";
+    document.body.dataset.weather = state.liveStatus ?? "loading";
+  }
+  renderStill();
 }
 
 async function startAtmosphere() {
@@ -400,7 +427,7 @@ function waterSize() {
 function createUniforms() {
   const sky = state.celestial;
   const weather = state.weather;
-  const light = (state.lighting = lightingAt(sky));
+  const light = (state.lighting = lightingAt(sky, weather));
   return {
     resolution: state.output.size,
     pointer: state.pointer,

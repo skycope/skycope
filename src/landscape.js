@@ -194,7 +194,9 @@ export function createLandscape(canvas, seed) {
     sunTint.copy(sun.color);
     // Hemisphere: zenith blended toward the horizon (the sky is brighter low
     // down), and the ground bounce is sunlit sand and foliage.
-    const horizon = horizonRadiance(celestial, [hx, 0, hz], lighting.exposure);
+    const horizon = horizonRadiance(celestial, [hx, 0, hz], lighting.exposure).map(
+      (v) => v * lighting.gloom,
+    );
     const sky = lighting.sky.map((v, i) => v * 0.6 + horizon[i] * 0.4);
     const skyPeak = Math.max(...sky, 1e-6);
     ambient.color.setRGB(sky[0] / skyPeak, sky[1] / skyPeak, sky[2] / skyPeak);

@@ -34,6 +34,9 @@
       body[data-scene="1"] {
         color: #fff3dc;
       }
+      body[data-scene="0"][data-gloom="true"] {
+        color: #e6edf0;
+      }
       body[data-scene="2"] {
         color: #dce7ed;
         color-scheme: dark;
@@ -143,11 +146,113 @@
       .conditions {
         text-align: right;
       }
-      #conditions {
-        text-decoration: none;
+      .conditions {
+        position: relative;
       }
-      #conditions:hover {
+      #weather-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.2rem 0 0.2rem 0.4rem;
+        border: 0;
+        background: none;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+      }
+      #weather-toggle:hover #conditions {
         text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+      .chevron {
+        width: 5px;
+        height: 5px;
+        border-right: 1px solid currentColor;
+        border-bottom: 1px solid currentColor;
+        transform: translateY(-2px) rotate(45deg);
+        opacity: 0.7;
+        transition: transform 0.2s ease;
+      }
+      #weather-toggle[aria-expanded="true"] .chevron {
+        transform: translateY(1px) rotate(225deg);
+      }
+      .weather-panel {
+        position: absolute;
+        right: 0;
+        top: calc(100% + 0.6rem);
+        width: min(300px, calc(100vw - 2.6rem));
+        padding: 0.9rem 1rem 0.7rem;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 8px;
+        background: rgba(225, 236, 240, 0.16);
+        box-shadow:
+          0 8px 40px rgba(17, 33, 54, 0.1),
+          inset 0 1px rgba(255, 255, 255, 0.14);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        text-align: left;
+        line-height: 1.4;
+      }
+      .weather-panel[hidden] {
+        display: none;
+      }
+      .presets {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.35rem;
+        margin-bottom: 0.8rem;
+      }
+      .presets button {
+        min-height: 30px;
+        padding: 0.3rem 0.2rem;
+        border: 1px solid currentColor;
+        border-radius: 4px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        font-size: 0.58rem;
+        cursor: pointer;
+        opacity: 0.6;
+      }
+      .presets button:hover {
+        opacity: 0.9;
+      }
+      .presets button[aria-pressed="true"] {
+        opacity: 1;
+        background: rgba(255, 255, 255, 0.22);
+      }
+      .dial {
+        display: grid;
+        grid-template-columns: 2.6rem 1fr 4.2rem;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.56rem;
+      }
+      .dial span {
+        opacity: 0.72;
+      }
+      .dial output {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      .dial input {
+        width: 100%;
+        height: 26px;
+        margin: 0;
+        accent-color: currentColor;
+        cursor: ew-resize;
+      }
+      .dial input:disabled {
+        opacity: 0.35;
+        cursor: default;
+      }
+      .weather-panel[data-mode="live"] .dial output {
+        opacity: 0.6;
+      }
+      .source {
+        margin: 0.5rem 0 0;
+        font-size: 0.48rem;
+        opacity: 0.6;
       }
       main {
         position: absolute;
@@ -387,15 +492,48 @@
         </div>
       </div>
       <div class="conditions">
-        <a
-          id="conditions"
-          role="status"
-          href="https://open-meteo.com/"
-          target="_blank"
-          rel="noreferrer"
-          aria-label="Cape Town weather, powered by Open-Meteo"
-          >weather…</a
+        <button
+          id="weather-toggle"
+          type="button"
+          aria-expanded="false"
+          aria-controls="weather-panel"
         >
+          <span id="conditions" role="status">weather…</span>
+          <span class="chevron" aria-hidden="true"></span>
+        </button>
+        <section id="weather-panel" class="weather-panel" aria-label="Weather" hidden>
+          <div class="presets" role="group" aria-label="Weather preset">
+            <button type="button" data-preset="live">live</button>
+            <button type="button" data-preset="clear">clear</button>
+            <button type="button" data-preset="cloudy">cloudy</button>
+            <button type="button" data-preset="overcast">overcast</button>
+            <button type="button" data-preset="rain">rain</button>
+            <button type="button" data-preset="storm">storm</button>
+          </div>
+          <label class="dial">
+            <span>cloud</span>
+            <input id="weather-cover" name="cover" type="range" min="0" max="100" step="1" value="0" />
+            <output for="weather-cover">0%</output>
+          </label>
+          <label class="dial">
+            <span>wind</span>
+            <input id="weather-speed" name="speed" type="range" min="0" max="20" step="1" value="0" />
+            <output for="weather-speed">0 m/s</output>
+          </label>
+          <label class="dial">
+            <span>from</span>
+            <input id="weather-direction" name="direction" type="range" min="0" max="355" step="5" value="0" />
+            <output for="weather-direction">n 0°</output>
+          </label>
+          <label class="dial">
+            <span>rain</span>
+            <input id="weather-rain" name="rain" type="range" min="0" max="10" step="0.5" value="0" />
+            <output for="weather-rain">0 mm/h</output>
+          </label>
+          <p class="source">
+            live data: <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">open-meteo</a> model
+          </p>
+        </section>
       </div>
     </header>
     <main>
