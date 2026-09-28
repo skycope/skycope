@@ -110,6 +110,12 @@ export function skyRadiance(view, sun, samples = 12) {
 
 const luminance = (c) => c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
 
+// Moonlight is sunlight at a tiny fraction of its intensity, too dim for
+// colour vision: the eye sees only its luminance, cool-tinted (the Purkinje
+// shift). Keep MOON_TINT equal to the one in sky.wgsl.
+const MOON_TINT = [0.9, 1.01, 1.19];
+const scotopic = (c) => MOON_TINT.map((t) => t * luminance(c));
+
 // Moonlight: sunlight scaled by phase, lifted so a moonlit scene is readable.
 function moonScale(moon, phase) {
   const lit = 0.5 - 0.5 * Math.cos(phase * Math.PI * 2);
@@ -135,9 +141,9 @@ export function lightingAt(celestial, weather = null) {
   const exposure = Math.min(cap, Math.max(0.08, target / Math.max(luminance(zenith), 1e-6)));
   const moonK = moonScale(celestial.moon, celestial.moonPhase);
   const sun = sunRadiance(celestial.sun);
-  const moon = sunRadiance(celestial.moon).map((v) => v * moonK * 0.6);
+  const moon = scotopic(sunRadiance(celestial.moon)).map((v) => v * moonK * 0.6);
   const direct = sun.map((v, c) => (v + (moon[c] - v) * night) * exposure);
-  const moonSky = skyRadiance([0, 1, 0], celestial.moon, 4);
+  const moonSky = scotopic(skyRadiance([0, 1, 0], celestial.moon, 4));
   const sky = zenith.map(
     (v, c) => (v + moonSky[c] * moonK * 0.6) * exposure + [0.004, 0.007, 0.014][c] * night,
   );
@@ -149,6 +155,29 @@ export function lightingAt(celestial, weather = null) {
     (v, c) => (v + (grey * [0.96, 0.99, 1.05][c] - v) * Math.min(1, cover * 0.85)) * gloom,
   );
   return { exposure, direct, sky: overcastSky, night, gloom, cover };
+}
+
+// Mean skylight a level surface receives (cosine-weighted over the whole
+// dome) relative to the zenith radiance, per channel. The zenith alone
+// underestimates it; blending in the horizon toward one heading badly
+// overestimates it and tints it with that direction's haze. Exposure cancels,
+// so it only needs recomputing when the sun moves.
+export function skyIrradianceRatio(sun) {
+  const zenith = skyRadiance([0, 1, 0], sun, 5);
+  const mean = [0, 0, 0];
+  const rings = 4;
+  const around = 8;
+  for (let i = 0; i < rings; i++) {
+    // Equal-area rings in cos²: uniform samples of the cosine-weighted dome.
+    const up = Math.sqrt(1 - (i + 0.5) / rings);
+    const out = Math.sqrt(1 - up * up);
+    for (let j = 0; j < around; j++) {
+      const a = ((j + 0.5) / around) * Math.PI * 2;
+      const radiance = skyRadiance([out * Math.cos(a), up, out * Math.sin(a)], sun, 5);
+      for (let c = 0; c < 3; c++) mean[c] += radiance[c] / (rings * around);
+    }
+  }
+  return mean.map((v, c) => Math.min(4, v / Math.max(zenith[c], 1e-9)));
 }
 
 // Horizon colour toward a heading, for fog and distant haze on the land layer.

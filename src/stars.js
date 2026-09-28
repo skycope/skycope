@@ -1,7 +1,11 @@
 import catalog from "./data/stars.json";
+import { CATALOG_SIZE, starCatalogCells, halfFloats } from "./star-catalog.js";
 
 // One static equatorial atlas, sampled after the shader rotates the local sky
 // by Cape Town's latitude and local sidereal time. No per-frame star draw calls.
+// One static equatorial atlas of the constellation figures, sampled after the
+// shader rotates the local sky by Cape Town's latitude and local sidereal
+// time. Stars themselves are not painted here: see createStarCatalog.
 export function createStarAtlas(device) {
   const width = 2048;
   const height = 1024;
@@ -12,28 +16,8 @@ export function createStarAtlas(device) {
   context.fillStyle = "black";
   context.fillRect(0, 0, width, height);
   drawConstellations(context, width, height);
-  for (const [ra, dec, magnitude, colorIndex] of catalog.stars) {
-    const [x, y] = atlasPoint(ra, dec, width, height);
-    const brightness = Math.min(1, 0.24 + Math.pow(10, -0.25 * magnitude));
-    const warm = Math.max(0, Math.min(1, Number(colorIndex) / 1.7));
-    context.fillStyle = `rgba(${Math.round(190 + 65 * warm)}, ${Math.round(214 + 10 * warm)}, ${Math.round(255 - 74 * warm)}, ${brightness})`;
-    const radius = magnitude < 1 ? 1.65 : magnitude < 3 ? 1.0 : 0.65;
-    for (const wrap of [-width, 0, width]) {
-      context.beginPath();
-      context.ellipse(
-        x + wrap,
-        y,
-        radius / Math.max(0.22, Math.cos((dec * Math.PI) / 180)),
-        radius,
-        0,
-        0,
-        Math.PI * 2,
-      );
-      context.fill();
-    }
-  }
   const texture = device.createTexture({
-    label: "skycope-real-stars",
+    label: "skycope-constellations",
     size: [width, height],
     format: "rgba8unorm",
     usage:
@@ -45,6 +29,20 @@ export function createStarAtlas(device) {
     width,
     height,
   ]);
+  return texture;
+}
+
+export function createStarCatalog(device) {
+  const [width, height] = CATALOG_SIZE;
+  const cells = starCatalogCells(catalog.stars, CATALOG_SIZE);
+  const half = halfFloats(cells);
+  const texture = device.createTexture({
+    label: "skycope-star-catalog",
+    size: [width, height],
+    format: "rgba16float",
+    usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+  });
+  device.queue.writeTexture({ texture }, half, { bytesPerRow: width * 8 }, [width, height]);
   return texture;
 }
 

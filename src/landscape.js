@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { createForest } from "./forest.js";
 import { createFauna } from "./fauna.js";
-import { horizonRadiance } from "./sunlight.js";
+import { horizonRadiance, skyIrradianceRatio } from "./sunlight.js";
 
 // The mesh layer tonemaps with the same ACES fit as the WebGPU water pass, so
 // land, sea and sky share one exposure and one highlight shoulder.
@@ -64,6 +64,7 @@ export function createLandscape(canvas, seed) {
   sun.target.position.set(23, 0, -35);
   scene.add(ambient, sun, sun.target);
   let previousLighting = "";
+  let skyRatio = [1, 1, 1];
   const perf = new URLSearchParams(window.location.search).has("perf");
   let perfFrame = 0;
 
@@ -94,6 +95,7 @@ export function createLandscape(canvas, seed) {
         previousLighting = key;
         sun.target.position.set(anchorX, 0, -anchorZ);
         updateDirection(celestial);
+        skyRatio = skyIrradianceRatio(celestial.sun);
         renderer.shadowMap.needsUpdate = true;
       }
       updateLighting(celestial, cover, lighting, hx, hz);
@@ -192,22 +194,29 @@ export function createLandscape(canvas, seed) {
     sun.color.setRGB(r / peak, g / peak, b / peak);
     sun.intensity = peak * overcast;
     sunTint.copy(sun.color);
-    // Hemisphere: zenith blended toward the horizon (the sky is brighter low
-    // down), and the ground bounce is sunlit sand and foliage.
+    // Hemisphere: the whole dome's cosine-weighted skylight (blue at midday,
+    // roughly a quarter of the sun on level ground), not the bright hazy
+    // horizon toward the heading, which tinted every shadow khaki. At night
+    // the moon/night floor in lighting.sky is already the whole story, and an
+    // overcast dome is near uniform.
     const horizon = horizonRadiance(celestial, [hx, 0, hz], lighting.exposure).map(
       (v) => v * lighting.gloom,
     );
-    const sky = lighting.sky.map((v, i) => v * 0.6 + horizon[i] * 0.4);
+    const night = THREE.MathUtils.smoothstep(celestial.scene, 1, 2);
+    const uniform = Math.max(night, cover);
+    const sky = lighting.sky.map((v, i) => v * (skyRatio[i] + (1 - skyRatio[i]) * uniform));
     const skyPeak = Math.max(...sky, 1e-6);
     ambient.color.setRGB(sky[0] / skyPeak, sky[1] / skyPeak, sky[2] / skyPeak);
+    // Ground bounce: the island's mean albedo (sand, soil and leaves) under
+    // sun and sky, at its true brightness relative to the sky, so undersides
+    // stay darker than tops instead of being lifted to match them.
     const bounce = lighting.direct.map(
-      (v, i) => (v * Math.max(sunWorld.y, 0) * overcast / Math.PI + sky[i]) * [0.3, 0.26, 0.18][i],
+      (v, i) => (v * Math.max(sunWorld.y, 0) * overcast / Math.PI + sky[i]) * [0.2, 0.19, 0.15][i],
     );
-    const bouncePeak = Math.max(...bounce, 1e-6);
     ambient.groundColor.setRGB(
-      bounce[0] / bouncePeak,
-      bounce[1] / bouncePeak,
-      bounce[2] / bouncePeak,
+      bounce[0] / skyPeak,
+      bounce[1] / skyPeak,
+      bounce[2] / skyPeak,
     );
     // Overcast skies are brighter overall than the clear zenith alone.
     ambient.intensity = Math.PI * skyPeak * (1 + cover * 0.45);

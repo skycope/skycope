@@ -10,6 +10,7 @@ import {
 import { seededRandom } from "./random.js";
 import { createVegetation } from "./vegetation.js";
 import { createSurf } from "./surf.js";
+import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
 
 // All assets are built from geometry. No downloaded or generated images/textures.
 // Materials share one uniform set: three wind bands in the vertex stage, and
@@ -49,29 +50,31 @@ export function createForest(scene, seed) {
   const clusterMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     roughness: 0.6,
+    vertexColors: true,
     side: THREE.DoubleSide,
   });
   patchMaterial(clusterMaterial, shared, {
     sway: true,
     flutter: 0.09,
     foliage: true,
-    bent: 0.62,
+    bent: 0.5,
   });
   addInstances(scene, clusterGeometry(6), clusterMaterial, clusters, true, [
     // Near foliage is fill-rate bound (layered double-sided cards), so the
     // lighter levels start early; the size boost keeps crowns as full.
-    { geometry: clusterGeometry(4, true), grow: 1.12, distance: 22 },
-    { geometry: clusterGeometry(2, true), grow: 1.45, distance: 58 },
+    { geometry: clusterGeometry(5, 0), grow: 1.1, distance: 22 },
+    { geometry: clusterGeometry(3, 0), grow: 1.32, distance: 58 },
   ]);
   const bladeMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     roughness: 0.62,
+    vertexColors: true,
     side: THREE.DoubleSide,
   });
   patchMaterial(bladeMaterial, shared, { sway: true, flutter: 0.08, foliage: true, bent: 0.45 });
-  addInstances(scene, leafGeometry(), bladeMaterial, leaves, true, [
-    { geometry: leafGeometry(true), keep: (l) => l.scale.y > 0.18 || l.scale.x > 0.05, distance: 24 },
-    { geometry: leafGeometry(true), keep: (l) => l.scale.y > 0.5, distance: 64 },
+  addInstances(scene, leafGeometry(1), bladeMaterial, leaves, true, [
+    { geometry: leafGeometry(0), keep: (l) => l.scale.y > 0.18 || l.scale.x > 0.05, distance: 24 },
+    { geometry: leafGeometry(0), keep: (l) => l.scale.y > 0.5, distance: 64 },
   ]);
   // Turf shades as a soft lawn (normals bent up) and only near clumps cast
   // shadows; far away a sparse subset stands in for the rest.
@@ -160,23 +163,54 @@ gl_Position = projectionMatrix * mvPosition;
 // a diffuse "thickness" term for leaves the sun lights from behind), and the
 // shaded underside glows faintly with transmitted skylight. A shifting subset
 // carries a tight specular lobe: sun-sparkles as they flutter.
+//
+// Everything is driven by `leafSun`: the sun's irradiance at this fragment
+// after the shadow map (captured from three's light loop), so only leaves the
+// sun actually reaches glow, and a crown lit from behind shows a bright rim
+// over a dark, self-shadowed interior. Which side the sun is on uses the
+// leaf's own normal (vLeafNormal), not the crown-bent shading normal.
 const FOLIAGE_GLSL = /* glsl */ `
 #include <lights_fragment_end>
 {
-  vec3 sceneViewDir = normalize( vViewPosition );
-  float backlit = clamp( -dot( sceneViewDir, sunDirView ), 0.0, 1.0 );
-  float through = clamp( -dot( normal, sunDirView ), 0.0, 1.0 );
-  float transmission = pow( backlit, 4.0 ) * 0.9 + through * 0.35;
-  vec3 leafLight = diffuseColor.rgb * vec3( 1.15, 1.1, 0.5 );
-  reflectedLight.indirectDiffuse += leafLight * sunTint * transmission * sunGlow * 1.1;
-  reflectedLight.indirectDiffuse += diffuseColor.rgb * vec3( 0.9, 1.0, 0.6 )
-    * reflectedLight.indirectDiffuse * clamp( -normal.y, 0.0, 1.0 ) * 0.6;
-  vec3 sparkleRay = reflect( -sunDirView, normal );
-  float sparkle = pow( clamp( dot( sparkleRay, sceneViewDir ), 0.0, 1.0 ), 80.0 );
-  float gate = smoothstep( 0.80, 0.97, fract( vGlint * 9.173 + breezeTime * 0.11 ) );
-  reflectedLight.directSpecular += sunTint * sparkle * gate * sunGlow * 1.6;
+  vec3 toEye = normalize( vViewPosition );
+  vec3 leafN = normalize( vLeafNormal );
+  leafN *= dot( leafN, toEye ) < 0.0 ? -1.0 : 1.0;
+  // Sun on the far side of the leaf from the eye: the light passed through it.
+  float behind = clamp( -dot( leafN, sunDirView ), 0.0, 1.0 );
+  float facing = clamp( dot( leafN, sunDirView ), 0.0, 1.0 );
+  // Leaf tissue scatters forward: brightest looking toward the sun.
+  float forward = pow( clamp( -dot( toEye, sunDirView ), 0.0, 1.0 ), 6.0 );
+  // Transmittance peaks in green-yellow and is deeper than reflectance
+  // (chlorophyll absorbs red and blue on the way through).
+  vec3 transmit = min( diffuseColor.rgb * vec3( 1.5, 2.4, 0.9 ), vec3( 0.45 ) );
+  reflectedLight.directDiffuse += leafSun * transmit * RECIPROCAL_PI
+    * ( behind * ( 0.8 + forward * 3.0 ) + forward * 0.35 );
+  // Skylight through the canopy: undersides glow faintly green.
+  reflectedLight.indirectDiffuse += transmit * reflectedLight.indirectDiffuse
+    * clamp( -normal.y * 0.5 + 0.5, 0.0, 1.0 ) * 0.9;
+  // Waxy cuticle: each leaf mirrors the sun at its own angle, so a crown
+  // shimmers leaf by leaf instead of carrying one broad highlight.
+  vec3 sparkleRay = reflect( -sunDirView, leafN );
+  float sparkle = pow( clamp( dot( sparkleRay, toEye ), 0.0, 1.0 ), 48.0 ) * facing;
+  float gate = 0.35 + 0.65 * smoothstep( 0.55, 0.95, fract( vGlint * 9.173 + breezeTime * 0.11 ) );
+  reflectedLight.directSpecular += leafSun * sparkle * gate * 0.5;
 }
 `;
+
+// three's directional-light loop with the shadowed sun irradiance kept for
+// the foliage terms above (the scene has exactly one directional light).
+const LEAF_LIGHTS_GLSL = (() => {
+  const chunk = THREE.ShaderChunk.lights_fragment_begin;
+  const marker = "#if ( NUM_DIR_LIGHTS > 0 ) && defined( RE_Direct )";
+  const call =
+    "RE_Direct( directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );";
+  const at = chunk.indexOf(marker);
+  if (at < 0 || chunk.indexOf(call, at) < 0)
+    throw new Error("three.js light loop changed; update LEAF_LIGHTS_GLSL");
+  const head = chunk.slice(0, at);
+  const tail = chunk.slice(at).replace(call, `${call}\n\t\tleafSun += directLight.color;`);
+  return `vec3 leafSun = vec3( 0.0 );\n${head}${tail}`;
+})();
 
 // Distance should remove information, not just add white: far geometry loses
 // saturation and contrast toward the sky tone before the fog blend itself.
@@ -187,10 +221,12 @@ const FOG_GLSL = /* glsl */ `
   #else
     float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );
   #endif
-  float fogFade = smoothstep( 25.0, 190.0, vFogDepth );
+  // Clear coastal air: colour holds across the island and fades only
+  // toward the far shore, so the near scene keeps its saturation.
+  float fogFade = smoothstep( 60.0, 220.0, vFogDepth );
   float fogLuma = dot( gl_FragColor.rgb, vec3( 0.30, 0.55, 0.15 ) );
-  vec3 fogFaded = mix( gl_FragColor.rgb, vec3( fogLuma ), fogFade * 0.5 );
-  fogFaded = mix( fogFaded, fogColor, fogFade * 0.22 );
+  vec3 fogFaded = mix( gl_FragColor.rgb, vec3( fogLuma ), fogFade * 0.3 );
+  fogFaded = mix( fogFaded, fogColor, fogFade * 0.15 );
   gl_FragColor.rgb = mix( fogFaded, fogColor, fogFactor );
 #endif
 `;
@@ -234,15 +270,19 @@ const ROCK_COLOUR_GLSL = /* glsl */ `
 #include <color_fragment>
 vec2 coast = vec2( vWorld.x, -vWorld.z );
 vec3 q = vWorld * 1.0;
-float veins = dFbm( vec2( q.x + q.y * 0.7, q.z - q.y * 0.4 ) * 2.2 );
-float crystals = dNoise( coast * 22.0 + q.y * 17.0 );
+// Metres per pixel: detail finer than this is averaged out, not sampled,
+// or it shimmers into stripes at grazing angles and in the distance.
+float footprint = max( max( fwidth( vWorld.x ), fwidth( vWorld.y ) ), fwidth( vWorld.z ) );
+float veins = dFbmFiltered( vec2( q.x + q.y * 0.7, q.z - q.y * 0.4 ) * 2.2, footprint * 2.6 );
+float crystals = mix( dNoise( coast * 22.0 + q.y * 17.0 ), 0.5, smoothstep( 0.2, 0.5, footprint * 28.0 ) );
 // Speckled granite: feldspar and quartz grains in a grey matrix.
 diffuseColor.rgb *= 0.62 + veins * 0.42 + crystals * 0.1;
 diffuseColor.rgb *= mix( vec3( 1.0 ), vec3( 1.06, 0.98, 0.9 ), smoothstep( 0.45, 0.7, veins ) );
 // Lichen grows in rosettes on the lit tops: multi-scale, pale grey-green
 // and ochre, never flat splats.
-float up = abs( normalize( cross( dFdx( vWorld ), dFdy( vWorld ) ) ).y );
-float rosette = dNoise( coast * 3.0 + q.y * 2.0 ) * 0.55 + dNoise( coast * 9.0 - q.y * 5.0 ) * 0.3 + crystals * 0.15;
+float up = max( ( vec4( normalize( vNormal ), 0.0 ) * viewMatrix ).y, 0.0 );
+float rosette = dNoise( coast * 3.0 + q.y * 2.0 ) * 0.55
+  + mix( dNoise( coast * 9.0 - q.y * 5.0 ), 0.5, smoothstep( 0.2, 0.5, footprint * 11.0 ) ) * 0.3 + crystals * 0.15;
 float lichen = smoothstep( 0.6, 0.72, rosette ) * smoothstep( 0.45, 0.85, up );
 vec3 lichenColour = mix( vec3( 0.42, 0.44, 0.34 ), vec3( 0.48, 0.38, 0.14 ), dNoise( coast * 1.3 ) );
 diffuseColor.rgb = mix( diffuseColor.rgb, lichenColour, lichen * 0.4 );
@@ -285,6 +325,19 @@ float dNoise( vec2 p ) {
   vec2 u = f * f * ( 3.0 - 2.0 * f );
   return mix( mix( dHash( i ), dHash( i + vec2( 1.0, 0.0 ) ), u.x ),
     mix( dHash( i + vec2( 0.0, 1.0 ) ), dHash( i + vec2( 1.0, 1.0 ) ), u.x ), u.y );
+}
+// dFbm with each octave faded to its mean once it is finer than ~2 pixels.
+// cycles is the first octave's cells per pixel; each octave doubles it.
+float dFbmFiltered( vec2 p, float cycles ) {
+  float v = 0.0;
+  float a = 0.5;
+  for ( int i = 0; i < 4; i++ ) {
+    v += a * mix( dNoise( p ), 0.5, smoothstep( 0.2, 0.5, cycles ) );
+    p = mat2( 1.6, 1.2, -1.2, 1.6 ) * p;
+    cycles *= 2.0;
+    a *= 0.5;
+  }
+  return v;
 }
 float dFbm( vec2 p ) {
   float v = 0.0;
@@ -373,21 +426,26 @@ function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = 
         }`);
     }
     if (foliage)
-      shader.fragmentShader = shader.fragmentShader.replace(
-        "#include <lights_fragment_end>",
-        FOLIAGE_GLSL,
-      );
+      shader.fragmentShader = shader.fragmentShader
+        .replace("void main() {", "varying vec3 vLeafNormal;\nvoid main() {")
+        .replace("#include <lights_fragment_begin>", LEAF_LIGHTS_GLSL)
+        .replace("#include <lights_fragment_end>", FOLIAGE_GLSL);
     if (bent) {
-      // Bent normals: blend each card's normal toward its foliage mass's
-      // outward direction, so a crown shades like a soft volume. Both faces
-      // share it (no back-face flip), as light doesn't care which side of a
-      // tiny leaf faces the camera.
+      // Bent normals: blend each leaf's normal toward its foliage mass's
+      // outward direction, so a crown shades like a soft volume while each
+      // leaf keeps some of its own tilt. The leaf normal is first turned to
+      // the crown's outer side; both faces then share the result (no
+      // back-face flip), as light doesn't care which side of a leaf faces
+      // the camera. The unbent normal goes to the translucency terms.
       shader.vertexShader = shader.vertexShader
-        .replace("void main() {", "attribute vec3 bendNormal;\nvoid main() {")
+        .replace("void main() {", "attribute vec3 bendNormal;\nvarying vec3 vLeafNormal;\nvoid main() {")
         .replace(
           "#include <defaultnormal_vertex>",
           `#include <defaultnormal_vertex>
-          transformedNormal = normalize( mix( transformedNormal, normalMatrix * bendNormal, ${bent.toFixed(2)} ) );`,
+          vLeafNormal = transformedNormal;
+          vec3 bendView = normalMatrix * bendNormal;
+          vec3 outerLeaf = dot( transformedNormal, bendView ) < 0.0 ? -transformedNormal : transformedNormal;
+          transformedNormal = normalize( mix( outerLeaf, bendView, ${bent.toFixed(2)} ) );`,
         );
       shader.fragmentShader = shader.fragmentShader.replace(
         "#include <normal_fragment_begin>",
@@ -531,11 +589,14 @@ function addGround(scene, shared, occluders) {
   scene.add(mesh);
 }
 
-// A shoot tip: a golden-angle fan of rounded leaves. Each blade has an ovate
-// outline (widest below the middle, blunt tip), a folded midrib and a droop
-// along its length, so shading rolls smoothly instead of faceting.
-function clusterGeometry(blades = 7, simple = false) {
+// A shoot tip: a golden-angle spray of leaves. No two blades share an outline:
+// each gets its own length, width, widest point and tip bluntness (ovate to
+// elliptic to obovate), a cupped cross-section, a droop and a slight sideways
+// curl, so the spray reads as grown rather than stamped. Vertex colour gives
+// each leaf its own shade and hue and darkens the shoot's shaded heart.
+function clusterGeometry(blades = 7, detail = 2) {
   const positions = [];
+  const colours = [];
   const indices = [];
   const random = seededRandom(7);
   const dir = new THREE.Vector3();
@@ -544,7 +605,7 @@ function clusterGeometry(blades = 7, simple = false) {
   for (let b = 0; b < blades; b++) {
     const azimuth = b * 2.39996 + (random() - 0.5) * 0.7;
     // Inner blades stand, outer blades droop past horizontal: a soft mound.
-    const tilt = 0.45 + (b / blades) * 0.95 + (random() - 0.5) * 0.3;
+    const tilt = 0.4 + (b / blades) * 1.0 + (random() - 0.5) * 0.35;
     dir.set(
       Math.sin(tilt) * Math.cos(azimuth),
       Math.cos(tilt),
@@ -552,93 +613,124 @@ function clusterGeometry(blades = 7, simple = false) {
     );
     side.set(-Math.sin(azimuth), 0, Math.cos(azimuth));
     lift.crossVectors(dir, side).normalize();
-    const length = 0.5 + random() * 0.45;
-    blade(positions, indices, new THREE.Vector3(0, 0.02, 0), dir, side, lift,
-      length, (0.2 + random() * 0.07) * length, 0.1 + random() * 0.12, simple);
+    const length = 0.42 + random() * 0.5;
+    const inner = 1 - b / blades;
+    blade({ positions, colours, indices }, {
+      base: new THREE.Vector3(0, 0.02, 0).addScaledVector(dir, 0.04),
+      dir,
+      side,
+      lift,
+      length,
+      width: (0.19 + random() * 0.1) * length,
+      droop: 0.08 + random() * 0.16,
+      widest: 0.3 + random() * 0.25,
+      blunt: 0.45 + random() * 0.5,
+      curl: (random() - 0.5) * 0.25,
+      cup: 0.1 + random() * 0.12,
+      detail,
+      // Inner leaves sit in their neighbours' shade; each leaf has its own tone.
+      shade: (0.8 + random() * 0.28) * (1 - inner * 0.25),
+      // Mostly blue-green; the odd young leaf a little yellower.
+      hue: (random() - 0.65) * 0.1,
+    });
   }
-  return finish(positions, indices);
+  return finish(positions, indices, colours);
 }
 
-// One leaf blade from `base` along `dir`: 4 midrib points and 2 edge pairs.
-function blade(positions, indices, base, dir, side, lift, length, width, droop, simple = false) {
-  const at = (t, across, raise) =>
-    base
+// One leaf (or petal, bract or style) from `base` along `dir`, bowed along
+// `lift` and spread along `side`. The outline is a smooth ovate curve with a
+// rounded tip; `detail` 0 is a 4-triangle rounded card for distance, 1 adds a
+// raised midrib, 2 is the full cupped blade.
+function blade(out, {
+  base,
+  dir,
+  side,
+  lift,
+  length,
+  width,
+  droop = 0.1,
+  widest = 0.4,
+  blunt = 0.7,
+  curl = 0,
+  cup = 0.14,
+  detail = 2,
+  shade = 1,
+  hue = 0,
+  colour = null,
+}) {
+  const { positions, colours, indices } = out;
+  const first = positions.length / 3;
+  // Half-width at t: zero at base and tip, peak at `widest`; `blunt` rounds
+  // the tip (1 = elliptic, lower = more pointed).
+  const halfWidth = (t) => {
+    const s = t < widest ? t / widest : 1 - (t - widest) / (1 - widest);
+    const shape = t < widest ? Math.sin((s * Math.PI) / 2) : Math.pow(Math.sin((s * Math.PI) / 2), blunt);
+    return width * Math.pow(Math.max(0, shape), 0.85);
+  };
+  const point = (t, across) => {
+    const bow = -droop * length * t * t;
+    // Cupped: edges curl up toward `lift` and the midrib is the low line.
+    const dish = cup * width * across * across;
+    return base
       .clone()
       .addScaledVector(dir, length * t)
-      .addScaledVector(lift, -droop * length * t * t + raise)
-      .addScaledVector(side, across);
-  const fold = width * 0.18;
-  const first = positions.length / 3;
-  if (simple) {
-    // Distant blades: a bent diamond, two triangles.
-    for (const p of [at(0, 0, 0), at(0.45, width * 0.9, 0), at(1, 0, 0), at(0.45, -width * 0.9, 0)])
-      positions.push(p.x, p.y, p.z);
-    indices.push(first, first + 1, first + 2, first, first + 2, first + 3);
-    return;
+      .addScaledVector(lift, bow + dish)
+      .addScaledVector(side, across * halfWidth(t) + curl * length * t * t);
+  };
+  const tint = colour ?? [1, 1, 1];
+  const push = (p, t) => {
+    positions.push(p.x, p.y, p.z);
+    // The base sits in the shoot's shade. Hue shifts swing a leaf toward
+    // yellow (young, positive) or blue-green (old, negative).
+    const k = shade * (0.78 + 0.22 * Math.min(1, t * 2));
+    colours.push(
+      tint[0] * k * (1 + hue * 0.7),
+      tint[1] * k,
+      tint[2] * k * (1 - hue * 0.7),
+    );
+  };
+  const rows = detail === 0 ? [0.3, 0.68] : detail === 1 ? [0.22, 0.5, 0.78] : [0.12, 0.3, 0.5, 0.7, 0.87];
+  const midrib = detail > 0;
+  push(point(0, 0), 0);
+  for (const t of rows) {
+    push(point(t, -1), t);
+    if (midrib) push(point(t, 0), t);
+    push(point(t, 1), t);
   }
-  const points = [
-    at(0, 0, 0),
-    at(0.33, 0, fold),
-    at(0.7, 0, fold * 0.7),
-    at(1, 0, 0),
-    at(0.3, width, 0),
-    at(0.68, width * 0.72, 0),
-    at(0.3, -width, 0),
-    at(0.68, -width * 0.72, 0),
-  ];
-  for (const p of points) positions.push(p.x, p.y, p.z);
-  const [m0, m1, m2, m3, l1, l2, r1, r2] = [0, 1, 2, 3, 4, 5, 6, 7].map((v) => v + first);
-  indices.push(
-    m0, l1, m1, m1, l1, l2, m1, l2, m2, m2, l2, m3,
-    m0, m1, r1, m1, r2, r1, m1, m2, r2, m2, m3, r2,
-  );
+  push(point(1, 0), 1);
+  const stride = midrib ? 3 : 2;
+  const tip = first + 1 + rows.length * stride;
+  const row = (i, k) => first + 1 + i * stride + k;
+  const right = stride - 1;
+  // Base fan, bands, tip fan.
+  if (midrib) indices.push(first, row(0, 0), row(0, 1), first, row(0, 1), row(0, 2));
+  else indices.push(first, row(0, 0), row(0, 1));
+  for (let i = 0; i < rows.length - 1; i++)
+    for (let k = 0; k < right; k++)
+      indices.push(row(i, k), row(i + 1, k), row(i, k + 1), row(i, k + 1), row(i + 1, k), row(i + 1, k + 1));
+  const last = rows.length - 1;
+  if (midrib) indices.push(row(last, 0), tip, row(last, 1), row(last, 1), tip, row(last, 2));
+  else indices.push(row(last, 0), tip, row(last, 1));
 }
 
-function leafGeometry(simple = false) {
-  const geometry = new THREE.BufferGeometry();
-  if (simple) {
-    // Distant blades: a two-triangle diamond with the same outline and bend.
-    geometry.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(
-        [0, -1, 0, -0.3, 0, 0.02, 0.3, 0, 0.02, 0, 1, -0.18],
-        3,
-      ),
-    );
-    geometry.setIndex([0, 1, 2, 1, 3, 2]);
-    geometry.computeVertexNormals();
-    return geometry;
-  }
-  // A unit leaf from y = -1 (attachment) to 1 (tip): smooth ovate outline,
-  // folded midrib, drooping toward the tip.
-  const levels = [-1, -0.5, 0, 0.5, 1];
-  const half = [0, 0.27, 0.31, 0.22, 0];
-  const positions = [];
-  for (let i = 0; i < levels.length; i++) {
-    const y = levels[i];
-    const t = (y + 1) / 2;
-    const z = -0.2 * t * t;
-    positions.push(0, y, z + 0.07 * Math.sin(Math.PI * t));
-    if (i > 0 && i < levels.length - 1) {
-      positions.push(-half[i], y, z - 0.02, half[i], y, z - 0.02);
-    }
-  }
-  // Vertex layout: m0, (m1,l1,r1), (m2,l2,r2), (m3,l3,r3), m4
-  const m = [0, 1, 4, 7, 10];
-  const l = [null, 2, 5, 8, null];
-  const r = [null, 3, 6, 9, null];
-  const indices = [];
-  for (let i = 0; i < 4; i++) {
-    const a = m[i];
-    const b = m[i + 1];
-    if (l[i] === null) indices.push(a, l[i + 1], b, a, b, r[i + 1]);
-    else if (l[i + 1] === null) indices.push(a, l[i], b, a, b, r[i]);
-    else indices.push(a, l[i], l[i + 1], a, l[i + 1], b, a, r[i + 1], r[i], a, b, r[i + 1]);
-  }
-  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setIndex(indices);
-  geometry.computeVertexNormals();
-  return geometry;
+// A unit leaf from y = -1 (attachment) to 1 (tip) for ferns, palms, aloes and
+// grasses: the same rounded, cupped outline as the shoot leaves.
+function leafGeometry(detail = 2) {
+  const out = { positions: [], colours: [], indices: [] };
+  blade(out, {
+    base: new THREE.Vector3(0, -1, 0),
+    dir: new THREE.Vector3(0, 1, 0),
+    side: new THREE.Vector3(1, 0, 0),
+    lift: new THREE.Vector3(0, 0, 1),
+    length: 2,
+    width: 0.3,
+    droop: 0.1,
+    widest: 0.38,
+    blunt: 0.6,
+    cup: 0.3,
+    detail,
+  });
+  return finish(out.positions, out.indices, out.colours);
 }
 
 // A grass clump: curved, tapering blades fanning from a tight base.
@@ -676,9 +768,10 @@ function turfGeometry(blades = 9) {
 
 // ---- Flower heads. Unit size, facing +y; instances scale, orient and tint.
 
-function finish(positions, indices) {
+function finish(positions, indices, colours = null) {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  if (colours) geometry.setAttribute("color", new THREE.Float32BufferAttribute(colours, 3));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
   return geometry;
@@ -820,8 +913,14 @@ function bellGeometry() {
 
 function rockGeometry(detail = 4) {
   // Weathered granite: a rounded core (corestones erode spherically) with
-  // flattened facets from jointing and a little surface roughness.
-  const geometry = new THREE.IcosahedronGeometry(1, detail);
+  // flattened sides from jointing and a little surface roughness. The
+  // icosahedron arrives with separate vertices per face; welding them first
+  // gives smooth normals instead of visible triangles.
+  const source = new THREE.IcosahedronGeometry(1, detail);
+  source.deleteAttribute("normal");
+  source.deleteAttribute("uv");
+  const geometry = mergeVertices(source);
+  source.dispose();
   const positions = geometry.attributes.position;
   const p = new THREE.Vector3();
   for (let i = 0; i < positions.count; i++) {
@@ -831,13 +930,19 @@ function rockGeometry(detail = 4) {
       noise2(p.x * 1.6 + p.y * 1.3 + 3, p.z * 1.6 - p.y) * 0.3 +
       noise2(p.x * 4 + 7, p.z * 4 + p.y * 3) * 0.08 +
       noise2(p.x * 11, p.z * 11 + p.y * 7) * 0.025;
-    // Joint planes: clamp the radius along a few directions.
-    r = Math.min(r, 0.92 / Math.max(0.3, Math.abs(p.y + 0.15)), 0.95 / Math.max(0.3, Math.abs(p.x * 0.8 + p.z * 0.6)));
+    // Joint planes: clamp the radius along a few directions, with a smooth
+    // minimum so weathering rounds the edges instead of leaving creases.
+    r = softMin(r, 0.92 / Math.max(0.3, Math.abs(p.y + 0.15)));
+    r = softMin(r, 0.95 / Math.max(0.3, Math.abs(p.x * 0.8 + p.z * 0.6)));
     p.multiplyScalar(r);
     positions.setXYZ(i, p.x, p.y, p.z);
   }
   geometry.computeVertexNormals();
   return geometry;
+}
+
+function softMin(a, b, k = 9) {
+  return -Math.log(Math.exp(-k * a) + Math.exp(-k * b)) / k;
 }
 
 // Instances are bucketed into ground chunks so the camera frustum culls whole

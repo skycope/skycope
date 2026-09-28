@@ -1,11 +1,13 @@
 import { Atmosphere, view_ray } from "./view.wgsl";
 import { ocean_view, OceanSettings } from "./ocean.wgsl";
-import { tonemap } from "./atmosphere.wgsl";
+import { tonemap, sun_radiance } from "./atmosphere.wgsl";
+import { equatorial_from_local, catalog_stars, faint_stars, moon_disc } from "./night.wgsl";
 
 @group(0) @binding(0) var<uniform> atmosphere: Atmosphere;
 @group(0) @binding(1) var cloudNoise: texture_3d<f32>;
 @group(0) @binding(2) var filtering: sampler;
 @group(0) @binding(3) var skyTexture: texture_2d<f32>;
+@group(0) @binding(4) var starCatalog: texture_2d<f32>;
 
 @fragment
 fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
@@ -33,6 +35,9 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   color = mix(color, sun_colour, disc * above_sea * sky_sample.a * (1.0 - night));
   // A soft aureole around the disc: forward scattering in hazy coastal air.
   color += atmosphere.light.rgb * exp(-sun_distance * 90.0) * 0.12 * above_sea * sky_sample.a * (1.0 - night);
+  if (ray.y > -0.001) {
+    color += night_sky(ray, night, sky_sample.a * above_sea, dot(sky, vec3f(0.2126, 0.7152, 0.0722)));
+  }
   if (atmosphere.rain > 0.01) {
     color += rain_streaks(uv) * (atmosphere.ambient.rgb * 0.8 + vec3f(0.01));
   }
@@ -40,6 +45,32 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   let vignette = 1.0 - dot(screen, screen) * 0.18;
   let grain = (hash2(floor(uv * atmosphere.resolution)).x - 0.5) / 255.0;
   return vec4f(tonemap(color * vignette) + grain, 1.0);
+}
+
+// The Moon and stars need full-resolution pixels: the cloud pass is
+// upscaled, which smeared them. One pixel's angle sets their sharpness;
+// on dense displays it stays a CSS-pixel-ish size so stars don't vanish.
+fn night_sky(ray: vec3f, night: f32, clear: f32, background: f32) -> vec3f {
+  let pixel = 1.0 / (0.9 * min(atmosphere.resolution.y, 1300.0));
+  let sidereal = atmosphere.celestial.x;
+  let latitude = atmosphere.celestial.y;
+  // Sunlight reaching the Moon, reddened on its way down to us; the
+  // exposure is capped so the disc keeps its maria at night instead of
+  // burning to white, and it shows pale by day as the real Moon does. The
+  // disc is drawn about four times its true 0.26° radius, like the sun,
+  // so its face reads.
+  let moonlight = sun_radiance(atmosphere.moon) * min(atmosphere.light.w, 0.95);
+  let moon = moon_disc(ray, atmosphere.moon, atmosphere.sun, sidereal, latitude, pixel, 0.019, moonlight);
+  var light = moon.rgb * moon.a * clear;
+  if (night > 0.001) {
+    let eq = equatorial_from_local(ray, sidereal, latitude);
+    let airmass = 1.0 / max(ray.y, 0.02);
+    let extinction = exp(-0.28 * (airmass - 1.0)) * smoothstep(0.0, 0.05, ray.y);
+    let stars = catalog_stars(eq, starCatalog, pixel, atmosphere.time, airmass, background)
+      + faint_stars(eq, pixel, background);
+    light += stars * extinction * night * clear * (1.0 - moon.a);
+  }
+  return light;
 }
 
 // Rain: thin slanted streaks. Each column falls at its own speed and phase,

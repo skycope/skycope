@@ -304,7 +304,7 @@ function growthTraits(seed) {
       spread: 0.6 - slender * 0.22,
       lift: 0.25 + slender * 0.6,
       leaf: [0.17 + (1 - slender) * 0.3, 0.16 + random() * 0.18],
-      hue: 0.22 + random() * 0.14,
+      hue: 0.25 + random() * 0.12,
       light: 0.15 + (1 - waxy) * 0.14,
       bark: new THREE.Color().setHSL(
         0.09 + random() * 0.06,
@@ -359,7 +359,7 @@ function growTree(root, plant, traits, crowns, random, wood, clusters, leaves) {
     : new THREE.Color(traits.bark).multiplyScalar(0.55 + random() * 0.35);
   const color = new THREE.Color().setHSL(
     traits.hue + (random() - 0.5) * 0.035,
-    0.24 + random() * 0.18,
+    0.34 + random() * 0.18,
     traits.light + random() * 0.05,
   );
   // Flagging: crowns lean away from the prevailing onshore wind, hardest at
@@ -438,7 +438,7 @@ function growShrub(root, plant, traits, random, wood, clusters) {
   const bark = new THREE.Color(traits.bark).multiplyScalar(0.7 + random() * 0.4);
   const color = new THREE.Color().setHSL(
     traits.hue + (random() - 0.5) * 0.04,
-    0.26 + random() * 0.18,
+    0.34 + random() * 0.18,
     traits.light + random() * 0.05,
   );
   const flag = (0.5 + plant.exposure) * (plant.dune ? 1 : 0.5);

@@ -28,9 +28,10 @@ mesh-layer GPU time (`data-mesh-ms`, via a `readPixels`-synced render burst ever
 90 frames), triangles and draw calls on the landscape canvas, and exposes the live
 state as `window.skycope` (for example to aim `flight` at the sun).
 
-This renders clear, cloudy, rainy, dusk, night, and sun-glint sky/water PNGs and reports combined GPU pass timing.
-It requires a GPU with `timestamp-query`. The fixture sky texture is black, so
-verify catalog stars and the WebGL forest in the browser. The GPU timings cover
+This renders clear, cloudy, rainy, dusk, night, Milky Way, Southern Cross, crescent, full-moon, moonrise and sun-glint sky/water PNGs and reports combined GPU pass timing.
+It requires a GPU with `timestamp-query`. Fixtures include the real star
+catalog; the constellation figures are left black, so verify those and the
+WebGL forest in the browser. The GPU timings cover
 the two WebGPU passes at 700 × 490 clouds and 1000 × 700 water, not the WebGL forest or whole application. Fixtures never replace the website's live
 weather. Also check the time slider and Live reset at desktop/mobile sizes, OS
 reduced-motion mode, background/resume, and with the weather endpoint blocked.
@@ -98,15 +99,29 @@ pitch, and H returns home. Both the WGSL passes and the Three.js camera read the
 same flight state (position in coast metres, azimuth, pitch); keep them aligned.
 Flight is bounded to 160 m around the island centre, above the terrain, and
 below the cloud deck. Sun, moon and constellations occupy their true directions;
-they are not moved into frame when actually elsewhere. Sun and moon discs are
-slightly enlarged for the illustration. The sun uses a pixel-width antialiased
+they are not moved into frame when actually elsewhere. The sun disc is
+slightly enlarged and the moon about four times, so its face reads. The sun uses a pixel-width antialiased
 edge and clips each fragment below the sea horizon. Island, forest and cloud
 geometry are illustrative, while celestial positions and weather inputs are data based.
 
-The night atlas contains 2,851 catalog stars through magnitude 5.5 and all 88
-Western constellation figures. Latitude and local sidereal time rotate it into
-Cape Town's sky. Coordinates are J2000; stellar precession/proper motion,
-refraction and local light pollution are omitted. See [data notes](src/data/README.md).
+The night sky has 2,851 catalog stars through magnitude 5.5 and all 88 Western
+constellation figures, rotated into Cape Town's sky by latitude and local
+sidereal time. Stars are drawn in the sharp final pass as point sources at
+their exact catalog positions (`src/star-catalog.js` packs them into a grid of
+0.35° cells): about a pixel wide, with flux from magnitude, colour from B−V,
+extinction and twinkle growing toward the horizon, and faint stars fading out
+against a moonlit or twilight sky. The Milky Way (`src/shaders/night.wgsl`) is
+placed by the J2000→galactic rotation: a bright Sagittarius bulge, clumpy star
+clouds, the Great Rift and Coalsack, both Magellanic Clouds, and a fainter
+star dust concentrated along the band. The Moon is lit by the true sun
+direction (exact phase and lit limb), oriented with lunar north toward the
+ecliptic pole, and carries the real near-side maria and rayed craters, flat
+Lommel–Seeliger shading, earthshine and daytime visibility. Moonlight is far
+too dim for colour vision, so it lights sky, clouds, sea and land as a cool,
+colourless luminance: a low moon never paints a sunrise, though its disc still
+rises reddened. Coordinates are J2000; stellar precession/proper motion,
+refraction, lunar libration and local light pollution are omitted. See
+[data notes](src/data/README.md).
 
 ## Procedural variation and water
 
@@ -152,7 +167,11 @@ from a slightly higher sun, which keeps the twilight Earth shadow and Belt of Ve
 lit. `src/sunlight.js` evaluates the same model on the CPU once per frame to get
 exposure, the direct sun (or moon) colour and zenith skylight. They go to both
 WebGPU passes as uniforms and drive the Three.js directional and hemisphere lights
-and fog, so land, sea, clouds and sky share one sun. Exposure adapts like an eye:
+and fog, so land, sea, clouds and sky share one sun. The land's skylight is the
+cosine-weighted mean of the whole dome (`skyIrradianceRatio`), not the hazy
+horizon toward the heading, and its ground bounce keeps its true brightness
+relative to the sky. Leaf translucency and glints use the shadowed sun
+irradiance from three's light loop, so only leaves the sun reaches glow. Exposure adapts like an eye:
 the zenith stays steady through golden hour, then genuinely darkens through civil
 twilight, with limited dark adaptation at night. **Keep `atmosphere.wgsl` and
 `sunlight.js` in step.**
@@ -206,7 +225,8 @@ breathing cycles (clipped at the surface). Birds roost at night.
   2.5 million pixels with MSAA. Sun shadows use one 2048² map, updated only when
   lighting changes. Individual leaf tips flutter in a vertex shader.
 - A 256 KiB repeating noise volume avoids hashing many noise octaves per sample.
-  The star atlas is uploaded once (2048 × 1024 RGBA, 8 MiB).
+  The constellation atlas is uploaded once (2048 × 1024 RGBA, 8 MiB), and the
+  star catalog grid once (1024 × 512 RGBA16F, 4 MiB).
 - Rendering follows the display refresh through `requestAnimationFrame`, without a second FPS cutoff that can skip near-boundary frames. Sustained slow frames reduce resolution and sample
   count; recovery is gradual. The water budget is fixed. No full-resolution bloom or temporal history buffers.
 - Hidden tabs stop rendering and skip weather fetches. Resuming refreshes stale

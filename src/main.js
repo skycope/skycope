@@ -11,7 +11,7 @@ import {
 import skyShader from "./shaders/sky.wgsl";
 import waterShader from "./shaders/water.wgsl";
 import { createCloudNoise } from "./cloud-noise.js";
-import { createStarAtlas } from "./stars.js";
+import { createStarAtlas, createStarCatalog } from "./stars.js";
 import { sceneSeed } from "./random.js";
 import {
   capeTime,
@@ -319,6 +319,7 @@ async function startAtmosphere() {
   state.skyTarget = skyTarget;
   const noise = createCloudNoise(gpu.gpu, state.seed);
   const stars = createStarAtlas(gpu.gpu);
+  const starCatalog = createStarCatalog(gpu.gpu);
   const atmosphere = effect(gpu, skyShader, {
     label: "skycope-cape-town",
     set: {
@@ -341,6 +342,7 @@ async function startAtmosphere() {
       atmosphere: createUniforms(),
       cloudNoise: noise.createView(),
       skyTexture: skyTarget.color,
+      starCatalog: starCatalog.createView(),
       // Repeat: the ocean tiles the noise volume across the whole sea. Sky
       // lookups clamp their own coordinates.
       filtering: sampler(gpu, {

@@ -1,5 +1,6 @@
 import { Atmosphere, view_ray } from "./view.wgsl";
 import { sky_radiance, to_linear } from "./atmosphere.wgsl";
+import { equatorial_from_local, galactic_from_equatorial, milky_way } from "./night.wgsl";
 
 @group(0) @binding(0) var<uniform> atmosphere: Atmosphere;
 @group(0) @binding(1) var cloudNoise: texture_3d<f32>;
@@ -30,7 +31,11 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
 }
 
 // Moonlight is sunlight scaled by distance and phase (~1/400000 of the sun at
-// full moon); it is lifted far above that here, with src/sunlight.js, so a moonlit sky reads as deep blue, not black.
+// full moon); it is lifted far above that here, with src/sunlight.js, so a
+// moonlit sky reads as deep blue, not black. At those levels the eye is
+// scotopic (rod vision) and sees no colour, so moonlight is rendered as its
+// luminance in a cool tint: a low moon never paints a sunrise.
+const MOON_TINT: vec3f = vec3f(0.90, 1.01, 1.19);
 fn moonlight(moon: vec3f) -> f32 {
   let lit = 0.5 - 0.5 * cos(atmosphere.celestial.z * 6.283185);
   return 0.003 * lit * smoothstep(-0.02, 0.05, moon.y);
@@ -39,7 +44,8 @@ fn moonlight(moon: vec3f) -> f32 {
 fn atmosphere_color(ray: vec3f, sun: vec3f, moon: vec3f, night: f32, exposure: f32) -> vec3f {
   var radiance = sky_radiance(ray, sun, 12);
   if (night > 0.001) {
-    radiance += sky_radiance(ray, moon, 6) * moonlight(moon) * 0.6;
+    let moonlit = sky_radiance(ray, moon, 6) * moonlight(moon) * 0.6;
+    radiance += dot(moonlit, vec3f(0.2126, 0.7152, 0.0722)) * MOON_TINT;
   }
   var color = radiance * exposure;
   // Airglow and scattered starlight: the darkest sky is never pure black.
@@ -55,23 +61,24 @@ fn atmosphere_color(ray: vec3f, sun: vec3f, moon: vec3f, night: f32, exposure: f
   color = mix(color, veil_light, veil * 0.45);
 
   if (night > 0.001) {
+    // The Moon's disc is drawn sharp in the composite pass; its scattered
+    // aureole belongs here, under the clouds.
     let moon_distance = length(ray - moon);
-    let moon_disc = 1.0 - smoothstep(0.010, 0.012, moon_distance);
-    let moon_right = normalize(cross(vec3f(0.0, 1.0, 0.0), moon));
-    let moon_up = cross(moon, moon_right);
-    let moon_uv = vec2f(dot(ray - moon, moon_right), dot(ray - moon, moon_up)) / 0.012;
     let phase_angle = atmosphere.celestial.z * 6.283185;
-    let limb = vec2f(sin(atmosphere.celestial.w), cos(atmosphere.celestial.w));
-    let face = sqrt(max(0.0, 1.0 - dot(moon_uv, moon_uv)));
-    let illumination = smoothstep(-0.06, 0.06, dot(moon_uv, limb) * abs(sin(phase_angle)) - face * cos(phase_angle));
-    // Maria: large dark basins plus fine craters, not uniform speckle.
-    let maria = smoothstep(0.45, 0.7, noise3(vec3f(moon_uv * 2.2 + 5.0, 1.0)));
-    let crater = noise3((ray - moon) * 320.0 + 21.0);
     let moon_visibility = smoothstep(-0.01, 0.02, moon.y);
-    let albedo = (0.85 - maria * 0.35) * (0.85 + crater * 0.15);
-    color += vec3f(1.0, 0.97, 0.9) * 1.6 * moon_disc * (0.02 + illumination * 0.98) * albedo * night * moon_visibility;
     color += vec3f(0.05, 0.08, 0.14) * exp(-moon_distance * 14.0) * night * moon_visibility * (0.5 - 0.5 * cos(phase_angle));
-    color += to_linear(star_field(ray)) * night * 0.8;
+    // Point stars are also drawn in the composite pass. Here: the Milky Way's
+    // diffuse light, dimmed by extinction near the horizon, and the faint
+    // constellation figures.
+    let eq = equatorial_from_local(ray, atmosphere.celestial.x, atmosphere.celestial.y);
+    // Star clouds are structured at every scale, down to a pixel or two.
+    let gal = galactic_from_equatorial(eq) * 9.0;
+    let clump = noise3(gal) * 0.4 + noise3(gal * 2.1 + 11.0) * 0.3 + noise3(gal * 4.3 + 3.0) * 0.2
+      + noise3(gal * 8.9 + 7.0) * 0.1;
+    let fine = noise3(gal * 17.0 + 5.0) * 0.6 + noise3(gal * 37.0 + 1.0) * 0.4;
+    let extinction = exp(-0.3 / max(ray.y, 0.02)) * smoothstep(0.0, 0.08, ray.y);
+    color += milky_way(eq, clump, fine) * extinction * night;
+    color += to_linear(constellation_lines(ray)) * night * 0.8;
   }
   let overcast = smoothstep(0.55, 1.0, atmosphere.weather.w);
   let gray = dot(color, vec3f(0.2126, 0.7152, 0.0722));
@@ -152,15 +159,14 @@ fn cloud_density(position: vec3f) -> f32 {
   return max((body * profile - threshold - erosion) * 3.8, 0.0);
 }
 
-fn star_field(ray: vec3f) -> vec3f {
+fn constellation_lines(ray: vec3f) -> vec3f {
   let latitude = atmosphere.celestial.y;
   let declination = asin(clamp(ray.z * cos(latitude) + ray.y * sin(latitude), -1.0, 1.0));
   let hour_angle = atan2(-ray.x, ray.y * cos(latitude) - ray.z * sin(latitude));
   let ra = atmosphere.celestial.x - hour_angle;
   let coordinates = vec2f(fract(ra / 6.283185), 0.5 - declination / 3.141593);
   let stars = textureSampleLevel(starAtlas, cloudSampler, coordinates, 0.0).rgb;
-  let shimmer = 0.90 + 0.10 * sin(atmosphere.time * 0.6 + ra * 110.0);
-  return stars * shimmer * smoothstep(0.0, 0.10, ray.y);
+  return stars * smoothstep(0.0, 0.10, ray.y);
 }
 
 fn noise3(p: vec3f) -> f32 {
