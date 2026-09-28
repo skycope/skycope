@@ -1,5 +1,18 @@
 import * as THREE from "three";
 import { createForest } from "./forest.js";
+import { createFauna } from "./fauna.js";
+import { horizonRadiance } from "./sunlight.js";
+
+// The mesh layer tonemaps with the same ACES fit as the WebGPU water pass, so
+// land, sea and sky share one exposure and one highlight shoulder.
+THREE.ShaderChunk.tonemapping_pars_fragment =
+  THREE.ShaderChunk.tonemapping_pars_fragment.replace(
+    /vec3 CustomToneMapping\( vec3 color \) \{[^}]*\}/,
+    `vec3 CustomToneMapping( vec3 color ) {
+      vec3 x = max( color * toneMappingExposure, vec3( 0.0 ) );
+      return clamp( ( x * ( 2.51 * x + 0.03 ) ) / ( x * ( 2.43 * x + 0.59 ) + 0.14 ), 0.0, 1.0 );
+    }`,
+  );
 
 // Geometry shares the sky shader's 315° heading, 6° pitch, and projection.
 // WebGL handles mesh depth/shadows; WebGPU handles the sky and water behind it.
@@ -12,7 +25,7 @@ export function createLandscape(canvas, seed) {
   });
   renderer.setClearColor(0x000000, 0);
   renderer.setPixelRatio(1);
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMapping = THREE.CustomToneMapping;
   renderer.toneMappingExposure = 1;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -20,7 +33,7 @@ export function createLandscape(canvas, seed) {
   renderer.localClippingEnabled = true;
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x8fb0b8, 0.0045);
+  scene.fog = new THREE.FogExp2(0x8fb0b8, 0.0032);
   const camera = new THREE.PerspectiveCamera(
     (2 * Math.atan(0.5 / 0.9) * 180) / Math.PI,
     1,
@@ -31,6 +44,7 @@ export function createLandscape(canvas, seed) {
   const land = new THREE.Group();
   land.scale.z = -1;
   const forest = createForest(land, seed);
+  const fauna = createFauna(land, seed);
   scene.add(land);
 
   const ambient = new THREE.HemisphereLight(0xc3e0eb, 0x28381d, 1.3);
@@ -49,12 +63,12 @@ export function createLandscape(canvas, seed) {
   sun.shadow.bias = -0.0003;
   sun.target.position.set(23, 0, -35);
   scene.add(ambient, sun, sun.target);
-  const fogDay = new THREE.Color(0x91b1b7);
-  const fogDusk = new THREE.Color(0x827476);
-  const fogNight = new THREE.Color(0x132332);
   let previousLighting = "";
+  const perf = new URLSearchParams(window.location.search).has("perf");
+  let perfFrame = 0;
 
   const sunWorld = new THREE.Vector3(0, 1, 0);
+  const sunTint = new THREE.Color(1, 0.92, 0.75);
   const sunView = new THREE.Vector3();
   const lookDirection = new THREE.Vector3();
   const lookRight = new THREE.Vector3();
@@ -62,8 +76,11 @@ export function createLandscape(canvas, seed) {
   const lookTarget = new THREE.Vector3();
 
   return {
-    render(celestial, pointer, cover, time, wind, flight) {
+    // `?perf` QA: lets the console toggle scene parts to attribute cost.
+    scene,
+    render(celestial, pointer, cover, time, wind, flight, lighting) {
       forest.updateWind(time, wind);
+      fauna.update(time, wind, THREE.MathUtils.smoothstep(celestial.scene, 1, 2));
       const sinA = Math.sin(flight.azimuth);
       const cosA = Math.cos(flight.azimuth);
       const hx = (sinA + cosA) * Math.SQRT1_2;
@@ -76,9 +93,10 @@ export function createLandscape(canvas, seed) {
       if (key !== previousLighting) {
         previousLighting = key;
         sun.target.position.set(anchorX, 0, -anchorZ);
-        updateLighting(celestial, cover);
+        updateDirection(celestial);
         renderer.shadowMap.needsUpdate = true;
       }
+      updateLighting(celestial, cover, lighting, hx, hz);
       // The Three scene mirrors coast z (the land group is z-flipped).
       camera.position.set(flight.x, flight.y, -flight.z);
       const cp = Math.cos(flight.pitch);
@@ -98,12 +116,26 @@ export function createLandscape(canvas, seed) {
       sunView.copy(sunWorld).transformDirection(camera.matrixWorldInverse);
       forest.updateSun(
         sunView,
-        sun.color,
+        sunTint,
         THREE.MathUtils.smoothstep(sunWorld.y, -0.02, 0.12) *
           (1 - cover * 0.8) *
-          (1 - night * 0.9),
+          (1 - night * 0.9) *
+          Math.min(1, sun.intensity / 2),
       );
       renderer.render(scene, camera);
+      if (perf && ++perfFrame % 90 === 0) {
+        // `?perf` QA: readPixels forces the GPU to drain, so timing a burst of
+        // extra renders measures real mesh-layer cost, not command submission.
+        const gl = renderer.getContext();
+        const pixel = new Uint8Array(4);
+        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+        const started = performance.now();
+        for (let i = 0; i < 6; i++) renderer.render(scene, camera);
+        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+        canvas.dataset.meshMs = ((performance.now() - started) / 6).toFixed(2);
+        canvas.dataset.triangles = String(renderer.info.render.triangles);
+        canvas.dataset.drawCalls = String(renderer.info.render.calls);
+      }
       if (!canvas.dataset.triangles) {
         canvas.dataset.triangles = String(renderer.info.render.triangles);
         canvas.dataset.drawCalls = String(renderer.info.render.calls);
@@ -136,7 +168,7 @@ export function createLandscape(canvas, seed) {
     },
   };
 
-  function updateLighting(celestial, cover) {
+  function updateDirection(celestial) {
     const night = THREE.MathUtils.smoothstep(celestial.scene, 1, 2);
     const direction = new THREE.Vector3(...celestial.sun)
       .lerp(new THREE.Vector3(...celestial.moon), night)
@@ -147,32 +179,44 @@ export function createLandscape(canvas, seed) {
     sun.position
       .copy(sun.target.position)
       .add(sunWorld.clone().multiplyScalar(85));
-    sun.color
-      .set(0xffecd1)
-      .lerp(new THREE.Color(0xff9a55), Math.min(1, celestial.scene));
-    sun.color.lerp(new THREE.Color(0x9bbcd5), night);
-    sun.intensity =
-      (2.5 - night * 2.05) *
-      THREE.MathUtils.smoothstep(direction.y, -0.03, 0.1) *
-      (1 - cover * 0.72);
-    // The ambient fill follows the sky: cool daylight, warm-grey dusk, and a
-    // faint blue night, so foliage is not lit with noon colours at sunset.
-    const dusk = Math.min(1, celestial.scene);
-    ambient.color
-      .set(0xc3e0eb)
-      .lerp(new THREE.Color(0xd9a98c), dusk)
-      .lerp(new THREE.Color(0x24344e), night);
-    ambient.groundColor
-      .set(0x28381d)
-      .lerp(new THREE.Color(0x2e2119), dusk)
-      .lerp(new THREE.Color(0x0a0f14), night);
-    ambient.intensity =
-      THREE.MathUtils.lerp(1.35, 0.75, dusk * dusk) *
-        (1 - night) +
-      0.14 * night;
-    scene.fog.color
-      .copy(fogDay)
-      .lerp(fogDusk, Math.min(1, celestial.scene))
-      .lerp(fogNight, night);
+  }
+
+  // Light comes from src/sunlight.js in exposed linear units: the same sun
+  // colour and skylight the WebGPU sky and sea use. Three's Lambert divides by
+  // π, so skylight radiance becomes π × radiance of irradiance.
+  function updateLighting(celestial, cover, lighting, hx, hz) {
+    const [r, g, b] = lighting.direct;
+    const peak = Math.max(r, g, b, 1e-6);
+    // Heavy cloud all but removes direct sun (and its shadows).
+    const overcast = 1 - Math.pow(cover, 1.5) * 0.93;
+    sun.color.setRGB(r / peak, g / peak, b / peak);
+    sun.intensity = peak * overcast;
+    sunTint.copy(sun.color);
+    // Hemisphere: zenith blended toward the horizon (the sky is brighter low
+    // down), and the ground bounce is sunlit sand and foliage.
+    const horizon = horizonRadiance(celestial, [hx, 0, hz], lighting.exposure);
+    const sky = lighting.sky.map((v, i) => v * 0.6 + horizon[i] * 0.4);
+    const skyPeak = Math.max(...sky, 1e-6);
+    ambient.color.setRGB(sky[0] / skyPeak, sky[1] / skyPeak, sky[2] / skyPeak);
+    const bounce = lighting.direct.map(
+      (v, i) => (v * Math.max(sunWorld.y, 0) * overcast / Math.PI + sky[i]) * [0.3, 0.26, 0.18][i],
+    );
+    const bouncePeak = Math.max(...bounce, 1e-6);
+    ambient.groundColor.setRGB(
+      bounce[0] / bouncePeak,
+      bounce[1] / bouncePeak,
+      bounce[2] / bouncePeak,
+    );
+    // Overcast skies are brighter overall than the clear zenith alone.
+    ambient.intensity = Math.PI * skyPeak * (1 + cover * 0.45);
+    scene.fog.color.setRGB(horizon[0], horizon[1], horizon[2]);
+    // Grey the haze under cloud, as the sky pass does.
+    if (cover > 0.55) {
+      const grey = horizon[0] * 0.2126 + horizon[1] * 0.7152 + horizon[2] * 0.0722;
+      scene.fog.color.lerp(
+        new THREE.Color().setRGB(grey * 0.92, grey * 0.96, grey),
+        THREE.MathUtils.smoothstep(cover, 0.55, 1) * 0.7,
+      );
+    }
   }
 }

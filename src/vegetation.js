@@ -40,6 +40,12 @@ export function createVegetation(seed) {
   const wood = [];
   const leaves = [];
   const clusters = [];
+  // Flower heads by geometry: daisy discs, protea cups, pincushion balls,
+  // aloe candles and erica bells. Colour is per instance.
+  const flowers = { daisy: [], protea: [], pincushion: [], spike: [], bell: [] };
+  // Ground-cover grass clumps, one instance per clump.
+  const turf = [];
+  const lists = () => [wood, leaves, clusters, turf, ...Object.values(flowers)];
   const layout = vegetationLayout(seed);
   const ecotypes = growthTraits(seed);
   // Known crown volumes let neighbouring buds compete for space (crown shyness).
@@ -58,7 +64,15 @@ export function createVegetation(seed) {
       terrainHeight(plant.x, plant.z),
       plant.z,
     );
+    const before = lists().map((list) => list.length);
     if (plant.kind === "fern") growFern(root, plant.height, random, wood, leaves);
+    else if (plant.kind === "protea")
+      growProtea(root, plant, ecotypes[plant.ecotype], random, wood, clusters, flowers);
+    else if (plant.kind === "aloe") growAloe(root, plant.height, random, leaves, flowers);
+    else if (plant.kind === "restio") growRestio(root, plant.height, random, leaves);
+    else if (plant.kind === "erica") growErica(root, plant.height, random, wood, clusters, flowers);
+    else if (plant.kind === "daisies")
+      growDaisies(root, plant.height, random, leaves, flowers, plant.palette);
     else if (plant.kind === "grass")
       growGrass(root, plant.height, plant.dune, random, leaves);
     else if (plant.kind === "moss") growMoss(root, plant.height, random, clusters);
@@ -75,8 +89,14 @@ export function createVegetation(seed) {
         clusters,
         leaves,
       );
+    // Every part remembers its plant's ground height: wind bends a plant from
+    // its own base, so trunks and stems stay anchored on any slope.
+    lists().forEach((list, i) => {
+      for (let k = before[i]; k < list.length; k++) list[k].ground = root.y;
+    });
   }
-  return { wood, leaves, clusters, plants: layout.length };
+  growTurf(seed, layout, turf);
+  return { wood, leaves, clusters, flowers, turf, layout, plants: layout.length };
 }
 
 // Poisson-style dart throwing modulated by a clustering field: trees clump into
@@ -88,13 +108,13 @@ export function vegetationLayout(seed) {
   const occupied = new Map();
   const patch = random() * 1000;
   const ecotypes = growthTraits(seed);
-  for (let i = 0; i < 1400; i++) {
+  for (let i = 0; i < 2400; i++) {
     const theta = random() * Math.PI * 2;
     const inland = 5 + random() * 58;
     const { x, z } = islandPoint(theta, inland);
     const shelter = noise2(x * 0.085 + patch, z * 0.06 + patch);
     const edge = smoothstep(4, 13, inland);
-    if (random() > (0.16 + shelter * 0.8) * (0.25 + edge * 0.75)) continue;
+    if (random() > (0.3 + shelter * 0.8) * (0.3 + edge * 0.7)) continue;
     // A spatial habitat field selects related traits across a grove, not per-row models.
     const ecotype = Math.min(
       ecotypes.length - 1,
@@ -124,7 +144,7 @@ export function vegetationLayout(seed) {
         for (const other of occupied.get(`${cellX + dx},${cellZ + dz}`) ?? []) {
           if (
             Math.hypot(x - other.x, z - other.z) <
-            1.1 + (height + other.height) * 0.09
+            0.9 + (height + other.height) * 0.075
           )
             crowded = true;
         }
@@ -147,7 +167,7 @@ export function vegetationLayout(seed) {
     occupied.get(key).push(plant);
   }
   // Ecotone: dune grass and sparse low scrub soften the beach-forest line.
-  for (let i = 0; i < 550; i++) {
+  for (let i = 0; i < 900; i++) {
     const theta = random() * Math.PI * 2;
     const inland = 2.2 + random() * 7;
     const { x, z } = islandPoint(theta, inland);
@@ -167,7 +187,7 @@ export function vegetationLayout(seed) {
     });
   }
   // Lower layers occur in patches, leaving some visible soil and paths between them.
-  for (let i = 0; i < 2300; i++) {
+  for (let i = 0; i < 3800; i++) {
     const theta = random() * Math.PI * 2;
     const inland = 3.5 + random() * 30;
     const { x, z } = islandPoint(theta, inland);
@@ -194,6 +214,52 @@ export function vegetationLayout(seed) {
       interior: smoothstep(7, 26, inland),
       exposure: 1 - smoothstep(4, 13, inland),
       ecotype: Math.floor(random() * ecotypes.length),
+      x,
+      z,
+      height,
+      seed: Math.max(1, Math.floor(random() * 0xffffffff)),
+    });
+  }
+  // Fynbos: the Cape's own heathland fills open, sunny ground between groves.
+  // Proteas and ericas stand as shrubs, restios in reed tufts, aloes on rocky
+  // slopes, and spring daisies carpet clearings in drifts of one colour.
+  const drift = random() * 100;
+  for (let i = 0; i < 2200; i++) {
+    const theta = random() * Math.PI * 2;
+    const inland = 3 + random() * 40;
+    const { x, z } = islandPoint(theta, inland);
+    const open = 1 - noise2(x * 0.085 + patch, z * 0.06 + patch);
+    if (random() > open * 1.1) continue;
+    const choice = random();
+    const kind =
+      choice < 0.12 && inland > 6
+        ? "protea"
+        : choice < 0.22 && inland > 10
+          ? "aloe"
+          : choice < 0.42
+            ? "restio"
+            : choice < 0.58 && inland > 5
+              ? "erica"
+              : "daisies";
+    const height =
+      kind === "protea"
+        ? 0.8 + random() * 0.9
+        : kind === "aloe"
+          ? 0.6 + random() * 1.4
+          : kind === "restio"
+            ? 0.5 + random() * 0.9
+            : kind === "erica"
+              ? 0.35 + random() * 0.5
+              : 0.12 + random() * 0.22;
+    plants.push({
+      kind,
+      dune: false,
+      form: "blend",
+      interior: smoothstep(7, 26, inland),
+      exposure: 1 - smoothstep(4, 13, inland),
+      ecotype: Math.floor(random() * ecotypes.length),
+      // Daisy drifts share a colour over tens of metres.
+      palette: Math.floor(noise2(x * 0.05 + drift, z * 0.05) * 5),
       x,
       z,
       height,
@@ -238,7 +304,7 @@ function growthTraits(seed) {
       spread: 0.6 - slender * 0.22,
       lift: 0.25 + slender * 0.6,
       leaf: [0.17 + (1 - slender) * 0.3, 0.16 + random() * 0.18],
-      hue: 0.18 + random() * 0.17,
+      hue: 0.22 + random() * 0.14,
       light: 0.15 + (1 - waxy) * 0.14,
       bark: new THREE.Color().setHSL(
         0.09 + random() * 0.06,
@@ -308,15 +374,35 @@ function growTree(root, plant, traits, crowns, random, wood, clusters, leaves) {
   // The trunk ends inside the crown; colonized branches carry all further
   // height, so no bare mast pokes through the foliage.
   const spine = [root];
-  for (let i = 1; i <= 3; i++) {
-    const point = root.clone().addScaledVector(lean, (i / 3) * 0.62);
-    point.x += Math.sin(i * 1.7 + height) * height * 0.045;
-    point.z += Math.sin(i * 2.3 + height) * height * 0.04;
-    branch(wood, spine[i - 1], point, height * 0.034 * (1 - i * 0.22), bark);
+  const trunkRadius = height * 0.034;
+  const bend = random() * 6.28;
+  for (let i = 1; i <= 6; i++) {
+    const t = i / 6;
+    const point = root.clone().addScaledVector(lean, t * 0.62);
+    // A smooth S-curve, not a kinked polyline.
+    point.x += Math.sin(t * 2.6 + bend) * height * 0.035;
+    point.z += Math.cos(t * 2.1 + bend) * height * 0.03;
+    branch(wood, spine[i - 1], point, trunkRadius * (1 - t * 0.55), bark);
     spine.push(point);
   }
+  // Root flare and surface roots: the trunk swells into the soil instead of
+  // ending at a line, and a few buttress roots run out and dive under.
+  if (!snag || random() < 0.5) {
+    const flareTop = root.clone().addScaledVector(lean, 0.05);
+    branch(wood, root.clone().add(new THREE.Vector3(0, -0.15, 0)), flareTop, trunkRadius * 1.9, bark);
+    const roots = 4 + Math.floor(random() * 3);
+    for (let r = 0; r < roots; r++) {
+      const angle = (r / roots) * Math.PI * 2 + random() * 0.6;
+      const reach = height * (0.07 + random() * 0.08);
+      const out = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+      const start = root.clone().add(new THREE.Vector3(0, trunkRadius * 0.6, 0)).addScaledVector(out, trunkRadius * 0.5);
+      const end = root.clone().addScaledVector(out, reach + trunkRadius);
+      end.y = terrainHeight(end.x, end.z) - trunkRadius * 0.5;
+      branch(wood, start, end, trunkRadius * (0.45 + random() * 0.2), bark);
+    }
+  }
   const crownR = crownRadius(plant, traits);
-  const crownCenter = spine[3]
+  const crownCenter = spine[6]
     .clone()
     .addScaledVector(PREVAILING, flag * crownR * 0.4);
   crownCenter.y = root.y + height * (habit.center ?? 0.68);
@@ -326,7 +412,7 @@ function growTree(root, plant, traits, crowns, random, wood, clusters, leaves) {
       Math.hypot(c.x - crownCenter.x, c.z - crownCenter.z) < c.r + crownR,
   );
   colonizeCrown({
-    seeds: [spine[2], spine[3]],
+    seeds: [spine[4], spine[6]],
     crownCenter,
     crownR,
     arche,
@@ -403,7 +489,7 @@ function colonizeCrown(options) {
     wood,
     clusters,
   } = options;
-  const pointCount = Math.round((detail ? 130 : 80) * arche.points);
+  const pointCount = Math.round((detail ? 150 : 95) * arche.points);
   const px = [];
   const py = [];
   const pz = [];
@@ -433,7 +519,7 @@ function colonizeCrown(options) {
   const step = crownR / 5.5;
   const influence2 = crownR * crownR * 0.9;
   const kill2 = step * step * 2.6;
-  const cap = detail ? 320 : 190;
+  const cap = detail ? 380 : 220;
   // Flat arrays and a cached nearest node per point keep growth O(points × new
   // nodes): nodes never move, so only fresh nodes can become a point's nearest.
   const nx = [];
@@ -505,6 +591,23 @@ function colonizeCrown(options) {
       }
     }
   }
+  // Smooth the growth path: colonization steps zig-zag, real shoots curve.
+  const childCount = new Array(nx.length).fill(0);
+  const firstChild = new Array(nx.length).fill(-1);
+  for (let n = seeds.length; n < nx.length; n++) {
+    childCount[parent[n]]++;
+    if (firstChild[parent[n]] < 0) firstChild[parent[n]] = n;
+  }
+  for (let pass = 0; pass < 2; pass++) {
+    for (let n = seeds.length; n < nx.length; n++) {
+      const c = firstChild[n];
+      if (childCount[n] !== 1 || c < 0) continue;
+      const p = parent[n];
+      nx[n] = nx[n] * 0.5 + (nx[p] + nx[c]) * 0.25;
+      ny[n] = ny[n] * 0.5 + (ny[p] + ny[c]) * 0.25;
+      nz[n] = nz[n] * 0.5 + (nz[p] + nz[c]) * 0.25;
+    }
+  }
   // Pipe-model radii: a branch supports the tips above it.
   const tips = new Array(nx.length).fill(1);
   const hasChild = new Array(nx.length).fill(false);
@@ -569,8 +672,14 @@ function colonizeCrown(options) {
         roll,
         color
           .clone()
-          .offsetHSL((random() - 0.5) * 0.045, (random() - 0.5) * 0.08, 0)
-          .multiplyScalar((0.5 + depth * 0.5) * (0.8 + random() * 0.4)),
+          .offsetHSL((random() - 0.5) * 0.05, (random() - 0.5) * 0.1, 0)
+          // Deeper inside the crown and lower down is darker: baked AO.
+          .multiplyScalar(
+            (0.32 + depth * 0.68) *
+              (0.75 + 0.25 * THREE.MathUtils.clamp((along.y - crownCenter.y) / (crownR * arche.flatten) + 0.5, 0, 1)) *
+              (0.8 + random() * 0.4),
+          ),
+        crownCenter,
       );
     }
   }
@@ -612,6 +721,7 @@ function colonizeCrown(options) {
             new THREE.Vector3(random() - 0.5, -0.7, random() - 0.5).normalize(),
             random() * 6.28,
             vineColor.clone().multiplyScalar(0.7 + random() * 0.4),
+            crownCenter,
           );
         previous = next;
       }
@@ -700,6 +810,7 @@ function growMoss(root, height, random, clusters) {
       new THREE.Vector3((random() - 0.5) * 0.3, 1, (random() - 0.5) * 0.3).normalize(),
       random() * 6.28,
       color.clone().multiplyScalar(0.8 + random() * 0.35),
+      root,
     );
   }
 }
@@ -782,9 +893,11 @@ function growGrass(root, height, dune, random, leaves) {
 
 function branch(wood, start, end, radius, color) {
   const direction = end.clone().sub(start);
+  // Segments overlap a little at both ends so joints read as continuous wood
+  // instead of notched tubes.
   wood.push({
     position: start.clone().add(end).multiplyScalar(0.5),
-    scale: new THREE.Vector3(radius, direction.length(), radius),
+    scale: new THREE.Vector3(radius, direction.length() + radius * 1.4, radius),
     rotation: new THREE.Euler().setFromQuaternion(
       new THREE.Quaternion().setFromUnitVectors(
         new THREE.Vector3(0, 1, 0),
@@ -795,7 +908,10 @@ function branch(wood, start, end, radius, color) {
   });
 }
 
-function cluster(clusters, position, size, squash, direction, roll, color) {
+// `centre` is the middle of the foliage mass this shoot belongs to: its
+// direction becomes the leaf's bent normal, so the crown shades as one soft
+// volume rather than a heap of flat cards.
+function cluster(clusters, position, size, squash, direction, roll, color, centre = null) {
   const align = new THREE.Quaternion().setFromUnitVectors(
     new THREE.Vector3(0, 1, 0),
     direction,
@@ -807,7 +923,15 @@ function cluster(clusters, position, size, squash, direction, roll, color) {
     scale: new THREE.Vector3(size, size * squash, size),
     rotation: new THREE.Euler().setFromQuaternion(spin.multiply(align)),
     color,
+    bend: bentNormal(position, centre),
   });
+}
+
+function bentNormal(position, centre) {
+  if (!centre) return new THREE.Vector3(0, 1, 0);
+  const n = position.clone().sub(centre);
+  n.y = n.y * 1.2 + n.length() * 0.35;
+  return n.lengthSq() > 1e-8 ? n.normalize() : new THREE.Vector3(0, 1, 0);
 }
 
 function leaf(leaves, attachment, width, length, rotation, color, random) {
@@ -819,4 +943,207 @@ function leaf(leaves, attachment, width, length, rotation, color, random) {
     rotation,
     color: color.clone().multiplyScalar(0.8 + random() * 0.4),
   });
+}
+
+// King and sugarbush proteas: a leathery shrub bearing large cup-shaped heads
+// of pink, rose or cream bracts at its shoot tips. Some are pincushions
+// (Leucospermum), whose heads are orange-red balls of styles.
+function growProtea(root, plant, traits, random, wood, clusters, flowers) {
+  const height = plant.height;
+  const pincushion = random() < 0.35;
+  const leafColour = new THREE.Color().setHSL(0.2 + random() * 0.06, 0.22, 0.2 + random() * 0.06);
+  const bark = new THREE.Color().setHSL(0.07, 0.2, 0.22);
+  const stems = 3 + Math.floor(random() * 4);
+  for (let s = 0; s < stems; s++) {
+    const angle = s * GOLDEN_ANGLE + random() * 0.5;
+    const lean = 0.25 + random() * 0.35;
+    const top = root.clone().add(
+      new THREE.Vector3(
+        Math.cos(angle) * height * lean,
+        height * (0.75 + random() * 0.3),
+        Math.sin(angle) * height * lean,
+      ),
+    );
+    branch(wood, root, top, height * 0.03, bark);
+    const direction = top.clone().sub(root).normalize();
+    // Leathery leaves clasp the upper stem.
+    for (let l = 0; l < 4; l++) {
+      const at = root.clone().lerp(top, 0.45 + l * 0.14);
+      cluster(clusters, at, height * 0.22, 0.9, direction, random() * 6.28,
+        leafColour.clone().multiplyScalar(0.8 + random() * 0.4),
+        root.clone().add(new THREE.Vector3(0, height * 0.45, 0)));
+    }
+    if (random() < 0.75) {
+      const size = height * (pincushion ? 0.14 : 0.18) * (0.8 + random() * 0.5);
+      const colour = pincushion
+        ? new THREE.Color().setHSL(0.03 + random() * 0.07, 0.85, 0.5)
+        : [
+            new THREE.Color().setHSL(0.95 + random() * 0.03, 0.55, 0.62),
+            new THREE.Color().setHSL(0.98, 0.45, 0.72),
+            new THREE.Color().setHSL(0.1, 0.35, 0.82),
+            new THREE.Color().setHSL(0.93, 0.6, 0.45),
+          ][Math.floor(random() * 4)];
+      head(flowers[pincushion ? "pincushion" : "protea"], top, size, direction, random() * 6.28, colour);
+    }
+  }
+}
+
+// Aloes: a rosette of fleshy, toothed blue-green leaves and, in winter bloom,
+// branched candelabra spikes of orange-red tubular flowers.
+function growAloe(root, height, random, leaves, flowers) {
+  const colour = new THREE.Color().setHSL(0.36 + random() * 0.08, 0.2, 0.28 + random() * 0.06);
+  const count = 14 + Math.floor(random() * 8);
+  for (let i = 0; i < count; i++) {
+    const azimuth = i * GOLDEN_ANGLE;
+    const tilt = 0.35 + (i / count) * 0.9;
+    leaf(
+      leaves,
+      root.clone().add(new THREE.Vector3(0, height * 0.12, 0)),
+      height * 0.09,
+      height * (0.42 - (i / count) * 0.12),
+      new THREE.Euler(tilt, -azimuth, 0),
+      colour,
+      random,
+    );
+  }
+  const spikes = 1 + Math.floor(random() * 3);
+  const flame = new THREE.Color().setHSL(0.02 + random() * 0.07, 0.9, 0.5);
+  for (let s = 0; s < spikes; s++) {
+    const angle = s * 2.2 + random();
+    const top = root.clone().add(
+      new THREE.Vector3(Math.cos(angle) * height * 0.25, height * (1.1 + random() * 0.5), Math.sin(angle) * height * 0.25),
+    );
+    leaf(leaves, root.clone().lerp(top, 0.35), 0.03, top.distanceTo(root) * 0.4,
+      new THREE.Euler(Math.cos(angle) * 0.2, 0, Math.sin(angle) * 0.2), colour.clone().offsetHSL(-0.2, 0.1, 0), random);
+    head(flowers.spike, top, height * 0.16, new THREE.Vector3(0, 1, 0), random() * 6.28,
+      flame.clone().offsetHSL((random() - 0.5) * 0.03, 0, (random() - 0.5) * 0.08));
+  }
+}
+
+// Restios: Cape reeds in dense upright tufts, green-grey with tan seed heads.
+function growRestio(root, height, random, leaves) {
+  const stem = new THREE.Color().setHSL(0.17 + random() * 0.06, 0.28, 0.22 + random() * 0.08);
+  const tip = new THREE.Color().setHSL(0.08, 0.45, 0.3);
+  const count = 12 + Math.floor(random() * 10);
+  for (let i = 0; i < count; i++) {
+    const rotation = new THREE.Euler((random() - 0.5) * 0.45, random() * 6.28, (random() - 0.5) * 0.45);
+    const length = height * (0.35 + random() * 0.3);
+    leaf(leaves, root, 0.012, length, rotation, i % 4 === 0 ? tip : stem, random);
+  }
+}
+
+// Ericas: fine-leaved heath shrubs smothered in tiny pink, magenta or white bells.
+function growErica(root, height, random, wood, clusters, flowers) {
+  const green = new THREE.Color().setHSL(0.25, 0.3, 0.16 + random() * 0.05);
+  const bloom = [
+    new THREE.Color().setHSL(0.92, 0.7, 0.6),
+    new THREE.Color().setHSL(0.88, 0.6, 0.45),
+    new THREE.Color().setHSL(0.97, 0.75, 0.5),
+    new THREE.Color().setHSL(0.1, 0.2, 0.9),
+  ][Math.floor(random() * 4)];
+  const sprigs = 5 + Math.floor(random() * 4);
+  for (let s = 0; s < sprigs; s++) {
+    const angle = s * GOLDEN_ANGLE;
+    const top = root.clone().add(
+      new THREE.Vector3(Math.cos(angle) * height * 0.4, height * (0.6 + random() * 0.4), Math.sin(angle) * height * 0.4),
+    );
+    branch(wood, root, top, 0.012, green);
+    const direction = top.clone().sub(root).normalize();
+    cluster(clusters, top, height * 0.35, 0.8, direction, random() * 6.28, green.clone().multiplyScalar(0.8 + random() * 0.4),
+      root.clone().add(new THREE.Vector3(0, height * 0.4, 0)));
+    for (let b = 0; b < 6; b++) {
+      const at = root.clone().lerp(top, 0.55 + random() * 0.45).add(
+        new THREE.Vector3((random() - 0.5) * height * 0.25, (random() - 0.5) * height * 0.15, (random() - 0.5) * height * 0.25),
+      );
+      head(flowers.bell, at, 0.018 + random() * 0.012, new THREE.Vector3(0, -1, 0), random() * 6.28,
+        bloom.clone().offsetHSL(0, 0, (random() - 0.5) * 0.1));
+    }
+  }
+}
+
+// Namaqualand-style daisy drifts: many small heads on slender stems, turned
+// toward the sun, in the drift's shared colour.
+const DAISY_COLOURS = [
+  [0.08, 0.95, 0.52],
+  [0.13, 0.95, 0.55],
+  [0.0, 0.0, 0.95],
+  [0.87, 0.65, 0.55],
+  [0.04, 0.85, 0.5],
+];
+function growDaisies(root, height, random, leaves, flowers, palette) {
+  const [h, sat, l] = DAISY_COLOURS[(palette ?? Math.floor(random() * 5)) % 5];
+  const stem = new THREE.Color().setHSL(0.26, 0.4, 0.2);
+  const count = 5 + Math.floor(random() * 8);
+  for (let i = 0; i < count; i++) {
+    const base = root.clone().add(new THREE.Vector3((random() - 0.5) * 0.9, 0, (random() - 0.5) * 0.9));
+    base.y = terrainHeight(base.x, base.z);
+    const stalk = height * (0.6 + random() * 0.6);
+    leaf(leaves, base, 0.01, stalk * 0.5, new THREE.Euler((random() - 0.5) * 0.3, random() * 6.28, (random() - 0.5) * 0.3), stem, random);
+    // Heads face north-ish and up: toward the southern-hemisphere sun.
+    const face = new THREE.Vector3((random() - 0.5) * 0.4, 1, -0.45 + (random() - 0.5) * 0.3).normalize();
+    head(flowers.daisy, base.clone().add(new THREE.Vector3(0, stalk, 0)), 0.035 + random() * 0.03, face,
+      random() * 6.28, new THREE.Color().setHSL(h + (random() - 0.5) * 0.02, sat, l + (random() - 0.5) * 0.06));
+  }
+}
+
+function head(list, position, size, direction, roll, color) {
+  const align = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.clone().normalize());
+  const spin = new THREE.Quaternion().setFromAxisAngle(direction.clone().normalize(), roll);
+  list.push({
+    position: position.clone(),
+    scale: new THREE.Vector3(size, size, size),
+    rotation: new THREE.Euler().setFromQuaternion(spin.multiply(align)),
+    color,
+  });
+}
+
+// Turf: a continuous layer of grass clumps so soil shows only in paths,
+// dune blowouts and deep shade. Straw-coloured on the exposed dunes, green
+// and lusher inland; sparser under dense canopy.
+function growTurf(seed, layout, turf) {
+  const random = seededRandom(seed ^ 0x2545f491);
+  const trees = layout.filter((p) => p.kind === "tree");
+  const grid = new Map();
+  for (const t of trees) {
+    const key = `${Math.floor(t.x / 6)},${Math.floor(t.z / 6)}`;
+    if (!grid.has(key)) grid.set(key, []);
+    grid.get(key).push(t);
+  }
+  const patch = random() * 500;
+  for (let i = 0; i < 20000; i++) {
+    const theta = random() * Math.PI * 2;
+    const inland = 1.6 + Math.pow(random(), 0.85) * 55;
+    const { x, z } = islandPoint(theta, inland);
+    // Bare patches: paths and blowouts where the field dips.
+    const field = noise2(x * 0.12 + patch, z * 0.1 - patch) * 0.7 + noise2(x * 0.5, z * 0.5) * 0.3;
+    if (field < 0.3 + (1 - smoothstep(2, 6, inland)) * 0.25) continue;
+    let shade = 0;
+    const cx = Math.floor(x / 6);
+    const cz = Math.floor(z / 6);
+    for (let dx = -1; dx <= 1; dx++)
+      for (let dz = -1; dz <= 1; dz++)
+        for (const t of grid.get(`${cx + dx},${cz + dz}`) ?? []) {
+          const d = Math.hypot(x - t.x, z - t.z);
+          if (d < 0.35) shade = 2;
+          shade += Math.exp(-(d * d) / (t.height * t.height * 0.12)) * 0.5;
+        }
+    if (shade > 1 || random() < shade * 0.7) continue;
+    const y = terrainHeight(x, z);
+    const dune = 1 - smoothstep(3, 10, inland);
+    const colour = new THREE.Color().setHSL(
+      0.2 + random() * 0.08 - dune * 0.07,
+      0.35 - dune * 0.12,
+      0.17 + random() * 0.08 + dune * 0.1,
+    );
+    const size = (0.28 + random() * 0.3) * (1 - dune * 0.2);
+    turf.push({
+      position: new THREE.Vector3(x, y - 0.02, z),
+      scale: new THREE.Vector3(size, size * (0.8 + random() * 0.6), size),
+      rotation: new THREE.Euler((random() - 0.5) * 0.2, random() * 6.28, (random() - 0.5) * 0.2),
+      color: colour,
+      ground: y,
+      bend: new THREE.Vector3(0, 1, 0),
+      far: random() < 0.22,
+    });
+  }
 }

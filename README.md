@@ -22,6 +22,12 @@ Optional offline visual and performance checks:
 npm run render:sky -- /tmp/skycope-qa
 ```
 
+In the browser, QA-only query parameters: `?weather=clear|cloudy|rain` pins a
+weather fixture (labelled as such) instead of the live forecast; `?perf` records
+mesh-layer GPU time (`data-mesh-ms`, via a `readPixels`-synced render burst every
+90 frames), triangles and draw calls on the landscape canvas, and exposes the live
+state as `window.skycope` (for example to aim `flight` at the sun).
+
 This renders clear, cloudy, rainy, dusk, night, and sun-glint sky/water PNGs and reports combined GPU pass timing.
 It requires a GPU with `timestamp-query`. The fixture sky texture is black, so
 verify catalog stars and the WebGL forest in the browser. The GPU timings cover
@@ -37,13 +43,16 @@ reduced-motion mode, background/resume, and with the weather endpoint blocked.
 | `src/main.js`            | Controls, resource lifetime, clocks, uniforms, adaptive render budget    |
 | `src/astronomy.js`       | Cape Town dates, sun/moon positions, sidereal rotation                   |
 | `src/weather.js`         | Open-Meteo request and validation; no rendering code                     |
-| `src/shaders/sky.wgsl`   | Atmosphere, cloud volumes, lighting, stars, rain                         |
+| `src/shaders/atmosphere.wgsl` | Rayleigh/Mie/ozone scattering, transmittance, the one tonemap       |
+| `src/sunlight.js`        | CPU twin of the scattering model: exposure, sun and sky light per frame  |
+| `src/shaders/sky.wgsl`   | Sky radiance, cloud volumes and lighting, moon, stars                    |
 | `src/shaders/view.wgsl`  | Shared camera projection and uniform layout                              |
-| `src/shaders/water.wgsl` | Sharp water composite, direct sun, rain and final colour                 |
-| `src/shaders/ocean.wgsl` | Coastal swells, filtered ripples, water reflectance, foam                |
-| `src/landscape.js`       | Three.js camera, lighting, shadows, lifecycle                            |
-| `src/vegetation.js`      | Seed-derived growth traits, habitat placement, branches, ferns and grass |
-| `src/forest.js`          | Instanced trunks, branches, individual leaves, rocks, beach mesh         |
+| `src/shaders/water.wgsl` | Sharp water composite, sun disc, rain, tonemap and final colour          |
+| `src/shaders/ocean.wgsl` | Swells, ripples, reflection, seabed, caustics, kelp, glitter, foam       |
+| `src/landscape.js`       | Three.js camera, lights from `sunlight.js`, shadows, lifecycle           |
+| `src/vegetation.js`      | Growth traits, habitat placement, trees, ferns, grass and fynbos         |
+| `src/forest.js`          | Instanced plants, flowers, granite, ground and bark detail shaders, LOD  |
+| `src/fauna.js`           | Gulls, cormorants and a dolphin pod                                      |
 | `src/random.js`          | Reload seed, reproducible random streams                                 |
 | `src/terrain.js`         | Terrain and shoreline functions                                          |
 | `src/cloud-noise.js`     | Deterministic 64³ cloud noise texture, generated once                    |
@@ -110,11 +119,43 @@ intersection steps and avoids repeating high-frequency sine interference pattern
 Both ripples and swells are filtered by their projected pixel footprint; unresolved
 slope energy broadens the reflection. The animation clock is intentionally slowed.
 
-The cloud/sky intermediate uses RGBA16F to preserve smooth twilight gradients. The sun disc is drawn through cloud transmission only in the final pass. The ocean
-uses a broad microfacet sun reflection, so it does not alias a second reflection
-of a low-resolution disc. Sky/cloud reflections use a filtered screen-space lookup
-with a smooth edge fallback; offscreen geometry and trees are not ray-traced into
-water. This is an illustrative coastal model, not a fluid solver or marine forecast.
+Offshore, wind-aligned plane waves take over from the shore-relative swell so the
+open sea never forms rings around the island. Below the surface, rays refract
+(n = 1.33) onto a sloping seabed: rippled sand, granite reef, seagrass, drifting
+kelp-canopy shadows and a circling fish school, lit by sharp caustics that blur with
+depth. Coastal-Atlantic absorption (red first) and single scattering produce the
+turquoise shallows and ink-blue deep water from physics rather than a palette.
+Ecklonia kelp beds float at the surface a little offshore. Foam breaks in sets with
+lacy residue and a thin swash line; whitecaps appear above ~5 m/s wind.
+
+The sun path is a GGX microfacet lobe whose roughness is the real sub-pixel slope
+variance, plus a rough tail and squared patchiness so bright sparkle fields are
+split by dark troughs. On top of that, **glints**: each footprint-sized world cell
+draws a random facet from the unresolved slope distribution, and facets that
+mirror the sun disc flash far past white and twinkle as they re-roll. They fade
+out where many glints would share one pixel.
+
+## Light and colour
+
+The sky is a physically based single-scattering atmosphere (Rayleigh, Mie and
+ozone over a spherical Earth) with a multiple-scattering term modelled as light
+from a slightly higher sun, which keeps the twilight Earth shadow and Belt of Venus
+lit. `src/sunlight.js` evaluates the same model on the CPU once per frame to get
+exposure, the direct sun (or moon) colour and zenith skylight. They go to both
+WebGPU passes as uniforms and drive the Three.js directional and hemisphere lights
+and fog, so land, sea, clouds and sky share one sun. Exposure adapts like an eye:
+the zenith stays steady through golden hour, then genuinely darkens through civil
+twilight, with limited dark adaptation at night. **Keep `atmosphere.wgsl` and
+`sunlight.js` in step.**
+
+Every pass works in linear HDR. The sky target (RGBA16F) holds exposed linear
+radiance; the water pass and the Three.js layer apply the same ACES fit and sRGB
+encoding once, so highlights such as the sun disc and glints roll off instead of
+clipping. The sun disc is drawn through cloud transmission only in the final pass.
+Sky/cloud reflections use a filtered screen-space lookup whose blur grows with
+roughness, with a smooth edge fallback. Offscreen geometry and trees are not
+ray-traced into water. This is an illustrative coastal model, not a fluid solver or
+marine forecast.
 
 Vegetation uses four growth families: woody canopy, shrubs, ferns and grasses.
 Each seed generates eight communities of continuous growth traits (height, spread,
@@ -124,8 +165,20 @@ spacing avoids intersecting trunks, and a separate patch field populates lower l
 Branches curve and split recursively. Leaves originate on connected shoots with fixed
 bases during flutter. Ferns grow arching paired fronds; grasses grow in tufts.
 Near canopy trees receive an extra branching level; shrubs and distant trees stay
-simpler. Geometry is instanced, with no per-tree scene graphs. These are illustrative
-growth families, not a claim to reproduce specific Cape Town species.
+simpler. Geometry is instanced, with no per-tree scene graphs.
+
+Open ground between groves is fynbos: king and sugarbush proteas, pincushions,
+aloes with orange flower candles, restio reed tufts, pink-belled ericas, and
+Namaqualand-style daisy drifts that share one colour over tens of metres and face
+the northern (southern-hemisphere) sun. Granite corestone fields straddle the
+waterline in a few clusters. The ground and rocks get per-pixel world-space detail:
+sand grain and wind ripples, a glossy wet swash band, granite on steep ground,
+lichen, leaf litter, and a derivative bump map; bark has fissured plates. These
+are illustrative forms inspired by Cape flora, not botanical reconstructions.
+
+Kelp gulls soar in drifting thermals with occasional flapping bursts, lines of
+Cape cormorants skim the sea, and a dolphin pod porpoises offshore on staggered
+breathing cycles (clipped at the surface). Birds roost at night.
 
 ## Render budget and lifecycle
 
@@ -137,7 +190,10 @@ growth families, not a claim to reproduce specific Cape Town species.
   cloud self-shadowing; directional light, ambient fill and haze add depth.
 - An alpha WebGL canvas composites depth-tested terrain and forest meshes over
   the water/sky canvas. Both cameras share position, heading, pitch and FOV.
-  Geometry uses instancing and no per-tree scene graph. The mesh canvas caps at
+  Geometry uses instancing and no per-tree scene graph. Each 28 m chunk is a
+  `THREE.LOD`: beyond 42 m it swaps to cheaper leaf/cluster/branch/rock geometry and
+  drops unresolvable twigs, blades and flowers (at the home view this cut visible
+  triangles from 3.4 M to 1.3–1.6 M). The mesh canvas caps at
   2.5 million pixels with MSAA. Sun shadows use one 2048² map, updated only when
   lighting changes. Individual leaf tips flutter in a vertex shader.
 - A 256 KiB repeating noise volume avoids hashing many noise octaves per sample.

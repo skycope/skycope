@@ -25,6 +25,7 @@ import {
   WEATHER_MAX_AGE_MS,
 } from "./weather.js";
 import { terrainHeight, shoreDistance, ISLAND } from "./terrain.js";
+import { lightingAt } from "./sunlight.js";
 
 // Free flight around the coast. The default matches the original fixed view:
 // (6, 4.5, 0) coast metres, heading 315°, pitched 6° above the horizon.
@@ -40,6 +41,15 @@ const FLIGHT_KEYS = new Set([
   "w", "a", "s", "d", "q", "e", " ", "shift",
   "arrowup", "arrowdown", "arrowleft", "arrowright",
 ]);
+
+// Visual-QA only: `?weather=clear|cloudy|rain` pins a fixture instead of the
+// live forecast, so glitter, sunsets and storms can be checked on demand.
+const WEATHER_FIXTURES = {
+  clear: { low: 0, mid: 0, high: 0.15, cover: 0.05, rain: 0, wind: [3, 1.5], temperature: 21, description: "clear sky (fixture)" },
+  cloudy: { low: 0.55, mid: 0.2, high: 0.4, cover: 0.6, rain: 0, wind: [4, 2], temperature: 18, description: "partly cloudy (fixture)" },
+  rain: { low: 0.95, mid: 0.75, high: 0.8, cover: 1, rain: 3, wind: [8, 4], temperature: 14, description: "rain (fixture)" },
+};
+const weatherFixture = WEATHER_FIXTURES[new URLSearchParams(window.location.search).get("weather")];
 
 const canvas = document.querySelector("#sky");
 const slider = document.querySelector("#time");
@@ -77,6 +87,9 @@ const state = {
   lastQualityChange: 0,
   disposed: false,
 };
+
+// `?perf` QA exposes live state, e.g. to aim the camera at the sun.
+if (new URLSearchParams(window.location.search).has("perf")) window.skycope = state;
 
 start();
 
@@ -229,6 +242,11 @@ function updateTime() {
 }
 
 async function refreshWeather() {
+  if (weatherFixture) {
+    state.weather = { ...weatherFixture, observedAt: Date.now() };
+    weatherLabel.textContent = `${state.weather.temperature}° · ${state.weather.description}`;
+    return;
+  }
   if (document.hidden || state.weatherRequest || state.disposed) return;
   const request = new AbortController();
   state.weatherRequest = request;
@@ -296,7 +314,15 @@ async function startAtmosphere() {
       atmosphere: createUniforms(),
       cloudNoise: noise.createView(),
       skyTexture: skyTarget.color,
-      filtering: sampler(gpu, { minFilter: "linear", magFilter: "linear" }),
+      // Repeat: the ocean tiles the noise volume across the whole sea. Sky
+      // lookups clamp their own coordinates.
+      filtering: sampler(gpu, {
+        minFilter: "linear",
+        magFilter: "linear",
+        addressModeU: "repeat",
+        addressModeV: "repeat",
+        addressModeW: "repeat",
+      }),
     },
   });
   state.water = water;
@@ -338,6 +364,7 @@ async function startAtmosphere() {
       state.time,
       state.weather?.wind ?? [0, 0],
       state.flight,
+      state.lighting,
     );
   };
   document.body.dataset.renderer = "webgpu";
@@ -373,6 +400,7 @@ function waterSize() {
 function createUniforms() {
   const sky = state.celestial;
   const weather = state.weather;
+  const light = (state.lighting = lightingAt(sky));
   return {
     resolution: state.output.size,
     pointer: state.pointer,
@@ -399,6 +427,8 @@ function createUniforms() {
       state.flight.azimuth,
     ],
     pitch: state.flight.pitch,
+    light: [...light.direct, light.exposure],
+    ambient: [...light.sky, light.night],
   };
 }
 

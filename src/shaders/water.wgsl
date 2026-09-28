@@ -1,5 +1,6 @@
 import { Atmosphere, view_ray } from "./view.wgsl";
 import { ocean_view, OceanSettings } from "./ocean.wgsl";
+import { tonemap } from "./atmosphere.wgsl";
 
 @group(0) @binding(0) var<uniform> atmosphere: Atmosphere;
 @group(0) @binding(1) var cloudNoise: texture_3d<f32>;
@@ -15,7 +16,8 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   let sky = sky_sample.rgb;
   let settings = OceanSettings(atmosphere.time, atmosphere.scene, atmosphere.wind,
     atmosphere.weather.w, atmosphere.resolution, atmosphere.seed,
-    atmosphere.flight.xyz, atmosphere.flight.w, atmosphere.pitch);
+    atmosphere.flight.xyz, atmosphere.flight.w, atmosphere.pitch,
+    atmosphere.light.rgb, atmosphere.ambient.rgb);
   var color = ocean_view(ray, light, sky, settings, cloudNoise, filtering, skyTexture);
   // The direct disc is composited through cloud transmission. Water uses its
   // integrated BRDF instead of reflecting a low-resolution disc a second time.
@@ -25,27 +27,40 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   // Clip each point of the disc against the actual sea horizon, not its centre.
   let horizon_edge = max(fwidth(ray.y), 0.00001);
   let above_sea = smoothstep(-horizon_edge * 0.5, horizon_edge * 0.5, ray.y);
-  let sunset = 1.0 - smoothstep(0.0, 0.15, atmosphere.sun.y);
-  let sun_colour = mix(vec3f(1.0, 0.96, 0.82), vec3f(1.0, 0.68, 0.37), sunset);
+  // The disc is the sun's true radiance through the air and clouds; the
+  // filmic shoulder turns it white-hot at noon and deep orange at sunset.
+  let sun_colour = atmosphere.light.rgb * 60.0;
   color = mix(color, sun_colour, disc * above_sea * sky_sample.a * (1.0 - night));
+  // A soft aureole around the disc: forward scattering in hazy coastal air.
+  color += atmosphere.light.rgb * exp(-sun_distance * 90.0) * 0.12 * above_sea * sky_sample.a * (1.0 - night);
   if (atmosphere.rain > 0.01) {
-    color += rain_streaks(uv) * mix(vec3f(0.22, 0.27, 0.30), vec3f(0.07, 0.11, 0.16), night);
+    color += rain_streaks(uv) * (atmosphere.ambient.rgb * 0.8 + vec3f(0.01));
   }
-  let grain = (hash2(floor(uv * atmosphere.resolution)).x - 0.5) / 255.0;
   let screen = uv - 0.5;
-  let vignette = 1.0 - dot(screen, screen) * 0.12;
-  color = pow(max(color * vignette, vec3f(0.0)), vec3f(0.96));
-  return vec4f(clamp(color + grain, vec3f(0.0), vec3f(1.0)), 1.0);
+  let vignette = 1.0 - dot(screen, screen) * 0.18;
+  let grain = (hash2(floor(uv * atmosphere.resolution)).x - 0.5) / 255.0;
+  return vec4f(tonemap(color * vignette) + grain, 1.0);
 }
 
+// Rain: thin slanted streaks. Each column falls at its own speed and phase,
+// so drops never line up into rows; two depths give parallax.
 fn rain_streaks(uv: vec2f) -> f32 {
-  let p = uv * atmosphere.resolution / vec2f(4.0, 30.0);
-  let slant = atmosphere.wind.x * 0.012;
-  let cell = floor(vec2f(p.x + p.y * slant, p.y + atmosphere.time * 2.8));
-  let random = hash2(cell);
-  let local = fract(vec2f(p.x + p.y * slant, p.y + atmosphere.time * 2.8));
-  return step(random.x, min(0.65, atmosphere.rain * 0.12)) * step(local.x, 0.18)
-    * smoothstep(0.2, 0.5, local.y) * (1.0 - smoothstep(0.6, 0.95, local.y));
+  var total = 0.0;
+  for (var layer = 0; layer < 2; layer++) {
+    let scale = select(vec2f(3.0, 26.0), vec2f(5.0, 44.0), layer == 1);
+    let p = uv * atmosphere.resolution / scale;
+    let slant = atmosphere.wind.x * 0.012;
+    let x = p.x + p.y * slant;
+    let column = floor(x);
+    let lane = hash2(vec2f(column, f32(layer) * 7.0));
+    let y = p.y + atmosphere.time * (2.2 + lane.y * 1.6) * (1.0 + f32(layer) * 0.6) + lane.x * 40.0;
+    let cell = floor(y);
+    let random = hash2(vec2f(column, cell));
+    let local = vec2f(fract(x), fract(y));
+    total += step(random.x, min(0.5, atmosphere.rain * 0.1)) * (1.0 - smoothstep(0.08, 0.2, abs(local.x - 0.5 - (random.y - 0.5) * 0.6)))
+      * smoothstep(0.0, 0.4, local.y) * (1.0 - smoothstep(0.5, 1.0, local.y)) * (0.6 + f32(layer) * 0.4);
+  }
+  return total;
 }
 
 fn hash2(p: vec2f) -> vec2f {

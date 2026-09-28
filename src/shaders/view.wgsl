@@ -16,6 +16,10 @@ export struct Atmosphere {
   rain: f32,
   flight: vec4f,
   pitch: f32,
+  // From src/sunlight.js, exposed linear units: direct sun/moon light (rgb)
+  // with the exposure in w, and zenith skylight (rgb) with night in w.
+  light: vec4f,
+  ambient: vec4f,
 };
 
 export fn view_ray(uv: vec2f, resolution: vec2f, pointer: vec2f, azimuth: f32, pitch: f32) -> vec3f {

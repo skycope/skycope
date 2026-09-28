@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { init, effect, frame, target, sampler, timer } from "vgpu/node";
 import { createCloudNoise } from "../src/cloud-noise.js";
 import { skyAt } from "../src/astronomy.js";
+import { lightingAt } from "../src/sunlight.js";
 
 // Offline visual fixtures. They never override the live site's weather.
 const outputDirectory = process.argv[2] ?? "/tmp/skycope-qa";
@@ -58,7 +59,13 @@ const water = effect(
     set: {
       cloudNoise: noise.createView(),
       skyTexture: skyTarget.color,
-      filtering: sampler(gpu, { minFilter: "linear", magFilter: "linear" }),
+      filtering: sampler(gpu, {
+        minFilter: "linear",
+        magFilter: "linear",
+        addressModeU: "repeat",
+        addressModeV: "repeat",
+        addressModeW: "repeat",
+      }),
     },
   },
 );
@@ -83,7 +90,10 @@ for (const [name, time, weather, rain] of [
     water.set({ skyTexture: skyTarget.color });
   }
   const sky = skyAt(new Date(time));
+  const light = lightingAt(sky);
   const atmosphere = {
+    light: [...light.direct, light.exposure],
+    ambient: [...light.sky, light.night],
     resolution: output.size,
     pointer: [0.5, 0.5],
     time: 24,
@@ -114,7 +124,8 @@ for (const [name, time, weather, rain] of [
   const pixels = await output.read();
   assert.equal(errors.length, 0, errors.map(String).join("\n"));
   assert.ok(
-    pixels.some((v, i) => i % 4 !== 3 && v > 20),
+    // A true night sky is dark, and this fixture's star atlas is black.
+    pixels.some((v, i) => i % 4 !== 3 && v > (name === "night" ? 6 : 20)),
     `${name} must not be blank`,
   );
   const png = new PNG({ width: output.size[0], height: output.size[1] });

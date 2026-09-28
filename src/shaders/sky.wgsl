@@ -1,4 +1,5 @@
 import { Atmosphere, view_ray } from "./view.wgsl";
+import { sky_radiance, to_linear } from "./atmosphere.wgsl";
 
 @group(0) @binding(0) var<uniform> atmosphere: Atmosphere;
 @group(0) @binding(1) var cloudNoise: texture_3d<f32>;
@@ -19,27 +20,39 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   let night = smoothstep(1.0, 2.0, atmosphere.scene);
   let sun = atmosphere.sun;
   let moon = atmosphere.moon;
-  let light = normalize(mix(sun, moon, night));
-
-  let sky = atmosphere_color(ray, sun, moon, night);
-  let clouds = render_clouds(eye, ray, light, sky, night);
-  return clouds;
+  // Output is exposed linear HDR; the water pass owns the single tonemap.
+  let exposure = atmosphere.light.w;
+  let sky = atmosphere_color(ray, sun, moon, night, exposure);
+  // The sea covers everything below the horizon: no clouds there, just the
+  // horizon colour that distant water fades into.
+  if (ray.y < -0.02) { return vec4f(sky, 1.0); }
+  return render_clouds(eye, ray, sun, moon, sky, night, exposure);
 }
 
-fn atmosphere_color(ray: vec3f, sun: vec3f, moon: vec3f, night: f32) -> vec3f {
-  let horizon = palette(vec3f(0.67, 0.81, 0.83), vec3f(0.84, 0.62, 0.51), vec3f(0.14, 0.22, 0.38));
-  let zenith = palette(vec3f(0.16, 0.39, 0.58), vec3f(0.20, 0.26, 0.40), vec3f(0.018, 0.035, 0.095));
-  var color = mix(horizon, zenith, pow(clamp(ray.y * 1.8 + 0.18, 0.0, 1.0), 0.7));
-  let sun_distance = length(ray - sun);
-  let warm = palette(vec3f(1.0, 0.77, 0.43), vec3f(1.0, 0.53, 0.28), vec3f(0.32, 0.46, 0.8));
-  let glow = exp(-sun_distance * 6.0) * 0.18 + exp(-sun_distance * 22.0) * 0.12;
-  color += (warm * glow) * (1.0 - night) * smoothstep(-0.02, 0.005, sun.y);
+// Moonlight is sunlight scaled by distance and phase (~1/400000 of the sun at
+// full moon); it is lifted far above that here, with src/sunlight.js, so a moonlit sky reads as deep blue, not black.
+fn moonlight(moon: vec3f) -> f32 {
+  let lit = 0.5 - 0.5 * cos(atmosphere.celestial.z * 6.283185);
+  return 0.003 * lit * smoothstep(-0.02, 0.05, moon.y);
+}
+
+fn atmosphere_color(ray: vec3f, sun: vec3f, moon: vec3f, night: f32, exposure: f32) -> vec3f {
+  var radiance = sky_radiance(ray, sun, 12);
+  if (night > 0.001) {
+    radiance += sky_radiance(ray, moon, 6) * moonlight(moon) * 0.6;
+  }
+  var color = radiance * exposure;
+  // Airglow and scattered starlight: the darkest sky is never pure black.
+  color += vec3f(0.004, 0.007, 0.014) * night * (1.0 + (1.0 - clamp(ray.y, 0.0, 1.0)) * 1.5);
 
   // Thin ice-cloud veil at a distant altitude: different perspective and drift.
   let high_position = ray.xz * (18.0 / max(ray.y + 0.23, 0.07));
-  let wisps = noise3(vec3f(high_position * vec2f(0.065, 0.22), 7.0) + vec3f(atmosphere.time * 0.004, 0.0, 0.0));
-  let veil = smoothstep(0.58, 0.85, wisps) * smoothstep(0.08, 0.4, ray.y);
-  color = mix(color, palette(vec3f(0.87, 0.94, 1.0), vec3f(0.93, 0.57, 0.55), vec3f(0.24, 0.32, 0.47)), veil * 0.38 * atmosphere.weather.z);
+  let wisps = noise3(vec3f(high_position * vec2f(0.065, 0.22), 7.0) + vec3f(atmosphere.time * 0.004, 0.0, 0.0))
+    * 0.7 + noise3(vec3f(high_position * vec2f(0.21, 0.5), 3.0)) * 0.3;
+  let veil = smoothstep(0.52, 0.85, wisps) * smoothstep(0.03, 0.3, ray.y) * atmosphere.weather.z;
+  let veil_light = atmosphere.light.rgb * (0.012 + 0.05 * pow(max(dot(ray, sun), 0.0), 8.0))
+    + atmosphere.ambient.rgb * 0.8;
+  color = mix(color, veil_light, veil * 0.45);
 
   if (night > 0.001) {
     let moon_distance = length(ray - moon);
@@ -51,27 +64,41 @@ fn atmosphere_color(ray: vec3f, sun: vec3f, moon: vec3f, night: f32) -> vec3f {
     let limb = vec2f(sin(atmosphere.celestial.w), cos(atmosphere.celestial.w));
     let face = sqrt(max(0.0, 1.0 - dot(moon_uv, moon_uv)));
     let illumination = smoothstep(-0.06, 0.06, dot(moon_uv, limb) * abs(sin(phase_angle)) - face * cos(phase_angle));
+    // Maria: large dark basins plus fine craters, not uniform speckle.
+    let maria = smoothstep(0.45, 0.7, noise3(vec3f(moon_uv * 2.2 + 5.0, 1.0)));
     let crater = noise3((ray - moon) * 320.0 + 21.0);
     let moon_visibility = smoothstep(-0.01, 0.02, moon.y);
-    color += vec3f(0.86, 0.91, 0.79) * moon_disc * (0.03 + illumination * 0.97) * (0.82 + crater * 0.18) * night * moon_visibility;
-    color += vec3f(0.13, 0.21, 0.34) * exp(-moon_distance * 16.0) * night * moon_visibility * (0.5 - 0.5 * cos(phase_angle));
-    color += star_field(ray) * night;
-
+    let albedo = (0.85 - maria * 0.35) * (0.85 + crater * 0.15);
+    color += vec3f(1.0, 0.97, 0.9) * 1.6 * moon_disc * (0.02 + illumination * 0.98) * albedo * night * moon_visibility;
+    color += vec3f(0.05, 0.08, 0.14) * exp(-moon_distance * 14.0) * night * moon_visibility * (0.5 - 0.5 * cos(phase_angle));
+    color += to_linear(star_field(ray)) * night * 0.8;
   }
   let overcast = smoothstep(0.55, 1.0, atmosphere.weather.w);
-  let gray = dot(color, vec3f(0.25, 0.55, 0.2));
-  return mix(color, vec3f(gray) * vec3f(0.86, 0.93, 1.0), overcast * 0.62);
+  let gray = dot(color, vec3f(0.2126, 0.7152, 0.0722));
+  // Thick cloud and rain dim the whole sky, not just desaturate it.
+  let gloom = 1.0 - overcast * 0.25 - smoothstep(0.2, 4.0, atmosphere.rain) * 0.35;
+  return mix(color, vec3f(gray) * vec3f(0.92, 0.96, 1.0), overcast * 0.75) * gloom;
 }
 
-fn render_clouds(eye: vec3f, ray: vec3f, light: vec3f, sky: vec3f, night: f32) -> vec4f {
+// Henyey-Greenstein lobe, scaled so an isotropic scatterer averages 1.
+fn hg(mu: f32, g: f32) -> f32 {
+  let g2 = g * g;
+  return (1.0 - g2) / pow(max(1.0 + g2 - 2.0 * g * mu, 0.0001), 1.5);
+}
+
+fn render_clouds(eye: vec3f, ray: vec3f, sun: vec3f, moon: vec3f, sky: vec3f, night: f32, exposure: f32) -> vec4f {
   var radiance = vec3f(0.0);
   var transmission = 1.0;
-  let sunlight = palette(vec3f(1.06, 1.01, 0.90), vec3f(1.25, 0.64, 0.35), vec3f(0.48, 0.62, 0.76));
-  let shadow = palette(vec3f(0.27, 0.43, 0.65), vec3f(0.29, 0.22, 0.40), vec3f(0.045, 0.08, 0.17));
-  let ambient = palette(vec3f(0.52, 0.68, 0.82), vec3f(0.55, 0.34, 0.48), vec3f(0.13, 0.21, 0.34));
-  let light_visibility = smoothstep(-0.035, 0.08, light.y);
-  let alignment = max(dot(ray, light), 0.0);
-  let silver = pow(alignment, 18.0) * (1.0 - night * 0.35) * light_visibility;
+  let light = normalize(mix(sun, moon, night));
+  // Sunlight and skylight come from the same scattering model as the sky, so
+  // clouds turn gold, rose and grey with the real sun, not a palette.
+  let direct_light = atmosphere.light.rgb;
+  let sky_up = atmosphere.ambient.rgb;
+  let sky_side = sky;
+  let mu = dot(ray, light);
+  // Dual-lobe phase: a strong forward silver lining plus soft backscatter.
+  let phase = mix(hg(mu, 0.62), hg(mu, -0.18), 0.35);
+  let dim = 1.0 - atmosphere.weather.w * 0.45;
   let steps = u32(atmosphere.steps);
 
   // Quadratic spacing resolves nearby billows; far clouds cost fewer samples.
@@ -89,14 +116,17 @@ fn render_clouds(eye: vec3f, ray: vec3f, light: vec3f, sky: vec3f, night: f32) -
     let optical_depth = cloud_density(position + light * 0.45) * 0.5
       + cloud_density(position + light * 1.25) * 0.85
       + cloud_density(position + light * 2.8) * 1.1;
-    let direct = exp(-optical_depth * 1.7);
-    let powder = 1.0 - exp(-density * 2.4);
-    let sky_light = smoothstep(-2.0, 2.0, position.y) * 0.20;
-    var lighting = shadow * (0.5 + powder * 0.25) + ambient * (0.16 + sky_light);
-    lighting += sunlight * direct * (0.70 + silver * 0.8) * (1.0 - atmosphere.weather.w * 0.35) * light_visibility;
-    lighting += sunlight * silver * exp(-density * 2.0) * 0.18;
-    let haze = 1.0 - exp(-distance * 0.019);
-    lighting = mix(lighting, sky, haze * 0.72);
+    // Beer's law with a long multiple-scattering tail, and the "powder" term
+    // that darkens thin sunward edges: the look of real cumulus.
+    let beer = exp(-optical_depth * 1.7) * 0.75 + exp(-optical_depth * 0.35) * 0.25;
+    let powder = 1.0 - exp(-density * 3.0);
+    let height_light = smoothstep(-3.5, 6.0, position.y);
+    var lighting = direct_light * beer * mix(1.0, powder, 0.5) * phase * 0.075 * dim;
+    lighting += sky_up * (0.55 + height_light * 0.7) + sky_side * 0.25;
+    // Deep, low decks are dark underneath: little light survives the column.
+    lighting *= 1.0 - atmosphere.weather.x * atmosphere.weather.w * 0.5 * (1.0 - height_light);
+    let haze = 1.0 - exp(-distance * 0.021);
+    lighting = mix(lighting, sky, haze * 0.75);
     let alpha = 1.0 - exp(-density * step_size * 1.9);
     radiance += lighting * alpha * transmission;
     transmission *= 1.0 - alpha;
@@ -130,13 +160,6 @@ fn star_field(ray: vec3f) -> vec3f {
   let stars = textureSampleLevel(starAtlas, cloudSampler, coordinates, 0.0).rgb;
   let shimmer = 0.90 + 0.10 * sin(atmosphere.time * 0.6 + ra * 110.0);
   return stars * shimmer * smoothstep(0.0, 0.10, ray.y);
-}
-
-fn palette(day: vec3f, dusk: vec3f, night: vec3f) -> vec3f {
-  if (atmosphere.scene < 1.0) {
-    return mix(day, dusk, smoothstep(0.0, 1.0, atmosphere.scene));
-  }
-  return mix(dusk, night, smoothstep(1.0, 2.0, atmosphere.scene));
 }
 
 fn noise3(p: vec3f) -> f32 {
