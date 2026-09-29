@@ -1,4 +1,5 @@
 import { groundHeight, shoreDistance, islandPoint, ISLAND } from "./terrain.js";
+import { CAT_SCALE } from "./cat-rig.js";
 
 // The cat's movement and the camera that follows it, in coast metres (x
 // right, z toward the home horizon; heading φ points along (sin φ, cos φ)).
@@ -9,12 +10,12 @@ import { groundHeight, shoreDistance, islandPoint, ISLAND } from "./terrain.js";
 const WALK_SPEED = 0.95;
 const RUN_SPEED = 3.4;
 const GRAVITY = 9.8;
-const JUMP_SPEED = 3.7;
-const CAT_RADIUS = 0.12;
+const JUMP_SPEED = 4.1;
+const CAT_RADIUS = 0.12 * CAT_SCALE;
 const LOOK_LIFT = 0.13;
 const HOME_THETA = Math.atan2(0 - ISLAND.z, 6 - ISLAND.x);
 
-export const CAMERA = { distance: 3.1, elevation: 0.4, min: 1.3, max: 8 };
+export const CAMERA = { distance: 3.4, elevation: 0.38, min: 1.1, max: 8 };
 
 export function createWalker(obstacles) {
   const grid = spatialGrid(obstacles);
@@ -262,7 +263,7 @@ export function createWalker(obstacles) {
     camera.targetY += (cat.y - camera.targetY) * Math.min(1, ease * 0.6 + 0.02);
     const tx = cat.x;
     const tz = cat.z;
-    const ty = camera.targetY + 0.26;
+    const ty = camera.targetY + 0.26 * CAT_SCALE;
     const horizontal = Math.cos(camera.elevation) * camera.distance;
     let x = tx - Math.sin(camera.yaw) * horizontal;
     let z = tz - Math.cos(camera.yaw) * horizontal;

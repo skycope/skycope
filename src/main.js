@@ -37,6 +37,7 @@ import { lightingAt } from "./sunlight.js";
 import { createWeatherPanel } from "./weather-panel.js";
 import { createWalker, surfaceKind } from "./walker.js";
 import { createSound } from "./sound.js";
+import { CAT_SCALE } from "./cat-rig.js";
 
 // You are a cat: WASD/arrows walk (relative to the camera), shift runs,
 // space jumps, M meows. Click or tap the ground to walk there; drag orbits
@@ -93,6 +94,8 @@ const state = {
   lastInput: 0,
   lastFrame: 0,
   lastChirp: -10,
+  // How wet the cat's paws are (from wet sand); they print on rock.
+  pawWet: 0,
   hintShown: true,
   // The renderer reads `weather`: the live forecast, or the panel's override.
   weather: null,
@@ -338,7 +341,7 @@ function tap(clientX, clientY) {
   const cat = state.walker.cat;
   // Distance from the cat's middle to the ray.
   const cx = cat.x - origin[0];
-  const cy = cat.y + 0.15 - origin[1];
+  const cy = cat.y + 0.15 * CAT_SCALE - origin[1];
   const cz = cat.z - origin[2];
   const along = cx * direction[0] + cy * direction[1] + cz * direction[2];
   const miss = Math.hypot(cx - direction[0] * along, cy - direction[1] * along, cz - direction[2] * along);
@@ -663,6 +666,7 @@ async function startAtmosphere() {
       cover: state.weather?.cover ?? 0,
       time: state.time,
       wind: state.weather?.wind ?? [0, 0],
+      rain: state.weather?.rain ?? 0,
       view: state.flight,
       lighting: state.lighting,
       pose: state.walker.cat,
@@ -760,9 +764,16 @@ function updateCat(dt) {
     if (event.type === "jump") state.sound.jump();
     if (event.type === "land") {
       state.sound.land(event.speed);
+      let kind = 2;
       for (const front of [true, false])
-        for (const side of [-1, 1])
-          footstep(side < 0 ? "l" : "r", cat.x + Math.cos(cat.heading) * side * 0.05 + Math.sin(cat.heading) * (front ? 0.13 : -0.12), cat.z - Math.sin(cat.heading) * side * 0.05 + Math.cos(cat.heading) * (front ? 0.13 : -0.12), cat.heading, front, true);
+        for (const side of [-1, 1]) {
+          const across = side * 0.03 * CAT_SCALE;
+          const along = (front ? 0.12 : -0.1) * CAT_SCALE;
+          const sin = Math.sin(cat.heading);
+          const cos = Math.cos(cat.heading);
+          kind = footstep(side < 0 ? "l" : "r", cat.x + cos * across + sin * along, cat.z - sin * across + cos * along, cat.heading, front, { side: -side, speed: 1 }, true);
+        }
+      state.landscape.catLanded(state.time, Math.min(1.5, event.speed / 3), kind, walker.surface);
     }
   }
   // Purr once settled; chirrup at something new to watch.
@@ -790,19 +801,40 @@ function updateCat(dt) {
 }
 
 // A paw lands: a print in the ground and a step you can hear.
-function footstep(leg, x, z, heading, front, silent = false) {
+// Returns the surface kind (walker.surfaceKind), which the cat uses to
+// decide whether sand flies.
+function footstep(leg, x, z, heading, front, { side = 1, speed = 0 } = {}, silent = false) {
   const cat = state.walker.cat;
-  const kind = surfaceKind(x, z, cat.onRock);
+  const ground = state.walker.surface;
+  const onRock = ground(x, z) > groundHeight(x, z) + 0.03;
+  const kind = surfaceKind(x, z, onRock);
   const inland = shoreDistance(x, z);
-  const e = 0.05;
-  const y = groundHeight(x, z);
-  const nx = groundHeight(x - e, z) - groundHeight(x + e, z);
-  const nz = groundHeight(x, z - e) - groundHeight(x, z + e);
+  const e = 0.03;
+  const y = ground(x, z);
+  const nx = ground(x - e, z) - ground(x + e, z);
+  const nz = ground(x, z - e) - ground(x, z + e);
   const n = Math.hypot(nx, 2 * e, nz);
-  const depth = [0, 1, 0.85, 0.55, 0.3][kind];
   const wet = 1 - smooth(0.6, 2, inland);
-  state.landscape.addPrint(state.time, x, y, z, heading, front, [nx / n, (2 * e) / n, nz / n], depth, wet);
+  // Wet sand wets the paws; each step elsewhere dries them a little.
+  state.pawWet = kind === 1 ? 1 : state.pawWet * 0.88;
+  state.landscape.addPrint({
+    time: state.time,
+    x,
+    y,
+    z,
+    heading,
+    front,
+    side,
+    normal: [nx / n, (2 * e) / n, nz / n],
+    strength: kind === 0 ? state.pawWet * 0.9 : [0, 1, 0.9, 0.55, 0.3][kind],
+    wet,
+    // Dry sand crumbles; wet sand and soil hold a crisp edge.
+    soft: [0, 0.1, 1, 0.7, 0.5][kind] * (1 - wet * 0.8),
+    speed,
+    rock: kind === 0,
+  });
   if (!silent) state.sound.step(kind, cat.running, leg.startsWith("l") ? -0.15 : 0.15);
+  return kind;
 }
 
 function smooth(a, b, x) {
