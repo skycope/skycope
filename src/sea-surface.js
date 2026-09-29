@@ -47,7 +47,7 @@ function swash(along, inland, time, swell) {
 export function createSea(seed, modes) {
   const s = (seed % 65536) / 65536;
   let time = 0;
-  let swell = [0, 1, 0, 0.17];
+  let swell = [0, 1, 0, 0.28];
   let wind = [0, 0];
   const out = { level: 0, flowX: 0, flowZ: 0, breaking: 0 };
 

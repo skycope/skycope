@@ -55,8 +55,21 @@ float swashValue( vec2 p ) {
   return mix( mix( swashHash( i ).x, swashHash( i + vec2( 1.0, 0.0 ) ).x, u.x ),
     mix( swashHash( i + vec2( 0.0, 1.0 ) ).x, swashHash( i + vec2( 1.0, 1.0 ) ).x, u.x ), u.y );
 }
+// The bore's leading edge: a roll of froth a hand's width deep riding the
+// front of the film, its back edge torn into scallops. sw is swash();
+// coverage in 0–1, averaged once the roll is finer than the pixel.
+// Keep in step with swash_line in ocean.wgsl.
+float swashLine( float along, float inland, vec4 sw, float time, float pixel ) {
+  if ( sw.x < 0.01 || sw.w > 0.3 ) return 0.0;
+  float width = 0.05 + 0.1 * sw.y;
+  float scallop = swashValue( vec2( along * 3.1, inland * 1.3 - time * 0.4 ) ) * 0.6
+    + swashValue( vec2( along * 11.0, inland * 5.0 ) + 7.0 ) * 0.4;
+  float soft = max( pixel * 1.2, 0.008 );
+  float back = width * ( 0.5 + scallop );
+  return sw.x * ( 1.0 - smoothstep( back - soft, back + soft, sw.w ) ) * smoothstep( 0.1, 0.4, sw.y + 0.2 );
+}
 // Foam as in foam_cover (ocean.wgsl): holes open round their own seeds as
-// the foam thins, at two scales, until only irregular lace is left.
+// the foam thins, at two scales (three here), until only irregular lace is left.
 float swashHoles( vec2 q, float local, float cellsPerPixel, float warp ) {
   float thin = 1.0 - local;
   float mean = 1.0 - min( 0.92, 1.55 * thin * thin );
@@ -81,15 +94,19 @@ float swashFoam( vec2 qIn, float density, float time, float pixelIn ) {
   float pixel = pixelIn * 1.6;
   vec2 w = q + ( vec2( swashValue( q * 0.25 + 3.1 ), swashValue( q * 0.25 + 17.7 ) ) - 0.5 ) * 2.4;
   float clump = swashValue( w * 0.5 + vec2( time * 0.02, 0.0 ) ) * 0.6 + swashValue( w * 1.7 + 5.0 ) * 0.4;
-  float fray = mix( swashValue( w * 6.1 + 2.2 ), 0.5, smoothstep( 0.3, 0.8, pixel * 6.1 ) );
+  float fray = pixel * 6.1 < 0.8 ? mix( swashValue( w * 6.1 + 2.2 ), 0.5, smoothstep( 0.3, 0.8, pixel * 6.1 ) ) : 0.5;
   float local = clamp( density * ( 0.2 + 1.9 * clump * clump ) * ( 0.65 + 0.7 * fray ), 0.0, 1.0 );
   if ( local < 0.02 ) return 0.0;
-  vec2 bend = vec2( swashValue( w * 2.3 + 1.3 ), swashValue( w * 2.3 + 8.9 ) ) - 0.5;
+  vec2 bend = pixel * 1.3 < 0.8 ? vec2( swashValue( w * 2.3 + 1.3 ), swashValue( w * 2.3 + 8.9 ) ) - 0.5 : vec2( 0.0 );
   float big = swashHoles( w * 1.3 + bend * 1.1, local, pixel * 1.3, fray );
   if ( big < 0.005 ) return 0.0;
   float small = swashHoles( w * 4.1 + bend * 2.2 + 7.3, min( 1.0, local * 1.15 ), pixel * 4.1, 1.0 - fray );
+  // The finest, here only (the sand is where foam is seen closest): the
+  // bubble web itself, cells a few centimetres across, open wherever the
+  // foam is not dense; its mean stands in beyond a few metres.
+  float web = swashHoles( w * 11.0 + bend * 3.1 + 2.9, 0.7 + 0.3 * local, pixel * 11.0, fray );
   float film = mix( 0.45 + 0.55 * fray, 1.0, smoothstep( 0.35, 0.85, local ) );
-  return big * small * film * smoothstep( 0.02, 0.2, local );
+  return big * small * web * film * smoothstep( 0.02, 0.2, local );
 }
 // Little bubbles, a few millimetres to a few centimetres: bright rims round
 // clear centres with a pinpoint highlight, each living a few seconds before

@@ -492,7 +492,9 @@ float dry = smoothstep( 1.2, 3.0, inland ) * ( 1.0 - smoothstep( 6.0, 11.0, inla
 float wet = 1.0 - smoothstep( 0.1, 1.6, inland + ( mottled - 0.5 ) * 0.8 );
 diffuseColor.rgb *= 0.78 + grain * mix( 0.3, 0.08, wet ) + ( mottled - 0.5 ) * 0.35;
 diffuseColor.rgb *= 1.0 + ripple * 0.06 * dry;
-diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.52, 0.5, 0.48 ), wet );
+// The vertex colour already carries most of wet sand's darkening (about
+// half the dry albedo); water in the pores adds a little more.
+diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.74, 0.72, 0.7 ), wet );
 // Coarse granitic sand up close: black heavy minerals and biotite, white
 // shell grit and quartz, pink feldspar, each a few millimetres, averaged
 // away beyond a couple of metres.
@@ -636,9 +638,16 @@ if ( inland < 4.5 ) {
   swashCover = swashFoam( vec2( along * 0.7, inland ), sw.y, breezeTime, pixel );
   // Bubbles ride in the froth and just behind the front, and dot the film.
   vec2 bubbles = swashBubbles( coast, breezeTime, pixel, smoothstep( 0.04, 0.35, sw.y + sw.x * 0.12 ) );
-  diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.55, 0.56, 0.55 ), sw.z * ( 1.0 - wet ) * 0.85 );
-  diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.66, 0.76, 0.76 ), swashFilm * smoothstep( 0.0, 0.25, sw.w ) );
+  // Sand the swash has soaked darkens like the band below it, no further:
+  // a few centimetres of clear film over it barely absorb, and only tint
+  // it toward aqua where the film thickens behind the front.
+  diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.6, 0.6, 0.58 ), sw.z * ( 1.0 - wet ) * 0.85 );
+  diffuseColor.rgb *= mix( vec3( 1.0 ), vec3( 0.9, 0.98, 1.0 ), swashFilm * smoothstep( 0.0, 0.8, sw.w ) );
   swashCover = max( swashCover, bubbles.x );
+  // The crisp white roll of froth at the bore's leading edge. It rides the
+  // film smoothly: no bump, or its thin edges would shade it grey.
+  float lace = swashCover;
+  swashCover = max( swashCover, swashLine( along, inland, sw, breezeTime, pixel ) );
   // At night the uprush lights the plankton it carries (ocean.wgsl).
   if ( nightGlow > 0.01 ) {
     float bloom = smoothstep( 0.25, 0.7, dNoise( coast * 0.018 + vec2( breezeTime * 0.003, 3.7 ) ) );
@@ -651,11 +660,19 @@ if ( inland < 4.5 ) {
     float spark = step( 0.965, flick ) * spot * ( 0.3 + 0.7 * fract( flick * 37.1 ) ) * ( 1.0 - smoothstep( 0.015, 0.05, pixel ) );
     swashGlow = sw.y * sw.x * bloom * nightGlow * ( 0.1 + 0.9 * swashCover + spark * 7.0 );
   }
-  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.66, 0.68, 0.7 ), swashCover );
+  // Fresh foam is the brightest thing on the beach: bubbles scatter nearly
+  // all the light they take.
+  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.8, 0.82, 0.83 ), swashCover );
   detailHeight *= 1.0 - swashFilm * 0.9;
-  detailHeight += swashCover * 0.004;
-  detailRoughness = mix( detailRoughness, 0.3, sw.z );
+  // The film's own wavelets, a few millimetres high: they break its mirror
+  // into moving sparkles. Only where a pixel resolves them.
+  float nearFilm = swashFilm * ( 1.0 - smoothstep( 0.01, 0.04, pixel ) );
+  if ( nearFilm > 0.0 ) detailHeight += nearFilm * dNoise( vec2( along * 6.0, inland * 9.0 + breezeTime * 1.3 ) ) * 0.0025;
+  detailHeight += lace * 0.004;
+  detailRoughness = mix( detailRoughness, 0.18, sw.z );
   detailRoughness = mix( detailRoughness, 0.04, swashFilm * ( 1.0 - swashCover ) );
+  // Froth is a rough scatterer, not a mirror: only its bubbles glint.
+  detailRoughness = mix( detailRoughness, 0.7, swashCover );
   detailRoughness = mix( detailRoughness, 0.02, bubbles.y );
 }
 `;
@@ -1230,7 +1247,7 @@ function addGround(scene, shared, occluders, cover) {
   // An ecotone replaces the hard beach-forest line: sand grades through dry
   // dune tones and leaf litter into forest soil, dithered by noise over metres.
   const sand = new THREE.Color("#b9a98b");
-  const wetSand = new THREE.Color("#7a6f55");
+  const wetSand = new THREE.Color("#86795e");
   const dune = new THREE.Color("#a2926f");
   const litter = new THREE.Color("#4a3d28");
   const moss = new THREE.Color("#354b26");
