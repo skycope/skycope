@@ -7,7 +7,6 @@ import { CAT_SEA } from "./cat-coat.js";
 import { createCritters } from "./critters.js";
 import { createMotes } from "./motes.js";
 import { horizonRadiance, skyDomeRatio } from "./sunlight.js";
-import { createOcclusion } from "./occlusion.js";
 
 // The mesh layer tonemaps with the same curve as the WebGPU water pass
 // (atmosphere.wgsl), so land, sea and sky share one exposure and one
@@ -73,14 +72,6 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   const cat = createCat(land, { light });
   const critters = createCritters(land, seed, forest.obstacles.flowers);
   scene.add(land);
-  // The scene root and the island never move. Left to auto-update, each
-  // re-composes its matrix every frame, which forces a world-matrix update
-  // down through every plant chunk; frozen, only what moves (cat, birds,
-  // critters) updates, and static chunks skip even the walk (forest.js).
-  for (const root of [scene, land]) {
-    root.updateMatrix();
-    root.matrixAutoUpdate = false;
-  }
   const motes = createMotes(scene, seed);
   const moteLight = new THREE.Color();
 
@@ -136,11 +127,6 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   const prints = cat.prints;
   let interest = null;
   const perf = new URLSearchParams(window.location.search).has("perf");
-  // Plant chunks hidden behind the ground and nearer plants skip their draws
-  // (see occlusion.js). `?nocull` turns it off for A/B checks.
-  const occlusion = createOcclusion(renderer, scene, camera, {
-    enabled: !new URLSearchParams(window.location.search).has("nocull"),
-  });
   let perfFrame = 0;
 
   const sunWorld = new THREE.Vector3(0, 1, 0);
@@ -159,7 +145,6 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     scene,
     renderer: perf ? renderer : null,
     camera: perf ? camera : null,
-    occlusion: perf ? occlusion : null,
     obstacles: forest.obstacles,
     shoreRocks: forest.shoreRocks,
     landField: forest.landField,
@@ -255,9 +240,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       motes.update(time, wind, camera.position, sunWorld, moteLight,
         renderer.domElement.height / (2 * Math.tan((camera.fov * Math.PI) / 360)));
       cat.renderShadow(renderer, scene);
-      occlusion.cull();
       renderer.render(scene, camera);
-      occlusion.test();
       if (perf && ++perfFrame % 90 === 0) {
         // `?perf` QA: readPixels forces the GPU to drain, so timing a burst of
         // extra renders measures real mesh-layer cost, not command submission.
@@ -288,13 +271,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     catSplashed(time, strength, level) {
       cat.splash(time, strength, level);
     },
-    // A jump cut (the cat sent home): stale occlusion answers must not hold
-    // back what the new view sees.
-    resetOcclusion() {
-      occlusion.reset();
-    },
     resize(width, height, quality = 1) {
-      occlusion.reset();
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       // The mesh layer is MSAA'd, so it needs fewer pixels than the sea:
@@ -319,7 +296,6 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       });
       geometries.forEach((geometry) => geometry.dispose());
       materials.forEach((material) => material.dispose());
-      occlusion.dispose();
       sun.shadow.dispose();
       envTarget?.dispose();
       envSource.dispose();

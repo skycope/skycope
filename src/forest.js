@@ -1581,14 +1581,12 @@ function shootShare(shoot) {
 // eye cannot resolve (fine twigs, tiny blades), which is where most triangles
 // were being spent. Chunks share geometry and material; the cost is draw calls.
 // LOD distances are measured to the chunk centre, so each threshold is pushed
-// out by most of a 20 m chunk's half-diagonal: a chunk no longer swaps detail
+// out by most of the chunk's half-diagonal: a chunk no longer swaps detail
 // (or drops shoots) while its near edge is right beside the camera, which
 // read as plants glitching in and out. Hysteresis stops it flickering on the
-// boundary as the cat walks back and forth. Dense sets use 10 m chunks (with
-// the same 20 m margin, so detail reaches as far): occlusion culling
-// (occlusion.js) then holds back far more hidden foliage, for ~130 more
-// draw calls.
-const CHUNK = 10;
+// boundary as the cat walks back and forth.
+const CHUNK = 20;
+const CHUNK_MARGIN = CHUNK * 0.55;
 const LOD_HYSTERESIS = 0.12;
 // Leaves sway up to ~1.5 m from their rest pose: cull with that margin.
 const SWAY_MARGIN = 1.5;
@@ -1598,7 +1596,7 @@ const LOD_DISTANCE = 42;
 // `chunk`: each chunk costs a draw call per set, and a sparse set gains
 // little from fine culling.
 function addInstances(scene, geometry, material, instances, shadows, far = null, { chunk = CHUNK } = {}) {
-  const margin = Math.max(chunk, 20) * 0.55;
+  const margin = chunk * 0.55;
   const chunks = new Map();
   for (const instance of instances) {
     const key = `${Math.floor(instance.position.x / chunk)},${Math.floor(instance.position.z / chunk)}`;
@@ -1646,7 +1644,7 @@ function addInstances(scene, geometry, material, instances, shadows, far = null,
   for (const bucket of chunks.values()) {
     const near = build(geometry, bucket, null);
     if (!levels.length) {
-      scene.add(freeze(near));
+      scene.add(near);
       continue;
     }
     // LOD distances are measured to the object origin, so centre it on the chunk.
@@ -1666,24 +1664,8 @@ function addInstances(scene, geometry, material, instances, shadows, far = null,
       mesh.position.sub(centre);
       lod.addLevel(mesh, distance, LOD_HYSTERESIS);
     });
-    scene.add(freeze(lod));
+    scene.add(lod);
   }
-}
-
-// Chunks never move: compose their matrices once, not every frame, and once
-// their world matrices are set, skip the walk through their levels (thousands
-// of objects cost the renderer's per-frame matrix update ~2 ms).
-function freeze(object) {
-  object.traverse((o) => {
-    o.updateMatrix();
-    o.matrixAutoUpdate = false;
-  });
-  object.updateMatrixWorld = frozenMatrixWorld;
-  return object;
-}
-
-function frozenMatrixWorld(force) {
-  if (this.matrixWorldNeedsUpdate || force) THREE.Object3D.prototype.updateMatrixWorld.call(this, true);
 }
 
 // Geometry without its own per-leaf flutter data (petals, fronds' unit leaf)
