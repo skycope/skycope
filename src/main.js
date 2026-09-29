@@ -17,6 +17,7 @@ import wavesShader from "./shaders/waves.wgsl";
 import foamShader from "./shaders/foam.wgsl";
 import { createWaveModes } from "./wave-modes.js";
 import { swellUniform } from "./swell.js";
+import { createShoreTextures } from "./shore-textures.js";
 import { createCloudNoise } from "./cloud-noise.js";
 import { createStarAtlas, createStarCatalog } from "./stars.js";
 import { sceneSeed } from "./random.js";
@@ -567,6 +568,7 @@ async function startAtmosphere() {
       waves2: wavesTarget.colors[2],
       waves3: wavesTarget.colors[3],
       foamLayer: foamTarget.write.color,
+      skyTable: skyTable.color,
       // Repeat: the ocean tiles the noise volume and wave cascades across the
       // whole sea. Sky lookups clamp their own coordinates.
       filtering: seaSampler,
@@ -580,6 +582,9 @@ async function startAtmosphere() {
     state.seed,
     { light: LIGHT },
   );
+  // The boulders the sea laps against, from the same seeded layout.
+  const shore = createShoreTextures(gpu.gpu, state.landscape.shoreRocks);
+  water.set({ shoreRocks: shore.rocks.createView(), shoreGrid: shore.grid.createView() });
   state.walker = createWalker(state.landscape.obstacles);
   state.flight = state.walker.camera;
   state.landscape.resize(window.innerWidth, window.innerHeight);

@@ -14,6 +14,11 @@ import { equatorial_from_local, catalog_stars, faint_stars, moon_disc } from "./
 @group(0) @binding(7) var waves2: texture_2d<f32>;
 @group(0) @binding(8) var waves3: texture_2d<f32>;
 @group(0) @binding(9) var foamLayer: texture_2d<f32>;
+// The boulders at the waterline and their lookup grid (src/rocks.js).
+@group(0) @binding(10) var shoreRocks: texture_2d<f32>;
+@group(0) @binding(11) var shoreGrid: texture_2d<u32>;
+// The sky-view table (sky-table.wgsl), for reflections of sky off screen.
+@group(0) @binding(12) var skyTable: texture_2d<f32>;
 
 @fragment
 fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
@@ -25,9 +30,9 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   let settings = OceanSettings(atmosphere.time, atmosphere.scene, atmosphere.wind,
     atmosphere.weather.w, atmosphere.resolution, atmosphere.seed,
     atmosphere.flight.xyz, atmosphere.flight.w, atmosphere.pitch,
-    atmosphere.light.rgb, atmosphere.ambient.rgb, atmosphere.swell);
+    atmosphere.light.rgb, atmosphere.ambient.rgb, atmosphere.swell, atmosphere.light.w, atmosphere.rain);
   var color = ocean_view(ray, light, sky, settings, cloudNoise, filtering, skyTexture,
-    waves0, waves1, waves2, waves3, foamLayer);
+    waves0, waves1, waves2, waves3, foamLayer, shoreRocks, shoreGrid, skyTable);
   // The direct disc is composited through cloud transmission. Water uses its
   // integrated BRDF instead of reflecting a low-resolution disc a second time.
   let sun_distance = length(ray - atmosphere.sun);

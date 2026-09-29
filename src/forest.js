@@ -12,7 +12,7 @@ import { seededRandom } from "./random.js";
 import { createVegetation } from "./vegetation.js";
 import { createSurf, SWASH_GLSL } from "./surf.js";
 import { swellUniform } from "./swell.js";
-import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
+import { rockLayout, rockGeometry, shoreRockData, ROCK_VARIANTS } from "./rocks.js";
 
 // All assets are built from geometry. No downloaded or generated images/textures.
 // Materials share one uniform set: three wind bands in the vertex stage, and
@@ -114,6 +114,8 @@ export function createForest(scene, seed) {
   return {
     // Trunks and boulders, for the cat to walk around (or climb).
     obstacles,
+    // The boulders the sea touches, for the water pass (rocks.js).
+    shoreRocks: shoreRockData(rocks),
     updateWind(time, wind) {
       shared.breezeTime.value = time;
       shared.swell.value.fromArray(swellUniform(seed, wind));
@@ -208,6 +210,20 @@ const FOLIAGE_GLSL = /* glsl */ `
 }
 `;
 
+// Each glassy grain (one in ten) is a tiny mirror at its own tilt:
+// those that reflect the sun toward the eye flash. Only near, where one
+// grain is about a pixel; they twinkle as the eye moves.
+const SAND_GLINT_GLSL = /* glsl */ `
+#include <lights_fragment_end>
+if ( sandGlint > 0.01 && dHash( glintCell + 0.37 ) < 0.1 ) {
+  vec3 tilt = vec3( dHash( glintCell + 1.1 ), dHash( glintCell + 2.3 ), dHash( glintCell + 3.7 ) ) - 0.5;
+  vec3 facet = normalize( normal + tilt * 0.9 );
+  float mirror = dot( reflect( -sunDirView, facet ), normalize( vViewPosition ) );
+  float flash = smoothstep( 0.992, 0.999, mirror ) * sandGlint * ( 1.0 - swashFilm ) * ( 1.0 - swashCover );
+  reflectedLight.directSpecular += leafSun * flash * 3.0;
+}
+`;
+
 // three's directional-light loop with the shadowed sun irradiance kept for
 // the foliage terms above (the scene has exactly one directional light).
 const LEAF_LIGHTS_GLSL = (() => {
@@ -269,6 +285,31 @@ float wet = 1.0 - smoothstep( 0.1, 1.6, inland + ( mottled - 0.5 ) * 0.8 );
 diffuseColor.rgb *= 0.78 + grain * mix( 0.3, 0.08, wet ) + ( mottled - 0.5 ) * 0.35;
 diffuseColor.rgb *= 1.0 + ripple * 0.06 * dry;
 diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.52, 0.5, 0.48 ), wet );
+// Coarse granitic sand up close: black heavy minerals and biotite, white
+// shell grit and quartz, pink feldspar, each a few millimetres, averaged
+// away beyond a couple of metres.
+float grainNear = ( 1.0 - smoothstep( 0.0025, 0.006, px ) ) * ( 1.0 - rocky );
+if ( grainNear > 0.01 ) {
+  float darkGrain = smoothstep( 0.8, 0.9, dNoise( coast * 210.0 + 3.0 ) );
+  float paleGrain = smoothstep( 0.8, 0.88, dNoise( coast * 170.0 + 11.0 ) );
+  float pinkGrain = smoothstep( 0.82, 0.9, dNoise( coast * 150.0 + 23.0 ) );
+  diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * 0.35, darkGrain * grainNear * 0.8 );
+  diffuseColor.rgb = mix( diffuseColor.rgb, mix( vec3( 0.8, 0.78, 0.74 ), diffuseColor.rgb, wet * 0.6 ), paleGrain * grainNear * 0.6 );
+  diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 1.25, 0.95, 0.88 ), pinkGrain * grainNear * 0.6 );
+}
+// Heavy-mineral laminae: the swash sorts dark grains into thin wavy bands
+// along the beach, in patches, just above the waterline.
+float laminaZone = smoothstep( 0.2, 0.7, inland ) * ( 1.0 - smoothstep( 1.6, 2.8, inland ) ) * ( 1.0 - rocky );
+if ( laminaZone > 0.01 ) {
+  float lamPhase = inland * 23.0 + dNoise( coast * 0.45 ) * 9.0 + dNoise( coast * 2.3 ) * 1.5;
+  float laminae = smoothstep( 0.82, 0.99, sin( lamPhase ) ) * smoothstep( 0.55, 0.8, dNoise( coast * 0.3 + 9.0 ) )
+    * ( 0.5 + 0.5 * dNoise( coast * 4.0 ) ) * laminaZone;
+  laminae = mix( laminae, 0.04 * laminaZone, smoothstep( 0.01, 0.03, px ) );
+  diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.5, 0.47, 0.49 ), laminae * 0.55 );
+}
+// Quartz sparkle: glassy grains that mirror the sun, lit in lights_fragment_end.
+float sandGlint = ( 1.0 - smoothstep( 0.003, 0.008, px ) ) * ( 1.0 - rocky ) * ( 1.0 - litter ) * smoothstep( 0.3, 1.0, inland );
+vec2 glintCell = floor( coast * 260.0 );
 float strata = 0.0;
 if ( rocky > 0.01 ) {
   strata = dNoise( coast * vec2( 2.0, 7.0 ) ) * 0.6 + dNoise( coast * vec2( 5.0, 15.0 ) ) * 0.4;
@@ -291,11 +332,13 @@ if ( nearDetail > 0.01 ) {
     vec2 g = coast * 9.0;
     vec2 id = floor( g );
     vec2 f = fract( g );
-    if ( dHash( id + 3.7 ) < mix( 0.05, 0.22, wrack ) * ( 0.4 + dNoise( coast * 0.7 + 4.0 ) * 1.2 ) ) {
+    // Pebbles and shells gather in drifts; sizes are mostly small, a few large.
+    float drift = dNoise( coast * 0.5 + 4.0 );
+    if ( dHash( id + 3.7 ) < mix( 0.04, 0.24, wrack ) * drift * drift * 2.4 ) {
       vec2 c = 0.3 + 0.4 * vec2( dHash( id + 1.3 ), dHash( id + 7.9 ) );
       float ang = dHash( id + 5.1 ) * 6.283;
       vec2 q = mat2( cos( ang ), -sin( ang ), sin( ang ), cos( ang ) ) * ( f - c );
-      float size = 0.07 + dHash( id + 9.2 ) * 0.15;
+      float size = 0.04 + pow( dHash( id + 9.2 ), 2.5 ) * 0.26;
       float shell = step( 0.78, dHash( id + 2.2 ) );
       vec2 e = q / ( size * vec2( 1.0, mix( 0.72, 0.85, shell ) ) );
       float d = length( e );
@@ -365,10 +408,9 @@ if ( inland < 4.5 ) {
   vec4 sw = swash( along, inland, breezeTime );
   swashFilm = sw.x;
   float pixel = length( fwidth( coast ) );
-  float lace = swashLace( vec2( along * 0.7, inland ), pixel );
-  swashCover = smoothstep( 1.0 - sw.y - 0.08, 1.0 - sw.y + 0.14, lace ) * min( 1.0, sw.y * 2.5 );
+  swashCover = swashFoam( vec2( along * 0.7, inland ), sw.y, breezeTime, pixel );
   // Bubbles ride in the froth and just behind the front, and dot the film.
-  vec2 bubbles = swashBubbles( coast, breezeTime, pixel ) * smoothstep( 0.04, 0.35, sw.y + sw.x * 0.12 );
+  vec2 bubbles = swashBubbles( coast, breezeTime, pixel, smoothstep( 0.04, 0.35, sw.y + sw.x * 0.12 ) );
   diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.55, 0.56, 0.55 ), sw.z * ( 1.0 - wet ) * 0.85 );
   diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.66, 0.76, 0.76 ), swashFilm * smoothstep( 0.0, 0.25, sw.w ) );
   swashCover = max( swashCover, bubbles.x );
@@ -381,43 +423,109 @@ if ( inland < 4.5 ) {
 }
 `;
 
+// Cape granite, in true 3D noise (2D noise projected onto a boulder smears
+// into streaks). Tone: broad weathering patches, iron stain running down
+// from joints, a dark patina in the hollows, fine cracks. Grain up close:
+// pale feldspar crystals, glassy grey quartz and black biotite flecks.
+// Above the spray, grey-green and orange lichen crusts; lower down the
+// shore's zonation: a black splash band, barnacles, and green algae where
+// the sea covers it, the wet line rising and draining with each swell on
+// the swash clock (surf.js). Everything finer than the pixel is averaged.
 const ROCK_COLOUR_GLSL = /* glsl */ `
 #include <color_fragment>
-vec2 coast = vec2( vWorld.x, -vWorld.z );
-vec3 q = vWorld * 1.0;
-// Metres per pixel: detail finer than this is averaged out, not sampled,
-// or it shimmers into stripes at grazing angles and in the distance.
-float footprint = max( max( fwidth( vWorld.x ), fwidth( vWorld.y ) ), fwidth( vWorld.z ) );
-float veins = dFbmFiltered( vec2( q.x + q.y * 0.7, q.z - q.y * 0.4 ) * 2.2, footprint * 2.6 );
-float crystals = mix( dNoise( coast * 22.0 + q.y * 17.0 ), 0.5, smoothstep( 0.2, 0.5, footprint * 28.0 ) );
-// Up close, granite's own grain: pale feldspar, glassy quartz and black
-// biotite flecks a few millimetres across, filtered away with distance.
-vec2 gq = vec2( q.x + q.z * 0.6, q.y + q.z * 0.8 );
-float fleckFade = 1.0 - smoothstep( 0.15, 0.45, footprint * 160.0 );
-float feldspar = dNoise( gq * 70.0 ) * fleckFade;
-float biotite = smoothstep( 0.72, 0.82, dNoise( gq * 160.0 + 3.0 ) ) * fleckFade;
-// Speckled granite: feldspar and quartz grains in a grey matrix.
-diffuseColor.rgb *= 0.62 + veins * 0.42 + crystals * 0.1;
-diffuseColor.rgb *= mix( vec3( 1.0 ), vec3( 1.06, 0.98, 0.9 ), smoothstep( 0.45, 0.7, veins ) );
-diffuseColor.rgb *= mix( vec3( 1.0 ), vec3( 1.18, 1.1, 1.02 ), smoothstep( 0.55, 0.8, feldspar ) );
-diffuseColor.rgb *= 1.0 - biotite * 0.65;
-// Lichen grows in rosettes on the lit tops: multi-scale, pale grey-green
-// and ochre, never flat splats.
+vec3 q = vec3( vWorld.x, vWorld.y, -vWorld.z );
+vec2 coast = q.xz;
+float footprint = max( max( fwidth( q.x ), fwidth( q.y ) ), fwidth( q.z ) );
 float up = max( ( vec4( normalize( vNormal ), 0.0 ) * viewMatrix ).y, 0.0 );
-float rosette = dNoise( coast * 3.0 + q.y * 2.0 ) * 0.55
-  + mix( dNoise( coast * 9.0 - q.y * 5.0 ), 0.5, smoothstep( 0.2, 0.5, footprint * 11.0 ) ) * 0.3 + crystals * 0.15;
-float lichen = smoothstep( 0.6, 0.72, rosette ) * smoothstep( 0.45, 0.85, up );
-vec3 lichenColour = mix( vec3( 0.42, 0.44, 0.34 ), vec3( 0.48, 0.38, 0.14 ), dNoise( coast * 1.3 ) );
-diffuseColor.rgb = mix( diffuseColor.rgb, lichenColour, lichen * 0.4 );
-// Dark rain streaks down the flanks.
-float streak = smoothstep( 0.62, 0.8, dNoise( vec2( ( q.x + q.z ) * 4.0, q.y * 0.6 ) ) ) * ( 1.0 - up );
-diffuseColor.rgb *= 1.0 - streak * 0.3;
-// Wave run-up wets the rock in a band that rises and drains with each swell.
-float runup = 0.25 + 0.35 * pow( 0.5 + 0.5 * sin( breezeTime * 0.9 + vWorld.x * 0.7 - vWorld.z * 0.5 ), 3.0 );
-float tide = 1.0 - smoothstep( runup * 0.4, runup, vWorld.y + ( dNoise( coast * 6.0 ) - 0.5 ) * 0.08 );
-diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * 0.42, tide );
-float detailHeight = veins * 0.05 + crystals * 0.003 + feldspar * 0.0012 - biotite * 0.0008;
-float detailRoughness = mix( 0.85, 0.3, tide );
+float macro = dFbm3( q * 0.45, footprint * 0.45 );
+float mid = dFbm3( q * 2.1 + 5.0, footprint * 2.1 );
+// Weathered, pitted relief at a few centimetres: the surface a hand feels.
+float relief = dFbm3( q * 9.0 + 2.0, footprint * 9.0 );
+diffuseColor.rgb *= 0.66 + macro * 0.6 + ( mid - 0.5 ) * 0.24 + ( relief - 0.5 ) * 0.12;
+// Iron-oxide staining: warm streaks drawn down the flanks from above.
+float iron = smoothstep( 0.52, 0.78, dNoise3( vec3( q.x * 1.3, q.y * 0.3, q.z * 1.3 ) + 3.0 ) ) * smoothstep( 0.35, 0.65, macro );
+diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 1.3, 0.98, 0.72 ), iron * 0.55 );
+// Patina: undersides and hollows darken where rain and light don't reach.
+diffuseColor.rgb *= mix( 0.72, 1.0, smoothstep( 0.0, 0.5, up + mid * 0.3 ) );
+// Joint cracks and exfoliation seams: thin dark lines, faded with distance.
+float crackWidth = 0.006 + footprint * 0.8;
+float seam = 1.0 - smoothstep( 0.0, crackWidth, abs( dNoise3( q * 0.8 + 11.0 ) + ( mid - 0.5 ) * 0.08 - 0.5 ) );
+seam *= ( 1.0 - smoothstep( 0.015, 0.04, footprint ) ) * smoothstep( 0.5, 0.62, dNoise3( q * 0.37 + 2.0 ) ) * smoothstep( 0.3, 0.6, dNoise3( q * 3.1 + 6.0 ) );
+diffuseColor.rgb *= 1.0 - seam * 0.45;
+// Grain: coarse porphyritic granite, feldspar crystals a centimetre or two.
+float grainFade = 1.0 - smoothstep( 0.004, 0.012, footprint );
+float feldspar = 0.0;
+float biotite = 0.0;
+float quartz = 0.0;
+if ( grainFade > 0.01 ) {
+  feldspar = smoothstep( 0.58, 0.72, dNoise3( q * 38.0 ) ) * grainFade;
+  quartz = smoothstep( 0.6, 0.75, dNoise3( q * 61.0 + 4.0 ) ) * grainFade;
+  biotite = smoothstep( 0.7, 0.8, dNoise3( q * 110.0 + 9.0 ) ) * grainFade;
+  diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 1.32, 1.22, 1.12 ), feldspar );
+  diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.82, 0.84, 0.88 ), quartz );
+  diffuseColor.rgb *= 1.0 - biotite * 0.7;
+}
+// Far away the grain's mean: the crystals lighten the rock a little overall.
+diffuseColor.rgb *= mix( 1.04, 1.0, grainFade );
+// The shore's zones, by height above the sea.
+float y = q.y + ( mid - 0.5 ) * 0.25;
+// Lichen crusts above the spray: grey-green rosettes, orange Xanthoria.
+// Crusts: ragged-edged patches a hand or two across. Rosettes: round
+// orange colonies a few centimetres wide, scattered and clustered where the
+// crusts are, each its own size; they average to a faint tint far off.
+float lichenZone = smoothstep( 0.9, 1.6, y ) * smoothstep( 0.3, 0.8, up );
+float lichen = 0.0;
+float orange = 0.0;
+if ( lichenZone > 0.01 ) {
+  float rosette = dFbm3( q * 3.2 + 7.0, footprint * 3.2 );
+  float fray = mix( dNoise3( q * 17.0 ), 0.5, smoothstep( 0.2, 0.5, footprint * 17.0 ) );
+  lichen = smoothstep( 0.6, 0.64, rosette + ( fray - 0.5 ) * 0.16 ) * lichenZone;
+  float colonies = smoothstep( 0.45, 0.75, rosette ) * lichenZone;
+  if ( footprint < 0.03 ) {
+    vec2 g = coast * 11.0 + q.y * 2.0;
+    vec2 cell = floor( g );
+    vec2 f = fract( g );
+    for ( int j = -1; j <= 1; j++ ) for ( int i = -1; i <= 1; i++ ) {
+      vec2 o = vec2( float( i ), float( j ) );
+      vec2 id = cell + o;
+      if ( dHash( id + 21.0 ) > colonies * 0.8 ) continue;
+      vec2 c = o + vec2( dHash( id ), dHash( id + 5.3 ) ) - f;
+      float r = 0.12 + 0.4 * pow( dHash( id + 9.1 ), 2.0 );
+      orange = max( orange, 1.0 - smoothstep( r * 0.75, r, length( c ) ) );
+    }
+    orange *= 1.0 - smoothstep( 0.012, 0.03, footprint );
+  }
+  orange = mix( orange, colonies * 0.12, smoothstep( 0.012, 0.03, footprint ) );
+}
+diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.38, 0.4, 0.33 ) * ( 0.8 + mid * 0.4 ), lichen * 0.5 );
+diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.55, 0.3, 0.07 ), orange * 0.7 );
+// Black splash-zone lichen, a ragged band.
+float splash = smoothstep( 0.15, 0.45, y ) * ( 1.0 - smoothstep( 0.9, 1.5, y + ( macro - 0.5 ) * 0.6 ) );
+diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.05, 0.05, 0.045 ), splash * smoothstep( 0.4, 0.65, mid + macro * 0.3 ) * 0.55 );
+// Barnacles: pale, rough, crowded just above the low-water line.
+float barnacleZone = smoothstep( 0.0, 0.12, y ) * ( 1.0 - smoothstep( 0.35, 0.6, y ) );
+float barnacles = 0.0;
+if ( barnacleZone > 0.01 && footprint < 0.02 ) {
+  barnacles = smoothstep( 0.62, 0.74, dNoise3( q * 55.0 ) ) * smoothstep( 0.35, 0.6, dNoise3( q * 4.0 + 1.0 ) )
+    * barnacleZone * ( 1.0 - smoothstep( 0.005, 0.015, footprint ) );
+}
+diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.46, 0.44, 0.4 ), barnacleZone * 0.25 );
+diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.62, 0.6, 0.55 ), barnacles * 0.5 );
+// Green algae and weed at and below the waterline, thinning upward.
+float algae = ( 1.0 - smoothstep( -0.1, 0.3, y ) ) * smoothstep( 0.3, 0.55, mid + relief * 0.3 );
+diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.09, 0.12, 0.05 ) * ( 0.7 + mid * 0.6 ), algae * 0.6 );
+// Swash on the rock, on the sea's clock: a sheet of water running up and
+// draining, and damp rock below the highest run-up.
+float surgeS = fract( -swashPhase( shoreAlong( coast ), breezeTime ) / 6.283185 ) / 0.82;
+float surgeNow = surgeS < 1.0 ? pow( sin( 3.141593 * pow( surgeS, 0.65 ) ), 2.0 ) : 0.0;
+float runup = 0.12 + ( 0.25 + swell.w * 2.5 ) * surgeNow;
+float sheet = 1.0 - smoothstep( runup - 0.15, runup + 0.05, y + ( relief - 0.5 ) * 0.1 );
+float damp = 1.0 - smoothstep( 0.2, 0.6 + swell.w * 2.5, y );
+diffuseColor.rgb *= mix( 1.0, 0.7, damp * ( 1.0 - sheet ) );
+diffuseColor.rgb *= mix( 1.0, 0.55, sheet );
+float detailHeight = macro * 0.05 + mid * 0.015 + relief * 0.008 + feldspar * 0.0015 - biotite * 0.001 - seam * 0.006 + barnacles * 0.004 + lichen * 0.002;
+float detailRoughness = mix( mix( mix( 0.82, 0.95, max( barnacles, lichen ) ), 0.5, damp ), 0.12, sheet );
+detailHeight *= 1.0 - sheet * 0.8;
 `;
 
 // Bark: vertical fissures and plates around the stem, lichen on the
@@ -467,6 +575,34 @@ float dFbm( vec2 p ) {
   float a = 0.5;
   for ( int i = 0; i < 4; i++ ) { v += a * dNoise( p ); p = mat2( 1.6, 1.2, -1.2, 1.6 ) * p; a *= 0.5; }
   return v;
+}
+float dHash3( vec3 p ) {
+  p = fract( p * 0.1031 );
+  p += dot( p, p.zyx + 31.32 );
+  return fract( ( p.x + p.y ) * p.z );
+}
+float dNoise3( vec3 p ) {
+  vec3 i = floor( p );
+  vec3 f = fract( p );
+  vec3 u = f * f * ( 3.0 - 2.0 * f );
+  return mix(
+    mix( mix( dHash3( i ), dHash3( i + vec3( 1, 0, 0 ) ), u.x ), mix( dHash3( i + vec3( 0, 1, 0 ) ), dHash3( i + vec3( 1, 1, 0 ) ), u.x ), u.y ),
+    mix( mix( dHash3( i + vec3( 0, 0, 1 ) ), dHash3( i + vec3( 1, 0, 1 ) ), u.x ), mix( dHash3( i + vec3( 0, 1, 1 ) ), dHash3( i + vec3( 1, 1, 1 ) ), u.x ), u.y ),
+    u.z );
+}
+// Three octaves of 3D value noise, each faded to its mean once finer than
+// ~2 pixels (cycles: the first octave's cells per pixel).
+float dFbm3( vec3 p, float cycles ) {
+  float v = 0.0;
+  float a = 0.5;
+  for ( int i = 0; i < 3; i++ ) {
+    float fade = smoothstep( 0.2, 0.5, cycles );
+    v += a * ( fade < 0.99 ? mix( dNoise3( p ), 0.5, fade ) : 0.5 );
+    p = mat3( 0.0, 0.8, 0.6, -0.8, 0.36, -0.48, -0.6, -0.48, 0.64 ) * p * 2.03;
+    cycles *= 2.03;
+    a *= 0.5;
+  }
+  return v / 0.875;
 }
 // Signed shore distance, matching terrain.js (positive inland).
 float dShore( vec2 p ) {
@@ -547,7 +683,7 @@ function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = 
         );
       shader.fragmentShader = shader.fragmentShader
         .replace("uniform float breezeTime;\n", "")
-        .replace("void main() {", DETAIL_GLSL + (ground ? "varying vec3 vGroundMask;\n" + SWASH_GLSL : "") + "\nvoid main() {")
+        .replace("void main() {", DETAIL_GLSL + (ground ? "varying vec3 vGroundMask;\n" + SWASH_GLSL : rock ? SWASH_GLSL : "") + "\nvoid main() {")
         .replace("#include <color_fragment>", ground ? GROUND_COLOUR_GLSL : rock ? ROCK_COLOUR_GLSL : BARK_COLOUR_GLSL)
         .replace("#include <roughnessmap_fragment>", "#include <roughnessmap_fragment>\n  roughnessFactor = detailRoughness;")
         .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>
@@ -564,6 +700,11 @@ function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = 
           normal = normalize( abs( det ) * normal - grad * ${ground ? "1.4" : rock ? "2.2" : "3.0"} );
         }`);
     }
+    if (ground)
+      // Sand sparkle, lit by the shadowed sun from three's light loop.
+      shader.fragmentShader = shader.fragmentShader
+        .replace("#include <lights_fragment_begin>", LEAF_LIGHTS_GLSL)
+        .replace("#include <lights_fragment_end>", SAND_GLINT_GLSL);
     if (foliage)
       shader.fragmentShader = shader.fragmentShader
         .replace("void main() {", "varying vec3 vLeafNormal;\nvoid main() {")
@@ -634,14 +775,14 @@ function obstaclesFor(layout, rocks) {
 // Each rock's true top surface, rasterized from its mesh into a small height
 // tile (6 cm cells): what the cat stands on, climbs, and is blocked by.
 function rockSurfaces(rocks) {
-  const source = rockGeometry(3);
-  const position = source.attributes.position;
-  const index = source.index.array;
+  const sources = Array.from({ length: ROCK_VARIANTS }, (_, v) => rockGeometry(3, v));
   const matrix = new THREE.Matrix4();
   const quaternion = new THREE.Quaternion();
   const v = new THREE.Vector3();
   const cell = 0.06;
   return rocks.map((rock) => {
+    const position = sources[rock.variant].attributes.position;
+    const index = sources[rock.variant].index.array;
     matrix.compose(rock.position, quaternion.setFromEuler(rock.rotation), rock.scale);
     const xs = new Float32Array(position.count);
     const ys = new Float32Array(position.count);
@@ -742,9 +883,9 @@ function addGround(scene, shared, occluders) {
   const colors = new Float32Array(position.count * 3);
   // An ecotone replaces the hard beach-forest line: sand grades through dry
   // dune tones and leaf litter into forest soil, dithered by noise over metres.
-  const sand = new THREE.Color("#a99c7c");
+  const sand = new THREE.Color("#b9a98b");
   const wetSand = new THREE.Color("#7a6f55");
-  const dune = new THREE.Color("#968a64");
+  const dune = new THREE.Color("#a2926f");
   const litter = new THREE.Color("#4a3d28");
   const moss = new THREE.Color("#354b26");
   const color = new THREE.Color();
@@ -1119,40 +1260,6 @@ function bellGeometry() {
   return geometry;
 }
 
-function rockGeometry(detail = 4) {
-  // Weathered granite: a rounded core (corestones erode spherically) with
-  // flattened sides from jointing and a little surface roughness. The
-  // icosahedron arrives with separate vertices per face; welding them first
-  // gives smooth normals instead of visible triangles.
-  const source = new THREE.IcosahedronGeometry(1, detail);
-  source.deleteAttribute("normal");
-  source.deleteAttribute("uv");
-  const geometry = mergeVertices(source);
-  source.dispose();
-  const positions = geometry.attributes.position;
-  const p = new THREE.Vector3();
-  for (let i = 0; i < positions.count; i++) {
-    p.fromBufferAttribute(positions, i);
-    let r =
-      0.8 +
-      noise2(p.x * 1.6 + p.y * 1.3 + 3, p.z * 1.6 - p.y) * 0.3 +
-      noise2(p.x * 4 + 7, p.z * 4 + p.y * 3) * 0.08 +
-      noise2(p.x * 11, p.z * 11 + p.y * 7) * 0.025;
-    // Joint planes: clamp the radius along a few directions, with a smooth
-    // minimum so weathering rounds the edges instead of leaving creases.
-    r = softMin(r, 0.92 / Math.max(0.3, Math.abs(p.y + 0.15)));
-    r = softMin(r, 0.95 / Math.max(0.3, Math.abs(p.x * 0.8 + p.z * 0.6)));
-    p.multiplyScalar(r);
-    positions.setXYZ(i, p.x, p.y, p.z);
-  }
-  geometry.computeVertexNormals();
-  return geometry;
-}
-
-function softMin(a, b, k = 9) {
-  return -Math.log(Math.exp(-k * a) + Math.exp(-k * b)) / k;
-}
-
 // A stable pseudo-random number per shoot, by position: far levels keep
 // the shoots below a share, so each coarser level keeps a subset of the last.
 function shootShare(shoot) {
@@ -1250,49 +1357,10 @@ function addRocks(scene, random, shared, rocks = rockLayout(random)) {
     clippingPlanes: [new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.1)],
   });
   patchMaterial(material, shared, { rock: true, fade: true });
-  addInstances(scene, rockGeometry(5), material, rocks, true, [
-    { geometry: rockGeometry(3), distance: 22 },
-    { geometry: rockGeometry(2), distance: 60 },
-  ]);
-  return rocks;
-}
-
-function rockLayout(random) {
-  const rocks = [];
-  for (let i = 0; i < 230; i++) {
-    const { x, z } = islandPoint(random() * Math.PI * 2, random() * 7 - 2);
-    const size = 0.15 + random() ** 3 * 1.2;
-    rocks.push({
-      position: new THREE.Vector3(x, terrainHeight(x, z) + size * 0.25, z),
-      scale: new THREE.Vector3(size, size * 0.7, size * 0.85),
-      rotation: new THREE.Euler(random(), random() * 6, random()),
-      color: new THREE.Color().setHSL(0.13, 0.08, 0.28 + random() * 0.13),
-    });
-  }
-  // Granite boulder fields, as on the Cape Peninsula's shores: a few clusters
-  // of big rounded corestones straddling the waterline, stacked and leaning.
-  const clusters = 5 + Math.floor(random() * 3);
-  for (let c = 0; c < clusters; c++) {
-    const theta = random() * Math.PI * 2;
-    const count = 5 + Math.floor(random() * 8);
-    for (let i = 0; i < count; i++) {
-      const { x, z } = islandPoint(
-        theta + (random() - 0.5) * 0.12,
-        random() * 9 - 4,
-      );
-      const size = 0.9 + random() ** 1.5 * 3.2;
-      const grey = 0.3 + random() * 0.12;
-      rocks.push({
-        position: new THREE.Vector3(
-          x,
-          Math.max(terrainHeight(x, z), -0.6) + size * (0.2 + random() * 0.3),
-          z,
-        ),
-        scale: new THREE.Vector3(size, size * (0.65 + random() * 0.3), size * (0.8 + random() * 0.3)),
-        rotation: new THREE.Euler(random() * 0.6, random() * 6, random() * 0.6),
-        color: new THREE.Color().setHSL(0.08 + random() * 0.05, 0.08, grey * 0.8),
-      });
-    }
-  }
+  for (let v = 0; v < ROCK_VARIANTS; v++)
+    addInstances(scene, rockGeometry(5, v), material, rocks.filter((r) => r.variant === v), true, [
+      { geometry: rockGeometry(3, v), distance: 22 },
+      { geometry: rockGeometry(2, v), distance: 60 },
+    ]);
   return rocks;
 }

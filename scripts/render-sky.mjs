@@ -10,6 +10,9 @@ import { skyAt } from "../src/astronomy.js";
 import { lightingAt } from "../src/sunlight.js";
 import { swellUniform } from "../src/swell.js";
 import { createWaveModes } from "../src/wave-modes.js";
+import { rockLayout, shoreRockData } from "../src/rocks.js";
+import { seededRandom } from "../src/random.js";
+import { createShoreTextures } from "../src/shore-textures.js";
 import { readFile } from "node:fs/promises";
 import { CATALOG_SIZE, starCatalogCells, halfFloats } from "../src/star-catalog.js";
 
@@ -91,6 +94,8 @@ const foam = effect(gpu, await wgsl("foam.wgsl"), {
     filtering: skySampler,
   },
 });
+// The seed's boulders, exactly as the site places them (forest.js).
+const shore = createShoreTextures(gpu.gpu, shoreRockData(rockLayout(seededRandom(1847))));
 const water = effect(
   gpu,
   (
@@ -111,6 +116,9 @@ const water = effect(
       waves2: wavesTarget.colors[2],
       waves3: wavesTarget.colors[3],
       foamLayer: foamTarget.write.color,
+      shoreRocks: shore.rocks.createView(),
+      shoreGrid: shore.grid.createView(),
+      skyTable: tableTarget.color,
       filtering: sampler(gpu, {
         minFilter: "linear",
         magFilter: "linear",
@@ -158,9 +166,17 @@ for (const [name, time, weather, rain, view, windOverride] of [
   ["surf", "2026-09-08T12:00:00Z", [0, 0, 0, 0], 0, [351, -0.6, [3.6, 10, -4.8]]],
   ["surf-low", "2026-09-08T14:30:00Z", [0.2, 0.05, 0.1, 0.2], 0, [44, -0.1, [8.3, 2, 1.7]]],
   ["whitecaps", "2026-09-08T12:00:00Z", [0.3, 0.1, 0.2, 0.3], 0, [171, -0.08, [-4, 6, -20]], [11, 5]],
+  // Boulders at the waterline (seed 1847's eastern cluster): lapping rings,
+  // the foam collar, rocks mirrored in and seen through the water.
+  ["rocks", "2026-09-08T12:00:00Z", [0, 0, 0, 0], 0, [123.4, -0.24, [127.8, 2.2, 59.8]]],
+  ["rocks-above", "2026-09-08T14:30:00Z", [0.2, 0.05, 0.1, 0.2], 0, [104.7, -0.6, [126, 5, 56]]],
+  // A full moon over the surf: the moon path and moonlit foam.
+  ["moon-beach", "2026-09-25T18:45:00Z", [0, 0, 0, 0], 0, [64, -0.06, [8.3, 2, 1.7]]],
   ["horizon", "2026-09-08T16:32:00Z", [0, 0, 0, 0], 0],
   ["after-sunset", "2026-09-08T16:36:00Z", [0, 0, 0, 0], 0],
 ]) {
+  // ONLY=name,name: render just those fixtures (quick A/B runs).
+  if (process.env.ONLY && !process.env.ONLY.split(",").includes(name)) continue;
   if (name === "horizon" || name === "after-sunset") {
     output.resize([1600, 900]);
     skyTarget.read.resize([1000, 562]);

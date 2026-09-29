@@ -95,6 +95,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     // `?perf` QA: lets the console toggle scene parts to attribute cost.
     scene,
     obstacles: forest.obstacles,
+    shoreRocks: forest.shoreRocks,
     // A screen point (−1…1) to a ray in coast metres, for tap-to-walk.
     pick(x, y) {
       ndc.set(x, y);
