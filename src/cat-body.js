@@ -649,7 +649,6 @@ function ears(rig, detail = 1) {
       tri.push(at(1, U, j), at(0, U, j), at(1, U, j + 1), at(0, U, j), at(0, U, j + 1), at(1, U, j + 1));
       tri.push(at(1, 0, j), at(1, 0, j + 1), at(0, 0, j), at(0, 0, j), at(1, 0, j + 1), at(0, 0, j + 1));
     }
-    if (side < 0) for (let t = 0; t < tri.length; t += 3) [tri[t + 1], tri[t + 2]] = [tri[t + 2], tri[t + 1]];
     out.index = tri;
     // Normals from the faces; fur lies up toward the tip.
     const g = new THREE.BufferGeometry();

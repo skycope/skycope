@@ -260,11 +260,17 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       // cycle on the ground.
       const trot = smooth(speed, 1.0, 1.8);
       const gallop = smooth(speed, 2.3, 3.2);
-      const stride = lerp(lerp(0.34, 0.62, trot), 1.05, gallop) * S * lerp(1, 0.75, crouch);
-      const duty = lerp(lerp(0.64, 0.46, trot), 0.36, gallop);
+      // A galloping cat takes quick strides (~3 a second) its legs can
+      // reach: the spine's flexing lengthens them, not longer legs.
+      const stride = lerp(lerp(0.34, 0.62, trot), 0.8, gallop) * S * lerp(1, 0.75, crouch);
+      const duty = lerp(lerp(0.64, 0.46, trot), 0.34, gallop);
       const pace = Math.max(speed, Math.abs(pose.turn) * 0.1);
       state.gait = (state.gait + (pace / stride) * dt) % 1;
       const cycle = state.gait * Math.PI * 2;
+      // The gallop's spine: stretched long as the front paws reach to land
+      // (+1), gathered, back arched and hind paws under the chest, in the
+      // flight before the hind paws land (−1).
+      const ext = Math.cos((state.gait - 0.47) * Math.PI * 2) * gallop * amp;
       state.exertion += ((pose.running ? 1 : 0) - state.exertion) * Math.min(1, step * (pose.running ? 0.15 : 0.04));
 
       // Landing: the legs take the impact and the body dips, then recovers.
@@ -297,10 +303,12 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       // The body dips as each foot takes weight, sways toward the
       // supporting side, leans into turns, and rocks nose-to-tail at a
       // gallop.
-      const bob = amp * (-Math.abs(Math.sin(cycle)) * lerp(0.006, 0.012, trot) * (1 - gallop) + Math.sin(cycle) * 0.018 * gallop);
+      // At a gallop it runs low, and rides highest in the gathered flight.
+      const bob = amp * (-Math.abs(Math.sin(cycle)) * lerp(0.006, 0.012, trot) * (1 - gallop) + (Math.cos((state.gait - 0.93) * Math.PI * 2) * 0.012 - 0.024) * gallop - 0.008 * trot * (1 - gallop));
       const sway = amp * Math.sin(cycle) * 0.04 * (1 - trot);
       const lean = clamp(-pose.turn * speed * 0.05, -0.25, 0.25);
-      const rock = Math.cos(cycle) * 0.12 * gallop * amp;
+      // Nose up as the hind legs drive, down as the front legs take the weight.
+      const rock = Math.sin((state.gait - 0.05) * Math.PI * 2) * 0.07 * gallop * amp;
       const posturePitch = POSTURE.sit.pitch * sitW + POSTURE.lie.pitch * lieW + POSTURE.crouch.pitch * crouch;
       let pitch = slopePitch * (1 - sitW * 0.6) + posturePitch + pose.airPitch + rock;
       const bodyHeight = lerp(lerp(STAND_HEIGHT, POSTURE.crouch.height, crouch), 0, pose.sit) + POSTURE.sit.height * sitW + POSTURE.lie.height * lieW;
@@ -338,12 +346,15 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       // walk, the pelvis tucks under to sit, and a stalking cat wiggles its
       // rump before it pounces.
       const bend = clamp(pose.turn * 0.075, -0.24, 0.24) * standW;
-      const flex = (Math.sin(cycle) * 0.2 * gallop + Math.sin(cycle * 2) * 0.02 * trot) * amp;
+      const flex = ext * 0.24 + Math.sin(cycle * 2) * 0.02 * trot * (1 - gallop) * amp;
       const walkRoll = Math.sin(cycle) * 0.05 * amp * (1 - trot);
       const wiggle = crouch * Math.max(0, Math.sin(time * 0.9)) * Math.sin(time * 11) * 0.09;
       // Paddling works the spine a little: shoulders and hips roll in turn.
       const paddleRoll = Math.sin(strokeC) * 0.07 * swim;
       b.chest.rotation.set(-flex * 0.6 + 0.04 * sitW, bend, -walkRoll * 0.7 - paddleRoll + shakeWave(0.02) * 0.32 * shakeBody);
+      // Flexing shortens the back and stretching lengthens it.
+      b.hips.position.copy(bind.hips).setZ(bind.hips.z - ext * 0.022);
+      b.chest.position.copy(bind.chest).setZ(bind.chest.z + ext * 0.01);
       b.hips.rotation.set(flex - 0.22 * sitW - 0.05 * lieW + Math.sin(strokeC * 2) * 0.03 * swim, -bend * 0.8, walkRoll + wiggle + paddleRoll - shakeWave(0.06) * 0.26 * shakeBody);
       // Breathing: slow at rest, deeper after running, and quick when purring.
       state.breath += step * Math.PI * 2 * lerp(0.33, 1.1, state.exertion);
@@ -360,13 +371,18 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       // Head: leads into turns, watches, and floats steady while the body
       // bobs. Low and forward when stalking; resting low in a loaf.
       const chestPitch = pitch - (-flex * 0.6);
+      // Running, the neck reaches forward and the head drops level with
+      // the back, the face turned ahead; the head stays steady as the body
+      // rocks beneath it.
+      const run = Math.max(gallop, trot * 0.45) * amp;
+      const lookW = 1 - gallop * 0.7;
       // Swimming, the head is held high, chin clear of the water.
       b.neck.rotation.set(
-        chestPitch * 0.85 - pose.lookUp - bob * 3 - 0.08 * amp * (1 - gallop) + 0.32 * crouch + 0.12 * lieW - swim * 0.32,
+        chestPitch * lerp(0.85, 1, gallop) - pose.lookUp * lookW - bob * 3 + run * 0.5 - 0.08 * amp * (1 - gallop) + 0.32 * crouch + 0.12 * lieW - swim * 0.32,
         clamp(pose.look, -0.9, 0.9) - bend * 0.8 + shakeWave(0) * 0.22 * shakeHead,
         pose.tilt - (sway + lean) * 0.8 + shakeWave(0) * 0.6 * shakeHead,
       );
-      b.head.rotation.set(-0.12 * crouch, clamp(pose.look - b.neck.rotation.y, -0.3, 0.3) * 0.4, 0);
+      b.head.rotation.set(-0.12 * crouch - run * 0.2, clamp(pose.look - b.neck.rotation.y, -0.3, 0.3) * 0.4, 0);
       // Jaw: open to meow, and one long yawn on settling down to sleep.
       if (state.lie > 0.5 && !state.yawned) {
         state.yawned = true;
@@ -381,9 +397,10 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       uniforms.catJaw.value = jaw;
 
       // Ears swivel on their own, toward whatever is heard, flick now and
-      // then, prick forward to watch something and flatten back at a run,
-      // in rain, and to yawn.
-      const flat = Math.max(smooth(speed, 2, 3.4) * 0.6, (light.rain ?? 0) * 0.5, jaw * 1.2, state.wet * 0.2, swim * 0.4, shakeHead * 0.5);
+      // then, prick forward to watch something or face ahead at a run (only
+      // a little laid back in the wind of it), and flatten back in rain and
+      // to yawn.
+      const flat = Math.max(smooth(speed, 2, 3.4) * 0.15, (light.rain ?? 0) * 0.5, jaw * 1.2, state.wet * 0.2, swim * 0.4, shakeHead * 0.5);
       for (const ear of state.ears) {
         ear.timer -= step;
         if (ear.timer < 0) {
@@ -392,7 +409,9 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
           if (Math.random() < 0.3) ear.flick = 1;
         }
         const alert = pose.swish;
-        ear.swivel += ((ear.target * (1 - alert) - alert * 0.1) - ear.swivel) * Math.min(1, step * 6);
+        // Running, both ears turn to face ahead.
+        const ahead = Math.max(alert, smooth(speed, 1.5, 3));
+        ear.swivel += ((ear.target * (1 - ahead) - alert * 0.1) - ear.swivel) * Math.min(1, step * 6);
         ear.flick *= Math.exp(-step * 18);
         const bone = ear.side > 0 ? b.earL : b.earR;
         const flap = shakeWave(0.01) * shakeHead * 0.5;
@@ -470,7 +489,8 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
         const [sx0, sz0] = neutralFoot(spec);
         const sitAt = spec.front ? POSTURE.sit.front : POSTURE.sit.hind;
         const lieAt = spec.front ? POSTURE.lie.front : POSTURE.lie.hind;
-        const footX = (sx0 * standW + sitAt[0] * spec.side * sitW + lieAt[0] * spec.side * lieW) * S;
+        // The faster it goes, the closer its paws come to one line.
+        const footX = (sx0 * lerp(1, 0.55, Math.max(gallop, trot * 0.4)) * standW + sitAt[0] * spec.side * sitW + lieAt[0] * spec.side * lieW) * S;
         const footZ = ((sz0 + (crouch * (spec.front ? 0.015 : 0.02))) * standW + sitAt[1] * sitW + lieAt[1] * lieW) * S - shift;
         const nx = root.position.x + sin * footZ + cos * footX;
         const nz = root.position.z + cos * footZ - sin * footX;
@@ -524,7 +544,9 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
           wx = leg.plant.fromX + (leg.plant.x - leg.plant.fromX) * e;
           wz = leg.plant.fromZ + (leg.plant.z - leg.plant.fromZ) * e;
           // In water a cat high-steps, lifting each paw clear.
-          lift = Math.sin(Math.PI * Math.pow(t, 0.8)) * lerp(0.028, 0.055, trot) * S * Math.min(1, amp * 2) * (1 + smooth(wade, 0.05, 0.5) * 1.8);
+          // Galloping, the front paws fold up toward the chest and the hind
+          // paws kick up behind, pads to the sky.
+          lift = Math.sin(Math.PI * Math.pow(t, 0.8)) * lerp(lerp(0.028, 0.055, trot), spec.front ? 0.085 : 0.07, gallop) * S * Math.min(1, amp * 2) * (1 + smooth(wade, 0.05, 0.5) * 1.8);
           leg.swing = Math.sin(Math.PI * Math.min(1, t * 1.3)) * Math.min(1, amp * 2);
         }
         const gy = ground(wx, wz);
@@ -534,13 +556,14 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
         if (leg.scapula) {
           const weight = leg.stance ? 1 : 0;
           leg.scapLift = (leg.scapLift ?? 0) + (weight - (leg.scapLift ?? 0)) * Math.min(1, step * 10);
-          leg.scapula.rotation.x = -(leg.lastUpper ?? 0) * 0.3;
+          // (At a gallop the blade swings with the arm, adding to its reach.)
+          leg.scapula.rotation.x = -(leg.lastUpper ?? 0) * lerp(0.3, 0.5, gallop);
           leg.scapula.position.copy(bind[leg.scapula.name]).setY(bind[leg.scapula.name].y + (leg.scapLift - 0.5) * 0.006 * amp);
           leg.scapula.updateMatrixWorld(true);
         }
         const upperParent = leg.upper.parent;
         inverse.copy(upperParent.matrixWorld).invert();
-        let flexLeg = leg.swing * (spec.front ? 1.3 : 0.55);
+        let flexLeg = leg.swing * (spec.front ? lerp(1.3, 1.9, gallop) : lerp(0.55, 1.2, gallop));
         if (pose.air > 0.01) {
           // In the air: pushing off, the hind legs trail and the front tuck;
           // coming down, the front legs reach for the ground.
@@ -632,31 +655,40 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       const liftAccel = step > 0 ? (lift2 - state.lastLift) / step : 0;
       state.lastLift = lift2;
       state.lastHeight = height;
-      const pitchRate = step > 0 ? (pitch - state.lastPitch) / step : 0;
-      state.lastPitch = pitch;
+      // How fast the pelvis tips (nose up, or the rump tucking under): the
+      // tail's inertia holds its line in the world against it, instead of
+      // swinging rigidly with the hips.
+      const pelvis = pitch - flex;
+      const pitchRate = step > 0 ? (pelvis - state.lastPitch) / step : 0;
+      state.lastPitch = pelvis;
       const moving = smooth(amp, 0.1, 0.6);
       b.hips.updateMatrixWorld(true);
       const hipsToCoast = inverse.multiplyMatrices(toCoast, b.hips.matrixWorld);
       for (let i = 0; i < TAIL_BONES; i++) {
         const s = i / TAIL_BONES;
         const carried = 0.5 + smooth(s, 0, 0.5) * 0.8 - smooth(s, 0.75, 1) * 0.9;
-        const streaming = 0.15 - s * 0.1;
+        // At a gallop: out behind, a little low at the root, curving up
+        // toward the tip.
+        const streaming = lerp(0.15 - s * 0.1, -0.02 + smooth(s, 0.2, 1) * 0.38, gallop);
         const resting = -0.55 + smooth(s, 0.3, 1) * 1.0;
         const stalking = -0.45 + smooth(s, 0.2, 0.6) * 0.3;
         let up2 = lerp(resting, lerp(carried, streaming, smooth(speed, 1.6, 3)), moving);
         up2 = lerp(up2, stalking, crouch);
         // Sitting: down to the floor, then along it (the body is pitched up,
         // so level in the world is about −pitch here).
+        // Each bound pumps the tail, the wave running down to the tip.
+        const pump = Math.sin(cycle - s * 2.4) * 0.16 * s * gallop * amp;
         const floorE = -pitch + 0.02;
         const down = lerp(-1.05, floorE, smooth(s, 0.05, 0.25));
         let targetE = lerp(up2, down, pose.sit) + pose.air * 1.4 / S;
         // Wading, the tail is held high and dry; afloat it streams out
         // level behind as a rudder.
-        targetE += wade * 0.6 * (1 - s * 0.5);
+        // Galloping, the tail holds its line as the pelvis tucks and tips.
+        targetE += wade * 0.6 * (1 - s * 0.5) + pump + (rock - flex) * 0.8 * gallop;
         targetE = lerp(targetE, -pitch + 0.06 - s * 0.05, swim);
         const sway = Math.sin(time * (0.9 + swish * 2.5) - s * 2.6) * s * s * (0.22 + swish * 0.55) * (1 - crouch);
         const twitch = crouch * smooth(s, 0.75, 1) * Math.sin(time * 13) * 0.5 * (0.5 + 0.5 * Math.sin(time * 1.3));
-        const gaitSway = Math.sin(cycle + Math.PI * s) * 0.06 * amp * (1 - gallop) * s;
+        const gaitSway = Math.sin(cycle + Math.PI * s) * 0.06 * amp * (1 - gallop) * s + 0.14 * s * gallop * amp;
         let targetS = sway + twitch + gaitSway + sitW * s * 2.3 + lieW * s * 3.2;
         targetS = lerp(targetS, Math.sin(strokeC - s * 3) * 0.1 * s - pose.turn * 0.25 * s, swim);
         targetS += Math.sin((shakeT - 0.5 - s * 0.15) * Math.PI * 2 * 5.5) * 0.45 * s * shakeTail;
@@ -664,7 +696,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
           const k = lerp(110, 16, s);
           const c = 2 * Math.sqrt(k) * 0.4;
           state.tailSide[i] -= pose.turn * step * (0.25 + s * 0.6);
-          state.tailElev[i] -= pitchRate * step * (0.3 + s * 0.5);
+          state.tailElev[i] += pitchRate * step * (0.3 + s * 0.5);
           state.tailElevV[i] += (k * (targetE - state.tailElev[i]) - c * state.tailElevV[i] - clamp(liftAccel, -40, 40) * s * 0.6) * step;
           state.tailSideV[i] += (k * (targetS - state.tailSide[i]) - c * state.tailSideV[i]) * step;
           state.tailElev[i] += state.tailElevV[i] * step;
