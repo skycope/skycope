@@ -13,6 +13,7 @@ import { createVegetation } from "./vegetation.js";
 import { createSurf, SWASH_GLSL } from "./surf.js";
 import { swellUniform } from "./swell.js";
 import { rockLayout, rockGeometry, shoreRockData, ROCK_VARIANTS } from "./rocks.js";
+import { landFieldData } from "./land-field.js";
 
 // All assets are built from geometry. No downloaded or generated images/textures.
 // Materials share one uniform set: three wind bands in the vertex stage, and
@@ -33,13 +34,34 @@ export function createForest(scene, seed) {
     swell: { value: new THREE.Vector4(...swellUniform(seed, [0, 0])) },
     // Where the cat is (coast x, z), how far it pushes, how hard.
     catPush: { value: new THREE.Vector4(0, 0, 0.4, 0) },
+    // Horizon haze toward and away from the sun (aerial perspective).
+    hazeToward: { value: new THREE.Color(0.6, 0.7, 0.8) },
+    hazeAway: { value: new THREE.Color(0.6, 0.7, 0.8) },
+    // The sun shadow map's centre (Three world space): beyond its reach the
+    // baked canopy occlusion stands in for sun shadows.
+    shadowCentre: { value: new THREE.Vector3() },
+    // The sky dome's radiance as nine SH coefficients (landscape.js).
+    skySH: { value: Array.from({ length: 9 }, () => new THREE.Vector3()) },
   };
+  // `?perf` QA: the console can read and tweak the shared lighting uniforms.
+  scene.userData.forestShared = shared;
   const random = seededRandom(seed);
   const { wood: trunks, leaves, clusters, flowers, turf, layout } = createVegetation(seed);
   const rocks = addRocks(scene, random, shared);
   createSurf(scene, rocks, shared);
   const obstacles = obstaclesFor(layout, rocks);
   addGround(scene, shared, occludersFor(layout, rocks));
+  // Sky occlusion for every plant part the generator did not bake one for:
+  // the canopy field at its foot (trunks feel less of it than the grass).
+  const visible = occlusionField(occludersFor(layout, []));
+  const shadeFrom = (list, k = 1) => {
+    for (const p of list) if (p.shade === undefined) p.shade = (1 - visible(p.position.x, p.position.z)) * k;
+  };
+  shadeFrom(trunks, 0.6);
+  shadeFrom(leaves);
+  shadeFrom(clusters, 0.8);
+  shadeFrom(turf);
+  for (const list of Object.values(flowers)) shadeFrom(list);
   const woodMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     roughness: 1,
@@ -120,6 +142,8 @@ export function createForest(scene, seed) {
     obstacles,
     // The boulders the sea touches, for the water pass (rocks.js).
     shoreRocks: shoreRockData(rocks),
+    // The island's top surface for reflections in the sea (land-field.js).
+    landField: landFieldData(clusters),
     updateWind(time, wind) {
       shared.breezeTime.value = time;
       shared.swell.value.fromArray(swellUniform(seed, wind));
@@ -140,6 +164,16 @@ export function createForest(scene, seed) {
     },
     updateFoamLight(rgb) {
       shared.foamLight.value.setRGB(rgb[0], rgb[1], rgb[2]);
+    },
+    updateHaze(toward, away) {
+      shared.hazeToward.value.setRGB(toward[0], toward[1], toward[2]);
+      shared.hazeAway.value.setRGB(away[0], away[1], away[2]);
+    },
+    updateSkySH(coefficients, scale) {
+      coefficients.forEach((c, i) => shared.skySH.value[i].copy(c).multiplyScalar(scale));
+    },
+    updateShadowCentre(x, z) {
+      shared.shadowCentre.value.set(x, 0, -z);
     },
     updateSun(directionView, tint, glow) {
       shared.sunDirView.value.copy(directionView);
@@ -200,6 +234,53 @@ mvPosition = modelViewMatrix * mvPosition;
 gl_Position = projectionMatrix * mvPosition;
 `;
 
+// Sky occlusion (canopyShade: 0 open sky, 1 buried in foliage), per vertex
+// for the ground and per instance for plants. Unset attributes read as 0.
+const OCCLUSION_VERTEX_GLSL = /* glsl */ `
+attribute float canopyShade;
+uniform vec3 shadowCentre;
+varying float vShade;
+varying float vShadowFar;
+`;
+
+// Occluded skylight: diffuse by the visible sky fraction, sky reflections
+// more strongly (specular occlusion). Beyond the sun's shadow map the same
+// occlusion stands in for the shadows of the canopy overhead, so distant
+// woods keep their shaded depth instead of lighting up flat. Inside a crown
+// the light that remains is mostly green: sunlight and skylight scattered
+// and transmitted by the surrounding leaves.
+function occlusionGlsl(foliage) {
+  return /* glsl */ `
+  {
+    float skyVisible = 1.0 - vShade;
+    reflectedLight.indirectDiffuse *= skyVisible;
+    reflectedLight.indirectSpecular *= skyVisible * skyVisible;
+    float farShade = 1.0 - vShade * 0.85 * vShadowFar;
+    reflectedLight.directDiffuse *= farShade;
+    reflectedLight.directSpecular *= farShade;
+    ${
+      foliage
+        ? `vec3 canopyGreen = diffuseColor.rgb * vec3( 2.0, 2.25, 1.45 );
+    reflectedLight.indirectDiffuse += foamLight * canopyGreen * diffuseColor.rgb * vShade * 0.5;`
+        : ""
+    }
+  }
+`;
+}
+
+// Skylight for foliage and bark from the sky's spherical harmonics: the
+// irradiance on the leaf's (bent) normal, and for its broad waxy sheen the
+// SH radiance along the mirror direction, which at leaf roughness is as
+// blurred as the prefiltered map would give. Replaces three's IBL lookups.
+const SKY_SH_GLSL = /* glsl */ `
+#if defined( RE_IndirectDiffuse )
+  iblIrradiance += shGetIrradianceAt( inverseTransformDirection( geometryNormal, viewMatrix ), skySH );
+#endif
+#if defined( RE_IndirectSpecular )
+  radiance += shGetIrradianceAt( inverseTransformDirection( reflect( -geometryViewDir, geometryNormal ), viewMatrix ), skySH ) * RECIPROCAL_PI;
+#endif
+`;
+
 // Leaves are thin and translucent. Sunlight entering the far side of the
 // crown exits yellow-green toward the viewer (a forward-scattering lobe plus
 // a diffuse "thickness" term for leaves the sun lights from behind), and the
@@ -222,14 +303,15 @@ const FOLIAGE_GLSL = /* glsl */ `
   float facing = clamp( dot( leafN, sunDirView ), 0.0, 1.0 );
   // Leaf tissue scatters forward: brightest looking toward the sun.
   float forward = pow( clamp( -dot( toEye, sunDirView ), 0.0, 1.0 ), 6.0 );
-  // Transmittance peaks in green-yellow and is deeper than reflectance
-  // (chlorophyll absorbs red and blue on the way through).
-  vec3 transmit = min( diffuseColor.rgb * vec3( 1.5, 2.4, 0.9 ), vec3( 0.45 ) );
+  // A leaf transmits about as much as it reflects (PROSPECT: T ≈ 0.8 R in
+  // the green), but the light has crossed the chlorophyll twice as far, so
+  // it comes out deeper and yellower: red and blue absorbed on the way.
+  vec3 transmit = min( diffuseColor.rgb * vec3( 1.0, 1.25, 0.45 ), vec3( 0.3 ) );
   reflectedLight.directDiffuse += leafSun * transmit * RECIPROCAL_PI
-    * ( behind * ( 0.8 + forward * 3.0 ) + forward * 0.35 );
+    * ( behind * ( 0.85 + forward * 1.6 ) + forward * 0.15 );
   // Skylight through the canopy: undersides glow faintly green.
-  reflectedLight.indirectDiffuse += transmit * reflectedLight.indirectDiffuse
-    * clamp( -normal.y * 0.5 + 0.5, 0.0, 1.0 ) * 0.9;
+  reflectedLight.indirectDiffuse += transmit / max( diffuseColor.rgb, vec3( 0.001 ) ) * reflectedLight.indirectDiffuse
+    * clamp( -normal.y * 0.5 + 0.5, 0.0, 1.0 ) * 0.5;
   // Waxy cuticle: each leaf mirrors the sun at its own angle, so a crown
   // shimmers leaf by leaf instead of carrying one broad highlight.
   vec3 sparkleRay = reflect( -sunDirView, leafN );
@@ -280,10 +362,14 @@ const FOG_GLSL = /* glsl */ `
   // Clear coastal air: colour holds across the island and fades only
   // toward the far shore, so the near scene keeps its saturation.
   float fogFade = smoothstep( 60.0, 220.0, vFogDepth );
+  // The haze is the horizon sky along this line of sight: bright and warm
+  // toward the sun (forward-scattering aerosol), cool blue away from it.
+  float hazeSun = dot( normalize( -vViewPosition ), sunDirView );
+  vec3 hazeColour = mix( hazeAway, hazeToward, pow( 0.5 + 0.5 * hazeSun, 2.5 ) );
   float fogLuma = dot( gl_FragColor.rgb, vec3( 0.30, 0.55, 0.15 ) );
   vec3 fogFaded = mix( gl_FragColor.rgb, vec3( fogLuma ), fogFade * 0.3 );
-  fogFaded = mix( fogFaded, fogColor, fogFade * 0.15 );
-  gl_FragColor.rgb = mix( fogFaded, fogColor, fogFactor );
+  fogFaded = mix( fogFaded, hazeColour, fogFade * 0.15 );
+  gl_FragColor.rgb = mix( fogFaded, hazeColour, fogFactor );
 #endif
 `;
 
@@ -456,7 +542,7 @@ if ( inland < 4.5 ) {
     float spark = step( 0.965, flick ) * spot * ( 0.3 + 0.7 * fract( flick * 37.1 ) ) * ( 1.0 - smoothstep( 0.015, 0.05, pixel ) );
     swashGlow = sw.y * sw.x * bloom * nightGlow * ( 0.1 + 0.9 * swashCover + spark * 7.0 );
   }
-  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.88, 0.9, 0.92 ), swashCover );
+  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.66, 0.68, 0.7 ), swashCover );
   detailHeight *= 1.0 - swashFilm * 0.9;
   detailHeight += swashCover * 0.004;
   detailRoughness = mix( detailRoughness, 0.3, sw.z );
@@ -657,7 +743,7 @@ function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = 
   material.customProgramCacheKey = () => key;
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, shared);
-    shader.vertexShader = WIND_GLSL +
+    shader.vertexShader = OCCLUSION_VERTEX_GLSL + WIND_GLSL +
       shader.vertexShader.replace(
         "#include <begin_vertex>",
         /* glsl */ `
@@ -687,20 +773,32 @@ function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = 
         "#include <project_vertex>",
         foliage ? PROJECT_GLSL.replace("vAbove =", `${PUSH_GLSL}\nvAbove =`) : PROJECT_GLSL,
       );
+    shader.vertexShader = shader.vertexShader.replace(
+      "#include <worldpos_vertex>",
+      `#include <worldpos_vertex>
+      {
+        vec4 shadeWorld = vec4( transformed, 1.0 );
+        #ifdef USE_INSTANCING
+          shadeWorld = instanceMatrix * shadeWorld;
+        #endif
+        shadeWorld = modelMatrix * shadeWorld;
+        vShade = canopyShade;
+        vShadowFar = smoothstep( 24.0, 30.0, length( shadeWorld.xyz - shadowCentre ) );
+      }`,
+    );
     shader.fragmentShader =
       "uniform vec3 sunDirView;\nuniform vec3 sunTint;\nuniform float sunGlow;\nuniform float breezeTime;\nvarying float vGlint;\n" +
-      shader.fragmentShader.replace("#include <fog_fragment>", FOG_GLSL);
+      "uniform vec3 hazeToward;\nuniform vec3 hazeAway;\nuniform vec3 foamLight;\nvarying float vShade;\nvarying float vShadowFar;\n" +
+      shader.fragmentShader
+        .replace("#include <fog_fragment>", FOG_GLSL)
+        .replace("#include <lights_fragment_end>", `#include <lights_fragment_end>\n${occlusionGlsl(foliage)}`);
     if (ground)
-      // Sky mirrored in the swash film (there is no environment map), by
-      // Fresnel, from the horizon colour the fog already carries.
+      // Plankton the uprush lights at night (the sky's reflection in the
+      // swash film comes from the environment map now).
       shader.fragmentShader = shader.fragmentShader.replace(
         "#include <emissivemap_fragment>",
         `#include <emissivemap_fragment>
-        #ifdef USE_FOG
-          float filmFresnel = 0.02 + 0.98 * pow( 1.0 - max( dot( normal, normalize( vViewPosition ) ), 0.0 ), 5.0 );
-          totalEmissiveRadiance += fogColor * filmFresnel * swashFilm * ( 1.0 - swashCover ) * 0.9;
-          totalEmissiveRadiance += vec3( 0.05, 0.42, 0.95 ) * swashGlow * 0.12;
-        #endif`,
+        totalEmissiveRadiance += vec3( 0.05, 0.42, 0.95 ) * swashGlow * 0.12;`,
       );
     if (ground || rock || bark) {
       shader.vertexShader = shader.vertexShader
@@ -743,6 +841,10 @@ function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = 
       shader.fragmentShader = shader.fragmentShader
         .replace("#include <lights_fragment_begin>", LEAF_LIGHTS_GLSL)
         .replace("#include <lights_fragment_end>", SAND_GLINT_GLSL);
+    if (foliage || bark)
+      shader.fragmentShader = shader.fragmentShader
+        .replace("void main() {", "uniform vec3 skySH[ 9 ];\nvoid main() {")
+        .replace("#include <lights_fragment_maps>", SKY_SH_GLSL);
     if (foliage)
       shader.fragmentShader = shader.fragmentShader
         .replace("void main() {", "varying vec3 vLeafNormal;\nvoid main() {")
@@ -919,6 +1021,9 @@ function addGround(scene, shared, occluders) {
   geometry.translate(ISLAND.x, 0, ISLAND.z);
   const position = geometry.attributes.position;
   const colors = new Float32Array(position.count * 3);
+  // Sky occlusion under plants and beside rocks: it dims skylight (and the sun
+  // beyond the shadow map), not the soil's own colour.
+  const shades = new Float32Array(position.count);
   // An ecotone replaces the hard beach-forest line: sand grades through dry
   // dune tones and leaf litter into forest soil, dithered by noise over metres.
   const sand = new THREE.Color("#b9a98b");
@@ -941,10 +1046,12 @@ function addGround(scene, shared, occluders) {
       smoothstep(9, 17 + dither, inland) *
         (0.4 + noise2(x * 0.13, z * 0.11) * 0.6),
     );
-    color.multiplyScalar((0.88 + noise2(x * 2, z * 2) * 0.22) * occlusion(x, z));
+    color.multiplyScalar(0.88 + noise2(x * 2, z * 2) * 0.22);
     color.toArray(colors, i * 3);
+    shades[i] = 1 - occlusion(x, z);
   }
   geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  geometry.setAttribute("canopyShade", new THREE.BufferAttribute(shades, 1));
   geometry.computeVertexNormals();
   const masks = new Float32Array(position.count * 3);
   const fbm = (x, z) =>
@@ -1336,6 +1443,7 @@ function addInstances(scene, geometry, material, instances, shadows, far = null)
     const geo = source.clone();
     const anchors = new Float32Array(bucket.length);
     const bends = new Float32Array(bucket.length * 3);
+    const shades = new Float32Array(bucket.length);
     const mesh = new THREE.InstancedMesh(geo, material, bucket.length);
     for (let i = 0; i < bucket.length; i++) {
       const instance = bucket[i];
@@ -1349,9 +1457,11 @@ function addInstances(scene, geometry, material, instances, shadows, far = null)
       anchors[i] = instance.ground ?? instance.position.y;
       const bend = instance.bend ?? UP;
       bends.set([bend.x, bend.y, bend.z], i * 3);
+      shades[i] = instance.shade ?? 0;
     }
     geo.setAttribute("anchorHeight", new THREE.InstancedBufferAttribute(anchors, 1));
     geo.setAttribute("bendNormal", new THREE.InstancedBufferAttribute(bends, 3));
+    geo.setAttribute("canopyShade", new THREE.InstancedBufferAttribute(shades, 1));
     mesh.castShadow = shadows;
     mesh.receiveShadow = true;
     mesh.computeBoundingSphere();

@@ -12,7 +12,9 @@ import { swellUniform } from "../src/swell.js";
 import { createWaveModes } from "../src/wave-modes.js";
 import { rockLayout, shoreRockData } from "../src/rocks.js";
 import { seededRandom } from "../src/random.js";
-import { createShoreTextures } from "../src/shore-textures.js";
+import { createShoreTextures, createLandTexture } from "../src/shore-textures.js";
+import { landFieldData } from "../src/land-field.js";
+import { createVegetation } from "../src/vegetation.js";
 import { readFile } from "node:fs/promises";
 import { CATALOG_SIZE, starCatalogCells, halfFloats } from "../src/star-catalog.js";
 
@@ -97,6 +99,8 @@ const foam = effect(gpu, await wgsl("foam.wgsl"), {
 });
 // The seed's boulders, exactly as the site places them (forest.js).
 const shore = createShoreTextures(gpu.gpu, shoreRockData(rockLayout(seededRandom(1847))));
+// And the island's reflection field, from the seed's own shoots.
+const land = createLandTexture(gpu.gpu, landFieldData(createVegetation(1847).clusters));
 const water = effect(
   gpu,
   (
@@ -119,6 +123,7 @@ const water = effect(
       foamLayer: foamTarget.write.color,
       shoreRocks: shore.rocks.createView(),
       shoreGrid: shore.grid.createView(),
+      landField: land.createView(),
       skyTable: tableTarget.color,
       filtering: sampler(gpu, {
         minFilter: "linear",
@@ -143,6 +148,9 @@ const baseWater = process.env.BASE_WATER
         waves2: wavesTarget.colors[2],
         waves3: wavesTarget.colors[3],
         foamLayer: foamTarget.write.color,
+        shoreRocks: shore.rocks.createView(),
+        shoreGrid: shore.grid.createView(),
+        skyTable: tableTarget.color,
         filtering: sampler(gpu, { minFilter: "linear", magFilter: "linear", addressModeU: "repeat", addressModeV: "repeat", addressModeW: "repeat" }),
       },
     })
@@ -210,7 +218,7 @@ for (const [name, time, weather, rain, view, windOverride] of [
   const wind = windOverride ?? [2, 1];
   const atmosphere = {
     swell: swellUniform(1847, wind),
-    ocean: [0, 0, 0, 0],
+    ocean: [0, 0, 1, 0],
     light: [...light.direct, light.exposure],
     ambient: [...light.sky, light.night],
     resolution: output.size,
@@ -250,7 +258,7 @@ for (const [name, time, weather, rain, view, windOverride] of [
     const sea = {
       ...atmosphere,
       time: atmosphere.time - (63 - i) / 60,
-      ocean: [1 / 60, i > 0 ? 1 : 0, 0, 0],
+      ocean: [1 / 60, i > 0 ? 1 : 0, 1, 0],
       temporal: [0, 0, 0, 0],
       previous: [0, 0, 0, 0],
     };

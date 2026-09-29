@@ -142,7 +142,8 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
     depthBuffer: true,
   });
   const reach = 0.46 * S;
-  const shadowCamera = new THREE.OrthographicCamera(-reach, reach, reach, -reach, 0.05, 4.05);
+  // Deep enough for the long shadow a low sun throws across the sand.
+  const shadowCamera = new THREE.OrthographicCamera(-reach, reach, reach, -reach, 0.05, 10.05);
   shadowCamera.layers.set(SHADOW_LAYER);
   uniforms.catShadowMap.value = shadowTarget.depthTexture;
   const shadowBias = new THREE.Matrix4().set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1);
@@ -612,7 +613,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       uniforms.catGroundY.value = baseGround;
       // Ground patch: round the cat, stretched away from the sun.
       const altitude = Math.max(0.12, Math.asin(clamp(sun?.y ?? 1, -1, 1)));
-      const length = Math.min(1.4 * S, (0.3 * S) / Math.tan(altitude));
+      const length = Math.min(3 * S, (0.3 * S) / Math.tan(altitude));
       const hx = light.sunX ?? 0;
       const hz = light.sunZ ?? 0;
       const hl = Math.hypot(hx, hz) || 1;

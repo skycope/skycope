@@ -17,7 +17,7 @@ import wavesShader from "./shaders/waves.wgsl";
 import foamShader from "./shaders/foam.wgsl";
 import { createWaveModes } from "./wave-modes.js";
 import { swellUniform } from "./swell.js";
-import { createShoreTextures } from "./shore-textures.js";
+import { createShoreTextures, createLandTexture } from "./shore-textures.js";
 import { createCloudNoise } from "./cloud-noise.js";
 import { createStarAtlas, createStarCatalog } from "./stars.js";
 import { sceneSeed } from "./random.js";
@@ -589,7 +589,8 @@ async function startAtmosphere() {
   );
   // The boulders the sea laps against, from the same seeded layout.
   const shore = createShoreTextures(gpu.gpu, state.landscape.shoreRocks);
-  water.set({ shoreRocks: shore.rocks.createView(), shoreGrid: shore.grid.createView() });
+  const land = createLandTexture(gpu.gpu, state.landscape.landField);
+  water.set({ shoreRocks: shore.rocks.createView(), shoreGrid: shore.grid.createView(), landField: land.createView() });
   state.walker = createWalker(state.landscape.obstacles);
   state.flight = state.walker.camera;
   state.landscape.resize(window.innerWidth, window.innerHeight);
@@ -625,7 +626,8 @@ async function startAtmosphere() {
     const stepFoam = whitecaps && (state.foamFrames === 0 || state.skyFrames % 2 === 0);
     const seaUniforms = {
       ...uniforms,
-      ocean: [stepFoam ? state.foamStep : 0, state.foamFrames > 0 ? 1 : 0, 0, 0],
+      // z: trace the island's reflection in the sea (not on the phone budget).
+      ocean: [stepFoam ? state.foamStep : 0, state.foamFrames > 0 ? 1 : 0, LIGHT ? 0 : 1, 0],
     };
     // Temporal clouds: each frame marches one pixel of every 2x2 block, in
     // turn; the resolve reprojects the rest from last frame's cloud layer.

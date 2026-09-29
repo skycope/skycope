@@ -429,7 +429,7 @@ export function coatMaterial(uniforms, { shell = false, baked = false } = {}) {
         ${shell ? `{
           vec3 sc = vCatShadow.xyz / vCatShadow.w;
           bool inside = catShadowOn > 0.5 && sc.x > 0.0 && sc.x < 1.0 && sc.y > 0.0 && sc.y < 1.0;
-          vShellShadow = inside ? step( sc.z - 0.006, texture( catShadowMap, sc.xy ).r ) : 1.0;
+          vShellShadow = inside ? step( sc.z - 0.0024, texture( catShadowMap, sc.xy ).r ) : 1.0;
         }` : ""}`,
       );
     // A culled shell vertex goes behind the near plane: whole triangles
@@ -499,7 +499,8 @@ const COMMON_COLOUR = /* glsl */ `
   float eyeWet = 0.0;
   float furAO = vFur.x;
   vec3 coatColour;
-  furSelfShadow = catShadow( vCatShadow, 0.004 );
+  // Biases are in shadow depth, which spans 10 m (cat.js).
+  furSelfShadow = catShadow( vCatShadow, 0.0016 );
   furSheen = 1.0 + catWet * 1.6;
   if ( catPart < 0.5 ) {
     #if defined( CAT_BAKED )

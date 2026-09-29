@@ -2,17 +2,33 @@ import * as THREE from "three";
 import { createForest } from "./forest.js";
 import { createFauna } from "./fauna.js";
 import { createCat } from "./cat.js";
+import { CAT_SKY } from "./cat-ground.js";
 import { createCritters } from "./critters.js";
-import { horizonRadiance, skyIrradianceRatio } from "./sunlight.js";
+import { horizonRadiance, skyDomeRatio } from "./sunlight.js";
 
-// The mesh layer tonemaps with the same ACES fit as the WebGPU water pass, so
-// land, sea and sky share one exposure and one highlight shoulder.
+// The mesh layer tonemaps with the same curve as the WebGPU water pass
+// (atmosphere.wgsl), so land, sea and sky share one exposure and one
+// highlight shoulder: Khronos PBR Neutral. It is linear through the
+// midtones, so colours stay as the materials and light make them, with only
+// a small toe: shadows stay open and lifted by skylight, as in a photograph,
+// rather than crushed by a filmic S-curve. Keep TONE_GAIN equal in both.
 THREE.ShaderChunk.tonemapping_pars_fragment =
   THREE.ShaderChunk.tonemapping_pars_fragment.replace(
     /vec3 CustomToneMapping\( vec3 color \) \{[^}]*\}/,
     `vec3 CustomToneMapping( vec3 color ) {
-      vec3 x = max( color * toneMappingExposure, vec3( 0.0 ) );
-      return clamp( ( x * ( 2.51 * x + 0.03 ) ) / ( x * ( 2.43 * x + 0.59 ) + 0.14 ), 0.0, 1.0 );
+      // toneMappingExposure carries 1 + night adaptation (see scotopic in
+      // atmosphere.wgsl); exposure itself is already in the light units.
+      color = max( color * 1.5, vec3( 0.0 ) );
+      float rods = clamp( toneMappingExposure - 1.0, 0.0, 1.0 );
+      float scotopic = dot( color, vec3( 0.06, 0.56, 0.38 ) );
+      color = mix( color, vec3( 0.72, 0.9, 1.35 ) * scotopic, rods * 0.6 * ( 1.0 - smoothstep( 0.25, 1.5, scotopic ) ) );
+      float low = min( color.r, min( color.g, color.b ) );
+      color -= low < 0.08 ? low - 6.25 * low * low : 0.04;
+      float peak = max( color.r, max( color.g, color.b ) );
+      if ( peak < 0.76 ) return color;
+      float newPeak = 1.0 - 0.0576 / ( peak - 0.52 );
+      color *= newPeak / peak;
+      return mix( color, vec3( newPeak ), 1.0 - 1.0 / ( 0.15 * ( peak - newPeak ) + 1.0 ) );
     }`,
   );
 
@@ -55,7 +71,29 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   const critters = createCritters(land, seed, forest.obstacles.flowers);
   scene.add(land);
 
-  const ambient = new THREE.HemisphereLight(0xc3e0eb, 0x28381d, 1.3);
+  // Skylight is image-based: the scattering model's own sky dome (sun side
+  // warm and bright, anti-sun deep blue) over the ground's bounce light, as a
+  // small equirect map prefiltered by PMREM. Every standard material then
+  // takes directional skylight and rough sky reflections from it, instead of
+  // one hemisphere colour. Rebuilt only when the lighting key changes.
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envWidth = 64;
+  const envData = new Uint16Array(envWidth * (envWidth / 2) * 4);
+  const envSource = new THREE.DataTexture(envData, envWidth, envWidth / 2, THREE.RGBAFormat, THREE.HalfFloatType);
+  envSource.mapping = THREE.EquirectangularReflectionMapping;
+  envSource.magFilter = THREE.LinearFilter;
+  envSource.minFilter = THREE.LinearFilter;
+  envSource.colorSpace = THREE.LinearSRGBColorSpace;
+  let envTarget = null;
+  // The same sky as nine spherical-harmonic coefficients (unit exposure),
+  // for the heavily overdrawn foliage: a few multiply-adds per fragment
+  // instead of two prefiltered cube-map lookups (forest.js SKY_SH_GLSL).
+  const skySH = new THREE.SphericalHarmonics3();
+  const shBasis = new Array(9).fill(0);
+  const shDirection = new THREE.Vector3();
+  let domeRatio = null;
+  let domeKey = "";
+  let domeTime = 0;
   const sun = new THREE.DirectionalLight(0xffe9c2, 2.5);
   sun.castShadow = true;
   // The camera stays near the cat, so the shadow map only has to cover the
@@ -70,12 +108,18 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     near: 1,
     far: 160,
   });
+  // The sun is half a degree wide: shadows soften with distance from their
+  // caster. A small PCF radius gives leaf shadows their penumbra.
+  sun.shadow.radius = light ? 1.5 : 2.2;
   sun.shadow.normalBias = 0.02;
   sun.shadow.bias = -0.0003;
   sun.target.position.set(23, 0, -35);
-  scene.add(ambient, sun, sun.target);
+  scene.add(sun, sun.target);
   let previousLighting = "";
-  let skyRatio = [1, 1, 1];
+  let environmentKey = "";
+  // Horizon haze toward and away from the sun, unexposed; see updateLighting.
+  let hazeToward = [0, 0, 0];
+  let hazeAway = [0, 0, 0];
   const prints = cat.prints;
   let interest = null;
   const perf = new URLSearchParams(window.location.search).has("perf");
@@ -96,6 +140,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     scene,
     obstacles: forest.obstacles,
     shoreRocks: forest.shoreRocks,
+    landField: forest.landField,
     // A screen point (−1…1) to a ray in coast metres, for tap-to-walk.
     pick(x, y) {
       ndc.set(x, y);
@@ -125,10 +170,26 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         previousLighting = key;
         sun.target.position.set(anchorX, 0, -anchorZ);
         updateDirection(celestial);
-        skyRatio = skyIrradianceRatio(celestial.sun);
+        const toward = Math.hypot(celestial.sun[0], celestial.sun[2]) > 1e-4
+          ? [celestial.sun[0], 0, celestial.sun[2]]
+          : [1, 0, 0];
+        const norm = Math.hypot(toward[0], toward[2]);
+        hazeToward = horizonRadiance(celestial, [toward[0] / norm, 0, toward[2] / norm], 1);
+        hazeAway = horizonRadiance(celestial, [-toward[0] / norm, 0, -toward[2] / norm], 1);
+        forest.updateShadowCentre(anchorX, anchorZ);
         renderer.shadowMap.needsUpdate = true;
       }
-      updateLighting(celestial, cover, lighting, hx, hz);
+      // The sky dome only depends on the sun (not the cat's shadow anchor).
+      // It costs ~4 ms of CPU, so while the time slider scrubs it follows at
+      // most four times a second, and catches up once the sun settles.
+      const sunKey = celestial.sun.map((v) => v.toFixed(3)).join();
+      const now = performance.now();
+      if (sunKey !== domeKey && (!domeRatio || now - domeTime > 250)) {
+        domeKey = sunKey;
+        domeTime = now;
+        domeRatio = skyDomeRatio(celestial.sun, envWidth);
+      }
+      updateLighting(celestial, cover, lighting);
       // The Three scene mirrors coast z (the land group is z-flipped).
       camera.position.set(flight.x, flight.y, -flight.z);
       const cp = Math.cos(flight.pitch);
@@ -222,6 +283,9 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       geometries.forEach((geometry) => geometry.dispose());
       materials.forEach((material) => material.dispose());
       sun.shadow.dispose();
+      envTarget?.dispose();
+      envSource.dispose();
+      pmrem.dispose();
       renderer.dispose();
     },
   };
@@ -242,7 +306,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   // Light comes from src/sunlight.js in exposed linear units: the same sun
   // colour and skylight the WebGPU sky and sea use. Three's Lambert divides by
   // π, so skylight radiance becomes π × radiance of irradiance.
-  function updateLighting(celestial, cover, lighting, hx, hz) {
+  function updateLighting(celestial, cover, lighting) {
     const [r, g, b] = lighting.direct;
     const peak = Math.max(r, g, b, 1e-6);
     // Heavy cloud all but removes direct sun (and its shadows).
@@ -250,43 +314,108 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     sun.color.setRGB(r / peak, g / peak, b / peak);
     sun.intensity = peak * overcast;
     sunTint.copy(sun.color);
-    // Hemisphere: the whole dome's cosine-weighted skylight (blue at midday,
-    // roughly a quarter of the sun on level ground), not the bright hazy
-    // horizon toward the heading, which tinted every shadow khaki. At night
-    // the moon/night floor in lighting.sky is already the whole story, and an
-    // overcast dome is near uniform.
-    const horizon = horizonRadiance(celestial, [hx, 0, hz], lighting.exposure).map(
-      (v) => v * lighting.gloom,
-    );
     const night = THREE.MathUtils.smoothstep(celestial.scene, 1, 2);
+    // At night the moon/night floor in lighting.sky is already the whole
+    // story, and an overcast dome is near uniform (brighter overhead).
     const uniform = Math.max(night, cover);
-    const sky = lighting.sky.map((v, i) => v * (skyRatio[i] + (1 - skyRatio[i]) * uniform));
-    const skyPeak = Math.max(...sky, 1e-6);
-    ambient.color.setRGB(sky[0] / skyPeak, sky[1] / skyPeak, sky[2] / skyPeak);
+    // The environment is baked at unit exposure; environmentIntensity carries
+    // the eye's adaptation frame to frame, so it is rebuilt only when the sun,
+    // weather or night changes, not as exposure drifts.
+    const exposure = Math.max(lighting.exposure, 1e-6);
+    // Night vision: by moonlight the eye sees with rods, colour fades to a
+    // blue-grey (the tonemap reads it from the exposure uniform).
+    renderer.toneMappingExposure = 1 + night;
+    scene.environmentIntensity = exposure;
+    forest.updateSkySH(skySH.coefficients, exposure);
+    const key = `${previousLighting}:${domeKey}:${lighting.gloom.toFixed(2)}`;
+    const mean = domeMean(uniform);
+    const sky = lighting.sky.map((v, i) => v * mean[i] * (1 + cover * 0.45));
     // Ground bounce: the island's mean albedo (sand, soil and leaves) under
     // sun and sky, at its true brightness relative to the sky, so undersides
     // stay darker than tops instead of being lifted to match them.
     const bounce = lighting.direct.map(
       (v, i) => (v * Math.max(sunWorld.y, 0) * overcast / Math.PI + sky[i]) * [0.2, 0.19, 0.15][i],
     );
-    ambient.groundColor.setRGB(
-      bounce[0] / skyPeak,
-      bounce[1] / skyPeak,
-      bounce[2] / skyPeak,
-    );
-    // Overcast skies are brighter overall than the clear zenith alone.
-    ambient.intensity = Math.PI * skyPeak * (1 + cover * 0.45);
+    if (key !== environmentKey && domeRatio) {
+      environmentKey = key;
+      buildEnvironment(lighting.sky.map((v) => (v * (1 + cover * 0.45)) / exposure), bounce.map((v) => v / exposure), uniform);
+    }
+    CAT_SKY.value.setRGB(sky[0] * Math.PI, sky[1] * Math.PI, sky[2] * Math.PI);
     forest.updateFoamLight(
       lighting.direct.map((v, i) => (v * Math.max(sunWorld.y, 0) * overcast) / Math.PI + sky[i] * 1.1),
     );
-    scene.fog.color.setRGB(horizon[0], horizon[1], horizon[2]);
-    // Grey the haze under cloud, as the sky pass does.
-    if (cover > 0.55) {
-      const grey = horizon[0] * 0.2126 + horizon[1] * 0.7152 + horizon[2] * 0.0722;
-      scene.fog.color.lerp(
-        new THREE.Color().setRGB(grey * 0.92, grey * 0.96, grey),
-        THREE.MathUtils.smoothstep(cover, 0.55, 1) * 0.7,
-      );
+    // Aerial perspective: the haze is the horizon sky toward each fragment,
+    // bright and warm toward the sun, cooler and bluer away from it, rather
+    // than one colour for the whole view.
+    const haze = (h) => {
+      const c = h.map((v) => v * exposure * lighting.gloom);
+      // Grey the haze under cloud, as the sky pass does.
+      const grey = c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
+      const k = THREE.MathUtils.smoothstep(cover, 0.55, 1) * 0.7;
+      return c.map((v, i) => v + (grey * [0.92, 0.96, 1][i] - v) * k);
+    };
+    const toward = haze(hazeToward);
+    const away = haze(hazeAway);
+    forest.updateHaze(toward, away);
+    scene.fog.color.setRGB((toward[0] + away[0]) / 2, (toward[1] + away[1]) / 2, (toward[2] + away[2]) / 2);
+  }
+
+  // Cosine-weighted mean of the dome ratio: what a level surface receives.
+  function domeMean(uniform) {
+    const mean = [0, 0, 0];
+    if (!domeRatio) return [1, 1, 1];
+    const rows = envWidth / 4;
+    let total = 0;
+    for (let j = 0; j < rows; j++) {
+      const elevation = ((j + 0.5) / (rows * 2)) * Math.PI;
+      const w = Math.sin(elevation) * Math.cos(elevation);
+      for (let i = 0; i < envWidth; i++) {
+        const k = (j * envWidth + i) * 3;
+        for (let c = 0; c < 3; c++) mean[c] += w * domeRatio[k + c];
+        total += w;
+      }
     }
+    // Overcast: the CIE dome, (1 + 2 sin h) / 3, whose cosine mean is 7/9.
+    return mean.map((v) => (v / total) * (1 - uniform) + uniform);
+  }
+
+  // Sky above the horizon from the dome ratio (CIE overcast when cloudy or
+  // at night), ground bounce below it, joined through a thin horizon band.
+  function buildEnvironment(sky, bounce, uniform) {
+    const width = envWidth;
+    const height = width / 2;
+    const rows = width / 4;
+    const half = THREE.DataUtils.toHalfFloat;
+    skySH.zero();
+    const cell = ((Math.PI * 2) / width) * (Math.PI / height);
+    for (let j = 0; j < height; j++) {
+      const elevation = ((j + 0.5) / height - 0.5) * Math.PI;
+      const up = Math.sin(elevation);
+      const cie = (1 + 2 * Math.max(up, 0)) / 3 / (7 / 9);
+      const skyRow = Math.min(rows - 1, Math.max(0, j - rows));
+      // Below the horizon the ground (and sea) returns bounce light; within
+      // a few degrees it is still mostly the hazy horizon sky.
+      const ground = THREE.MathUtils.smoothstep(-up, 0.0, 0.12);
+      const across = Math.cos(elevation);
+      for (let i = 0; i < width; i++) {
+        const k = (skyRow * width + i) * 3;
+        const o = (j * width + i) * 4;
+        const phi = ((i + 0.5) / width - 0.5) * Math.PI * 2;
+        shDirection.set(Math.cos(phi) * across, up, Math.sin(phi) * across);
+        THREE.SphericalHarmonics3.getBasisAt(shDirection, shBasis);
+        for (let c = 0; c < 3; c++) {
+          const sky1 = sky[c] * (domeRatio[k + c] * (1 - uniform) + cie * uniform);
+          const radiance = sky1 + (bounce[c] - sky1) * ground;
+          envData[o + c] = half(radiance);
+          const weight = radiance * cell * across;
+          for (let b = 0; b < 9; b++) skySH.coefficients[b].setComponent(c, skySH.coefficients[b].getComponent(c) + shBasis[b] * weight);
+        }
+        envData[o + 3] = half(1);
+      }
+    }
+    envSource.needsUpdate = true;
+    const previous = envTarget;
+    envTarget = pmrem.fromEquirectangular(envSource, previous ?? null);
+    scene.environment = envTarget.texture;
   }
 }

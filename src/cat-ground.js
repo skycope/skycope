@@ -20,13 +20,16 @@ const SUN_SHADOW = /* glsl */ `
     sunColour = directionalLights[ 0 ].color;
     sunDir = directionalLights[ 0 ].direction;
   #endif
-  vec3 skyColour = vec3( 0.5 );
-  #if NUM_HEMI_LIGHTS > 0
-    skyColour = hemisphereLights[ 0 ].skyColor;
-  #endif
+  // Skylight irradiance / π on level ground (landscape.js sets it: the sky
+  // is image-based, so there is no hemisphere light to read).
+  vec3 skyColour = catSky;
   float sunLum = dot( sunColour, vec3( 0.2126, 0.7152, 0.0722 ) );
   float skyLum = dot( skyColour, vec3( 0.2126, 0.7152, 0.0722 ) ) * 3.14159;
 `;
+
+// π × the mean skylight radiance on level ground, set per frame by
+// landscape.js from the shared lighting model.
+export const CAT_SKY = { value: new THREE.Color(0.5, 0.5, 0.5) };
 
 // A Lambert material whose output is a multiplier for whatever is behind it.
 function multiplyMaterial({ vertexPars = "", vertexMain = "", fragmentPars = "", fragmentMain, key, uniforms = {} }) {
@@ -45,12 +48,12 @@ function multiplyMaterial({ vertexPars = "", vertexMain = "", fragmentPars = "",
   });
   material.customProgramCacheKey = () => key;
   material.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, uniforms);
+    Object.assign(shader.uniforms, uniforms, { catSky: CAT_SKY });
     shader.vertexShader = shader.vertexShader
       .replace("void main() {", `${vertexPars}\nvoid main() {`)
       .replace("#include <fog_vertex>", `#include <fog_vertex>\n${vertexMain}`);
     shader.fragmentShader = shader.fragmentShader
-      .replace("void main() {", `${fragmentPars}\nvoid main() {`)
+      .replace("void main() {", `uniform vec3 catSky;\n${fragmentPars}\nvoid main() {`)
       .replace("#include <opaque_fragment>", `${SUN_SHADOW}\n${fragmentMain}`)
       .replace("#include <tonemapping_fragment>", "")
       .replace("#include <colorspace_fragment>", "")
@@ -82,8 +85,8 @@ export function createContactShadow(parent, uniforms) {
   const material = multiplyMaterial({
     key: "cat-contact-shadow",
     uniforms: { ...uniforms, ...local },
-    vertexPars: "uniform mat4 catShadowMatrix;\nvarying vec4 vCatShadow;\nvarying vec3 vCoast;",
-    vertexMain: "vCatShadow = catShadowMatrix * ( modelMatrix * vec4( transformed, 1.0 ) );\nvCoast = transformed;",
+    vertexPars: "uniform mat4 catShadowMatrix;\nvarying vec4 vCatShadow;\nvarying vec3 vCoast;\nvarying vec2 vPatch;",
+    vertexMain: "vCatShadow = catShadowMatrix * ( modelMatrix * vec4( transformed, 1.0 ) );\nvCoast = transformed;\nvPatch = uv;",
     fragmentPars: /* glsl */ `
       uniform sampler2D catShadowMap;
       uniform float catShadowOn;
@@ -94,6 +97,7 @@ export function createContactShadow(parent, uniforms) {
       uniform float catScale;
       varying vec4 vCatShadow;
       varying vec3 vCoast;
+      varying vec2 vPatch;
       const vec2 POISSON[ 12 ] = vec2[](
         vec2( -0.326, -0.406 ), vec2( -0.840, -0.074 ), vec2( -0.696, 0.457 ), vec2( -0.203, 0.621 ),
         vec2( 0.962, -0.195 ), vec2( 0.473, -0.480 ), vec2( 0.519, 0.767 ), vec2( 0.185, -0.893 ),
@@ -102,23 +106,31 @@ export function createContactShadow(parent, uniforms) {
       float shadow = 0.0;
       if ( catShadowOn > 0.5 ) {
         vec3 c = vCatShadow.xyz / vCatShadow.w;
-        if ( c.x > 0.0 && c.x < 1.0 && c.y > 0.0 && c.y < 1.0 ) {
+        // Ground past the shadow camera's far plane is unshadowed, not dark.
+        if ( c.x > 0.0 && c.x < 1.0 && c.y > 0.0 && c.y < 1.0 && c.z < 0.999 ) {
           // Blockers: how far above the ground the cat is here.
           float blocker = 0.0;
           float found = 0.0;
           for ( int i = 0; i < 12; i += 2 ) {
             float d = texture2D( catShadowMap, c.xy + POISSON[ i ] * 0.02 ).r;
-            if ( d < c.z - 0.002 ) { blocker += d; found += 1.0; }
+            if ( d < c.z - 0.0008 ) { blocker += d; found += 1.0; }
           }
           if ( found > 0.0 ) {
             blocker /= found;
             // The sun is half a degree across; haze softens it further.
-            float gap = ( c.z - blocker ) * 4.0;
+            // Depth spans the shadow camera's 10 m (cat.js).
+            float gap = ( c.z - blocker ) * 10.0;
             float radius = clamp( gap * 0.018 / shadowSpan, 0.0015, 0.03 );
             for ( int i = 0; i < 12; i++ )
-              shadow += step( texture2D( catShadowMap, c.xy + POISSON[ i ] * radius ).r, c.z - 0.002 );
+              shadow += step( texture2D( catShadowMap, c.xy + POISSON[ i ] * radius ).r, c.z - 0.0008 );
             shadow /= 12.0;
           }
+          // Fade out toward the edges of the shadow map and of the ground
+          // patch instead of cutting the shadow off square: a low sun
+          // throws it further than the patch reaches.
+          vec2 m = min( c.xy, 1.0 - c.xy );
+          vec2 e = min( vPatch, 1.0 - vPatch );
+          shadow *= smoothstep( 0.0, 0.08, min( m.x, m.y ) ) * smoothstep( 0.0, 0.12, min( e.x, e.y ) );
         }
       }
       // Contact occlusion: the body's shadow from the sky, and each paw's.

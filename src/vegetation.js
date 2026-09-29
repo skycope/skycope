@@ -8,6 +8,12 @@ import {
 } from "./terrain.js";
 import { seededRandom } from "./random.js";
 
+// Plant colours are chosen as sRGB hue/saturation/lightness, as a painter
+// would pick them. (three's setHSL defaults to the linear working space,
+// which made every leaf three to four times too bright: pastel lime, not
+// the 5–12% albedo of real foliage.)
+const hslColour = (h, s, l) => new THREE.Color().setHSL(h, s, l, THREE.SRGBColorSpace);
+
 // Prevailing south-easter blows onshore. Exposure "flags" coastal crowns: they
 // lean and grow away from the wind, strongest at the beach edge.
 const PREVAILING = new THREE.Vector3(0.9, 0, -0.436);
@@ -306,7 +312,7 @@ function growthTraits(seed) {
       leaf: [0.17 + (1 - slender) * 0.3, 0.16 + random() * 0.18],
       hue: 0.25 + random() * 0.12,
       light: 0.15 + (1 - waxy) * 0.14,
-      bark: new THREE.Color().setHSL(
+      bark: hslColour(
         0.09 + random() * 0.06,
         0.08 + random() * 0.18,
         0.25 + random() * 0.17,
@@ -355,9 +361,9 @@ function growTree(root, plant, traits, crowns, random, wood, clusters, leaves) {
   if (habit.lift) arche.lift = habit.lift;
   const height = plant.height;
   const bark = snag
-    ? new THREE.Color().setHSL(0.1, 0.04, 0.4 + random() * 0.12)
+    ? hslColour(0.1, 0.04, 0.4 + random() * 0.12)
     : new THREE.Color(traits.bark).multiplyScalar(0.55 + random() * 0.35);
-  const color = new THREE.Color().setHSL(
+  const color = hslColour(
     traits.hue + (random() - 0.5) * 0.035,
     0.34 + random() * 0.18,
     traits.light + random() * 0.05,
@@ -436,7 +442,7 @@ function growShrub(root, plant, traits, random, wood, clusters) {
   const arche = archetype(plant);
   const height = plant.height;
   const bark = new THREE.Color(traits.bark).multiplyScalar(0.7 + random() * 0.4);
-  const color = new THREE.Color().setHSL(
+  const color = hslColour(
     traits.hue + (random() - 0.5) * 0.04,
     0.34 + random() * 0.18,
     traits.light + random() * 0.05,
@@ -673,13 +679,14 @@ function colonizeCrown(options) {
         color
           .clone()
           .offsetHSL((random() - 0.5) * 0.05, (random() - 0.5) * 0.1, 0)
-          // Deeper inside the crown and lower down is darker: baked AO.
-          .multiplyScalar(
-            (0.32 + depth * 0.68) *
-              (0.75 + 0.25 * THREE.MathUtils.clamp((along.y - crownCenter.y) / (crownR * arche.flatten) + 0.5, 0, 1)) *
-              (0.8 + random() * 0.4),
-          ),
+          .multiplyScalar(0.8 + random() * 0.4),
         crownCenter,
+        // Deeper inside the crown and lower down sees less sky: baked
+        // occlusion, applied to skylight (and to sun beyond the shadow map),
+        // not to the leaf's albedo, so lit interior leaves keep their colour.
+        1 -
+          (0.3 + depth * 0.7) *
+            (0.7 + 0.3 * THREE.MathUtils.clamp((along.y - crownCenter.y) / (crownR * arche.flatten) + 0.5, 0, 1)),
       );
     }
   }
@@ -733,12 +740,12 @@ function colonizeCrown(options) {
 // pinnate fronds, grown with the fern's paired-leaflet logic at tree scale.
 function growPalm(root, plant, traits, random, wood, leaves) {
   const height = plant.height * (1.05 + random() * 0.25);
-  const bark = new THREE.Color().setHSL(
+  const bark = hslColour(
     0.09 + random() * 0.03,
     0.12,
     0.3 + random() * 0.1,
   );
-  const color = new THREE.Color().setHSL(
+  const color = hslColour(
     traits.hue + (random() - 0.5) * 0.03,
     0.3 + random() * 0.15,
     traits.light + 0.02,
@@ -791,7 +798,7 @@ function growPalm(root, plant, traits, random, wood, leaves) {
 
 // Moss grows as flattened cushions hugging the ground in shaded interior soil.
 function growMoss(root, height, random, clusters) {
-  const color = new THREE.Color().setHSL(
+  const color = hslColour(
     0.26 + random() * 0.08,
     0.4,
     0.13 + random() * 0.08,
@@ -852,8 +859,8 @@ function growFern(root, height, random, wood, leaves) {
 function growGrass(root, height, dune, random, leaves) {
   // Dune tufts are paler and lean inland with the sea wind.
   const color = dune
-    ? new THREE.Color().setHSL(0.14 + random() * 0.05, 0.24, 0.3 + random() * 0.14)
-    : new THREE.Color().setHSL(0.18 + random() * 0.09, 0.3, 0.2 + random() * 0.12);
+    ? hslColour(0.14 + random() * 0.05, 0.24, 0.3 + random() * 0.14)
+    : hslColour(0.18 + random() * 0.09, 0.3, 0.2 + random() * 0.12);
   const lean = dune ? 0.5 : 0;
   for (let i = 0; i < 7; i++) {
     leaf(
@@ -911,7 +918,7 @@ function branch(wood, start, end, radius, color) {
 // `centre` is the middle of the foliage mass this shoot belongs to: its
 // direction becomes the leaf's bent normal, so the crown shades as one soft
 // volume rather than a heap of flat cards.
-function cluster(clusters, position, size, squash, direction, roll, color, centre = null) {
+function cluster(clusters, position, size, squash, direction, roll, color, centre = null, shade = undefined) {
   const align = new THREE.Quaternion().setFromUnitVectors(
     new THREE.Vector3(0, 1, 0),
     direction,
@@ -924,6 +931,7 @@ function cluster(clusters, position, size, squash, direction, roll, color, centr
     rotation: new THREE.Euler().setFromQuaternion(spin.multiply(align)),
     color,
     bend: bentNormal(position, centre),
+    shade,
   });
 }
 
@@ -951,8 +959,8 @@ function leaf(leaves, attachment, width, length, rotation, color, random) {
 function growProtea(root, plant, traits, random, wood, clusters, flowers) {
   const height = plant.height;
   const pincushion = random() < 0.35;
-  const leafColour = new THREE.Color().setHSL(0.2 + random() * 0.06, 0.22, 0.2 + random() * 0.06);
-  const bark = new THREE.Color().setHSL(0.07, 0.2, 0.22);
+  const leafColour = hslColour(0.2 + random() * 0.06, 0.22, 0.2 + random() * 0.06);
+  const bark = hslColour(0.07, 0.2, 0.22);
   const stems = 3 + Math.floor(random() * 4);
   for (let s = 0; s < stems; s++) {
     const angle = s * GOLDEN_ANGLE + random() * 0.5;
@@ -976,12 +984,12 @@ function growProtea(root, plant, traits, random, wood, clusters, flowers) {
     if (random() < 0.75) {
       const size = height * (pincushion ? 0.14 : 0.18) * (0.8 + random() * 0.5);
       const colour = pincushion
-        ? new THREE.Color().setHSL(0.03 + random() * 0.07, 0.85, 0.5)
+        ? hslColour(0.03 + random() * 0.07, 0.85, 0.5)
         : [
-            new THREE.Color().setHSL(0.95 + random() * 0.03, 0.55, 0.62),
-            new THREE.Color().setHSL(0.98, 0.45, 0.72),
-            new THREE.Color().setHSL(0.1, 0.35, 0.82),
-            new THREE.Color().setHSL(0.93, 0.6, 0.45),
+            hslColour(0.95 + random() * 0.03, 0.55, 0.62),
+            hslColour(0.98, 0.45, 0.72),
+            hslColour(0.1, 0.35, 0.82),
+            hslColour(0.93, 0.6, 0.45),
           ][Math.floor(random() * 4)];
       head(flowers[pincushion ? "pincushion" : "protea"], top, size, direction, random() * 6.28, colour);
     }
@@ -991,7 +999,7 @@ function growProtea(root, plant, traits, random, wood, clusters, flowers) {
 // Aloes: a rosette of fleshy, toothed blue-green leaves and, in winter bloom,
 // branched candelabra spikes of orange-red tubular flowers.
 function growAloe(root, height, random, leaves, flowers) {
-  const colour = new THREE.Color().setHSL(0.36 + random() * 0.08, 0.2, 0.28 + random() * 0.06);
+  const colour = hslColour(0.36 + random() * 0.08, 0.2, 0.28 + random() * 0.06);
   const count = 14 + Math.floor(random() * 8);
   for (let i = 0; i < count; i++) {
     const azimuth = i * GOLDEN_ANGLE;
@@ -1007,7 +1015,7 @@ function growAloe(root, height, random, leaves, flowers) {
     );
   }
   const spikes = 1 + Math.floor(random() * 3);
-  const flame = new THREE.Color().setHSL(0.02 + random() * 0.07, 0.9, 0.5);
+  const flame = hslColour(0.02 + random() * 0.07, 0.9, 0.5);
   for (let s = 0; s < spikes; s++) {
     const angle = s * 2.2 + random();
     const top = root.clone().add(
@@ -1022,8 +1030,8 @@ function growAloe(root, height, random, leaves, flowers) {
 
 // Restios: Cape reeds in dense upright tufts, green-grey with tan seed heads.
 function growRestio(root, height, random, leaves) {
-  const stem = new THREE.Color().setHSL(0.17 + random() * 0.06, 0.28, 0.22 + random() * 0.08);
-  const tip = new THREE.Color().setHSL(0.08, 0.45, 0.3);
+  const stem = hslColour(0.17 + random() * 0.06, 0.28, 0.22 + random() * 0.08);
+  const tip = hslColour(0.08, 0.45, 0.3);
   const count = 12 + Math.floor(random() * 10);
   for (let i = 0; i < count; i++) {
     const rotation = new THREE.Euler((random() - 0.5) * 0.45, random() * 6.28, (random() - 0.5) * 0.45);
@@ -1034,12 +1042,12 @@ function growRestio(root, height, random, leaves) {
 
 // Ericas: fine-leaved heath shrubs smothered in tiny pink, magenta or white bells.
 function growErica(root, height, random, wood, clusters, flowers) {
-  const green = new THREE.Color().setHSL(0.25, 0.3, 0.16 + random() * 0.05);
+  const green = hslColour(0.25, 0.3, 0.16 + random() * 0.05);
   const bloom = [
-    new THREE.Color().setHSL(0.92, 0.7, 0.6),
-    new THREE.Color().setHSL(0.88, 0.6, 0.45),
-    new THREE.Color().setHSL(0.97, 0.75, 0.5),
-    new THREE.Color().setHSL(0.1, 0.2, 0.9),
+    hslColour(0.92, 0.7, 0.6),
+    hslColour(0.88, 0.6, 0.45),
+    hslColour(0.97, 0.75, 0.5),
+    hslColour(0.1, 0.2, 0.9),
   ][Math.floor(random() * 4)];
   const sprigs = 5 + Math.floor(random() * 4);
   for (let s = 0; s < sprigs; s++) {
@@ -1072,7 +1080,7 @@ const DAISY_COLOURS = [
 ];
 function growDaisies(root, height, random, leaves, flowers, palette) {
   const [h, sat, l] = DAISY_COLOURS[(palette ?? Math.floor(random() * 5)) % 5];
-  const stem = new THREE.Color().setHSL(0.26, 0.4, 0.2);
+  const stem = hslColour(0.26, 0.4, 0.2);
   const count = 5 + Math.floor(random() * 8);
   for (let i = 0; i < count; i++) {
     const base = root.clone().add(new THREE.Vector3((random() - 0.5) * 0.9, 0, (random() - 0.5) * 0.9));
@@ -1082,7 +1090,7 @@ function growDaisies(root, height, random, leaves, flowers, palette) {
     // Heads face north-ish and up: toward the southern-hemisphere sun.
     const face = new THREE.Vector3((random() - 0.5) * 0.4, 1, -0.45 + (random() - 0.5) * 0.3).normalize();
     head(flowers.daisy, base.clone().add(new THREE.Vector3(0, stalk, 0)), 0.035 + random() * 0.03, face,
-      random() * 6.28, new THREE.Color().setHSL(h + (random() - 0.5) * 0.02, sat, l + (random() - 0.5) * 0.06));
+      random() * 6.28, hslColour(h + (random() - 0.5) * 0.02, sat, l + (random() - 0.5) * 0.06));
   }
 }
 
@@ -1130,7 +1138,7 @@ function growTurf(seed, layout, turf) {
     if (shade > 1 || random() < shade * 0.7) continue;
     const y = terrainHeight(x, z);
     const dune = 1 - smoothstep(3, 10, inland);
-    const colour = new THREE.Color().setHSL(
+    const colour = hslColour(
       0.2 + random() * 0.08 - dune * 0.07,
       0.35 - dune * 0.12,
       0.17 + random() * 0.08 + dune * 0.1,

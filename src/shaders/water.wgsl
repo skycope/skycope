@@ -19,6 +19,8 @@ import { equatorial_from_local, catalog_stars, faint_stars, moon_disc } from "./
 @group(0) @binding(11) var shoreGrid: texture_2d<u32>;
 // The sky-view table (sky-table.wgsl), for reflections of sky off screen.
 @group(0) @binding(12) var skyTable: texture_2d<f32>;
+// The island's height and albedo (src/land-field.js), for its reflection.
+@group(0) @binding(13) var landField: texture_2d<f32>;
 
 @fragment
 fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
@@ -30,9 +32,10 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   let settings = OceanSettings(atmosphere.time, atmosphere.scene, atmosphere.wind,
     atmosphere.weather.w, atmosphere.resolution, atmosphere.seed,
     atmosphere.flight.xyz, atmosphere.flight.w, atmosphere.pitch,
-    atmosphere.light.rgb, atmosphere.ambient.rgb, atmosphere.swell, atmosphere.light.w, atmosphere.rain);
+    atmosphere.light.rgb, atmosphere.ambient.rgb, atmosphere.swell, atmosphere.light.w, atmosphere.rain,
+    atmosphere.ocean.z);
   var color = ocean_view(ray, light, sky, settings, cloudNoise, filtering, skyTexture,
-    waves0, waves1, waves2, waves3, foamLayer, shoreRocks, shoreGrid, skyTable);
+    waves0, waves1, waves2, waves3, foamLayer, shoreRocks, shoreGrid, skyTable, landField);
   // The direct disc is composited through cloud transmission. Water uses its
   // integrated BRDF instead of reflecting a low-resolution disc a second time.
   let sun_distance = length(ray - atmosphere.sun);
@@ -56,7 +59,7 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   let screen = uv - 0.5;
   let vignette = 1.0 - dot(screen, screen) * 0.18;
   let grain = (hash2(floor(uv * atmosphere.resolution)).x - 0.5) / 255.0;
-  return vec4f(tonemap(color * vignette) + grain, 1.0);
+  return vec4f(tonemap(color * vignette, night) + grain, 1.0);
 }
 
 // The Moon and stars need full-resolution pixels: the cloud pass is

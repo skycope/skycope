@@ -22,6 +22,8 @@ export struct OceanSettings {
   // Sky exposure and rain (mm/h), for the sky-view table in reflections.
   exposure: f32,
   rain: f32,
+  // Whether to trace the island's reflection (off on the phone budget).
+  mirror_land: f32,
 };
 
 // Coastal Atlantic water: pure-water absorption (red goes first) plus a little
@@ -62,7 +64,7 @@ export fn ocean_view(
   settings: OceanSettings, noise: texture_3d<f32>, filtering: sampler, sky_texture: texture_2d<f32>,
   waves0: texture_2d<f32>, waves1: texture_2d<f32>, waves2: texture_2d<f32>, waves3: texture_2d<f32>,
   foam_layer: texture_2d<f32>, shore_rocks: texture_2d<f32>, shore_grid: texture_2d<u32>,
-  sky_table: texture_2d<f32>,
+  sky_table: texture_2d<f32>, land_field: texture_2d<f32>,
 ) -> vec3f {
   let right = vec3f(0.707107, 0.0, 0.707107);
   let forward = vec3f(-0.707107, 0.0, 0.707107);
@@ -132,7 +134,7 @@ export fn ocean_view(
     }
   }
   return ocean(p, metrics, direction, light, sky, sea, footprint, distance, settings, noise, filtering, sky_texture,
-    waves1, waves2, waves3, foam_layer, rock, slots, shore_rocks, sky_table);
+    waves1, waves2, waves3, foam_layer, rock, slots, shore_rocks, sky_table, land_field);
 }
 
 fn ocean(
@@ -141,6 +143,7 @@ fn ocean(
   noise: texture_3d<f32>, filtering: sampler, sky_texture: texture_2d<f32>,
   waves1: texture_2d<f32>, waves2: texture_2d<f32>, waves3: texture_2d<f32>, foam_layer: texture_2d<f32>,
   rock: RockSea, slots: vec4u, shore_rocks: texture_2d<f32>, sky_table: texture_2d<f32>,
+  land_field: texture_2d<f32>,
 ) -> vec3f {
   // Keep most wave slope even at grazing angles: distant water must stay
   // textured so the sun path breaks into streaks instead of a smooth band.
@@ -206,6 +209,18 @@ fn ocean(
       + textureSampleLevel(sky_texture, filtering, clamp(reflected_uv + blur * vec2f(0.65, 0.375), lo, hi), 0.0).rgb
       + textureSampleLevel(sky_texture, filtering, clamp(reflected_uv + blur * vec2f(-0.65, 0.375), lo, hi), 0.0).rgb) * 0.33333;
     reflection = mix(reflection, blurred, seen);
+  }
+  // The island in the water: dunes, the beach and the tree line mirrored
+  // near the shore, traced through its height field. Rough water blurs the
+  // edge by the slope spread of the reflected lobe.
+  // Skipped where it cannot show: seen steeply the sea reflects under 4% and
+  // the column's own colour hides it; far offshore the island is a sliver
+  // on the horizon the sky reflection already carries.
+  if (settings.mirror_land > 0.5 && reflected.y > 0.0 && reflected.y < 0.6 && fresnel > 0.035 && cover < 0.98 && metrics.x < 70.0) {
+    let land = land_reflection(p, reflected, sqrt(sea.variance), light, direct * sun_up, settings.skylight, land_field, filtering);
+    if (land.a > 0.0) {
+      reflection = mix(reflection, land.rgb, land.a * smoothstep(0.035, 0.06, fresnel));
+    }
   }
   // The rocks themselves in the water, traced: the sky pass knows nothing of
   // the land, so without this calm water round a boulder mirrors only sky.
@@ -360,6 +375,114 @@ fn ocean(
 
   // Aerial perspective: air, not a wall of fog. The horizon stays crisp.
   return mix(color, sky, 1.0 - exp(-distance * 0.00022));
+}
+
+// The island as reflected rays meet it (src/land-field.js): a 256² field of
+// the land's top (terrain or foliage) over a 200 m square: (height, tint
+// from sand to leaf, albedo luminance, distance to the nearest land).
+const LAND_ORIGIN: vec2f = vec2f(-42.0, -30.0);
+const LAND_SPAN: f32 = 200.0;
+const LAND_TEXELS: f32 = 256.0;
+// Mip level 3: 32² cells holding each cell's tallest point.
+const LAND_COARSE: f32 = 32.0;
+// Nothing on the island stands higher than this (hilltop crowns reach ~22 m).
+const LAND_TOP: f32 = 23.0;
+// Unit-luminance chromaticities of sand and leaves; keep equal to land-field.js.
+const SAND_TINT: vec3f = vec3f(1.24, 0.97, 0.6);
+const LEAF_TINT: vec3f = vec3f(0.56, 1.21, 0.31);
+
+fn land_sample(q: vec2f, land: texture_2d<f32>, filtering: sampler) -> vec4f {
+  // Clamped: the field's border is open sea, so nothing wraps back in.
+  let uv = clamp((q - LAND_ORIGIN) / LAND_SPAN, vec2f(0.5 / LAND_TEXELS), vec2f(1.0 - 0.5 / LAND_TEXELS));
+  return textureSampleLevel(land, filtering, uv, 0.0);
+}
+
+// March a reflected ray over the island's height field: steps grow with
+// distance, the crossing is refined by bisection, and the land is lit by the
+// sun and sky with the field's own normal. Near misses give a soft edge as
+// wide as the rough lobe (sigma, radians) at that distance, so a choppy sea
+// smears the tree line instead of aliasing it. Returns (radiance, cover).
+fn land_reflection(p: vec3f, dir: vec3f, sigma: f32, light: vec3f, sun: vec3f, skylight: vec3f,
+  land: texture_2d<f32>, filtering: sampler) -> vec4f {
+  // Only rays that pass over the island within its height can meet it.
+  let centre = vec2f(58.0, 70.0);
+  let flat_len = max(length(dir.xz), 1e-4);
+  let flat = dir.xz / flat_len;
+  let to_centre = centre - p.xz;
+  let along = dot(to_centre, flat);
+  let miss = length(to_centre - flat * along);
+  if (miss > 90.0) { return vec4f(0.0); }
+  let half_chord = sqrt(max(90.0 * 90.0 - miss * miss, 0.0));
+  // Distances along the 3D ray (t) where it enters and leaves the island's
+  // circle, and where it climbs above everything on it.
+  let t_enter = max((along - half_chord) / flat_len, 0.05);
+  let t_exit = min(min((along + half_chord) / flat_len, (LAND_TOP - p.y) / max(dir.y, 1e-4)), 220.0);
+  if (t_enter >= t_exit) { return vec4f(0.0); }
+  var t = t_enter;
+  var previous = t;
+  var near = 1e9;
+  var hit = false;
+  var last_gap = 0.0;
+  for (var i = 0; i < 16; i++) {
+    if (t > t_exit) { break; }
+    let q = p + dir * t;
+    // The coarse level first: above the tallest thing in this 6.25 m cell,
+    // cross the whole cell, or leap as far as the nearest land if that is
+    // further (open water).
+    let cuv = (q.xz - LAND_ORIGIN) / LAND_SPAN;
+    if (any(cuv < vec2f(0.0)) || any(cuv >= vec2f(1.0))) { break; }
+    let cell = floor(cuv * LAND_COARSE);
+    let coarse = textureLoad(land, vec2i(cell), 3).r;
+    if (q.y > coarse + 0.3) {
+      let lo = LAND_ORIGIN + cell * (LAND_SPAN / LAND_COARSE);
+      let bound = select(lo, lo + LAND_SPAN / LAND_COARSE, dir.xz > vec2f(0.0));
+      let exits = select((bound - q.xz) / dir.xz, vec2f(1e9), abs(dir.xz) < vec2f(1e-5));
+      // This texel's distance to land (less half its diagonal): a ray
+      // heading away from the island leaps further each step and is out.
+      let clear = textureLoad(land, vec2i(cuv * LAND_TEXELS), 0).a - 0.6;
+      previous = t;
+      t += max(max(min(exits.x, exits.y), 0.0) + 0.05, clear / flat_len);
+      continue;
+    }
+    let s = land_sample(q.xz, land, filtering);
+    let gap = q.y - s.r;
+    if (gap < 0.0) {
+      // Secant between the last two steps: no extra reads.
+      t = mix(previous, t, clamp(last_gap / max(last_gap - gap, 1e-4), 0.0, 1.0));
+      hit = true;
+      break;
+    }
+    last_gap = gap;
+    // How close the ray passes, in units of the lobe's footprint.
+    near = min(near, gap / (0.12 + t * sigma * 0.8));
+    previous = t;
+    t += clamp(max(gap * 0.8, t * 0.08), 0.4, 6.0);
+  }
+  var cover = 0.0;
+  if (hit) {
+    cover = 1.0;
+  } else {
+    cover = 1.0 - smoothstep(0.0, 1.0, near);
+    if (cover <= 0.0) { return vec4f(0.0); }
+    t = previous;
+  }
+  let q = p + dir * t;
+  let here = land_sample(q.xz, land, filtering);
+  if (here.r < -0.5) { return vec4f(0.0); }
+  let e = 0.9;
+  let hx = land_sample(q.xz + vec2f(e, 0.0), land, filtering).r - here.r;
+  let hz = land_sample(q.xz + vec2f(0.0, e), land, filtering).r - here.r;
+  let normal = normalize(vec3f(-hx, e, -hz));
+  let albedo = mix(SAND_TINT, LEAF_TINT, here.g) * here.b;
+  // Foliage is a rough volume: its sun term wraps a little round the crown
+  // and its interior shades itself; the ground takes plain Lambert.
+  let leafy = smoothstep(0.4, 0.8, here.g);
+  let wrap = mix(max(dot(normal, light), 0.0), clamp((dot(normal, light) + 0.3) / 1.3, 0.0, 1.0) * 0.75, leafy);
+  var radiance = albedo * (sun * wrap * 0.3183 + skylight * (0.55 + 0.45 * normal.y));
+  // The same clear coastal air the mesh layer's haze uses.
+  let air = 1.0 - exp(-t * 0.0028);
+  radiance = mix(radiance, skylight * 1.1, air * 0.5);
+  return vec4f(radiance, cover);
 }
 
 // A boulder lit by the sun and sky: the Lambertian corestone, dark and wet

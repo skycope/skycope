@@ -50,6 +50,7 @@ reduced-motion mode, background/resume, and with the weather endpoint blocked.
 | `src/weather.js`         | Open-Meteo request and validation; no rendering code                     |
 | `src/weather-panel.js`   | Weather panel: live, presets, and cloud/wind/rain sliders                |
 | `src/surf.js`            | Swash foam, bubbles and glow on the sand; spray off the boulders         |
+| `src/land-field.js`      | The island as the sea reflects it: height, albedo, distance to land      |
 | `src/rocks.js`           | Rock layout and corestone shapes; the waterline boulders for the sea     |
 | `src/shaders/rocks.wgsl` | Lapping rings, collar foam, rock reflections/shadows, hidden-sea skip    |
 | `src/shaders/atmosphere.wgsl` | Rayleigh/Mie/ozone scattering, transmittance, the one tonemap       |
@@ -218,26 +219,53 @@ out where many glints would share one pixel.
 The sky is a physically based single-scattering atmosphere (Rayleigh, Mie and
 ozone over a spherical Earth) with a multiple-scattering term modelled as light
 from a slightly higher sun, which keeps the twilight Earth shadow and Belt of Venus
-lit. `src/sunlight.js` evaluates the same model on the CPU once per frame to get
-exposure, the direct sun (or moon) colour and zenith skylight. They go to both
-WebGPU passes as uniforms and drive the Three.js directional and hemisphere lights
-and fog, so land, sea, clouds and sky share one sun. The land's skylight is the
-cosine-weighted mean of the whole dome (`skyIrradianceRatio`), not the hazy
-horizon toward the heading, and its ground bounce keeps its true brightness
-relative to the sky. Leaf translucency and glints use the shadowed sun
-irradiance from three's light loop, so only leaves the sun reaches glow. Exposure adapts like an eye:
-the zenith stays steady through golden hour, then genuinely darkens through civil
-twilight, with limited dark adaptation at night. **Keep `atmosphere.wgsl` and
-`sunlight.js` in step.**
+lit. The sea-salt aerosol scatters slightly more blue than red (Ångström
+exponent ~0.7), so the horizon haze is white-blue, not cream. `src/sunlight.js`
+evaluates the same model on the CPU once per frame to get exposure, the direct
+sun (or moon) colour and zenith skylight. They go to both WebGPU passes as
+uniforms and drive the Three.js directional light, so land, sea, clouds and sky
+share one sun. Exposure adapts like an eye: the zenith stays steady through
+golden hour, then genuinely darkens through civil twilight, with limited dark
+adaptation at night. **Keep `atmosphere.wgsl` and `sunlight.js` in step.**
+
+The land's skylight is image based. When the sun moves, `skyDomeRatio` samples
+the scattering model over the whole dome (sun side warm and bright, anti-sun
+deep blue); `landscape.js` puts it over the ground's bounce light in a 64 × 32
+map, prefiltered by PMREM for ground, rocks and the cat (directional skylight
+and rough sky reflections: the wet swash mirrors the sky), and projected to
+nine spherical-harmonic coefficients for the heavily overdrawn foliage and bark
+(`SKY_SH_GLSL`, a few multiply-adds instead of cube-map reads). Cloud cover
+blends it toward the CIE overcast dome. Sky occlusion is baked, not guessed:
+each shoot knows how deep in its crown it sits and every plant part and the
+ground know the canopy above them (`canopyShade`). It dims skylight and sky
+reflections, not albedo, and beyond the 64 m sun shadow map it stands in for
+the canopy's shadow, so distant woods keep their shaded depth. Plant colours
+are sRGB HSL (three's `setHSL` defaults to linear, which made leaves three to
+four times too bright); real foliage albedo is 5–12%.
+
+Leaves transmit about as much as they reflect, deeper and yellower (PROSPECT:
+T ≈ 0.8 R), lit by the shadowed sun irradiance from three's light loop, so only
+leaves the sun reaches glow. Aerial perspective on the land is the horizon sky
+along each line of sight, bright toward the sun and blue away from it. The
+cat's shadow is its own soft shadow map, deep enough for a low sun's long
+shadow across the sand.
 
 Every pass works in linear HDR. The sky target (RGBA16F) holds exposed linear
-radiance; the water pass and the Three.js layer apply the same ACES fit and sRGB
-encoding once, so highlights such as the sun disc and glints roll off instead of
-clipping. The sun disc is drawn through cloud transmission only in the final pass.
-Sky/cloud reflections use a filtered screen-space lookup whose blur grows with
-roughness, with a smooth edge fallback. Offscreen geometry and trees are not
-ray-traced into water. This is an illustrative coastal model, not a fluid solver or
-marine forecast.
+radiance; the water pass and the Three.js layer apply the same curve and sRGB
+encoding once: Khronos PBR Neutral, linear through the midtones so colours stay
+as light and materials make them and shadows stay open (as in a photograph,
+not a filmic S-curve), with a shoulder so the sun disc and glints roll off to
+white. At night the same curve shifts toward rod vision (Purkinje: colour
+fades to blue-grey), except for bright things like the Moon's disc. The sun
+disc is drawn through cloud transmission only in the final pass. Sky/cloud
+reflections use a filtered screen-space lookup whose blur grows with
+roughness, with the sky-view table off screen. The island itself mirrors in
+the sea: `src/land-field.js` bakes the land's top (terrain or crown) and albedo
+into a 256² field with a max-height mip chain and a distance-to-land channel,
+and reflected rays near the shore march through it (`land_reflection`), lit by
+sun and sky, their edge softened by the rough lobe's spread. Boulders are
+traced separately (`rocks.wgsl`). This is an illustrative coastal model, not a
+fluid solver or marine forecast.
 
 Vegetation uses four growth families: woody canopy, shrubs, ferns and grasses.
 Each seed generates eight communities of continuous growth traits (height, spread,
@@ -282,6 +310,10 @@ breathing cycles (clipped at the surface). Birds roost at night.
   returning home resets the history; reduced-motion stills render four frames.
   Then water and the final composite at up to **1.5 million pixels / 1.5× DPR** (650,000 / 1.25× on phones).
   Adaptive cloud quality never reduces the water resolution.
+- The island's reflection in the sea runs only where it can show (a Fresnel
+  above 4%, within 70 m of the shore, rising rays), leaps open water and empty
+  cells, and costs the water pass about 14% on desktop; the phone budget skips
+  it (`atmosphere.ocean.z`).
 - The water pass skips work nobody sees: sea under the island (its calm-sea hit
   is more than 1.5 m inland, where the terrain mesh is opaque), seabed shading
   where the water column hides the bottom, foam lookups away from surf and

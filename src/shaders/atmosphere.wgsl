@@ -8,8 +8,10 @@ const EARTH_RADIUS: f32 = 6360000.0;
 const ATMOSPHERE_RADIUS: f32 = 6420000.0;
 const RAYLEIGH: vec3f = vec3f(5.802e-6, 13.558e-6, 33.1e-6);
 const RAYLEIGH_HEIGHT: f32 = 8000.0;
-// Coastal air carries more sea-salt aerosol than the textbook 3.996e-6.
-const MIE: f32 = 3.6e-6;
+// Coastal air carries more sea-salt aerosol than the textbook 3.996e-6. Its
+// scattering falls gently with wavelength (Ångström exponent ~0.7 for marine
+// aerosol), so the horizon haze is white-blue, not cream.
+const MIE: vec3f = vec3f(3.1e-6, 3.6e-6, 4.2e-6);
 const MIE_HEIGHT: f32 = 1200.0;
 const OZONE: vec3f = vec3f(0.650e-6, 1.881e-6, 0.085e-6);
 const SUN_INTENSITY: f32 = 20.0;
@@ -106,12 +108,29 @@ export fn sky_radiance(view: vec3f, sun: vec3f, samples: i32) -> vec3f {
   return single + fill;
 }
 
-// Filmic shoulder (ACES fit) then sRGB encoding, applied once in the final
-// pass: highlights roll off instead of clipping, and every blend before it
-// happens in linear light.
-export fn tonemap(hdr: vec3f) -> vec3f {
-  let x = max(hdr, vec3f(0.0));
-  let mapped = clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), vec3f(0.0), vec3f(1.0));
+// Khronos PBR Neutral, then sRGB encoding, applied once in the final pass:
+// linear through the midtones (colours stay true, shadows stay open, as in a
+// photograph), with a smooth shoulder so the sun disc and glints roll off
+// to white instead of clipping. Every blend before it happens in linear
+// light. TONE_GAIN matches the mesh layer's curve in landscape.js.
+const TONE_GAIN: f32 = 1.5;
+// `night` 0–1 is the eye's dark adaptation: by moonlight the rods take over,
+// colour fades and what is left shifts toward blue-green (their 507 nm
+// peak; the Purkinje shift). Keep in step with landscape.js.
+export fn tonemap(hdr: vec3f, night: f32) -> vec3f {
+  var color = max(hdr * TONE_GAIN, vec3f(0.0));
+  // Bright things (the Moon's disc, glints) still reach the cones.
+  let scotopic = dot(color, vec3f(0.06, 0.56, 0.38));
+  color = mix(color, vec3f(0.72, 0.9, 1.35) * scotopic, night * 0.6 * (1.0 - smoothstep(0.25, 1.5, scotopic)));
+  let low = min(color.r, min(color.g, color.b));
+  color -= select(0.04, low - 6.25 * low * low, low < 0.08);
+  let peak = max(color.r, max(color.g, color.b));
+  if (peak >= 0.76) {
+    let new_peak = 1.0 - 0.0576 / (peak - 0.52);
+    color *= new_peak / peak;
+    color = mix(color, vec3f(new_peak), 1.0 - 1.0 / (0.15 * (peak - new_peak) + 1.0));
+  }
+  let mapped = clamp(color, vec3f(0.0), vec3f(1.0));
   return select(1.055 * pow(mapped, vec3f(1.0 / 2.4)) - 0.055, mapped * 12.92, mapped <= vec3f(0.0031308));
 }
 

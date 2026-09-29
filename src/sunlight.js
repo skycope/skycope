@@ -6,7 +6,8 @@ const EARTH_RADIUS = 6360000;
 const ATMOSPHERE_RADIUS = 6420000;
 const RAYLEIGH = [5.802e-6, 13.558e-6, 33.1e-6];
 const RAYLEIGH_HEIGHT = 8000;
-const MIE = 3.6e-6;
+// Marine aerosol, Ångström exponent ~0.7: keep equal to atmosphere.wgsl.
+const MIE = [3.1e-6, 3.6e-6, 4.2e-6];
 const MIE_HEIGHT = 1200;
 const OZONE = [0.65e-6, 1.881e-6, 0.085e-6];
 const SUN_INTENSITY = 20;
@@ -29,7 +30,7 @@ function densities(h) {
 
 function extinction(d) {
   return [0, 1, 2].map((c) =>
-    Math.exp(-(RAYLEIGH[c] * d[0] + MIE * 1.11 * d[1] + OZONE[c] * d[2])),
+    Math.exp(-(RAYLEIGH[c] * d[0] + MIE[c] * 1.11 * d[1] + OZONE[c] * d[2])),
   );
 }
 
@@ -92,7 +93,7 @@ export function skyRadiance(view, sun, samples = 12) {
       const light = tr[c] * ex[c];
       rayleigh[c] += light * d[0] * dt;
       mie[c] += light * d[1] * dt;
-      multiple[c] += lifted[c] * ex[c] * (d[0] * RAYLEIGH[c] + d[1] * MIE) * dt;
+      multiple[c] += lifted[c] * ex[c] * (d[0] * RAYLEIGH[c] + d[1] * MIE[c]) * dt;
     }
   }
   const g = 0.8;
@@ -102,7 +103,7 @@ export function skyRadiance(view, sun, samples = 12) {
     ((2 + g * g) * Math.pow(Math.max(1 + g * g - 2 * g * mu, 0.0001), 1.5));
   return [0, 1, 2].map(
     (c) =>
-      (rayleigh[c] * RAYLEIGH[c] * rPhase + mie[c] * MIE * mPhase) *
+      (rayleigh[c] * RAYLEIGH[c] * rPhase + mie[c] * MIE[c] * mPhase) *
         SUN_INTENSITY +
       multiple[c] * SUN_INTENSITY * 0.3,
   );
@@ -141,7 +142,9 @@ export function lightingAt(celestial, weather = null) {
   const exposure = Math.min(cap, Math.max(0.08, target / Math.max(luminance(zenith), 1e-6)));
   const moonK = moonScale(celestial.moon, celestial.moonPhase);
   const sun = sunRadiance(celestial.sun);
-  const moon = scotopic(sunRadiance(celestial.moon)).map((v) => v * moonK * 0.6);
+  // Moonlit surfaces a little brighter than the sky ratio alone: the eye
+  // adapts to the lit sand, and a full moon throws real shadows.
+  const moon = scotopic(sunRadiance(celestial.moon)).map((v) => v * moonK * 0.95);
   const direct = sun.map((v, c) => (v + (moon[c] - v) * night) * exposure);
   const moonSky = scotopic(skyRadiance([0, 1, 0], celestial.moon, 4));
   const sky = zenith.map(
@@ -184,4 +187,37 @@ export function skyIrradianceRatio(sun) {
 export function horizonRadiance(celestial, direction, exposure) {
   const h = skyRadiance([direction[0], 0.02, direction[2]], celestial.sun, 8);
   return h.map((v) => v * exposure);
+}
+
+// The upper sky dome relative to the zenith radiance, per channel, on an
+// equirectangular grid in the Three.js world frame (the land layer's frame:
+// x = coast x, z = −coast y, see landscape.js). `width` columns and
+// `width / 4` rows cover the sky from the horizon to the zenith, so the land
+// layer can light itself from the whole sky (sun side warm, anti-sun blue),
+// not one average colour. Exposure cancels: it is only recomputed when the
+// sun moves. Returns a Float32Array of rows × width × 3.
+export function skyDomeRatio(sun, width = 64) {
+  const rows = width / 4;
+  const zenith = skyRadiance([0, 1, 0], sun, 5);
+  const out = new Float32Array(rows * width * 3);
+  for (let j = 0; j < rows; j++) {
+    // Rows from the horizon up, at texel centres of a width × width/2 map.
+    const elevation = ((j + 0.5) / (rows * 2)) * Math.PI;
+    const y = Math.sin(elevation);
+    const across = Math.cos(elevation);
+    for (let i = 0; i < width; i++) {
+      // three's equirect: u = atan(z, x) / 2π + 0.5.
+      const phi = ((i + 0.5) / width - 0.5) * Math.PI * 2;
+      const wx = Math.cos(phi) * across;
+      const wz = Math.sin(phi) * across;
+      // World → celestial (east, up, north): the inverse of landscape.js's
+      // updateDirection rotation.
+      const localZ = -wz;
+      const view = [(wx - localZ) * Math.SQRT1_2, y, (wx + localZ) * Math.SQRT1_2];
+      const radiance = skyRadiance(view, sun, 5);
+      const k = (j * width + i) * 3;
+      for (let c = 0; c < 3; c++) out[k + c] = Math.min(12, radiance[c] / Math.max(zenith[c], 1e-9));
+    }
+  }
+  return out;
 }
