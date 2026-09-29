@@ -25,6 +25,11 @@ export struct Atmosphere {
   // usable (z), and the previous frame's view: azimuth, pitch, pointer.
   temporal: vec4f,
   previous: vec4f,
+  // The sea (src/swell.js): the breaking swell train (shore-arc wavenumber,
+  // angular frequency, phase, amplitude), and for the foam history the frame
+  // step in seconds (x) and whether the history is usable (y).
+  swell: vec4f,
+  ocean: vec4f,
 };
 
 export fn view_ray(uv: vec2f, resolution: vec2f, pointer: vec2f, azimuth: f32, pitch: f32) -> vec3f {
