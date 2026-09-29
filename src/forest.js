@@ -291,12 +291,18 @@ vec3 windOffset(vec3 p) {
 }
 `;
 
-// Low foliage parts round the cat: vertices within reach lean away from it,
-// more toward their tips, and pressed a little down. Tall plants' crowns
+// Low foliage parts round the cat: plants within reach lean away from it,
+// more toward their tips, and pressed a little down. Each plant leans as one
+// piece, away from where it is rooted (leaning each vertex away on its own
+// smeared a flower's head into a ring round the cat). Tall plants' crowns
 // are out of reach, so only the lower ~60 cm of any plant moves.
 const PUSH_GLSL = /* glsl */ `
 {
-  vec2 away = mvPosition.xz - catPush.xy;
+  #ifdef USE_INSTANCING
+    vec2 away = instanceMatrix[3].xz - catPush.xy;
+  #else
+    vec2 away = mvPosition.xz - catPush.xy;
+  #endif
   float d = length( away ) + 1e-4;
   float above = max( mvPosition.y - anchorHeight, 0.0 );
   float reach = catPush.z;
