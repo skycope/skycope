@@ -21,22 +21,30 @@ export const EAR = 2;
 
 const BIG = 1;
 
+// Levels of detail, as grid cells (m) for the field surface. Every pass of
+// the body is bound by vertices and pixel-sized triangles, not by pixels,
+// so each pass gets the coarsest mesh that holds up for it: the full mesh
+// only up close, a mid mesh for the fur shells and the body at the usual
+// distance, a coarse one for the shadow map and the see-through silhouette.
+// The face, paws and tail tip are refined a level at every size.
+const LODS = { near: 0.0038, mid: 0.0068, far: 0.0115 };
+const LIGHT_LODS = { near: 0.0056, mid: 0.0085, far: 0.013 };
+
 export const buildStats = {};
 export function buildCatGeometry(rig, { light = false } = {}) {
-  const t0 = performance.now();
   const prims = anatomy(rig);
   const field = createField(prims);
-  const cell = light ? 0.0052 : 0.0038;
-  const mesh = surfaceNets(field, cell);
-  const t1 = performance.now();
-  const coarse = mesh.tris.length / 3;
-  // A level finer on the face and paws, where features are a few mm.
-  refine(mesh, field, (v) => prims[field.dominant(v)].fine);
-  const t2 = performance.now();
-  const sdf = bake(mesh, field, prims, rig);
-  Object.assign(buildStats, { prims: prims.length, coarse, fine: mesh.tris.length / 3, nets: t1 - t0, refine: t2 - t1, bake: performance.now() - t2 });
-  const parts = [sdf, ...eyes(rig), ...ears(rig)];
-  return assemble(parts);
+  const out = {};
+  for (const [name, cell] of Object.entries(light ? LIGHT_LODS : LODS)) {
+    const t0 = performance.now();
+    const mesh = surfaceNets(field, cell);
+    refine(mesh, field, (v) => prims[field.dominant(v)].fine);
+    const sdf = bake(mesh, field, prims, rig);
+    const detail = name === "near" ? 1 : name === "mid" ? 0.7 : 0.45;
+    out[name] = assemble([sdf, ...eyes(rig, detail), ...ears(rig, detail)]);
+    buildStats[name] = { ms: Math.round(performance.now() - t0), vertices: out[name].attributes.position.count };
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -147,7 +155,7 @@ function anatomy(rig) {
     const socket = new THREE.Matrix4()
       .makeRotationFromEuler(new THREE.Euler(0.05, side * 0.3, side * 0.16, "YXZ"))
       .invert();
-    ell("head", H([0.0184 * side, 0.0064, 0.0345]), [0.0104, 0.0078, 0.0085], {
+    ell("head", H([0.0184 * side, 0.0068, 0.0342]), [0.0106, 0.0092, 0.0088], {
       sub: true,
       k: 0.0035,
       basis: new THREE.Matrix3().setFromMatrix4(socket).elements,
@@ -552,10 +560,10 @@ export function eyeCentre(side) {
 }
 export const EYE_GAZE = { yaw: 0.26, pitch: -0.04 };
 
-function eyes(rig) {
+function eyes(rig, detail = 1) {
   const head = rig.list.findIndex((b) => b.name === "head");
   return [1, -1].map((side) => {
-    const g = new THREE.SphereGeometry(EYE_RADIUS, 22, 16);
+    const g = new THREE.SphereGeometry(EYE_RADIUS, Math.round(22 * detail), Math.round(16 * detail));
     const out = part(g.attributes.position.count);
     const c = eyeCentre(side);
     const toGaze = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(EYE_GAZE.pitch, side * EYE_GAZE.yaw, 0, "YXZ")).invert();
@@ -590,11 +598,11 @@ export function earPose(side) {
   return new THREE.Euler(-0.1, side * 0.14, -side * 0.3, "YXZ");
 }
 
-function ears(rig) {
+function ears(rig, detail = 1) {
   const index = new Map(rig.list.map((b, i) => [b.name, i]));
   const head = index.get("head");
-  const U = 12;
-  const V = 14;
+  const U = Math.max(4, Math.round(12 * detail));
+  const V = Math.max(5, Math.round(14 * detail));
   return [1, -1].map((side) => {
     const bone = rig.bones[side > 0 ? "earL" : "earR"];
     const base = bone.getWorldPosition(new THREE.Vector3());

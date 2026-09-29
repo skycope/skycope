@@ -4,14 +4,17 @@ import { buildCatGeometry } from "./cat-body.js";
 // Meshing the cat's body takes a few hundred ms, so it runs off the main
 // thread; the typed arrays come back without a copy.
 self.onmessage = ({ data }) => {
-  const geometry = buildCatGeometry(createRig(), data);
-  const attributes = {};
+  const lods = buildCatGeometry(createRig(), data);
+  const out = {};
   const transfer = [];
-  for (const [name, attribute] of Object.entries(geometry.attributes)) {
-    attributes[name] = { array: attribute.array, itemSize: attribute.itemSize };
-    transfer.push(attribute.array.buffer);
+  for (const [lod, geometry] of Object.entries(lods)) {
+    const attributes = {};
+    for (const [name, attribute] of Object.entries(geometry.attributes)) {
+      attributes[name] = { array: attribute.array, itemSize: attribute.itemSize };
+      transfer.push(attribute.array.buffer);
+    }
+    out[lod] = { attributes, index: geometry.index.array };
+    transfer.push(geometry.index.array.buffer);
   }
-  const index = geometry.index.array;
-  transfer.push(index.buffer);
-  self.postMessage({ attributes, index }, transfer);
+  self.postMessage(out, transfer);
 };

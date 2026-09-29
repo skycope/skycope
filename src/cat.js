@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { CAT_SCALE, LEGS, PAW_LIFT, STAND_HEIGHT, TAIL_BONES, TAIL_LENGTH, TAIL_ROOT, createRig, neutralFoot, solveLeg } from "./cat-rig.js";
 import { buildCatGeometry } from "./cat-body.js";
-import { catUniforms, coatMaterial, ghostMaterial } from "./cat-coat.js";
+import { bakeShellColours, catUniforms, coatMaterial, ghostMaterial } from "./cat-coat.js";
 import { createContactShadow, createDust, createPawPrints } from "./cat-ground.js";
 
 // A brown mackerel tabby. One seamless skinned body (cat-body.js) on a
@@ -61,12 +61,13 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
   parent.add(root);
 
   const coat = coatMaterial(uniforms);
+  const coatFar = coatMaterial(uniforms, { baked: true });
   const fur = coatMaterial(uniforms, { shell: true });
   const ghost = ghostMaterial();
   // The cat draws in the transparent pass, after the (fading) ground and
   // rocks, and marks its pixels in the stencil buffer, so the silhouette
   // shows only where something covers it.
-  for (const material of [coat, fur])
+  for (const material of [coat, coatFar, fur])
     Object.assign(material, {
       transparent: true,
       stencilWrite: true,
@@ -78,9 +79,16 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
   const depth = new THREE.MeshDepthMaterial({ side: THREE.DoubleSide });
   const meshes = [];
   let shellGeometry = null;
-  const maxShells = light ? 4 : 8;
+  const maxShells = light ? 4 : 6;
 
-  function attach(geometry) {
+  let lods = null;
+  let shellLods = null;
+  let baked = null;
+  let shadowFrame = 0;
+  let shadowKey = "";
+  let still = false;
+  function attach(geometries) {
+    lods = geometries;
     const bindMatrix = new THREE.Matrix4();
     const skinned = (g, material, order) => {
       const mesh = new THREE.SkinnedMesh(g, material);
@@ -92,25 +100,36 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       meshes.push(mesh);
       return mesh;
     };
-    const body = skinned(geometry, coat, 10);
-    body.layers.enable(SHADOW_LAYER);
-    shellGeometry = new THREE.InstancedBufferGeometry();
-    shellGeometry.index = geometry.index;
-    for (const [name, attribute] of Object.entries(geometry.attributes)) shellGeometry.setAttribute(name, attribute);
-    shellGeometry.instanceCount = maxShells;
+    skinned(lods.mid, coat, 10);
+    // Shell copies share the LOD buffers; far away they use the coarse mesh.
+    const instanced = (g) => {
+      const shells = new THREE.InstancedBufferGeometry();
+      shells.index = g.index;
+      for (const [name, attribute] of Object.entries(g.attributes)) shells.setAttribute(name, attribute);
+      shells.instanceCount = maxShells;
+      return shells;
+    };
+    shellLods = { mid: instanced(lods.mid), far: instanced(lods.far) };
+    shellGeometry = shellLods.mid;
     skinned(shellGeometry, fur, 11);
-    skinned(geometry, ghost, 20).receiveShadow = false;
+    skinned(lods.far, ghost, 20).receiveShadow = false;
+    // The shadow map sees only this coarse copy.
+    const caster = skinned(lods.far, depth, 0);
+    caster.layers.set(SHADOW_LAYER);
   }
+  const toGeometry = ({ attributes, index }) => {
+    const geometry = new THREE.BufferGeometry();
+    for (const [name, { array, itemSize }] of Object.entries(attributes)) geometry.setAttribute(name, new THREE.BufferAttribute(array, itemSize));
+    geometry.setIndex(new THREE.BufferAttribute(index, 1));
+    geometry.computeBoundingSphere();
+    return geometry;
+  };
   if (sync) attach(buildCatGeometry(createRig(), { light }));
   else {
     const worker = new Worker(new URL("./cat-worker.js", import.meta.url), { type: "module" });
     worker.onmessage = ({ data }) => {
       worker.terminate();
-      const geometry = new THREE.BufferGeometry();
-      for (const [name, { array, itemSize }] of Object.entries(data.attributes)) geometry.setAttribute(name, new THREE.BufferAttribute(array, itemSize));
-      geometry.setIndex(new THREE.BufferAttribute(data.index, 1));
-      geometry.computeBoundingSphere();
-      if (!disposed) attach(geometry);
+      if (!disposed) attach(Object.fromEntries(Object.entries(data).map(([lod, g]) => [lod, toGeometry(g)])));
     };
     worker.postMessage({ light });
   }
@@ -122,7 +141,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
   // The cat's own shadow map: a small orthographic view from the sun, fit
   // round the cat. The scene's shadow map is static, so the cat carries its
   // own for the ground and for shadowing itself.
-  const shadowSize = light ? 256 : 512;
+  const shadowSize = light ? 192 : 256;
   const shadowTarget = new THREE.WebGLRenderTarget(shadowSize, shadowSize, {
     depthTexture: new THREE.DepthTexture(shadowSize, shadowSize),
     depthBuffer: true,
@@ -189,6 +208,8 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
   return {
     root,
     prints,
+    // Dev: the lab's benchmark toggles parts to attribute cost.
+    debug: { meshes, shells: null },
     get ready() {
       return meshes.length > 0;
     },
@@ -202,6 +223,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       }
       uniforms.catTime.value = time;
       const step = Math.min(dt, 1 / 30);
+      still = pose.gaitAmp < 0.02 && pose.air === 0 && Math.abs(pose.turn) < 0.05;
       const speed = Math.abs(pose.speed);
       const amp = pose.gaitAmp;
       const { x, z, heading } = pose;
@@ -612,8 +634,19 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       // Fewer shells as the cat gets smaller on screen.
       if (shellGeometry && light.eye) {
         const d = light.eye.distanceTo(centre);
-        const count = Math.round(clamp(11 - d * 1.6, 3, maxShells));
-        shellGeometry.instanceCount = count;
+        const count = this.debug.shells ?? Math.round(clamp(9 - d * 1.9, 2, maxShells));
+        // The full mesh only once the cat is big on screen (with hysteresis).
+        const body = meshes[0];
+        const near = body.geometry === lods.near ? d < 1.5 : d < 1.3;
+        body.geometry = near ? lods.near : lods.mid;
+        // Beyond ~2 m the stripes span a few pixels: paint the body per vertex.
+        const perVertex = body.material === coatFar ? d > 2.0 : d > 2.3;
+        body.material = perVertex && uniforms.catBodyColours.value ? coatFar : coat;
+        const far = shellGeometry === shellLods.far ? d > 2.4 : d > 2.7;
+        shellGeometry = meshes[1].geometry = far ? shellLods.far : shellLods.mid;
+        if (baked) uniforms.catShellColours.value = baked[far ? "far" : "mid"].texture;
+        shellLods.mid.instanceCount = shellLods.far.instanceCount = count;
+        uniforms.catPixelAngle.value = 1 / (light.pixelScale ?? 500);
         uniforms.shellCount.value = count;
       }
       prints.update(time);
@@ -634,7 +667,18 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
     // Renders the cat's shadow map. Called by the landscape before the
     // frame.
     renderShadow(renderer, scene) {
-      if (!meshes.length || uniforms.catShadowOn.value < 0.5) return;
+      if (!meshes.length) return;
+      if (!baked) {
+        baked = { mid: bakeShellColours(renderer, lods.mid), far: bakeShellColours(renderer, lods.far) };
+        uniforms.catShellColours.value = baked[shellGeometry === shellLods.far ? "far" : "mid"].texture;
+        uniforms.catBodyColours.value = baked.mid.texture;
+      }
+      if (uniforms.catShadowOn.value < 0.5) return;
+      // A still cat (breathing, twitching) needs its shadow redrawn less often.
+      shadowFrame = (shadowFrame + 1) % 3;
+      const key = `${shadowCamera.position.x.toFixed(3)}:${shadowCamera.position.y.toFixed(3)}:${shadowCamera.position.z.toFixed(3)}`;
+      if (still && shadowFrame !== 0 && key === shadowKey) return;
+      shadowKey = key;
       const target = renderer.getRenderTarget();
       const override = scene.overrideMaterial;
       scene.overrideMaterial = depth;
@@ -645,14 +689,16 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
     },
     dispose() {
       disposed = true;
-      meshes[0]?.geometry.dispose();
-      shellGeometry?.dispose();
+      if (lods) Object.values(lods).forEach((g) => g.dispose());
+      if (shellLods) Object.values(shellLods).forEach((g) => g.dispose());
       coat.dispose();
+      coatFar.dispose();
       fur.dispose();
       ghost.dispose();
       depth.dispose();
       whisk.dispose();
       shadowTarget.dispose();
+      if (baked) Object.values(baked).forEach((t) => t.dispose());
       contact.dispose();
       prints.dispose();
       dust.dispose();
