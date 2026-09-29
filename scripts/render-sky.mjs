@@ -158,6 +158,7 @@ const baseWater = process.env.BASE_WATER
         shoreRocks: shore.rocks.createView(),
         shoreGrid: shore.grid.createView(),
         landField: land.createView(),
+        catWake: catWake.createView(),
         skyTable: tableTarget.color,
         filtering: sampler(gpu, { minFilter: "linear", magFilter: "linear", addressModeU: "repeat", addressModeV: "repeat", addressModeW: "repeat" }),
       },
@@ -200,6 +201,8 @@ for (const [name, time, weather, rain, view, windOverride] of [
   // swash and caustics over the sandy shelf.
   ["surf", "2026-09-08T12:00:00Z", [0, 0, 0, 0], 0, [351, -0.6, [3.6, 10, -4.8]]],
   ["surf-low", "2026-09-08T14:30:00Z", [0.2, 0.05, 0.1, 0.2], 0, [44, -0.1, [8.3, 2, 1.7]]],
+  // Standing on the beach looking out to sea, as the cat's camera does.
+  ["beach", "2026-09-08T11:00:00Z", [0, 0, 0, 0], 0, [138, -0.2, [13.2, 1.9, 14.1]]],
   ["whitecaps", "2026-09-08T12:00:00Z", [0.3, 0.1, 0.2, 0.3], 0, [171, -0.08, [-4, 6, -20]], [11, 5]],
   // Boulders at the waterline (seed 1847's eastern cluster): lapping rings,
   // the foam collar, rocks mirrored in and seen through the water.
@@ -302,15 +305,24 @@ for (const [name, time, weather, rain, view, windOverride] of [
     if (baseWater) {
       baseWater.set({ atmosphere: benchSea, skyTexture: skyTarget.write.color, foamLayer: foamTarget.write.color });
       const best = { base: Infinity, water: Infinity };
-      for (let k = 0; k < 16; k++)
+      // Each round's ratio too: other work on a shared GPU slows neighbouring
+      // runs alike, so their median holds where the minima drift.
+      const ratios = [];
+      for (let k = 0; k < (+process.env.AB_ROUNDS || 16); k++) {
+        const round = {};
         for (const [label, e] of k % 2 ? [["base", baseWater], ["water", water]] : [["water", water], ["base", baseWater]]) {
           await gpu.gpu.queue.onSubmittedWorkDone();
           const begin = performance.now();
           frame(gpu, (f) => { for (let i = 0; i < 24; i++) f.pass(output, e); });
           await gpu.gpu.queue.onSubmittedWorkDone();
-          best[label] = Math.min(best[label], (performance.now() - begin) / 24);
+          round[label] = (performance.now() - begin) / 24;
+          best[label] = Math.min(best[label], round[label]);
         }
-      console.log(`${name} ab base ${best.base.toFixed(3)} new ${best.water.toFixed(3)} ${((best.water / best.base - 1) * 100).toFixed(1)}%`);
+        ratios.push(round.water / round.base);
+      }
+      ratios.sort((a, b) => a - b);
+      const ratio = ratios[Math.floor(ratios.length / 2)];
+      console.log(`${name} ab base ${best.base.toFixed(3)} new ${best.water.toFixed(3)} ${((best.water / best.base - 1) * 100).toFixed(1)}%, median ratio ${((ratio - 1) * 100).toFixed(1)}%`);
     }
   }
   await gpu.settled();

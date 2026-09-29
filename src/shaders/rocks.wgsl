@@ -90,21 +90,26 @@ export fn rock_sea(p: vec2f, pixel: f32, time: f32, wind: f32, swell: vec4f,
     let island = info.xy - vec2f(58.0, 70.0);
     let along = atan2(island.y, island.x) * 62.0;
     let now = surge(along, time, swell);
-    // Rings are not perfect circles: the rock's own outline and the chop
-    // bend them.
-    let wobble = 0.7 * sin(angle * 3.0 + info.w) + 0.4 * sin(angle * 5.0 - info.w * 1.7);
-    let spread = sqrt(contact / (contact + max(edge, 0.0)));
     let out_edge = max(edge, 0.0);
+    // The face the swell hits: the seaward side reflects it strongly, the
+    // lee only a little.
+    let seaward = normalize(island);
+    let facing = smoothstep(-0.6, 0.8, dot(dir, seaward));
+    // Rings are not perfect circles: the rock's own outline and the chop
+    // bend them, more the further they run.
+    let wobble = (0.7 * sin(angle * 3.0 + info.w) + 0.4 * sin(angle * 5.0 - info.w * 1.7)) * (1.0 + out_edge * 1.5)
+      + 0.9 * sin(angle * 9.0 + out_edge * 2.3 - info.w) * out_edge;
+    let spread = sqrt(contact / (contact + out_edge));
     // Surge rings: ~45 cm, at the gravity-wave speed for that length.
     let k1 = 14.0;
     let c1 = 0.84;
     let then = surge(along, time - out_edge / c1, swell);
-    let a1 = (0.006 + 0.03 * then) * exp(-out_edge / 1.3) * spread;
+    let a1 = (0.003 + 0.02 * then) * exp(-out_edge / 0.9) * spread * (0.35 + 0.65 * facing);
     let phase1 = k1 * out_edge - k1 * c1 * time + info.w + wobble;
     // Chop reflected off the rock face: ~25 cm, capillary-gravity speed.
     let k2 = 25.0;
     let c2 = 0.62;
-    let a2 = (0.003 + 0.0006 * min(wind, 12.0)) * exp(-out_edge / 0.7) * spread;
+    let a2 = (0.002 + 0.0005 * min(wind, 12.0)) * exp(-out_edge / 0.6) * spread * (0.5 + 0.5 * facing);
     let r1 = exp(-0.65 * (k1 * pixel) * (k1 * pixel));
     let r2 = exp(-0.65 * (k2 * pixel) * (k2 * pixel));
     // Far off the rings are only roughness.
@@ -116,21 +121,24 @@ export fn rock_sea(p: vec2f, pixel: f32, time: f32, wind: f32, swell: vec4f,
     }
     out.variance += 0.5 * ((a1 * k1) * (a1 * k1) * (1.0 - r1 * r1) + (a2 * k2) * (a2 * k2) * (1.0 - r2 * r2));
     // The lee: the shoreward side of the rock, relative to the incoming sea.
-    let seaward = normalize(island);
     let lee = smoothstep(-0.1, 0.8, -dot(dir, seaward));
     out.shelter = max(out.shelter, lee * exp(-out_edge / (0.9 * contact + 0.4)));
     out.occlusion = max(out.occlusion, exp(-out_edge / (0.25 + 0.2 * contact)) * 0.6);
     // Foam: a collar clinging to the contact line, fattening on the surge;
-    // lace thrown out on each surge ring's crest; and drained foam trailing
-    // round into the lee.
-    let cling = exp(-out_edge / (0.05 + now * 0.3)) * smoothstep(-0.25, -0.02, edge);
-    let crest = smoothstep(0.6, 1.0, cos(phase1)) * then * exp(-out_edge / 0.7) * 0.55;
+    // whitewater washing out round the rock as each bore breaks on it and
+    // draining away after; lace thrown out on each surge ring's crest; and
+    // drained foam trailing round into the lee.
+    let cling = exp(-out_edge / (0.06 + now * 0.45)) * smoothstep(-0.25, -0.02, edge);
+    let wash = then * exp(-out_edge / (0.25 + 0.45 * contact)) * (0.45 + 0.55 * facing) * smoothstep(-0.1, 0.0, edge);
+    let crest = smoothstep(0.6, 1.0, cos(phase1)) * then * exp(-out_edge / 0.7) * 0.45;
     let trail = lee * exp(-out_edge / (0.4 + contact * 0.3)) * 0.3 * (0.3 + 0.7 * now);
-    let foam = max(cling * (0.45 + 0.5 * now), max(crest, trail));
-    out.bubbles = max(out.bubbles, max(cling * (0.5 + 0.5 * now), crest * 0.6));
+    let foam = max(max(cling * (0.5 + 0.5 * now), wash * 0.85), max(crest, trail));
+    out.bubbles = max(out.bubbles, max(max(cling * (0.5 + 0.5 * now), wash), crest * 0.6));
     if (foam > out.foam) {
       out.foam = foam;
-      out.lace = vec2f(angle * (contact + out_edge), out_edge * 1.6 - now * 0.5 + info.w);
+      // In world metres (an angle round the rock would tear the lace where
+      // it wraps), drifting outward as the water drains.
+      out.lace = p * 1.4 + dir * (out_edge * 0.4 - now * 0.5);
     }
     out.edge = min(out.edge, edge);
   }
