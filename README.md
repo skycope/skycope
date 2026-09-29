@@ -26,7 +26,8 @@ In the browser, `?weather=clear|cloudy|overcast|rain|storm` opens on that weathe
 preset (the same as choosing it in the weather panel); `?perf` records
 mesh-layer GPU time (`data-mesh-ms`, via a `readPixels`-synced render burst every
 90 frames), triangles and draw calls on the landscape canvas, and exposes the live
-state as `window.skycope` (for example to aim `flight` at the sun).
+state as `window.skycope` (for example to aim `flight` at the sun). `?nocull`
+turns off occlusion culling (`src/occlusion.js`) for A/B checks.
 
 `ONLY=surf,rocks` renders just those fixtures; `BENCH=1` adds per-pass throughput,
 and `BASE_WATER=<other checkout>/src/shaders/water.wgsl` benches that water shader
@@ -66,6 +67,7 @@ reduced-motion mode, background/resume, and with the weather endpoint blocked.
 | `src/landscape.js`       | Three.js camera, lights from `sunlight.js`, shadows, lifecycle           |
 | `src/vegetation.js`      | Growth traits, habitat placement, trees, ferns, grass and fynbos         |
 | `src/forest.js`          | Instanced plants, wind and gusts, foliage/ground/bark shaders, LOD       |
+| `src/occlusion.js`       | Occlusion culling: hidden plant/rock chunks skip their draws (WebGL2)    |
 | `src/plant-forms.js`     | Unit plant organs: tufts, reeds, fronds, aloe leaves, heath shoots, heads |
 | `src/motes.js`           | Pollen and dust that catch the sun when you look toward it               |
 | `src/fauna.js`           | Gulls, cormorants and a dolphin pod                                      |

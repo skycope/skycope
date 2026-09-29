@@ -282,6 +282,7 @@ function connectControls() {
       if (key === " " && event.target.closest?.("button")) event.target.blur();
       if (key === "h") {
         state.walker?.home();
+        state.landscape?.resetOcclusion();
         resetSkyHistory();
         renderStill();
         return;
