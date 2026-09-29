@@ -4,6 +4,7 @@ import { createFauna } from "./fauna.js";
 import { createCat } from "./cat.js";
 import { CAT_SKY } from "./cat-ground.js";
 import { createCritters } from "./critters.js";
+import { createMotes } from "./motes.js";
 import { horizonRadiance, skyDomeRatio } from "./sunlight.js";
 
 // The mesh layer tonemaps with the same curve as the WebGPU water pass
@@ -70,6 +71,8 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   const cat = createCat(land, { light });
   const critters = createCritters(land, seed, forest.obstacles.flowers);
   scene.add(land);
+  const motes = createMotes(scene, seed);
+  const moteLight = new THREE.Color();
 
   // Skylight is image-based: the scattering model's own sky dome (sun side
   // warm and bright, anti-sun deep blue) over the ground's bounce light, as a
@@ -136,8 +139,11 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   const ndc = new THREE.Vector2();
 
   return {
-    // `?perf` QA: lets the console toggle scene parts to attribute cost.
+    // `?perf` QA: lets the console toggle scene parts and time the mesh
+    // layer on its own (renderer and camera are only exposed then).
     scene,
+    renderer: perf ? renderer : null,
+    camera: perf ? camera : null,
     obstacles: forest.obstacles,
     shoreRocks: forest.shoreRocks,
     landField: forest.landField,
@@ -228,6 +234,10 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       // Plants part round the cat as it walks through them.
       forest.pushAt(pose.x, pose.z, pose.air > 0.05 ? 0 : 1);
       interest = critters.update(dt, time, pose, night);
+      // Motes glow only in daylight, dimmed by cloud like the direct sun.
+      moteLight.copy(sun.color).multiplyScalar(sun.intensity * THREE.MathUtils.smoothstep(sunWorld.y, 0.0, 0.1) * (1 - night));
+      motes.update(time, wind, camera.position, sunWorld, moteLight,
+        renderer.domElement.height / (2 * Math.tan((camera.fov * Math.PI) / 360)));
       cat.renderShadow(renderer, scene);
       renderer.render(scene, camera);
       if (perf && ++perfFrame % 90 === 0) {

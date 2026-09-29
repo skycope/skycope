@@ -65,7 +65,9 @@ reduced-motion mode, background/resume, and with the weather endpoint blocked.
 | `src/shaders/ocean.wgsl` | Swells, ripples, reflection, seabed, caustics, kelp, glitter, foam       |
 | `src/landscape.js`       | Three.js camera, lights from `sunlight.js`, shadows, lifecycle           |
 | `src/vegetation.js`      | Growth traits, habitat placement, trees, ferns, grass and fynbos         |
-| `src/forest.js`          | Instanced plants, flowers, granite, ground and bark detail shaders, LOD  |
+| `src/forest.js`          | Instanced plants, wind and gusts, foliage/ground/bark shaders, LOD       |
+| `src/plant-forms.js`     | Unit plant organs: tufts, reeds, fronds, aloe leaves, heath shoots, heads |
+| `src/motes.js`           | Pollen and dust that catch the sun when you look toward it               |
 | `src/fauna.js`           | Gulls, cormorants and a dolphin pod                                      |
 | `src/walker.js`          | Cat movement, collisions, follow camera                                  |
 | `src/cat.js`             | Cat animation: gait/IK, spine, postures, tail, ears, eyes, whiskers, LOD  |
@@ -272,10 +274,30 @@ Each seed generates eight communities of continuous growth traits (height, sprea
 branching, leaf proportions, foliage and bark colour), rather than authored species
 models. Smooth habitat fields form related groves; exposure lowers the coastal edge,
 spacing avoids intersecting trunks, and a separate patch field populates lower layers.
-Branches curve and split recursively. Leaves originate on connected shoots with fixed
-bases during flutter. Ferns grow arching paired fronds; grasses grow in tufts.
-Near canopy trees receive an extra branching level; shrubs and distant trees stay
-simpler. Geometry is instanced, with no per-tree scene graphs.
+Crowns grow by space colonization; stems taper continuously through every fork (pipe
+model radii, each segment narrowing to its thickest child). Leaves grow on shoots:
+a short twig with 14 small folded leaves in a golden-angle spiral, mature and wide at
+the base, young and yellower at the tip. Sun leaves outside the crown are smaller and
+yellower, shade leaves inside larger and bluer, and each shoot's depth in its crown
+darkens it and occludes its sky sheen. Every plant organ is grown, not stamped
+(`plant-forms.js`): grass tufts of 24 arching 5 mm blades with dry tips and nodding
+panicles; ferns and palms as pinnate fronds with lobed pinnae; aloes as rosettes of
+keeled, recurved, red-toothed succulent leaves, tree aloes on a stem in a skirt of dead
+leaves; restios as dense reed clumps; ericas as domes of needle shoots hung with bells.
+Geometry is instanced, with no per-tree scene graphs.
+
+Foliage is lit as thin, glossy, translucent tissue: sunlight through a leaf exits
+yellow-green (a forward lobe and a diffuse term, from the shadowed sun only), a leaf at
+a glancing angle mirrors the sky (Fresnel on a rough cuticle), and low plants darken
+into their own base. Wind has gust fronts that roll downwind across the island at
+the wind's speed, so one gust visibly runs through the grass, then the shrubs, then the
+crowns; trees lean with it and sway about the lean, grass and fronds bend for their
+height (keeping their length), and every leaf, blade and pinna flutters on its own
+stalk. The ground under the plants comes from the plants themselves: grass, moss and
+litter are splatted from the actual tufts, crowns and cushions onto the ground grid, so
+litter pools under each tree and sward (fine combed strokes, brightening as each gust
+bends it) spreads round each tuft. Pollen and dust motes glitter only when you look
+toward the sun.
 
 Open ground between groves is fynbos: king and sugarbush proteas, pincushions,
 aloes with orange flower candles, restio reed tufts, pink-belled ericas, and
@@ -335,8 +357,11 @@ breathing cycles (clipped at the surface). Birds roost at night.
   `THREE.LOD`: beyond 42 m it swaps to cheaper leaf/cluster/branch/rock geometry and
   drops unresolvable twigs, blades and flowers. The layer is vertex-bound, not
   fill-bound (a tiny canvas costs nearly the same), so distant shoots keep a
-  stable half, then a third, grown to cover the same canopy area (3.3 M → 1.7 M
-  visible triangles at the home view). The mesh canvas caps at
+  stable half, then a third, grown to cover the same canopy area. Full-detail
+  shoots, tufts and fronds exist only in the chunks round the cat (a leaf is a few
+  pixels past ~17 m); sparse sets (aloes, reeds, flower heads) use 40 m chunks to
+  save draw calls. The home view draws 1.9 M triangles (2.9 M before the organ
+  rework) in the same GPU time. The mesh canvas caps at
   1.6 million pixels with MSAA (0.8 million without MSAA on phones). Rendering
   is capped at 60 fps, 30 once the cat has settled, on the low-power GPU. The
   cat is ~8 draws (the old one ~63): its skinned passes are vertex-bound, so the
