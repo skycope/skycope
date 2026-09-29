@@ -710,6 +710,7 @@ async function startAtmosphere() {
       pose: state.walker.cat,
       dt: motionPreference.matches ? 0 : dt,
       surface: state.walker.surface,
+      water: state.walker.water,
       onStep: footstep,
       wake: state.wake,
     });
@@ -853,7 +854,7 @@ function updateCat(dt) {
 // A paw lands: a print in the ground and a step you can hear.
 // Returns the surface kind (walker.surfaceKind), which the cat uses to
 // decide whether sand flies.
-function footstep(leg, x, z, heading, front, { side = 1, speed = 0 } = {}, silent = false) {
+function footstep(leg, x, z, heading, front, { side = 1, speed = 0, pace = speed } = {}, silent = false) {
   const cat = state.walker.cat;
   const ground = state.walker.surface;
   const onRock = ground(x, z) > groundHeight(x, z) + 0.03;
@@ -862,7 +863,8 @@ function footstep(leg, x, z, heading, front, { side = 1, speed = 0 } = {}, silen
   const kind = surfaceKind(x, z, onRock, depth > 0.008);
   if (kind === 5) {
     state.pawWet = 1;
-    state.wake.ring(x, z, Math.min(1, 0.25 + depth * 4 + speed * 0.3));
+    // Rings and froth as big as the splash: deeper and faster, bigger.
+    state.wake.ring(x, z, Math.min(2.5, 0.3 + depth * 6 + pace * 0.5));
     if (!silent) state.sound.splash(Math.min(1, 0.15 + depth * 3 + speed * 0.4), leg.startsWith("l") ? -0.15 : 0.15);
     return kind;
   }

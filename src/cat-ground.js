@@ -422,44 +422,65 @@ export function createPawPrints(parent) {
 // ---------------------------------------------------------------------------
 // Kicked-up sand: grains thrown from a paw as it pushes off dry sand at a
 // run, or sprayed round a landing. The GPU flies each one (drag and gravity
-// from its launch), so spawning is the only CPU work. The same system, lit
-// as foam, throws the water: splashes, drips off a lifted paw, and the
-// spray a shake flings off the coat. Drops die as they fall back into the
-// sea, and glint as they catch the sun.
+// from its launch), so spawning is the only CPU work.
+//
+// The same system, lit as foam, throws water (createSpray): the cat's
+// splashes and drips, and the surf bursting on the rocks. Each particle has
+// a real size. Drops (under ~1.5 cm) fly almost free and glint in the sun.
+// Clumps are torn-off sheets of water: they spread as they fly and turn
+// to spray. Every particle dies at its own floor: the sea it fell from, or
+// the sand a drip lands on.
 
 const GRAINS = 384;
 
-export function createDust(parent, { water = false, grains = GRAINS } = {}) {
+// Scales every splash the cat and the surf throw (the `?perf` console can
+// tune it: skycope.landscape.splash.gain).
+export const SPLASH = { gain: 1 };
+
+export function createDust(parent, { water = false, grains = GRAINS, maxPixels = 7 } = {}) {
   const GRAINS = grains;
   const geometry = new THREE.BufferGeometry();
   const origin = new Float32Array(GRAINS * 3);
   const velocity = new Float32Array(GRAINS * 3);
-  const birth = new Float32Array(GRAINS * 2).fill(-1e4);
+  // Birth time, a random seed, size (m) and the floor it dies at.
+  const birth = new Float32Array(GRAINS * 4).fill(-1e4);
   geometry.setAttribute("position", new THREE.BufferAttribute(origin, 3).setUsage(THREE.DynamicDrawUsage));
   geometry.setAttribute("velocity", new THREE.BufferAttribute(velocity, 3).setUsage(THREE.DynamicDrawUsage));
-  geometry.setAttribute("birth", new THREE.BufferAttribute(birth, 2).setUsage(THREE.DynamicDrawUsage));
+  geometry.setAttribute("birth", new THREE.BufferAttribute(birth, 4).setUsage(THREE.DynamicDrawUsage));
   const material = new THREE.ShaderMaterial({
     uniforms: {
       dustTime: { value: 0 },
       dustLight: { value: new THREE.Color(1, 1, 1) },
       dustScale: { value: 400 },
+      dustMax: { value: maxPixels },
+      dustViewport: { value: new THREE.Vector2(800, 600) },
     },
     vertexShader: /* glsl */ `
       attribute vec3 velocity;
-      attribute vec2 birth;
+      attribute vec4 birth;
       uniform float dustTime;
       uniform float dustScale;
+      uniform float dustMax;
+      uniform vec2 dustViewport;
       varying float vAlpha;
       varying float vGlint;
+      varying float vClump;
+      varying float vSeed;
+      varying vec3 vStreak;
       void main() {
         vGlint = 0.0;
+        vClump = 0.0;
+        vSeed = birth.y;
         float t = dustTime - birth.x;
         vec3 p = position;
         #ifdef WATER
-          // Drops: little drag, full gravity, gone once back in the sea.
-          float life = 0.8 + birth.y * 0.6;
-          float k = 0.8;
+          // Drops and torn sheets keep their speed (air barely slows that
+          // much water); only mist, the biggest and thinnest, hangs.
+          float size = birth.z;
+          float clump = smoothstep( 0.012, 0.045, size );
+          float k = mix( 0.45, 0.9, clump ) + 3.5 * smoothstep( 0.1, 0.2, size );
           float g = 9.8;
+          float life = mix( 1.0, 1.6, birth.y ) * mix( 1.0, 1.3, clump );
         #else
           float life = 0.55 + birth.y * 0.5;
           // Drag: velocity decays at rate k; gravity pulls the rest down.
@@ -471,13 +492,36 @@ export function createDust(parent, { water = false, grains = GRAINS } = {}) {
         p.y -= g * ( t - travel ) / k;
         vAlpha = ( t > 0.0 && t < life ) ? ( 1.0 - t / life ) * 0.8 : 0.0;
         #ifdef WATER
-          vAlpha = ( t > 0.0 && t < life && p.y > position.y - 0.03 ) ? 0.85 * ( 1.0 - smoothstep( life * 0.6, life, t ) ) : 0.0;
-          vGlint = step( 0.8, fract( birth.y * 17.3 + t * 3.0 ) );
+          bool alive = t > 0.0 && t < life && p.y > birth.w;
+          // A clump spreads into spray as it flies and thins as it goes.
+          size *= 1.0 + clump * t * 2.2;
+          vClump = clump;
+          vAlpha = alive ? mix( 0.9, 0.85, clump ) * ( 1.0 - smoothstep( life * mix( 0.6, 0.25, clump ), life, t ) ) : 0.0;
+          vGlint = step( 0.82, fract( birth.y * 17.3 + t * 3.0 ) ) * ( 1.0 - clump );
         #endif
         vec4 mv = modelViewMatrix * vec4( p, 1.0 );
         gl_Position = vAlpha > 0.0 ? projectionMatrix * mv : vec4( 0.0, 0.0, -2.0, 1.0 );
         #ifdef WATER
-          gl_PointSize = clamp( dustScale * ( 0.003 + birth.y * 0.004 ) / -mv.z, 1.0, 7.0 );
+          // True size on screen. Under a pixel, a drop fades rather than
+          // shrinking, so distant spray doesn't sparkle.
+          float px = dustScale * size / max( -mv.z, 0.05 );
+          vAlpha *= clamp( px, 0.0, 1.0 );
+          // Up close a clump is held to the largest sprite, never cropped.
+          px = min( px, dustMax );
+          // Motion blur: a flying drop is seen as a streak along its path
+          // over about one frame, which is most of what makes spray read.
+          vec3 vel = velocity * exp( -k * t );
+          vel.y -= g * ( 1.0 - exp( -k * t ) ) / k;
+          vec4 a = gl_Position;
+          vec4 b = projectionMatrix * ( modelViewMatrix * vec4( p - vel * 0.02, 1.0 ) );
+          vec2 streak = ( a.xy / a.w - b.xy / max( b.w, 1e-4 ) ) * 0.5 * dustViewport;
+          float len = min( length( streak ), dustMax - max( px, 1.0 ) );
+          float sprite = clamp( max( px, 1.0 ) + len, 1.0, dustMax );
+          gl_PointSize = sprite;
+          // The streak in sprite units (y down, as gl_PointCoord), and the
+          // drop's width; the drop's light is spread along it.
+          vStreak = vec3( normalize( streak + 1e-6 ) * vec2( 1.0, -1.0 ) * len / sprite, max( px, 1.0 ) / sprite );
+          vAlpha *= mix( sqrt( max( px, 1.0 ) / ( max( px, 1.0 ) + len ) ), 1.0, 0.35 );
         #else
           gl_PointSize = clamp( dustScale * ( 0.0018 + birth.y * 0.0015 ) / -mv.z, 1.0, 5.0 );
         #endif
@@ -486,16 +530,32 @@ export function createDust(parent, { water = false, grains = GRAINS } = {}) {
       uniform vec3 dustLight;
       varying float vAlpha;
       varying float vGlint;
+      varying float vClump;
+      varying float vSeed;
+      varying vec3 vStreak;
       void main() {
         vec2 c = gl_PointCoord * 2.0 - 1.0;
-        float a = ( 1.0 - smoothstep( 0.4, 1.0, dot( c, c ) ) ) * vAlpha;
+        float r = dot( c, c );
         #ifdef WATER
+          // Distance to the streak's centre line, in drop radii.
+          vec2 hs = vStreak.xy;
+          float h = clamp( dot( c + hs, hs ) / max( dot( hs, hs ) * 2.0, 1e-5 ), 0.0, 1.0 );
+          vec2 q = ( c + hs - 2.0 * hs * h ) / vStreak.z;
+          r = dot( q, q );
           // A clear drop: a bright rim, and now and then the sun in it.
-          float r = dot( c, c );
-          gl_FragColor = vec4( dustLight * ( 0.55 + 0.6 * smoothstep( 0.2, 0.8, r ) + vGlint * 2.5 ), a * 0.7 );
+          float drop = 1.0 - smoothstep( 0.4, 1.0, r );
+          vec3 dropColour = dustLight * ( 0.7 + 0.5 * smoothstep( 0.2, 0.8, r ) + vGlint * 2.5 );
+          // A clump: two or three soft lobes of white water, not a disc.
+          vec2 o = vec2( cos( vSeed * 40.0 ), sin( vSeed * 40.0 ) ) * 0.35;
+          float lobes = max( exp( -dot( q - o, q - o ) * 2.6 ), max( exp( -dot( q + o * 0.8, q + o * 0.8 ) * 3.2 ), exp( -r * 1.7 ) * 0.9 ) );
+          lobes *= 1.0 - smoothstep( 0.45, 1.0, r );
+          float a = mix( drop * 0.85, lobes, vClump ) * vAlpha;
+          if ( a < 0.004 ) discard;
+          gl_FragColor = vec4( mix( dropColour, dustLight * ( 0.82 + 0.18 * lobes ), vClump ), a );
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
         #else
+        float a = ( 1.0 - smoothstep( 0.4, 1.0, r ) ) * vAlpha;
         gl_FragColor = vec4( dustLight * vec3( 0.62, 0.56, 0.44 ), a );
         #endif
       }`,
@@ -506,13 +566,60 @@ export function createDust(parent, { water = false, grains = GRAINS } = {}) {
   const points = new THREE.Points(geometry, material);
   points.frustumCulled = false;
   points.renderOrder = 3;
+  // Streaks are measured in the drawing buffer's pixels.
+  if (water) points.onBeforeRender = (renderer) => renderer.getDrawingBufferSize(material.uniforms.dustViewport.value);
   parent.add(points);
   let next = 0;
-  const attrs = [geometry.attributes.position, geometry.attributes.velocity, geometry.attributes.birth];
+  // Particles written since the last upload: one upload per frame, however
+  // many bursts fired.
+  let written = 0;
+  let from = 0;
+  // When the last particle dies: with nothing in the air the draw is
+  // skipped altogether (most of the time, away from the water).
+  let lastAlive = -1e4;
+  // (Drawn on the first frame regardless, so the shader compiles up front
+  // rather than on the first splash.)
+  let compiled = false;
+  const longest = water ? 2.2 : 1.1;
+  const attrs = [[geometry.attributes.position, 3], [geometry.attributes.velocity, 3], [geometry.attributes.birth, 4]];
+  const flush = () => {
+    if (!written) return;
+    const n = Math.min(written, GRAINS);
+    const first = from;
+    for (const [attr, size] of attrs) {
+      if (n === GRAINS) attr.addUpdateRange(0, GRAINS * size);
+      else if (first + n <= GRAINS) attr.addUpdateRange(first * size, n * size);
+      else {
+        attr.addUpdateRange(first * size, (GRAINS - first) * size);
+        attr.addUpdateRange(0, (first + n - GRAINS) * size);
+      }
+      attr.needsUpdate = true;
+    }
+    written = 0;
+  };
+  const add = (time, x, y, z, vx, vy, vz, size, floor) => {
+    if (!written) from = next;
+    origin[next * 3] = x;
+    origin[next * 3 + 1] = y;
+    origin[next * 3 + 2] = z;
+    velocity[next * 3] = vx;
+    velocity[next * 3 + 1] = vy;
+    velocity[next * 3 + 2] = vz;
+    birth[next * 4] = time;
+    lastAlive = Math.max(lastAlive, time + longest);
+    birth[next * 4 + 1] = Math.random();
+    birth[next * 4 + 2] = size;
+    birth[next * 4 + 3] = floor;
+    next = (next + 1) % GRAINS;
+    written++;
+  };
   return {
     points,
     // light: a brightness, or (water) the foam's colour.
     update(time, light, pixelScale) {
+      flush();
+      points.visible = !compiled || time < lastAlive;
+      compiled = true;
       material.uniforms.dustTime.value = time;
       if (light.isColor) material.uniforms.dustLight.value.copy(light);
       else material.uniforms.dustLight.value.setRGB(light, light, light * 0.97);
@@ -520,29 +627,57 @@ export function createDust(parent, { water = false, grains = GRAINS } = {}) {
     },
     // A spray of n grains from (x, y, z), thrown along (dx, dz) and up.
     spray(time, x, y, z, dx, dz, n, speed, up = 1) {
-      const first = next;
       n = Math.min(n, GRAINS);
       for (let i = 0; i < n; i++) {
         const a = Math.random() * Math.PI * 2;
         const spread = Math.random() * 0.6;
-        origin.set([x + Math.cos(a) * 0.01, y + 0.004, z + Math.sin(a) * 0.01], next * 3);
         const s = speed * (0.4 + Math.random() * 0.8);
-        velocity.set([(dx + Math.cos(a) * spread) * s, s * (0.5 + Math.random() * 0.9) * up, (dz + Math.sin(a) * spread) * s], next * 3);
-        birth.set([time, Math.random()], next * 2);
-        next = (next + 1) % GRAINS;
-      }
-      for (const [attr, size] of [[attrs[0], 3], [attrs[1], 3], [attrs[2], 2]]) {
-        if (next > first) attr.addUpdateRange(first * size, (next - first) * size);
-        else {
-          attr.addUpdateRange(first * size, (GRAINS - first) * size);
-          if (next) attr.addUpdateRange(0, next * size);
-        }
-        attr.needsUpdate = true;
+        add(time, x + Math.cos(a) * 0.01, y + 0.004, z + Math.sin(a) * 0.01, (dx + Math.cos(a) * spread) * s, s * (0.5 + Math.random() * 0.9) * up, (dz + Math.sin(a) * spread) * s, 0, -1e4);
       }
     },
+    // One particle, fully specified (water: size in metres, dies below floor).
+    add,
     dispose() {
       geometry.dispose();
       material.dispose();
     },
+  };
+}
+
+// Water thrown into the air, for the cat and the surf on the rocks.
+//   burst({ x, y, z, n, dir: [dx, dz], spread, speed: [lo, hi], up: [lo, hi],
+//           size: [lo, hi], radius, carry: [vx, vz], floor, delay, arc })
+// throws n particles from a disc of radius round (x, y, z): horizontally
+// along dir (a unit vector, or [0, 0] for all round) with angular spread
+// (radians either side; π = all round), at speeds and upward speeds drawn
+// from the ranges, sizes drawn log-uniformly, plus a carried velocity (the
+// body's own), launched over `delay` seconds rather than all in one frame.
+export function createSpray(parent, { grains = 2048, maxPixels = 64 } = {}) {
+  const system = createDust(parent, { water: true, grains, maxPixels });
+  const range = ([lo, hi], u = Math.random()) => lo + (hi - lo) * u;
+  return {
+    points: system.points,
+    update: system.update,
+    burst(time, { x, y, z, n, dir = [0, 0], spread = Math.PI, speed = [0.3, 1], up = [0.5, 1.5], size = [0.004, 0.012], radius = 0.02, carry = [0, 0], floor = y - 0.02, delay = 0 }) {
+      n = Math.round(n);
+      const base = dir[0] || dir[1] ? Math.atan2(dir[1], dir[0]) : 0;
+      const logLo = Math.log(size[0]);
+      const logHi = Math.log(size[1]);
+      for (let i = 0; i < n; i++) {
+        const a = dir[0] || dir[1] ? base + (Math.random() * 2 - 1) * spread : Math.random() * Math.PI * 2;
+        const ca = Math.cos(a);
+        const sa = Math.sin(a);
+        const r = radius * Math.sqrt(Math.random());
+        const s = range(speed);
+        system.add(
+          time + Math.random() * delay,
+          x + ca * r, y + 0.004, z + sa * r,
+          ca * s + carry[0], range(up), sa * s + carry[1],
+          Math.exp(range([logLo, logHi])),
+          floor,
+        );
+      }
+    },
+    dispose: system.dispose,
   };
 }

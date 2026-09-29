@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { createForest } from "./forest.js";
 import { createFauna } from "./fauna.js";
-import { createCat } from "./cat.js";
+import { createCat, SPLASH } from "./cat.js";
 import { CAT_SKY } from "./cat-ground.js";
 import { CAT_SEA } from "./cat-coat.js";
 import { createCritters } from "./critters.js";
@@ -68,7 +68,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   camera.position.set(6, 4.5, 0);
   const land = new THREE.Group();
   land.scale.z = -1;
-  const forest = createForest(land, seed);
+  const forest = createForest(land, seed, { light });
   const fauna = createFauna(land, seed);
   const cat = createCat(land, { light });
   const critters = createCritters(land, seed, forest.obstacles.flowers);
@@ -160,8 +160,11 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     renderer: perf ? renderer : null,
     camera: perf ? camera : null,
     occlusion: perf ? occlusion : null,
+    surf: perf ? forest.surf : null,
     obstacles: forest.obstacles,
     shoreRocks: forest.shoreRocks,
+    // `?perf` QA: scales every splash the cat and the surf throw.
+    splash: SPLASH,
     landField: forest.landField,
     // A screen point (−1…1) to a ray in coast metres, for tap-to-walk.
     pick(x, y) {
@@ -173,7 +176,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         direction: [direction.x, direction.y, -direction.z],
       };
     },
-    render({ celestial, cover, time, wind, rain = 0, view: flight, lighting, pose, dt, surface, onStep, wake = null }) {
+    render({ celestial, cover, time, wind, rain = 0, view: flight, lighting, pose, dt, surface, water = null, onStep, wake = null }) {
       const pointer = [0.5, 0.5];
       const night = THREE.MathUtils.smoothstep(celestial.scene, 1, 2);
       forest.updateWind(time, wind);
@@ -247,6 +250,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         wind,
         rain,
       }, wake);
+      if (water) forest.updateSurf(time, [flight.x, flight.y, flight.z], renderer.domElement.height / (2 * Math.tan((camera.fov * Math.PI) / 360)), water);
       // Plants part round the cat as it walks through them.
       forest.pushAt(pose.x, pose.z, pose.air > 0.05 ? 0 : 1);
       interest = critters.update(dt, time, pose, night);

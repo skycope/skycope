@@ -2,7 +2,9 @@ import * as THREE from "three";
 import { CAT_SCALE, PAW_LIFT, STAND_HEIGHT, TAIL_BONES, TAIL_LENGTH, TAIL_ROOT, createRig, neutralFoot, solveLeg } from "./cat-rig.js";
 import { buildCatGeometry } from "./cat-body.js";
 import { bakeShellColours, catUniforms, coatMaterial, ghostMaterial, CAT_SEA } from "./cat-coat.js";
-import { createContactShadow, createDust, createPawPrints } from "./cat-ground.js";
+import { createContactShadow, createDust, createPawPrints, createSpray, SPLASH } from "./cat-ground.js";
+
+export { SPLASH };
 
 // A brown mackerel tabby. One seamless skinned body (cat-body.js) on a
 // skeleton with a flexing spine, rolling shoulder blades, three-bone legs,
@@ -154,7 +156,9 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
   contact.local.catScale.value = S;
   const prints = createPawPrints(parent);
   const dust = createDust(parent);
-  const splash = createDust(parent, { water: true, grains: light ? 160 : 256 });
+  // The phone gets a smaller pool, smaller clumps on screen and fewer drops.
+  const splash = createSpray(parent, { grains: light ? 2560 : 6144, maxPixels: light ? 40 : 72 });
+  const budget = light ? 0.55 : 1;
 
   const temp = new THREE.Vector3();
   const local = new THREE.Vector3();
@@ -202,6 +206,11 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
     pawWet: 0,
     // The paddle stroke's phase (0…1).
     stroke: 0,
+    // Bow spray owed (particles), and seconds since the belly was last in
+    // the water (for the water streaming off afterwards).
+    bow: 0,
+    drip: 0,
+    dunked: 99,
   };
   const tailP = Array.from({ length: TAIL_BONES + 1 }, () => new THREE.Vector3());
   const tailN = Array.from({ length: TAIL_BONES + 1 }, () => new THREE.Vector3(1, 0, 0));
@@ -242,6 +251,34 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       const effort = clamp(speed / 0.7, 0, 1);
       state.stroke = (state.stroke + lerp(1.15, 2.1, effort) * step * smooth(swim, 0.02, 0.3)) % 1;
       const strokeC = state.stroke * Math.PI * 2;
+      // Splashes. Each scales with how fast the cat moves (m/s), how deep
+      // the water is where it strikes (m) and, once out of the sea, how wet
+      // its coat is and how long since it left: a paw strike throws a crown
+      // of drops and torn sheets, a paw lifted out flicks water after it, a
+      // chest ploughing through the shallows throws a bow spray to both
+      // sides, and a soaked cat streams water from belly and legs as it comes
+      // out. Water thrown forward keeps some of the body's speed.
+      const g = SPLASH.gain * budget;
+      const fwd = [sin, cos];
+      const level = inWater ? pose.waterY : -1e4;
+      const strike = (px, pz, depth) => {
+        // Ankle-deep to belly-deep.
+        const deep = clamp(depth / 0.08, 0.15, 2.5);
+        const carry = [sin * speed * 0.35, cos * speed * 0.35];
+        const at = { x: px, y: level, z: pz, dir: fwd, carry, floor: level - 0.01, radius: 0.03 };
+        splash.burst(time, { ...at, n: g * (10 + 40 * speed) * Math.sqrt(deep), spread: 1.7, speed: [0.12 + 0.1 * speed, 0.4 + 0.45 * speed], up: [0.5 + 0.3 * speed, 0.9 + 0.6 * speed + 0.25 * deep], size: [0.005, 0.016] });
+        // Sheets torn off by the leg, thicker the deeper and faster it goes.
+        splash.burst(time, { ...at, n: g * (3 + 10 * speed) * Math.min(deep, 1.6), spread: 1.2, speed: [0.1 + 0.1 * speed, 0.3 + 0.3 * speed], up: [0.35 + 0.25 * speed, 0.7 + 0.5 * speed + 0.2 * deep], size: [0.025, 0.07 + 0.02 * speed], delay: 0.04 });
+        // The crown: white water heaped up round the leg where it went in.
+        splash.burst(time, { ...at, n: g * (3 + 5 * speed) * Math.min(deep, 1.5), spread: 2.2, speed: [0.05, 0.2 + 0.15 * speed], up: [0.2, 0.45 + 0.3 * speed], size: [0.07, 0.13 + 0.04 * speed], radius: 0.04 });
+      };
+      // A paw pulled out of the water drags a little up with it and, at a
+      // run, flicks it back off the toes.
+      const pullOut = (px, pz) => {
+        const at = { x: px, y: level, z: pz, carry: [sin * speed * 0.5, cos * speed * 0.5], floor: level - 0.01, radius: 0.02 };
+        splash.burst(time, { ...at, n: g * (2 + 9 * speed), dir: [-sin, -cos], spread: 1.1, speed: [0.05, 0.1 + 0.3 * speed], up: [0.25 + 0.2 * speed, 0.5 + 0.45 * speed], size: [0.005, 0.014] });
+        if (speed > 1) splash.burst(time, { ...at, n: g * 3 * smooth(speed, 1, 3), dir: [-sin, -cos], spread: 0.7, speed: [0.2, 0.2 + 0.25 * speed], up: [0.4 + 0.2 * speed, 0.6 + 0.35 * speed], size: [0.02, 0.05] });
+      };
       uniforms.catWater.value.set(inWater ? pose.waterY : -100, pose.waterSlope?.[0] ?? 0, -(pose.waterSlope?.[1] ?? 0), inWater ? 1 : 0);
       uniforms.catWaterAt.value.set(x, -z);
       uniforms.catSoak.value = pose.soak ?? -1;
@@ -492,10 +529,11 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
             // Touchdown: a print, a footstep, perhaps a spray of sand.
             leg.stance = true;
             if (amp > 0.25 && swim < 0.5) {
-              const kind = onStep(spec.name, leg.plant.x, leg.plant.z, heading, spec.front, { side: spec.side, speed: gallop + trot * 0.4 });
+              const kind = onStep(spec.name, leg.plant.x, leg.plant.z, heading, spec.front, { side: spec.side, speed: gallop + trot * 0.4, pace: speed });
               if (kind === 2 && speed > 1.3) dust.spray(time, leg.plant.x, ground(leg.plant.x, leg.plant.z), leg.plant.z, -sin, -cos, Math.round(4 + speed * 3), 0.6 + speed * 0.35);
-              // Bounding through the shallows throws water ahead and up.
-              if (kind === 5 && speed > 0.6) splash.spray(time, leg.plant.x, pose.waterY, leg.plant.z, sin * 0.6, cos * 0.6, Math.round(3 + speed * 5), 0.7 + speed * 0.45);
+              // Every paw set down in the shallows splashes, more the faster
+              // and deeper it goes.
+              if (kind === 5 && inWater) strike(leg.plant.x, leg.plant.z, pose.waterY - ground(leg.plant.x, leg.plant.z));
               if (spec.front) leg.lastPrint = { x: leg.plant.x, z: leg.plant.z };
             }
           }
@@ -568,8 +606,10 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
             const ahead = 0.2 * S;
             const px = x + sin * ahead + cos * spec.side * 0.04 * S;
             const pz = z + cos * ahead - sin * spec.side * 0.04 * S;
-            wake.ring(px, pz, 0.25 + effort * 0.35);
-            if (effort > 0.5) splash.spray(time, px, pose.waterY, pz, sin * 0.3, cos * 0.3, 2, 0.5);
+            wake.ring(px, pz, 0.35 + effort * 0.5);
+            // A cat swims quietly, head up: a few drops, more when it hurries.
+            splash.burst(time, { x: px, y: level, z: pz, n: g * (2 + 9 * effort), dir: fwd, spread: 1.4, speed: [0.05, 0.2 + 0.3 * effort], up: [0.2, 0.45 + 0.5 * effort], size: [0.005, 0.014], floor: level - 0.01 });
+            if (effort > 0.4) splash.burst(time, { x: px, y: level, z: pz, n: g * 2 * effort, dir: fwd, spread: 1, speed: [0.05, 0.25], up: [0.2, 0.5], size: [0.02, 0.045], floor: level - 0.01 });
           }
           leg.lastPhase = phase;
         }
@@ -611,10 +651,8 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
         const pawDepth = inWater ? pose.waterY - p.y : -1;
         if (wake) wake.paw(legIndex, p.x, p.z, swim > 0.5 ? 0 : clamp(pawDepth, 0, 0.3));
         const under = pawDepth > 0;
-        if (leg.under !== undefined && under !== leg.under && inWater && swim < 0.5 && pose.air === 0) {
-          if (under && speed > 0.25) splash.spray(time, p.x, pose.waterY, p.z, sin * 0.4, cos * 0.4, Math.round(2 + speed * 3), 0.45 + speed * 0.3);
-          else if (!under) splash.spray(time, p.x, pose.waterY + 0.01, p.z, 0, 0, 2, 0.15, 0.3);
-        }
+        // (A paw going in splashes at touchdown, above.)
+        if (leg.under && !under && inWater && swim < 0.5 && pose.air === 0) pullOut(p.x, p.z);
         leg.under = under;
       }
 
@@ -751,8 +789,62 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
         const cx = x + sin * along;
         const cz = z + cos * along;
         const side = shakeWave(0) > 0 ? 1 : -1;
-        splash.spray(time, cx + cos * side * 0.07 * S, height + 0.02 * S, cz - sin * side * 0.07 * S, cos * side * 1.2, -sin * side * 1.2, light.eye ? 3 : 2, 1.3, 0.6);
+        const sx = cx + cos * side * 0.07 * S;
+        const sz = cz - sin * side * 0.07 * S;
+        splash.burst(time, { x: sx, y: height + 0.02 * S, z: sz, n: g * 9 * Math.max(shakeHead, shakeBody), dir: [cos * side, -sin * side], spread: 0.6, speed: [0.7, 1.9], up: [0.2, 1.1], size: [0.003, 0.011], radius: 0.06 * S, floor: Math.max(level, ground(sx, sz)) });
       }
+      // Ploughing: the chest through the shallows throws a bow spray to both
+      // sides, a sheet at speed.
+      const depth = pose.water ?? 0;
+      if (inWater && swim < 0.5 && pose.air === 0) {
+        const plough = smooth(depth, 0.03, 0.2) * smooth(speed, 0.2, 2);
+        state.bow += g * 120 * plough * speed * step;
+        const n = Math.floor(state.bow);
+        if (n > 0) {
+          state.bow -= n;
+          for (const side of [-1, 1]) {
+            const bx = x + sin * 0.13 * S + cos * side * 0.045 * S;
+            const bz = z + cos * 0.13 * S - sin * side * 0.045 * S;
+            const at = { x: bx, y: level, z: bz, dir: [sin * 0.6 + cos * side * 0.8, cos * 0.6 - sin * side * 0.8], carry: [sin * speed * 0.55, cos * speed * 0.55], floor: level - 0.01, radius: 0.03 };
+            const up = [0.3 + 0.2 * speed + depth, 0.6 + 0.45 * speed + depth * 2];
+            splash.burst(time, { ...at, n: n * 0.35, spread: 0.6, speed: [0.2 + 0.15 * speed, 0.4 + 0.4 * speed], up, size: [0.005, 0.015], delay: step });
+            splash.burst(time, { ...at, n: n * 0.15, spread: 0.45, speed: [0.2 + 0.1 * speed, 0.35 + 0.3 * speed], up, size: [0.03, 0.08], delay: step });
+            splash.burst(time, { ...at, n: n * 0.05, spread: 0.5, speed: [0.1, 0.3 + 0.2 * speed], up: [0.2, 0.4 + 0.3 * speed + depth], size: [0.08, 0.16], delay: step });
+          }
+        }
+      } else state.bow = 0;
+      // Coming out: water streams off the belly and legs, fast at first,
+      // then a slow drip while the coat is soaked. Drips keep the cat's
+      // speed and land on the sea or the sand below.
+      const belly = height - 0.07 * S;
+      state.dunked = inWater && pose.waterY > belly ? 0 : state.dunked + step;
+      const wetness = smooth(pose.soak ?? -1, -0.2, 0.05);
+      if (wetness > 0 && state.dunked > 0 && pose.sit < 0.5) {
+        state.drip += g * wetness * (140 * Math.exp(-state.dunked / 0.9) + 10 * Math.exp(-state.dunked / 8)) * step;
+        const carry = [sin * speed * 0.95, cos * speed * 0.95];
+        for (; state.drip >= 1; state.drip--) {
+          let dx, dy, dz;
+          if (Math.random() < 0.7) {
+            // Under the belly and chest.
+            const u = (Math.random() * 0.3 - 0.14) * S;
+            const v = (Math.random() - 0.5) * 0.1 * S;
+            dx = x + sin * u + cos * v;
+            dz = z + cos * u - sin * v;
+            dy = belly + Math.random() * 0.02 * S;
+          } else {
+            // Down a leg.
+            const leg = rig.legs[Math.floor(Math.random() * 4)].pawWorld;
+            if (!leg) continue;
+            dx = leg.x;
+            dz = leg.z;
+            dy = lerp(leg.y, belly, Math.random());
+          }
+          const floor = Math.max(level, ground(dx, dz));
+          if (dy <= floor) continue;
+          const big = Math.random() < 0.12;
+          splash.burst(time, { x: dx, y: dy, z: dz, n: 1, speed: [0, 0.05], up: [-0.1, 0.05], carry, size: big ? [0.015, 0.025] : [0.004, 0.01], floor, delay: step });
+        }
+      } else state.drip = 0;
       prints.update(time, light.night ?? 0);
       dust.update(time, 0.35 + direct * 0.9 + (1 - light.night) * 0.2, light.pixelScale ?? 500);
       splash.update(time, CAT_SEA.foam.value, light.pixelScale ?? 500);
@@ -769,14 +861,16 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
         }
       }
     },
-    // Plunging into the water: a crown of spray round the body.
+    // Plunging into the water: a crown of spray round the body and a
+    // column thrown up where it went in.
     splash(time, strength, level) {
       if (!Number.isFinite(level)) return;
       const p = root.position;
-      for (let k = 0; k < 8; k++) {
-        const a = (k / 8) * Math.PI * 2 + Math.random() * 0.5;
-        splash.spray(time, p.x + Math.cos(a) * 0.12 * S, level, p.z + Math.sin(a) * 0.12 * S, Math.cos(a), Math.sin(a), Math.round(3 + strength * 5), 0.8 + strength * 1.2);
-      }
+      const g = SPLASH.gain * budget;
+      const at = { x: p.x, y: level, z: p.z, radius: 0.14 * S, floor: level - 0.01 };
+      splash.burst(time, { ...at, n: g * (50 + 130 * strength), speed: [0.4, 0.9 + 1.2 * strength], up: [0.8, 1.6 + 1.8 * strength], size: [0.005, 0.018] });
+      splash.burst(time, { ...at, n: g * (12 + 30 * strength), speed: [0.3, 0.6 + 0.8 * strength], up: [0.6, 1.2 + 1.4 * strength], size: [0.03, 0.09], delay: 0.05 });
+      splash.burst(time, { ...at, radius: 0.05 * S, n: g * (8 + 20 * strength), speed: [0, 0.2], up: [1.2, 1.8 + 1.6 * strength], size: [0.03, 0.08], delay: 0.12 });
     },
     // Renders the cat's shadow map. Called by the landscape before the
     // frame.

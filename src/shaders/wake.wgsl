@@ -92,7 +92,8 @@ export fn cat_sea(p: vec2f, pixel: f32, time: f32, wake: texture_2d<f32>) -> Roc
     bubbles = max(bubbles, cling * 0.75);
     // Bow wave: water heaped before the chest, drawn down along the flanks.
     let ahead = smoothstep(-0.3, 0.6, (u - half * 0.4) / (radius + 0.1)) * 1.6 - 0.6;
-    let bump = exp(-out_edge / 0.08) * min(speed, 1.0) * 0.018 * body.w * ahead;
+    // It grows with speed: a trot through the shallows heaps water high.
+    let bump = exp(-out_edge / (0.08 + 0.03 * min(speed, 2.0))) * min(speed, 2.2) * 0.016 * body.w * ahead;
     let dir = (fwd * off.x + side * off.y) / max(length(off), 0.001);
     out.height += bump;
     out.slope -= dir * bump / 0.08 * step(0.0, edge);
@@ -102,17 +103,33 @@ export fn cat_sea(p: vec2f, pixel: f32, time: f32, wake: texture_2d<f32>) -> Roc
     out.edge = edge;
   }
 
-  // Legs standing in the shallows: a collar and a little V each.
+  // Legs standing in the shallows: a collar of white water where each cuts
+  // the surface, water heaped in front of it and drawn down behind, a
+  // furrow of froth trailing it at speed, and a little V of ripples.
+  let heading = vec2f(sin(body.z), cos(body.z));
+  let across = vec2f(heading.y, -heading.x);
+  let pace = min(speed, 2.5);
   for (var j = 0; j < 4; j++) {
     let paw = textureLoad(wake, vec2i(PAWS + j, 0), 0);
     if (paw.z <= 0.005) { continue; }
     let q = p - paw.xy;
-    let edge = length(q) - 0.022;
-    if (edge > 0.6) { continue; }
-    let cling = exp(-max(edge, 0.0) / (0.015 + speed * 0.02)) * smoothstep(0.0, 0.03, paw.z);
-    foam = max(foam, cling * 0.45);
-    bubbles = max(bubbles, cling * 0.5);
-    ripple(&out, q, 0.05 + fract(time * 2.3 + f32(j) * 0.37) * 0.3, 0.05, 0.0015 * min(paw.z * 20.0, 1.0), 55.0, pixel);
+    let edge = length(q) - 0.025;
+    if (edge > 0.9) { continue; }
+    let wet = smoothstep(0.0, 0.03, paw.z);
+    let cling = exp(-max(edge, 0.0) / (0.02 + pace * 0.03)) * wet;
+    foam = max(foam, cling * (0.55 + 0.25 * min(pace, 1.0)));
+    bubbles = max(bubbles, cling * 0.7);
+    // Behind the leg (u > 0), a froth furrow widening as it goes.
+    let u = -dot(q, heading);
+    let v = dot(q, across);
+    let w = 0.02 + max(u, 0.0) * 0.28;
+    let furrow = exp(-v * v / (w * w)) * exp(-max(u, 0.0) / (0.06 + 0.2 * pace)) * smoothstep(-0.02, 0.03, u) * smoothstep(0.2, 1.0, pace) * wet;
+    foam = max(foam, furrow * 0.7);
+    bubbles = max(bubbles, furrow * 0.8);
+    let heap = exp(-max(edge, 0.0) / 0.05) * pace * 0.008 * wet * clamp(-u / 0.04, -1.0, 1.0);
+    out.height += heap;
+    out.slope -= normalize(q + 1e-5) * heap / 0.05 * step(0.0, edge);
+    ripple(&out, q, 0.05 + fract(time * 2.3 + f32(j) * 0.37) * 0.3, 0.05, (0.0015 + 0.003 * pace) * min(paw.z * 20.0, 1.0), 55.0, pixel);
   }
 
   // Splashes: rings running outward and a burst of froth.
@@ -123,10 +140,10 @@ export fn cat_sea(p: vec2f, pixel: f32, time: f32, wake: texture_2d<f32>) -> Roc
     if (age > 3.0) { continue; }
     let q = p - s.xy;
     let front = 0.4 * age;
-    ripple(&out, q, front, 0.04 + 0.1 * age, 0.007 * s.w * exp(-age / 1.1) * sqrt(0.1 / (0.1 + front)), 50.0, pixel);
-    let spread = 0.04 + 0.2 * sqrt(age) * (0.5 + s.w * 0.5);
+    ripple(&out, q, front, 0.04 + 0.1 * age, 0.009 * s.w * exp(-age / 1.1) * sqrt(0.1 / (0.1 + front)), 50.0, pixel);
+    let spread = 0.05 + 0.22 * sqrt(age) * (0.5 + s.w * 0.5);
     let r2 = dot(q, q) / (spread * spread);
-    let burst = exp(-age / 0.8) * min(s.w, 1.2) * exp(-r2);
+    let burst = exp(-age / (0.7 + 0.3 * min(s.w, 2.0))) * min(s.w, 1.2) * exp(-r2);
     // Froth pushed out to the first crest as it leaves.
     let rim = exp(-age / 0.5) * s.w * exp(-pow((sqrt(dot(q, q)) - front) / 0.04, 2.0)) * 0.5;
     foam = max(foam, max(burst * 0.9, rim));

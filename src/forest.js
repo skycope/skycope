@@ -29,7 +29,7 @@ import {
 // All assets are built from geometry. No downloaded or generated images/textures.
 // Materials share one uniform set: three wind bands in the vertex stage, and
 // translucency, sun glints and depth-graded fog in the fragment stage.
-export function createForest(scene, seed) {
+export function createForest(scene, seed, { light = false } = {}) {
   const shared = {
     breezeTime: { value: 0 },
     breezeStrength: { value: 0.4 },
@@ -59,7 +59,7 @@ export function createForest(scene, seed) {
   const random = seededRandom(seed);
   const { wood: trunks, leaves, clusters, flowers, turf, fronds, succulents, needles, reeds, layout } = createVegetation(seed);
   const rocks = addRocks(scene, random, shared);
-  createSurf(scene, rocks, shared);
+  const surf = createSurf(scene, rocks, shared, { light });
   const obstacles = obstaclesFor(layout, rocks);
   addGround(scene, shared, occludersFor(layout, rocks), coverFor(layout, turf));
   // Sky occlusion for every plant part the generator did not bake one for:
@@ -197,6 +197,11 @@ export function createForest(scene, seed) {
     shoreRocks: shoreRockData(rocks),
     // The island's top surface for reflections in the sea (land-field.js).
     landField: landFieldData(clusters),
+    surf,
+    // The surf's spray off the rocks (surf.js), each frame.
+    updateSurf(time, eye, pixelScale, water) {
+      surf.update(time, eye, pixelScale, water);
+    },
     updateWind(time, wind) {
       shared.breezeTime.value = time;
       shared.swell.value.fromArray(swellUniform(seed, wind));

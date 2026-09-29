@@ -71,7 +71,7 @@ export function createWake() {
       let reach = 0.6;
       for (const t of trail) reach = Math.max(reach, Math.hypot(t[0] - body.x, t[1] - body.z) + 0.2 + 0.3 * Math.min(now - t[2], 5) + body.radius * 4);
       for (const r of rings) reach = Math.max(reach, Math.hypot(r[0] - body.x, r[1] - body.z) + 0.3 + 0.4 * (now - r[2]));
-      for (const p of paws) if (p[2] > 0.005) reach = Math.max(reach, Math.hypot(p[0] - body.x, p[1] - body.z) + 0.2);
+      for (const p of paws) if (p[2] > 0.005) reach = Math.max(reach, Math.hypot(p[0] - body.x, p[1] - body.z) + 0.2 + 0.25 * Math.min(body.speed, 2.5));
       data.set([body.x, body.z, reach, rings.length], 8);
       trail.forEach((t, i) => data.set(t, (3 + i) * 4));
       paws.forEach((p, i) => data.set([p[0], p[1], p[2], 0], (PAWS + i) * 4));
