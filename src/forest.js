@@ -10,7 +10,8 @@ import {
 } from "./terrain.js";
 import { seededRandom } from "./random.js";
 import { createVegetation } from "./vegetation.js";
-import { createSurf } from "./surf.js";
+import { createSurf, SWASH_GLSL } from "./surf.js";
+import { swellUniform } from "./swell.js";
 import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
 
 // All assets are built from geometry. No downloaded or generated images/textures.
@@ -26,6 +27,8 @@ export function createForest(scene, seed) {
     sunGlow: { value: 1 },
     // Lambert-lit white (sun/π + sky), set from the shared lighting model.
     foamLight: { value: new THREE.Color(1, 1, 1) },
+    // The breaking swell train (src/swell.js), for swash on sand and rocks.
+    swell: { value: new THREE.Vector4(...swellUniform(seed, [0, 0])) },
   };
   const random = seededRandom(seed);
   const { wood: trunks, leaves, clusters, flowers, turf, layout } = createVegetation(seed);
@@ -113,6 +116,7 @@ export function createForest(scene, seed) {
     obstacles,
     updateWind(time, wind) {
       shared.breezeTime.value = time;
+      shared.swell.value.fromArray(swellUniform(seed, wind));
       const speed = Math.hypot(wind[0], wind[1]);
       shared.breezeStrength.value = Math.min(1.5, 0.15 + speed / 8);
       if (speed > 0.5)
@@ -350,6 +354,31 @@ if ( nearDetail > 0.01 ) {
 }
 float detailHeight = grain * 0.004 + ripple * 0.012 * dry + mottled * 0.03 * ( 1.0 - wet ) + rocky * strata * 0.08 + clutterHeight;
 float detailRoughness = mix( mix( mix( 0.95, 0.9, rocky ), 0.28, wet ), 0.35, clutterGloss );
+// The swash (surf.js, on the sea's clock): each bore's film runs up the sand
+// and drains back, froth at its front and lace left in the backwash, little
+// bubbles popping in it, the swash mark at the top, and sand that stays dark
+// and glossy for a few seconds as it drains. The film mirrors the sky.
+float swashFilm = 0.0;
+float swashCover = 0.0;
+if ( inland < 4.5 ) {
+  float along = shoreAlong( coast );
+  vec4 sw = swash( along, inland, breezeTime );
+  swashFilm = sw.x;
+  float pixel = length( fwidth( coast ) );
+  float lace = swashLace( vec2( along * 0.7, inland ), pixel );
+  swashCover = smoothstep( 1.0 - sw.y - 0.08, 1.0 - sw.y + 0.14, lace ) * min( 1.0, sw.y * 2.5 );
+  // Bubbles ride in the froth and just behind the front, and dot the film.
+  vec2 bubbles = swashBubbles( coast, breezeTime, pixel ) * smoothstep( 0.04, 0.35, sw.y + sw.x * 0.12 );
+  diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.55, 0.56, 0.55 ), sw.z * ( 1.0 - wet ) * 0.85 );
+  diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.66, 0.76, 0.76 ), swashFilm * smoothstep( 0.0, 0.25, sw.w ) );
+  swashCover = max( swashCover, bubbles.x );
+  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.88, 0.9, 0.92 ), swashCover );
+  detailHeight *= 1.0 - swashFilm * 0.9;
+  detailHeight += swashCover * 0.004;
+  detailRoughness = mix( detailRoughness, 0.3, sw.z );
+  detailRoughness = mix( detailRoughness, 0.04, swashFilm * ( 1.0 - swashCover ) );
+  detailRoughness = mix( detailRoughness, 0.02, bubbles.y );
+}
 `;
 
 const ROCK_COLOUR_GLSL = /* glsl */ `
@@ -488,6 +517,17 @@ function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = 
     shader.fragmentShader =
       "uniform vec3 sunDirView;\nuniform vec3 sunTint;\nuniform float sunGlow;\nuniform float breezeTime;\nvarying float vGlint;\n" +
       shader.fragmentShader.replace("#include <fog_fragment>", FOG_GLSL);
+    if (ground)
+      // Sky mirrored in the swash film (there is no environment map), by
+      // Fresnel, from the horizon colour the fog already carries.
+      shader.fragmentShader = shader.fragmentShader.replace(
+        "#include <emissivemap_fragment>",
+        `#include <emissivemap_fragment>
+        #ifdef USE_FOG
+          float filmFresnel = 0.02 + 0.98 * pow( 1.0 - max( dot( normal, normalize( vViewPosition ) ), 0.0 ), 5.0 );
+          totalEmissiveRadiance += fogColor * filmFresnel * swashFilm * ( 1.0 - swashCover ) * 0.9;
+        #endif`,
+      );
     if (ground || rock || bark) {
       shader.vertexShader = shader.vertexShader
         .replace(
@@ -507,7 +547,7 @@ function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = 
         );
       shader.fragmentShader = shader.fragmentShader
         .replace("uniform float breezeTime;\n", "")
-        .replace("void main() {", DETAIL_GLSL + (ground ? "varying vec3 vGroundMask;\n" : "") + "\nvoid main() {")
+        .replace("void main() {", DETAIL_GLSL + (ground ? "varying vec3 vGroundMask;\n" + SWASH_GLSL : "") + "\nvoid main() {")
         .replace("#include <color_fragment>", ground ? GROUND_COLOUR_GLSL : rock ? ROCK_COLOUR_GLSL : BARK_COLOUR_GLSL)
         .replace("#include <roughnessmap_fragment>", "#include <roughnessmap_fragment>\n  roughnessFactor = detailRoughness;")
         .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>

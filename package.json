@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "check:shader": "vgpu check --require-validation src/shaders/sky-table.wgsl src/shaders/clouds.wgsl src/shaders/sky.wgsl src/shaders/water.wgsl",
+    "check:shader": "vgpu check --require-validation src/shaders/sky-table.wgsl src/shaders/clouds.wgsl src/shaders/sky.wgsl src/shaders/water.wgsl src/shaders/waves.wgsl src/shaders/foam.wgsl",
     "test": "npm run test:data && npm run check:shader && npm run build",
     "test:data": "node --test",
     "render:sky": "node scripts/render-sky.mjs"

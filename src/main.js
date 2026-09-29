@@ -5,6 +5,7 @@ import {
   init,
   pingPong,
   sampler,
+  storage,
   surface,
   target,
 } from "vgpu";
@@ -12,6 +13,10 @@ import skyTableShader from "./shaders/sky-table.wgsl";
 import cloudShader from "./shaders/clouds.wgsl";
 import skyShader from "./shaders/sky.wgsl";
 import waterShader from "./shaders/water.wgsl";
+import wavesShader from "./shaders/waves.wgsl";
+import foamShader from "./shaders/foam.wgsl";
+import { createWaveModes } from "./wave-modes.js";
+import { swellUniform } from "./swell.js";
 import { createCloudNoise } from "./cloud-noise.js";
 import { createStarAtlas, createStarCatalog } from "./stars.js";
 import { sceneSeed } from "./random.js";
@@ -107,6 +112,11 @@ const state = {
   cloudTarget: null,
   skyFrames: 0,
   previousView: null,
+  // The sea: wind-sea cascades, recomputed every frame, and the whitecap
+  // history. foamFrames counts frames since it was last invalidated; calm
+  // counts seconds without whitecap-strength wind (the history pass sleeps).
+  foamFrames: 0,
+  calm: 0,
   atmosphere: null,
   water: null,
   loop: null,
@@ -484,6 +494,13 @@ async function startAtmosphere() {
   const cloudTarget = target(gpu, { size: quarterSize(cloudSize()), format: "rgba16float" });
   state.cloudTarget = cloudTarget;
   const noise = createCloudNoise(gpu.gpu, state.seed);
+  // The wind sea: 128 modes from the CPU, summed into four 128² cascades,
+  // and a 512² whitecap history over the largest tile (see waves.wgsl).
+  const cascade = { format: "rgba16float" };
+  const waveModes = createWaveModes(state.seed);
+  const modes = storage(gpu, waveModes.data.byteLength, "read");
+  const wavesTarget = target(gpu, { size: [128, 128], colors: [cascade, cascade, cascade, cascade] });
+  const foamTarget = pingPong(gpu, 512, 512, { format: "rgba16float" });
   const stars = createStarAtlas(gpu.gpu);
   const starCatalog = createStarCatalog(gpu.gpu);
   const skySampler = sampler(gpu, {
@@ -519,6 +536,25 @@ async function startAtmosphere() {
     },
   });
   state.atmosphere = atmosphere;
+  const seaSampler = sampler(gpu, {
+    minFilter: "linear",
+    magFilter: "linear",
+    addressModeU: "repeat",
+    addressModeV: "repeat",
+    addressModeW: "repeat",
+  });
+  const wavesPass = effect(gpu, wavesShader, { label: "skycope-waves", set: { modes } });
+  const foamPass = effect(gpu, foamShader, {
+    label: "skycope-foam",
+    set: {
+      atmosphere: createUniforms(),
+      waves0: wavesTarget.colors[0],
+      waves1: wavesTarget.colors[1],
+      waves2: wavesTarget.colors[2],
+      foamHistory: foamTarget.read.color,
+      filtering: seaSampler,
+    },
+  });
   const water = effect(gpu, waterShader, {
     label: "skycope-water",
     set: {
@@ -526,15 +562,14 @@ async function startAtmosphere() {
       cloudNoise: noise.createView(),
       skyTexture: skyTarget.write.color,
       starCatalog: starCatalog.createView(),
-      // Repeat: the ocean tiles the noise volume across the whole sea. Sky
-      // lookups clamp their own coordinates.
-      filtering: sampler(gpu, {
-        minFilter: "linear",
-        magFilter: "linear",
-        addressModeU: "repeat",
-        addressModeV: "repeat",
-        addressModeW: "repeat",
-      }),
+      waves0: wavesTarget.colors[0],
+      waves1: wavesTarget.colors[1],
+      waves2: wavesTarget.colors[2],
+      waves3: wavesTarget.colors[3],
+      foamLayer: foamTarget.write.color,
+      // Repeat: the ocean tiles the noise volume and wave cascades across the
+      // whole sea. Sky lookups clamp their own coordinates.
+      filtering: seaSampler,
     },
   });
   state.water = water;
@@ -551,6 +586,8 @@ async function startAtmosphere() {
   await tablePass.compile(skyTable);
   await cloudPass.compile(cloudTarget);
   await atmosphere.compile(skyTarget.write);
+  await wavesPass.compile(wavesTarget);
+  await foamPass.compile(foamTarget.write);
   await water.compile({ colors: [output.format] });
   if (state.disposed) return;
   gpu.onError(useFallback);
@@ -566,6 +603,16 @@ async function startAtmosphere() {
       adaptQuality(gpuClock.deltaTime);
     }
     const uniforms = createUniforms();
+    const wind = uniforms.wind;
+    modes.write(waveModes.update(state.time, wind));
+    // Whitecaps need wind; once the last foam has long decayed in a calm,
+    // the history pass sleeps and the water skips its lookups.
+    state.calm = Math.hypot(wind[0], wind[1]) > 3.5 ? 0 : state.calm + dt;
+    const whitecaps = state.calm < 20;
+    const seaUniforms = {
+      ...uniforms,
+      ocean: [motionPreference.matches ? 0 : dt, state.foamFrames > 0 ? 1 : 0, 0, 0],
+    };
     // Temporal clouds: each frame marches one pixel of every 2x2 block, in
     // turn; the resolve reprojects the rest from last frame's cloud layer.
     const jitter = JITTER[state.skyFrames % 4];
@@ -585,13 +632,22 @@ async function startAtmosphere() {
       cloudLayer: cloudTarget.color,
       cloudHistory: skyTarget.read.colors[1],
     });
-    water.set({ atmosphere: uniforms, skyTexture: skyTarget.write.color });
+    if (whitecaps) foamPass.set({ atmosphere: seaUniforms, foamHistory: foamTarget.read.color });
+    water.set({ atmosphere: seaUniforms, skyTexture: skyTarget.write.color, foamLayer: foamTarget.write.color });
+    currentFrame.pass(wavesTarget, wavesPass);
+    if (whitecaps) currentFrame.pass(foamTarget.write, foamPass);
     currentFrame.pass(skyTable, tablePass);
     currentFrame.pass(cloudTarget, cloudPass);
     currentFrame.pass(skyTarget.write, atmosphere);
     currentFrame.pass(output, water);
     skyTarget.swap();
     state.skyFrames++;
+    if (whitecaps) {
+      foamTarget.swap();
+      state.foamFrames++;
+    } else {
+      state.foamFrames = 0;
+    }
     state.previousView = {
       azimuth: state.flight.azimuth,
       pitch: state.flight.pitch,
@@ -673,6 +729,9 @@ function createUniforms() {
     // Filled in per frame for the sky passes; unused by the water pass.
     temporal: [0, 0, 0, 0],
     previous: [0, 0, 0, 0],
+    swell: swellUniform(state.seed, weather?.wind ?? [0, 0]),
+    // Filled in per frame for the sea passes.
+    ocean: [0, 0, 0, 0],
   };
 }
 
@@ -817,6 +876,7 @@ function quarterSize([width, height]) {
 function resetSkyHistory() {
   state.skyFrames = 0;
   state.previousView = null;
+  state.foamFrames = 0;
 }
 
 function useFallback(error) {
