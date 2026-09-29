@@ -117,7 +117,7 @@ export function createForest(scene, seed) {
     { geometry: shootGeometry(7, 0), grow: 1.12, distance: 6 },
     { geometry: shootGeometry(3, 0), grow: 1.35 * Math.SQRT2, keep: (c) => shootShare(c) < 0.5, distance: 52 },
     { geometry: shootGeometry(1, 0), grow: 1.9 * Math.sqrt(3), keep: (c) => shootShare(c) < 0.34, distance: 95 },
-  ]);
+  ], { shadowGrow: SHADOW_GROW });
   const bladeMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     roughness: 0.62,
@@ -162,7 +162,7 @@ export function createForest(scene, seed) {
   addInstances(scene, needleGeometry(26), clusterMaterial, needles, true, [
     { geometry: needleGeometry(10), grow: 1.15, distance: 14 },
     { geometry: needleGeometry(4), grow: 1.5, keep: (c) => shootShare(c) < 0.5, distance: 55 },
-  ]);
+  ], { shadowGrow: SHADOW_GROW });
   // Aloe leaves are thick and waxy, not translucent: plain lit, a little
   // glossy, stiff in the wind.
   const succulentMaterial = new THREE.MeshStandardMaterial({
@@ -404,6 +404,12 @@ const FOLIAGE_GLSL = /* glsl */ `
   // Skylight through the canopy: undersides glow faintly green.
   reflectedLight.indirectDiffuse += transmit / max( diffuseColor.rgb, vec3( 0.001 ) ) * reflectedLight.indirectDiffuse
     * clamp( -normal.y * 0.5 + 0.5, 0.0, 1.0 ) * 0.5;
+  // A thin leaf can only mirror the sun from its sunlit face: lit from
+  // behind, the light reaches the eye by transmission alone. Two-sided
+  // shading otherwise lets three's sun specular glare off the shaded face,
+  // and at a low sun a backlit bush bleached to white. Seen edge-on, the
+  // leaves of a clump hide each other's glare too.
+  reflectedLight.directSpecular *= smoothstep( 0.0, 0.25, facing ) * smoothstep( 0.0, 0.3, dot( leafN, toEye ) );
   // Waxy cuticle: each leaf mirrors the sun at its own angle, so a crown
   // shimmers leaf by leaf instead of carrying one broad highlight.
   vec3 sparkleRay = reflect( -sunDirView, leafN );
@@ -460,7 +466,7 @@ const FOG_GLSL = /* glsl */ `
   #endif
   // Clear coastal air: colour holds across the island and fades only
   // toward the far shore, so the near scene keeps its saturation.
-  float fogFade = smoothstep( 60.0, 220.0, vFogDepth );
+  float fogFade = smoothstep( 40.0, 200.0, vFogDepth );
   // The haze is the horizon sky along this line of sight: bright and warm
   // toward the sun (forward-scattering aerosol), cool blue away from it.
   float hazeSun = dot( normalize( -vViewPosition ), sunDirView );
@@ -1235,12 +1241,14 @@ function addGround(scene, shared, occluders, cover) {
   const shades = new Float32Array(position.count);
   // An ecotone replaces the hard beach-forest line: sand grades through dry
   // dune tones and leaf litter into forest soil, dithered by noise over metres.
-  const sand = new THREE.Color("#b9a98b");
-  const wetSand = new THREE.Color("#7a6f55");
-  const dune = new THREE.Color("#a2926f");
-  const litter = new THREE.Color("#4a3d28");
-  const moss = new THREE.Color("#354b26");
-  const humusColour = new THREE.Color("#3b2c1c");
+  // Warm, pale granitic sand; forest soil a red-brown loam under litter
+  // rather than a grey mud, with living green cover through the interior.
+  const sand = new THREE.Color("#c2ae8c");
+  const wetSand = new THREE.Color("#7d6f54");
+  const dune = new THREE.Color("#ae9a74");
+  const litter = new THREE.Color("#6b5034");
+  const moss = new THREE.Color("#3a5626");
+  const humusColour = new THREE.Color("#5a4029");
   const thatch = new THREE.Color();
   const color = new THREE.Color();
   for (let i = 0; i < position.count; i++) {
@@ -1254,8 +1262,8 @@ function addGround(scene, shared, occluders, cover) {
     color.lerp(litter, smoothstep(5.5, 11 + dither, inland));
     color.lerp(
       moss,
-      smoothstep(9, 17 + dither, inland) *
-        (0.4 + noise2(x * 0.13, z * 0.11) * 0.6),
+      smoothstep(8, 16 + dither, inland) *
+        (0.5 + noise2(x * 0.13, z * 0.11) * 0.5),
     );
     // Under the plants: humus darkens the soil beneath crowns and shrubs;
     // tufts leave thatch in their own colour (a shade darker: the dead and
@@ -1588,6 +1596,9 @@ function shootShare(shoot) {
 const CHUNK = 20;
 const CHUNK_MARGIN = CHUNK * 0.55;
 const LOD_HYSTERESIS = 0.12;
+// How much larger leafy shoots draw into the sun's shadow map (see
+// grownDepthMaterial).
+const SHADOW_GROW = 1.4;
 // Leaves sway up to ~1.5 m from their rest pose: cull with that margin.
 const SWAY_MARGIN = 1.5;
 const UP = new THREE.Vector3(0, 1, 0);
@@ -1595,7 +1606,8 @@ const LOD_DISTANCE = 42;
 // Sparse sets (a few hundred aloes, reeds or flower heads) pass a larger
 // `chunk`: each chunk costs a draw call per set, and a sparse set gains
 // little from fine culling.
-function addInstances(scene, geometry, material, instances, shadows, far = null, { chunk = CHUNK } = {}) {
+function addInstances(scene, geometry, material, instances, shadows, far = null, { chunk = CHUNK, shadowGrow = 0 } = {}) {
+  const depthMaterial = shadowGrow ? grownDepthMaterial(shadowGrow) : null;
   const margin = chunk * 0.55;
   const chunks = new Map();
   for (const instance of instances) {
@@ -1634,6 +1646,7 @@ function addInstances(scene, geometry, material, instances, shadows, far = null,
     geo.setAttribute("bendNormal", new THREE.InstancedBufferAttribute(bends, 3));
     geo.setAttribute("canopyShade", new THREE.InstancedBufferAttribute(shades, 1));
     mesh.castShadow = shadows;
+    if (depthMaterial) mesh.customDepthMaterial = depthMaterial;
     mesh.receiveShadow = true;
     mesh.computeBoundingSphere();
     mesh.boundingSphere.radius += SWAY_MARGIN;
@@ -1666,6 +1679,28 @@ function addInstances(scene, geometry, material, instances, shadows, far = null,
     });
     scene.add(lod);
   }
+}
+
+// A crown of shoots is mostly gaps at leaf scale, and a real crown's many
+// layers of leaves, overlapping, block nearly all the sun: drawn as they
+// are, the shoots cast shadows that let half of it through, a pale brown
+// veil instead of shade lit by the blue sky. The shadow pass draws each
+// shoot larger about its base so the crown's shadow closes up; the map only
+// re-renders when the sun or the cat moves on, so this costs no frames.
+const grownDepth = new Map();
+function grownDepthMaterial(grow) {
+  if (!grownDepth.has(grow)) {
+    const material = new THREE.MeshDepthMaterial({ side: THREE.DoubleSide });
+    material.onBeforeCompile = (shader) => {
+      shader.vertexShader = shader.vertexShader.replace(
+        "#include <begin_vertex>",
+        `#include <begin_vertex>\ntransformed *= ${grow.toFixed(3)};`,
+      );
+    };
+    material.customProgramCacheKey = () => `grown-${grow}`;
+    grownDepth.set(grow, material);
+  }
+  return grownDepth.get(grow);
 }
 
 // Geometry without its own per-leaf flutter data (petals, fronds' unit leaf)

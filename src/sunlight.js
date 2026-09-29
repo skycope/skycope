@@ -12,6 +12,8 @@ const MIE_HEIGHT = 1200;
 const OZONE = [0.65e-6, 1.881e-6, 0.085e-6];
 const SUN_INTENSITY = 20;
 const VIEW_HEIGHT = 30;
+// Unexposed ground illuminance (luminance) under a 40° sun; see lightingAt.
+const GROUND_REFERENCE = 14.5;
 
 function atmosphereExit(h, mu) {
   const r = EARTH_RADIUS + h;
@@ -139,9 +141,21 @@ export function lightingAt(celestial, weather = null) {
     (1 - 0.8 * smoothstep(-0.08, -0.2, celestial.sun[1]));
   // Dark adaptation is limited: deep twilight gets darker, not re-amplified.
   const cap = 1 + 7 * smoothstep(-0.05, -0.21, celestial.sun[1]);
-  const exposure = Math.min(cap, Math.max(0.08, target / Math.max(luminance(zenith), 1e-6)));
-  const moonK = moonScale(celestial.moon, celestial.moonPhase);
   const sun = sunRadiance(celestial.sun);
+  // The eye meters the scene, not just the sky: as the sun lowers, the land
+  // it lights horizontally dims far faster than the zenith, and the land
+  // went murky while the sky held. Partly adapt to the ground's
+  // illuminance (sun plus ~π × zenith for the dome) relative to a 40° sun,
+  // capped, and hand over to the twilight curve once the sun has set.
+  const ground =
+    luminance(sun) * Math.max(celestial.sun[1], 0) + Math.PI * 1.9 * luminance(zenith);
+  const meter = Math.min(
+    1.5,
+    Math.pow(Math.max(1, GROUND_REFERENCE / Math.max(ground, 1e-6)), 0.4),
+  );
+  const adapt = 1 + (meter - 1) * smoothstep(-0.07, 0.03, celestial.sun[1]);
+  const exposure = Math.min(cap, Math.max(0.08, (target / Math.max(luminance(zenith), 1e-6)) * adapt));
+  const moonK = moonScale(celestial.moon, celestial.moonPhase);
   // Moonlit surfaces a little brighter than the sky ratio alone: the eye
   // adapts to the lit sand, and a full moon throws real shadows.
   const moon = scotopic(sunRadiance(celestial.moon)).map((v) => v * moonK * 0.95);

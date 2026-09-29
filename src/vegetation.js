@@ -316,12 +316,13 @@ function growthTraits(seed) {
       spread: 0.6 - slender * 0.22,
       lift: 0.25 + slender * 0.6,
       leaf: [0.17 + (1 - slender) * 0.3, 0.16 + random() * 0.18],
-      // Cape coastal evergreens: olive to deep bottle green, never lime.
-      // Real leaf albedo is low (about 0.05–0.1 in green); the sun, sky
-      // sheen and translucency supply the brightness.
-      hue: 0.22 + random() * 0.1,
-      saturation: 0.2 + waxy * 0.14,
-      light: 0.16 + (1 - waxy) * 0.11,
+      // Cape coastal evergreens: deep olive to bottle green, never lime.
+      // Real leaf albedo is low (about 0.05–0.1 in green) but clearly green
+      // (red and blue near 0.03): the sun, sky sheen and translucency supply
+      // the brightness. Greyer picks read as dusty olive in every light.
+      hue: 0.25 + random() * 0.08,
+      saturation: 0.3 + waxy * 0.16,
+      light: 0.15 + (1 - waxy) * 0.1,
       bark: hslColour(
         0.09 + random() * 0.06,
         0.08 + random() * 0.18,
@@ -442,7 +443,6 @@ function growTree(root, plant, traits, crowns, random, wood, clusters, fronds) {
     bark,
     neighbours,
     vines: Boolean(habit.vines) && detail,
-    floor: root.y,
     random,
     wood,
     clusters,
@@ -464,8 +464,12 @@ function growShrub(root, plant, traits, random, wood, clusters) {
   const crownCenter = root
     .clone()
     .add(new THREE.Vector3(PREVAILING.x * flag * 0.3, height * 0.75, 0));
+  // A short stem carries the upper seed: without it, the branches grown
+  // from there started in mid-air.
+  const stem = root.clone().add(new THREE.Vector3(0, height * 0.3, 0));
+  branch(wood, root, stem, height * 0.02, bark, height * 0.017);
   colonizeCrown({
-    seeds: [root, root.clone().add(new THREE.Vector3(0, height * 0.3, 0))],
+    seeds: [root, stem],
     crownCenter,
     crownR,
     arche: { ...arche, flatten: 0.55, points: 0.4 },
@@ -502,12 +506,13 @@ function colonizeCrown(options) {
     bark,
     neighbours,
     vines = false,
-    floor = -1000,
     random,
     wood,
     clusters,
   } = options;
   const pointCount = Math.round((detail ? 150 : 95) * arche.points);
+  // Lowest a branch may run above the soil beneath it.
+  const clearance = Math.max(0.12, crownR * 0.16);
   const px = [];
   const py = [];
   const pz = [];
@@ -522,6 +527,10 @@ function colonizeCrown(options) {
       PREVAILING.x * flag * crownR * 0.2;
     const z = crownCenter.z + w * crownR + PREVAILING.z * flag * crownR * 0.2;
     const worldY = crownCenter.y + y;
+    // The crown is placed from the root's height, but on a slope the ground
+    // under its downhill side falls away and its uphill side is buried: only
+    // points clear of the ground where they are attract growth.
+    if (worldY < terrainHeight(x, z) + clearance) continue;
     let shy = false;
     for (const n of neighbours) {
       const dx = x - n.x;
@@ -589,9 +598,12 @@ function colonizeCrown(options) {
       a[0] += PREVAILING.x * flag * 0.3 + (random() - 0.5) * 0.35;
       a[2] += PREVAILING.z * flag * 0.3 + (random() - 0.5) * 0.35;
       const length = Math.hypot(a[0], a[1], a[2]) || 1;
-      nx.push(nx[n] + (a[0] / length) * step);
-      ny.push(ny[n] + (a[1] / length) * step);
-      nz.push(nz[n] + (a[2] / length) * step);
+      const x = nx[n] + (a[0] / length) * step;
+      const z = nz[n] + (a[2] / length) * step;
+      // Drooping limbs level out above the ground instead of diving into it.
+      nx.push(x);
+      ny.push(Math.max(ny[n] + (a[1] / length) * step, terrainHeight(x, z) + clearance * 0.6));
+      nz.push(z);
       parent.push(n);
       if (nx.length >= cap) break;
     }
@@ -671,6 +683,7 @@ function colonizeCrown(options) {
           new THREE.Vector3(random() - 0.5, random() - 0.5, random() - 0.5),
           step * 0.55,
         );
+      along.y = Math.max(along.y, terrainHeight(along.x, along.z) + 0.06);
       const roll = phase + j * GOLDEN_ANGLE;
       const outward = new THREE.Vector3(
         Math.cos(roll) * 0.8,
@@ -738,7 +751,7 @@ function colonizeCrown(options) {
               (random() - 0.5) * 0.25,
             ),
           );
-        if (next.y < floor + 0.4) break;
+        if (next.y < terrainHeight(next.x, next.z) + 0.4) break;
         branch(wood, previous, next, 0.012, bark);
         if (s > 1)
           cluster(
