@@ -28,6 +28,10 @@ mesh-layer GPU time (`data-mesh-ms`, via a `readPixels`-synced render burst ever
 90 frames), triangles and draw calls on the landscape canvas, and exposes the live
 state as `window.skycope` (for example to aim `flight` at the sun).
 
+`ONLY=surf,rocks` renders just those fixtures; `BENCH=1` adds per-pass throughput,
+and `BASE_WATER=<other checkout>/src/shaders/water.wgsl` benches that water shader
+against this one, interleaved in the same process (robust to a busy GPU).
+
 This renders clear, cloudy, rainy, dusk, night, Milky Way, Southern Cross, crescent, full-moon, moonrise and sun-glint sky/water PNGs and reports combined GPU pass timing.
 It requires a GPU with `timestamp-query`. Fixtures include the real star
 catalog; the constellation figures are left black, so verify those and the
@@ -45,7 +49,9 @@ reduced-motion mode, background/resume, and with the weather endpoint blocked.
 | `src/astronomy.js`       | Cape Town dates, sun/moon positions, sidereal rotation                   |
 | `src/weather.js`         | Open-Meteo request and validation; no rendering code                     |
 | `src/weather-panel.js`   | Weather panel: live, presets, and cloud/wind/rain sliders                |
-| `src/surf.js`            | Foam collars, lapping ripples and spray where the sea meets boulders     |
+| `src/surf.js`            | Swash foam, bubbles and glow on the sand; spray off the boulders         |
+| `src/rocks.js`           | Rock layout and corestone shapes; the waterline boulders for the sea     |
+| `src/shaders/rocks.wgsl` | Lapping rings, collar foam, rock reflections/shadows, hidden-sea skip    |
 | `src/shaders/atmosphere.wgsl` | Rayleigh/Mie/ozone scattering, transmittance, the one tonemap       |
 | `src/sunlight.js`        | CPU twin of the scattering model: exposure, sun and sky light per frame  |
 | `src/shaders/sky-table.wgsl` | Per-frame sky-view table of the scattering integral (sun and moon)   |
@@ -165,7 +171,25 @@ kelp-canopy shadows and a circling fish school, lit by sharp caustics that blur 
 depth. Coastal-Atlantic absorption (red first) and single scattering produce the
 turquoise shallows and ink-blue deep water from physics rather than a palette.
 Ecklonia kelp beds float at the surface a little offshore. Foam breaks in sets with
-lacy residue and a thin swash line; whitecaps appear above ~5 m/s wind.
+lacy residue and a thin swash line; whitecaps appear above ~5 m/s wind. Foam decays
+as froth does: holes open round random seeds and merge into torn lace (the sea's
+`foam_cover` and the beach's `swashFoam` are twins). Swash bubbles are heavy-tailed
+in size, off any lattice, and gather in clumps. Close to the eye, capillary ripples
+(the finest cascade, shrunk and turned) break up the surface; where a reflection
+leaves the screen it comes from the sky-view table rather than a flat colour.
+
+The sea knows the boulders at the waterline (`src/rocks.js` slices each one's true
+waterline from its mesh and packs its transform into a small texture, with a 2 m
+lookup grid). Each rock sends lapping rings out on every surge (the swash clock, so
+rock, beach and sea flood together) and reflects the chop; its lee is calm, foam
+clings to its contact line, it is mirrored in the water, shades it, and shows
+through it where it is submerged. Sea behind a boulder is not shaded at all.
+
+At night the water is bioluminescent, as Cape waters are when dinoflagellates
+bloom: breaking rollers, the uprush on the sand, the surge round each rock and
+breaking whitecaps glow blue, single cells spark in fresh-stirred water, blooms
+drift in patches, and the cat's fresh paw prints in wet sand flash and ebb. At
+golden hour, steep crest faces glow green-gold with the light through them.
 
 The sun path is a GGX microfacet lobe whose roughness is the real sub-pixel slope
 variance, plus a rough tail and squared patchiness so bright sparkle fields are
@@ -214,9 +238,16 @@ Open ground between groves is fynbos: king and sugarbush proteas, pincushions,
 aloes with orange flower candles, restio reed tufts, pink-belled ericas, and
 Namaqualand-style daisy drifts that share one colour over tens of metres and face
 the northern (southern-hemisphere) sun. Granite corestone fields straddle the
-waterline in a few clusters. The ground and rocks get per-pixel world-space detail:
-sand grain and wind ripples, a glossy wet swash band, granite on steep ground,
-lichen, leaf litter, and a derivative bump map; bark has fissured plates. These
+waterline in a few clusters, in three corestone shapes (jointing and sheeting
+shells). Granite is shaded in true 3D noise: weathering tone, iron stain running
+down, patina in hollows, fine cracks, feldspar/quartz/biotite grain up close,
+grey-green crusts and orange lichen rosettes above the spray, and the shore's
+zones (black splash band, barnacles, green algae) with a wet line that rises and
+drains with each swell. Sand has mineral grains up close (dark heavy minerals,
+white shell and quartz, pink feldspar), heavy-mineral laminae just above the
+waterline, pebbles and shells in drifts, and sparkling quartz grains in sun and
+moonlight. The ground also gets wind ripples, a glossy wet swash band, granite on
+steep ground, leaf litter, and a derivative bump map; bark has fissured plates. These
 are illustrative forms inspired by Cape flora, not botanical reconstructions.
 
 Kelp gulls soar in drifting thermals with occasional flapping bursts, lines of
@@ -240,7 +271,12 @@ breathing cycles (clipped at the surface). Birds roost at night.
   is more than 1.5 m inland, where the terrain mesh is opaque), seabed shading
   where the water column hides the bottom, foam lookups away from surf and
   whitecaps, wave intersection steps at grazing angles (zero displacement),
-  and star searches where the catalog grid marks no star nearby. At 2560 × 1368
+  star searches where the catalog grid marks no star nearby, and sea behind a
+  waterline boulder (the eye ray passes well inside it above its see-through
+  band). The whitecap history steps every other frame over both frames' time.
+  Rock work is gated by the 2 m grid, and one pass traces the shadow,
+  reflection and refraction rays against each listed rock after a bounding-sphere
+  test. At 2560 × 1368
   water and 1368 × 731 sky this took the WebGPU frame from 7–10 ms to 2.5–3.4 ms
   on an Apple GPU, with sky and visible sea identical to within 5/255.
 - Up to 56 primary ray samples, quadratically spaced for nearby detail. Empty

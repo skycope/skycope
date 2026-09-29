@@ -315,13 +315,64 @@ export function createPawPrints(parent) {
   const hidden = new THREE.Matrix4().makeScale(0, 0, 0);
   for (let i = 0; i < PRINT_COUNT; i++) mesh.setMatrixAt(i, hidden);
   parent.add(mesh);
+  // At night, a fresh print in wet sand flashes blue: the pressure lights up
+  // the bioluminescent plankton the swash left in the sand (ocean.wgsl).
+  // Additive, sharing the prints' instances; it draws nothing by day.
+  const glowUniforms = { printTime: uniforms.printTime, printNight: { value: 0 } };
+  const glow = new THREE.InstancedMesh(
+    geometry,
+    new THREE.ShaderMaterial({
+      uniforms: glowUniforms,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      vertexShader: /* glsl */ `
+        attribute vec4 printLife;
+        attribute vec4 printShape;
+        uniform float printTime;
+        uniform float printNight;
+        varying vec2 vPrint;
+        varying vec4 vShape;
+        varying float vGlow;
+        varying float vSeed;
+        void main() {
+          vSeed = fract( printLife.x * 7.13 );
+          vPrint = uv * 2.0 - 1.0;
+          vPrint.y = -vPrint.y;
+          vShape = printShape;
+          float age = printTime - printLife.x;
+          // A bright flash as the paw presses, a slow blue ebb over seconds.
+          vGlow = printNight * printLife.z * ( 1.0 - printLife.w ) * printLife.y
+            * smoothstep( 0.0, 0.05, age ) * ( exp( -age * 1.4 ) * 0.8 + exp( -age * 0.25 ) * 0.2 );
+          gl_Position = vGlow > 0.003 ? projectionMatrix * modelViewMatrix * instanceMatrix * vec4( position, 1.0 ) : vec4( 0.0, 0.0, -2.0, 1.0 );
+        }`,
+      fragmentShader: /* glsl */ `
+        varying vec2 vPrint;
+        varying vec4 vShape;
+        varying float vGlow;
+        varying float vSeed;
+        ${PRINT_HEIGHT}
+        void main() {
+          float h = clamp( -printHeight( vPrint ), 0.0, 1.0 );
+          float sparks = step( 0.93, printHash( floor( vPrint * 9.0 ) + floor( vGlow * 40.0 ) ) );
+          gl_FragColor = vec4( vec3( 0.05, 0.42, 0.95 ) * vGlow * ( h * 0.25 + sparks * h * 0.8 ), 1.0 );
+        }`,
+    }),
+    PRINT_COUNT,
+  );
+  glow.instanceMatrix = mesh.instanceMatrix;
+  glow.frustumCulled = false;
+  glow.renderOrder = 2;
+  parent.add(glow);
   const transform = new THREE.Object3D();
   const up = new THREE.Vector3();
   let next = 0;
   return {
     mesh,
-    update(time) {
+    update(time, night = 0) {
       uniforms.printTime.value = time;
+      glowUniforms.printNight.value = night;
+      glow.visible = night > 0.01;
     },
     // p: { time, x, y, z, heading, front, side (±1), normal [3], strength
     // 0–1, wet 0–1, soft 0–1, speed 0–1, rock }.
@@ -349,7 +400,9 @@ export function createPawPrints(parent) {
     dispose() {
       geometry.dispose();
       material.dispose();
+      glow.material.dispose();
       mesh.dispose();
+      glow.dispose();
     },
   };
 }

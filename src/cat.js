@@ -649,7 +649,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
         uniforms.catPixelAngle.value = 1 / (light.pixelScale ?? 500);
         uniforms.shellCount.value = count;
       }
-      prints.update(time);
+      prints.update(time, light.night ?? 0);
       dust.update(time, 0.35 + direct * 0.9 + (1 - light.night) * 0.2, light.pixelScale ?? 500);
     },
     // A hard landing sprays sand round the paws.
