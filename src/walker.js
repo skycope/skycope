@@ -14,6 +14,19 @@ const JUMP_SPEED = 4.1;
 const CAT_RADIUS = 0.12 * CAT_SCALE;
 const LOOK_LIFT = 0.13;
 const HOME_THETA = Math.atan2(0 - ISLAND.z, 6 - ISLAND.x);
+// The body, not just its centre, meets a rock: points along the chest to the
+// chin and at the shoulders, [forward, right] in metres. A point may be
+// higher than the paws by a step plus a climbable slope to it; any higher
+// and the chest would be in the rock.
+const PROBES = [[0.04, 0], [0.09, 0], [0.14, 0], [0.2, 0], [0.12, 0.05], [0.12, -0.05]].map(([f, s]) => [
+  f * CAT_SCALE,
+  s * CAT_SCALE,
+  Math.hypot(f, s) * CAT_SCALE,
+]);
+const STEP_UP = 0.08;
+const CLIMB = 0.75;
+// Walking straight at a rock it can reach, a cat hops up rather than stopping.
+const HOP_REACH = 0.7;
 
 export const CAMERA = { distance: 3.4, elevation: 0.38, min: 1.1, max: 8 };
 
@@ -57,6 +70,9 @@ export function createWalker(obstacles) {
   let blocked = 0;
   let lastDrag = -10;
   let clock = 0;
+  // The last rock face the body met: outward normal, when, which way round
+  // the cat is going, and how long it has pushed straight at it.
+  const wall = { x: 0, z: 0, at: -10, side: 1, top: -Infinity, headOn: 0 };
   const events = [];
 
   home();
@@ -107,6 +123,35 @@ export function createWalker(obstacles) {
           run = run || d > 7;
         }
       }
+      // Against a rock, walk round it: the wanted direction loses its part
+      // into the rock, and straight at it picks a side and keeps to it. A
+      // low enough rock met head-on is hopped onto instead.
+      let hop = false;
+      if (want > 0.01 && clock - wall.at < 0.3) {
+        const len = Math.hypot(dirX, dirZ);
+        const wx = dirX / len;
+        const wz = dirZ / len;
+        const into = wx * wall.x + wz * wall.z;
+        if (into < 0) {
+          let tx = wx - wall.x * into;
+          let tz = wz - wall.z * into;
+          const across = Math.hypot(tx, tz);
+          if (across > 0.3) wall.side = Math.sign(tx * wall.z - tz * wall.x) || wall.side;
+          const reach = wall.top - cat.y;
+          wall.headOn = across < 0.45 ? wall.headOn + dt : 0;
+          if (across < 0.45 && reach > 0.05 && reach < HOP_REACH && cat.air === 0) {
+            hop = wall.headOn > 0.12;
+          } else {
+            if (across < 0.3) {
+              tx = wall.z * wall.side;
+              tz = -wall.x * wall.side;
+            }
+            const t = Math.hypot(tx, tz);
+            dirX = tx / t;
+            dirZ = tz / t;
+          }
+        } else wall.headOn = 0;
+      }
       // Turn toward the wanted direction; a cat pivots rather than reversing.
       // Turning eases in and out (angular velocity, not snapped headings),
       // and a cat slows to turn sharply.
@@ -129,8 +174,14 @@ export function createWalker(obstacles) {
       cat.running = cat.speed > 1.7;
 
       // Jump: straight up or forward, onto rocks if they are in reach.
-      if (input.jump && cat.air === 0 && cat.sit < 0.5) {
+      if ((input.jump || hop) && cat.air === 0 && cat.sit < 0.5) {
         cat.vy = JUMP_SPEED;
+        // A hop onto a rock goes only as high as it needs to.
+        if (hop && !input.jump) {
+          cat.vy = Math.min(cat.vy, Math.sqrt(2 * GRAVITY * (wall.top - cat.y + 0.12)));
+          cat.speed = Math.max(cat.speed, 1.1);
+          wall.headOn = 0;
+        }
         cat.air = 0.001;
         events.push({ type: "jump" });
       }
@@ -140,13 +191,18 @@ export function createWalker(obstacles) {
       const step = cat.speed * dt;
       const sx = Math.sin(cat.heading) * step;
       const sz = Math.cos(cat.heading) * step;
-      const moved =
-        tryMove(cat.x + sx, cat.z + sz) ||
-        tryMove(cat.x + sx, cat.z) ||
-        tryMove(cat.x, cat.z + sz);
+      // Against a rock, slide along its outline (only the part of the step
+      // into it is lost), so the cat brushes past instead of juddering.
+      let moved = tryMove(cat.x + sx, cat.z + sz);
+      if (!moved && clock === wall.at) {
+        const into = sx * wall.x + sz * wall.z;
+        if (into < 0) moved = tryMove(cat.x + sx - wall.x * into, cat.z + sz - wall.z * into);
+      }
+      if (!moved) moved = tryMove(cat.x + sx, cat.z) || tryMove(cat.x, cat.z + sz);
       if (!moved && Math.abs(step) > 1e-4) {
         blocked += dt;
-        cat.speed *= 0.5;
+        // In the air, momentum carries on once the body clears the rim.
+        if (cat.air === 0) cat.speed *= 0.5;
       } else blocked = 0;
 
       // Vertical: stick to the ground, or fly a ballistic arc.
@@ -238,8 +294,45 @@ export function createWalker(obstacles) {
     // Pebbles are stepped over; a boulder's steep flank needs a jump.
     const tall = next - groundHeight(nx, nz) > 0.12;
     if (cat.air > 0 ? rise > 0.02 : tall && rise > 0.003 && rise / run > 1.6) return false;
+    if (!bodyClear(nx, nz, next - rise)) return false;
     cat.x = nx;
     cat.z = nz;
+    return true;
+  }
+
+  // Whether the chest and shoulders fit at (x, z), paws at height `feet`.
+  // A blocking rock is remembered as the wall to slide along and walk round.
+  function bodyClear(x, z, feet) {
+    const sin = Math.sin(cat.heading);
+    const cos = Math.cos(cat.heading);
+    const step = cat.air > 0 ? 0.03 : STEP_UP;
+    for (const [f, s, d] of PROBES) {
+      const px = x + sin * f + cos * s;
+      const pz = z + cos * f - sin * s;
+      const h = surface(px, pz);
+      if (h <= feet + step + CLIMB * d) continue;
+      // The rock's outward normal: from its centre, which turns smoothly
+      // as the cat goes round (the height field's gradient is ragged at
+      // the rim).
+      const dome = grid.domeAt(px, pz);
+      let nx;
+      let nz;
+      if (dome) {
+        nx = px - dome.x;
+        nz = pz - dome.z;
+        wall.top = dome.top;
+      } else {
+        const e = 0.1;
+        nx = surface(px - e, pz) - surface(px + e, pz);
+        nz = surface(px, pz - e) - surface(px, pz + e);
+        wall.top = h;
+      }
+      const n = Math.hypot(nx, nz) || 1;
+      wall.x = nx / n;
+      wall.z = nz / n;
+      wall.at = clock;
+      return false;
+    }
     return true;
   }
 
@@ -295,7 +388,10 @@ function spatialGrid({ trunks, domes }) {
       }
   };
   for (const t of trunks) add("trunks", t, t.r + 0.3);
+  // Each rock's own top, for how far up it is to hop.
+  const tops = new Map(domes.map((d) => [d, d.heights.reduce((m, h) => Math.max(m, h), -Infinity)]));
   for (const d of domes) add("domes", d, d.r + 0.1);
+  let found = null;
   const at = (x, z) => cells.get(Math.floor(x / cell) * 4096 + Math.floor(z / cell));
   return {
     clearOfTrunks(x, z, radius) {
@@ -308,6 +404,7 @@ function spatialGrid({ trunks, domes }) {
     domeHeight(x, z) {
       const c = at(x, z);
       let best = -Infinity;
+      found = null;
       if (!c) return best;
       for (const d of c.domes) {
         const u = (x - d.x0) / d.cell;
@@ -324,9 +421,17 @@ function spatialGrid({ trunks, domes }) {
         if (h00 > -Infinity && h10 > -Infinity && h01 > -Infinity && h11 > -Infinity)
           y = (h00 * (1 - fu) + h10 * fu) * (1 - fv) + (h01 * (1 - fu) + h11 * fu) * fv;
         else y = Math.max(h00, h10, h01, h11);
-        if (y > best) best = y;
+        if (y > best) {
+          best = y;
+          found = d;
+        }
       }
       return best;
+    },
+    // The rock whose surface that is: { x, z (its centre), top }.
+    domeAt(x, z) {
+      if (this.domeHeight(x, z) === -Infinity) return null;
+      return { x: found.x, z: found.z, top: tops.get(found) };
     },
   };
 }

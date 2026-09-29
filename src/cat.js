@@ -167,6 +167,8 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
   const Y = new THREE.Vector3();
   const Z = new THREE.Vector3();
   const state = {
+    // Eased ground support under the body (see update).
+    settle: {},
     gait: 0,
     blinkTimer: 2,
     blinkT: 0,
@@ -257,12 +259,23 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
 
       // Ground under the front and hind feet sets pitch and height.
       const span = 0.13 * S;
-      const gf = ground(x + sin * span, z + cos * span);
-      const gh = ground(x - sin * span, z - cos * span);
-      const gl = ground(x + cos * 0.05 * S, z - sin * 0.05 * S);
-      const gr = ground(x - cos * 0.05 * S, z + sin * 0.05 * S);
-      const slopePitch = Math.atan2(gf - gh, 2 * span) * (1 - lieW * 0.5);
-      const roll = Math.atan2(gl - gr, 0.1 * S) * 0.5;
+      // Round rocks the samples jump (onto a rim, off a ledge): each is held
+      // near the ground under the body's middle, and the support they give
+      // eases, so the body flows over a boulder instead of snapping.
+      const g0 = ground(x, z);
+      const near = (g) => clamp(g, g0 - 0.1 * S, g0 + 0.12 * S);
+      const gf = near(ground(x + sin * span, z + cos * span));
+      const gh = near(ground(x - sin * span, z - cos * span));
+      const gl = near(ground(x + cos * 0.05 * S, z - sin * 0.05 * S));
+      const gr = near(ground(x - cos * 0.05 * S, z + sin * 0.05 * S));
+      const ease = (key, target, rate) => {
+        if (!(key in state.settle)) state.settle[key] = target;
+        return (state.settle[key] += (target - state.settle[key]) * Math.min(1, step * rate));
+      };
+      // In the air the support is the flight itself: follow it closely.
+      const support = ease("support", (gf + gh) / 2 + pose.air, pose.air > 0 ? 60 : 18);
+      const slopePitch = ease("pitch", Math.atan2(gf - gh, 2 * span), 14) * (1 - lieW * 0.5);
+      const roll = ease("roll", Math.atan2(gl - gr, 0.1 * S), 14) * 0.5;
       // The body dips as each foot takes weight, sways toward the
       // supporting side, leans into turns, and rocks nose-to-tail at a
       // gallop.
@@ -273,7 +286,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       const posturePitch = POSTURE.sit.pitch * sitW + POSTURE.lie.pitch * lieW + POSTURE.crouch.pitch * crouch;
       const pitch = slopePitch * (1 - sitW * 0.6) + posturePitch + pose.airPitch + rock;
       const bodyHeight = lerp(lerp(STAND_HEIGHT, POSTURE.crouch.height, crouch), 0, pose.sit) + POSTURE.sit.height * sitW + POSTURE.lie.height * lieW;
-      const baseGround = (gf + gh) / 2;
+      const baseGround = support - pose.air;
       const height = baseGround + (bodyHeight + bob + state.dip) * S + pose.air;
       // Sitting settles back onto the haunches; the front paws stay put.
       const shift = (0.03 * sitW - 0.005 * lieW) * S;

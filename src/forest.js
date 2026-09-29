@@ -1679,6 +1679,10 @@ function addRocks(scene, random, shared, rocks = rockLayout(random)) {
     roughness: 0.92,
     transparent: true,
     clippingPlanes: [new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.1)],
+    // Cast from the sunlit faces. three's default (back faces) stores the
+    // far side of the boulder, which near its foot is only centimetres above
+    // the sand, so the depth bias lit a halo round the base.
+    shadowSide: THREE.FrontSide,
   });
   patchMaterial(material, shared, { rock: true, fade: true });
   for (let v = 0; v < ROCK_VARIANTS; v++)
