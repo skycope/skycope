@@ -30,3 +30,23 @@ test("the cat walks the island", () => {
   assert.ok(steps > 10, `paws land (${steps})`);
   assert.ok(walker.camera.y > c.y, "camera above the cat");
 });
+
+// The body mesh: both levels of detail exist, every vertex is fully skinned
+// to real bones, and the coarse level is much lighter than the body.
+test("the cat's body meshes are skinned and budgeted", async () => {
+  const { createRig } = await import("../src/cat-rig.js");
+  const { buildCatGeometry } = await import("../src/cat-body.js");
+  const rig = createRig();
+  const lods = buildCatGeometry(rig);
+  for (const [name, geometry] of Object.entries(lods)) {
+    const weights = geometry.attributes.skinWeight.array;
+    const bones = geometry.attributes.skinIndex.array;
+    for (let i = 0; i < weights.length; i += 4) {
+      assert.ok(Math.abs(weights[i] + weights[i + 1] + weights[i + 2] + weights[i + 3] - 1) < 1e-3, `${name}: weights sum to 1`);
+      for (let k = 0; k < 4; k++) assert.ok(bones[i + k] < rig.list.length, `${name}: bone index in range`);
+    }
+    for (const v of geometry.attributes.position.array) assert.ok(Number.isFinite(v), `${name}: finite positions`);
+  }
+  assert.ok(lods.mid.index.count / 3 < 40000, `body ${lods.mid.index.count / 3} triangles`);
+  assert.ok(lods.far.index.count * 2.5 < lods.mid.index.count, "coarse mesh is much lighter");
+});

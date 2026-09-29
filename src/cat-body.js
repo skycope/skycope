@@ -21,14 +21,15 @@ export const EAR = 2;
 
 const BIG = 1;
 
-// Levels of detail, as grid cells (m) for the field surface. Every pass of
-// the body is bound by vertices and pixel-sized triangles, not by pixels,
-// so each pass gets the coarsest mesh that holds up for it: the full mesh
-// only up close, a mid mesh for the fur shells and the body at the usual
-// distance, a coarse one for the shadow map and the see-through silhouette.
-// The face, paws and tail tip are refined a level at every size.
-const LODS = { near: 0.0038, mid: 0.0068, far: 0.0115 };
-const LIGHT_LODS = { near: 0.0056, mid: 0.0085, far: 0.013 };
+// Two levels of detail, as grid cells (m) for the field surface. Every pass
+// of the body is bound by skinned vertices, not pixels, so each gets the
+// coarsest mesh that holds up for it: the body itself (its vertices lie on
+// the true surface and its normals come from the field, so even at the
+// closest camera the silhouette is within ~0.2 mm), and a coarse one for
+// the fur shells, the shadow map and the see-through silhouette. The face,
+// paws and tail tip are refined a level at both sizes.
+const LODS = { mid: 0.0066, far: 0.0115 };
+const LIGHT_LODS = { mid: 0.0085, far: 0.013 };
 
 export const buildStats = {};
 export function buildCatGeometry(rig, { light = false } = {}) {
@@ -40,7 +41,7 @@ export function buildCatGeometry(rig, { light = false } = {}) {
     const mesh = surfaceNets(field, cell);
     refine(mesh, field, (v) => prims[field.dominant(v)].fine);
     const sdf = bake(mesh, field, prims, rig);
-    const detail = name === "near" ? 1 : name === "mid" ? 0.7 : 0.45;
+    const detail = name === "mid" ? 0.8 : 0.45;
     out[name] = assemble([sdf, ...eyes(rig, detail), ...ears(rig, detail)]);
     buildStats[name] = { ms: Math.round(performance.now() - t0), vertices: out[name].attributes.position.count };
   }
@@ -142,20 +143,20 @@ function anatomy(rig) {
   // a short muzzle with whisker pads, the nose leather, and the jaw hinged
   // beneath. Eye sockets are carved out for the eyes to sit in.
   ell("head", H([0, 0.007, -0.008]), [0.042, 0.037, 0.042], { k: 0.03, region: head, comb: [0, 0.2, -1], fur: 0.6 });
-  ell("head", H([0, 0.0115, 0.015]), [0.029, 0.024, 0.027], { k: 0.016, region: head, comb: [0, 0.5, -0.9], fur: 0.5 });
+  ell("head", H([0, 0.0135, 0.013]), [0.029, 0.024, 0.027], { k: 0.016, region: head, comb: [0, 0.5, -0.9], fur: 0.5 });
   for (const side of [1, -1]) {
     ell("head", H([0.025 * side, -0.012, 0.004]), [0.027, 0.024, 0.027], { k: 0.014, region: head, comb: [side * 0.9, -0.3, -0.5], fur: 0.85 });
     ell("head", H([0.0088 * side, -0.0185, 0.0375]), [0.0108, 0.009, 0.0102], { k: 0.007, region: head, comb: [side, -0.35, -0.25], fur: 0.35, fine: true });
   }
   ell("head", H([0, -0.0085, 0.032]), [0.0125, 0.0118, 0.0148], { k: 0.011, region: head, comb: [0, 0.4, -1], fur: 0.3, fine: true });
-  ell("head", H([0, -0.0068, 0.0446]), [0.0064, 0.0044, 0.0036], { k: 0.0042, region: head, comb: [0, 0.4, -1], fur: 0, fine: true, nose: true });
+  ell("head", H([0, -0.0064, 0.0452]), [0.0058, 0.0042, 0.0032], { k: 0.0042, region: head, comb: [0, 0.4, -1], fur: 0, fine: true, nose: true });
   ell("jaw", H([0, -0.0235, 0.012]), [0.0178, 0.0092, 0.024], { k: 0.01, region: head, comb: [0, -0.3, -1], fur: 0.5, fine: true });
   ell("jaw", H([0, -0.0272, 0.0245]), [0.0092, 0.0062, 0.0095], { k: 0.006, region: head, comb: [0, -0.4, -1], fur: 0.35, fine: true });
   for (const side of [1, -1]) {
     const socket = new THREE.Matrix4()
       .makeRotationFromEuler(new THREE.Euler(0.05, side * 0.3, side * 0.16, "YXZ"))
       .invert();
-    ell("head", H([0.0184 * side, 0.0068, 0.0342]), [0.0106, 0.0092, 0.0088], {
+    ell("head", H([0.0184 * side, 0.0084, 0.0346]), [0.0108, 0.0112, 0.009], {
       sub: true,
       k: 0.0035,
       basis: new THREE.Matrix3().setFromMatrix4(socket).elements,
@@ -514,7 +515,14 @@ function bake(mesh, field, prims, rig) {
     out.normal.set(g, v * 3);
     out.coat.set([x, y, z, FUR], v * 4);
     out.region.set(region.map((r) => r / total), v * 4);
-    out.furInfo.set([ao, fur / total, mouth, nose / total], v * 4);
+    // Fur is very short round the eyes, so it never grows over them.
+    let nearEye = 1;
+    for (const side of [1, -1]) {
+      const e = eyeCentre(side);
+      const d = Math.hypot(x - e[0] - HEAD[0], y - e[1] - HEAD[1], z - e[2] - HEAD[2]);
+      nearEye = Math.min(nearEye, THREE.MathUtils.smoothstep(d, EYE_RADIUS * 1.05, EYE_RADIUS * 1.9));
+    }
+    out.furInfo.set([ao, (fur / total) * nearEye, mouth, nose / total], v * 4);
     out.comb.set([cx, cy, cz], v * 3);
   }
   // Wind triangles to face along the field's gradient.
@@ -556,7 +564,7 @@ function part(count) {
 
 export const EYE_RADIUS = 0.0102;
 export function eyeCentre(side) {
-  return [0.0184 * side, 0.0062, 0.0262];
+  return [0.0184 * side, 0.0066, 0.027];
 }
 export const EYE_GAZE = { yaw: 0.26, pitch: -0.04 };
 

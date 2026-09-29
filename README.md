@@ -67,7 +67,12 @@ reduced-motion mode, background/resume, and with the weather endpoint blocked.
 | `src/forest.js`          | Instanced plants, flowers, granite, ground and bark detail shaders, LOD  |
 | `src/fauna.js`           | Gulls, cormorants and a dolphin pod                                      |
 | `src/walker.js`          | Cat movement, collisions, follow camera                                  |
-| `src/cat.js`             | Tabby model, coat shader, fur shells, gait/IK, tail, whiskers, prints    |
+| `src/cat.js`             | Cat animation: gait/IK, spine, postures, tail, ears, eyes, whiskers, LOD  |
+| `src/cat-rig.js`         | Skeleton (43 bones), bind pose, three-bone leg IK                        |
+| `src/cat-body.js`        | Anatomical SDF meshed with surface nets, skin weights, baked AO, 2 LODs  |
+| `src/cat-coat.js`        | Tabby pattern, fur lighting, eyes, instanced fur shells, coat bake       |
+| `src/cat-ground.js`      | Cat shadow on terrain, relief paw prints (and their glow), kicked sand   |
+| `src/cat-worker.js`      | Builds the cat mesh off the main thread                                  |
 | `src/critters.js`        | Butterflies, fireflies and ghost crabs                                   |
 | `src/sound.js`           | Synthesized ambience and cat sounds (WebAudio)                           |
 | `src/random.js`          | Reload seed, reproducible random streams                                 |
@@ -116,8 +121,18 @@ ground and the sea. Both the WGSL passes and the Three.js camera read that
 camera (`walker.camera`: coast metres, azimuth, pitch); keep them aligned. The
 cat walks on the ground mesh's exact surface (`groundHeight`) and on each
 boulder's rasterized top, is blocked by trunks and steep rock, and stops at the
-swash. Its gait blends walk → trot → gallop, paws plant in the world, and it
-sits and purrs when idle. Paw prints fade (fast in the swash). Butterflies,
+swash. The cat is one seamless skinned body meshed from an anatomical signed
+distance field (skull, cheeks, ribcage, haunches, shoulder blades, toes), drawn
+1.4× domestic size to hold its own among the plants. Its gait blends walk →
+trot → gallop with a flexing, bending spine and rolling shoulder blades; paws
+plant flat on the ground (slopes and rock too), and at a walk the hind paws
+land in the front prints. It sits on its haunches, lies in a loaf and yawns
+when sleepy, stalks with a rump wiggle and twitching tail tip when something
+small moves, and dips as it lands. It casts a real shadow (its own small sun
+shadow map, soft with distance from the paws) and shadows itself; low plants
+part round it. Paw prints are relief-lit pits (crisp in wet sand, crumbling in
+dry, wet stamps on rock after the swash) that fade (fast in the swash); running
+kicks up sand. Rain soaks and darkens the coat. Butterflies,
 fireflies and ghost crabs (`src/critters.js`) flee it. All sound is
 synthesized in `src/sound.js` and starts on the first gesture. Sun, moon and constellations occupy their true directions;
 they are not moved into frame when actually elsewhere. The sun disc is
@@ -291,7 +306,12 @@ breathing cycles (clipped at the surface). Birds roost at night.
   stable half, then a third, grown to cover the same canopy area (3.3 M → 1.7 M
   visible triangles at the home view). The mesh canvas caps at
   1.6 million pixels with MSAA (0.8 million without MSAA on phones). Rendering
-  is capped at 60 fps, 30 once the cat has settled, on the low-power GPU. Sun
+  is capped at 60 fps, 30 once the cat has settled, on the low-power GPU. The
+  cat is ~8 draws (the old one ~63): its skinned passes are vertex-bound, so the
+  fur shells, shadow map and see-through silhouette use a coarse mesh, outer
+  shells are clipped away before rasterisation except at the silhouette, and the
+  coat is baked per vertex once on the GPU for the shells (and for the body
+  beyond ~2 m). Its cost matches the old cat at the follow distance. Sun
   shadows use one 2048² map over 64 m around the cat, updated only when
   lighting changes. Individual leaf tips flutter in a vertex shader.
 - A 256 KiB repeating noise volume avoids hashing many noise octaves per sample.

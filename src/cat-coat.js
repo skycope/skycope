@@ -147,12 +147,12 @@ Coat coatAt( vec3 p, vec4 region, vec3 n, float nose, float mouth ) {
   Coat c;
   // Agouti: every hair is banded, so up close the ground colour is a warm
   // grey-brown salt-and-pepper, redder low on the flanks.
-  vec3 agoutiLight = lin( vec3( 0.7, 0.55, 0.36 ) );
-  vec3 agoutiDark = lin( vec3( 0.5, 0.38, 0.26 ) );
-  vec3 stripe = lin( vec3( 0.1, 0.075, 0.055 ) );
+  vec3 agoutiLight = lin( vec3( 0.64, 0.53, 0.4 ) );
+  vec3 agoutiDark = lin( vec3( 0.46, 0.37, 0.28 ) );
+  vec3 stripe = lin( vec3( 0.15, 0.11, 0.075 ) );
   vec3 cream = lin( vec3( 0.84, 0.76, 0.62 ) );
   float tick = cNoise( p * 1400.0 ) * 0.55 + cNoise( p * 520.0 ) * 0.3 + cNoise( p * 90.0 ) * 0.15;
-  vec3 base = mix( agoutiDark, agoutiLight, smoothstep( 0.2, 0.8, tick ) );
+  vec3 base = mix( agoutiDark, agoutiLight, 0.5 + ( smoothstep( 0.2, 0.8, tick ) - 0.5 ) * 0.6 );
   float head = region.x;
   float leg = region.y;
   float tail = region.z;
@@ -173,11 +173,11 @@ Coat coatAt( vec3 p, vec4 region, vec3 n, float nose, float mouth ) {
     // Mackerel stripes: narrow, many, falling from the spine and sweeping
     // back as they descend; forked, broken into dashes toward the belly.
     float warp = ( cNoise( p * 20.0 ) - 0.5 ) * 2.6 + ( cNoise( p * 60.0 ) - 0.5 ) * 0.9;
-    float wave = p.z * 235.0 - ( 0.07 - p.y ) * 38.0 + warp + sin( p.y * 80.0 + p.z * 25.0 ) * 1.3;
+    float wave = p.z * 235.0 - ( 0.07 - p.y ) * 38.0 + warp + ( cNoise( p * vec3( 8.0, 30.0, 12.0 ) ) - 0.5 ) * 2.4;
     float line = abs( fract( wave / 6.2832 ) - 0.5 ) * 2.0;
     float width = mix( 0.12, 0.26, cNoise( p * vec3( 20.0, 44.0, 30.0 ) ) );
     float dash = smoothstep( 0.2, 0.45, cNoise( p * vec3( 30.0, 75.0, 48.0 ) ) );
-    float mackerel = ( 1.0 - smoothstep( width * 0.55, width, line ) ) * dash;
+    float mackerel = ( 1.0 - smoothstep( width * 0.25, width * 1.15, line ) ) * dash * 0.9;
     mackerel *= smoothstep( -0.05, 0.0, p.y ) * ( 1.0 - top * 0.6 );
     // Haunch bars wrap the thigh; necklaces cross the chest.
     float haunch = smoothstep( -0.085, -0.125, p.z );
@@ -226,7 +226,7 @@ Coat coatAt( vec3 p, vec4 region, vec3 n, float nose, float mouth ) {
     float warp = ( cNoise( p * 70.0 ) - 0.5 ) * 0.3;
     float bar = abs( fract( p.y * mix( 36.0, 48.0, smoothstep( -0.05, -0.17, p.y ) ) + p.z * 5.0 + warp ) - 0.5 ) * 2.0;
     float width = mix( 0.12, 0.24, cNoise( p * vec3( 40.0, 90.0, 40.0 ) ) );
-    float ld = ( 1.0 - smoothstep( width * 0.5, width, bar ) ) * 0.6 * smoothstep( 0.02, -0.06, p.y ) * smoothstep( 0.25, 0.55, cNoise( p * vec3( 50.0, 20.0, 50.0 ) ) + 0.25 );
+    float ld = ( 1.0 - smoothstep( width * 0.25, width * 1.1, bar ) ) * 0.45 * smoothstep( 0.02, -0.06, p.y ) * smoothstep( 0.25, 0.55, cNoise( p * vec3( 50.0, 20.0, 50.0 ) ) + 0.25 );
     float inner = smoothstep( 0.2, 0.8, -n.x * sign( p.x ) );
     float boot = smoothstep( -0.2, -0.6, n.z ) * smoothstep( -0.11, -0.14, p.y ) * step( p.z, -0.02 );
     ld = max( ld * ( 1.0 - inner * 0.6 ), boot * 0.9 );
@@ -257,13 +257,19 @@ Coat coatAt( vec3 p, vec4 region, vec3 n, float nose, float mouth ) {
   col = mix( col, lin( vec3( 0.2, 0.13, 0.12 ) ), c.pad );
   // Nose leather: brick red, rimmed in black, with nostrils.
   {
-    vec3 h = p - ${HEAD_GLSL} - vec3( 0.0, -0.0068, 0.0446 );
-    float rim = smoothstep( 0.72, 0.98, length( h / vec3( 0.0064, 0.0044, 0.0036 ) ) );
+    vec3 h = p - ${HEAD_GLSL} - vec3( 0.0, -0.0064, 0.0452 );
+    vec3 hn = h / vec3( 0.0058, 0.0042, 0.0032 );
+    // A rounded triangle, wide at the top: narrower toward the bottom.
+    hn.x *= 1.0 + smoothstep( 0.3, -0.9, hn.y ) * 0.6;
+    float rim = smoothstep( 1.0, 1.3, length( hn ) );
     float nostril = 1.0 - smoothstep( 0.0009, 0.0015, length( vec2( abs( h.x ) - 0.0026, ( h.y + 0.0016 ) * 1.6 ) ) );
-    vec3 leather = mix( lin( vec3( 0.7, 0.42, 0.38 ) ), lin( vec3( 0.12, 0.08, 0.07 ) ), max( rim * 0.8, nostril ) );
+    vec3 leather = mix( lin( vec3( 0.58, 0.34, 0.31 ) ), lin( vec3( 0.12, 0.08, 0.07 ) ), max( rim * 0.85, nostril ) );
     leather *= 0.9 + cHash( floor( p * 4000.0 ) ) * 0.2;
-    float leatherMask = ( 1.0 - smoothstep( 0.95, 1.12, length( h / vec3( 0.0064, 0.0044, 0.0036 ) ) ) ) * smoothstep( -0.002, 0.001, h.z ) * step( 0.5, head );
+    float leatherMask = ( 1.0 - smoothstep( 1.35, 1.55, length( hn ) ) ) * smoothstep( -0.001, 0.002, h.z ) * step( 0.3, head );
     col = mix( col, leather, leatherMask );
+    // The philtrum: a fine dark groove from the nose down to the lip.
+    float philtrum = band( h.x, 0.0007 ) * smoothstep( -0.004, -0.006, h.y ) * smoothstep( -0.013, -0.011, h.y ) * step( 0.3, head );
+    col = mix( col, lin( vec3( 0.14, 0.1, 0.08 ) ), philtrum * 0.8 );
     nose = max( nose, leatherMask );
   }
   c.colour = col;
@@ -522,7 +528,8 @@ const COMMON_COLOUR = /* glsl */ `
     float ang = atan( q.y, q.x );
     // The iris fills nearly all of the opening; a thin dark limbal ring.
     float iris = 1.0 - smoothstep( 0.83, 0.88, r );
-    float fibre = cNoise( vec3( ang * 9.0, r * 14.0, 0.0 ) ) * 0.3 + cNoise( vec3( ang * 34.0, r * 24.0, 3.0 ) ) * 0.25 + cNoise( vec3( ang * 80.0, r * 6.0, 7.0 ) ) * 0.12;
+    // Radial fibres: long streaks outward from the pupil, a few crypts.
+    float fibre = cNoise( vec3( ang * 7.0, r * 3.0, 0.0 ) ) * 0.28 + cNoise( vec3( ang * 26.0, r * 2.5, 3.0 ) ) * 0.2 + cNoise( vec3( ang * 60.0, r * 1.5, 7.0 ) ) * 0.08;
     vec3 irisColour = mix( lin( vec3( 0.42, 0.52, 0.17 ) ), lin( vec3( 0.86, 0.66, 0.24 ) ), smoothstep( 0.2, 0.72, r ) );
     irisColour *= 0.72 + fibre;
     // The collarette: a paler ring round the pupil.
@@ -539,7 +546,7 @@ const COMMON_COLOUR = /* glsl */ `
     furAO = mix( 0.5, 1.0, smoothstep( 0.2, 0.85, e.z ) );
     // Almond lids at rest (the outer corner a little higher), closing from
     // above and meeting a rising lower lid to blink.
-    float upperRest = 0.7 + outer * 0.12 - outer * outer * 0.3;
+    float upperRest = 0.84 + outer * 0.1 - outer * outer * 0.3;
     float lowerRest = -0.6 + outer * 0.1 + outer * outer * 0.18;
     float upper = mix( upperRest, lowerRest + 0.12, catBlink );
     float lower = mix( lowerRest, lowerRest + 0.1, catBlink );
@@ -563,7 +570,7 @@ const COMMON_COLOUR = /* glsl */ `
     back *= 1.0 - smoothstep( 0.75, 1.0, v ) * 0.5;
     vec3 skin = lin( vec3( 0.84, 0.6, 0.56 ) );
     // Pale furnishings from the inner rim and the base.
-    float tuft = max( smoothstep( 0.45, 0.8, abs( u ) ), smoothstep( 0.35, 0.05, v ) ) * cNoise( vec3( u * 60.0, v * 25.0, 1.0 ) );
+    float tuft = max( smoothstep( 0.45, 0.8, abs( u ) ), smoothstep( 0.35, 0.05, v ) ) * ( 0.5 + 0.5 * cNoise( vec3( u * 14.0, v * 9.0, 1.0 ) ) );
     skin = mix( skin, lin( vec3( 0.88, 0.84, 0.76 ) ), smoothstep( 0.3, 0.7, tuft ) );
     coatColour = mix( back, skin, inner );
     furThin = mix( 0.35, 1.3, inner ) * ( 1.0 - v * 0.3 );

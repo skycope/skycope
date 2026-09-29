@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { CAT_SCALE, LEGS, PAW_LIFT, STAND_HEIGHT, TAIL_BONES, TAIL_LENGTH, TAIL_ROOT, createRig, neutralFoot, solveLeg } from "./cat-rig.js";
+import { CAT_SCALE, PAW_LIFT, STAND_HEIGHT, TAIL_BONES, TAIL_LENGTH, TAIL_ROOT, createRig, neutralFoot, solveLeg } from "./cat-rig.js";
 import { buildCatGeometry } from "./cat-body.js";
 import { bakeShellColours, catUniforms, coatMaterial, ghostMaterial } from "./cat-coat.js";
 import { createContactShadow, createDust, createPawPrints } from "./cat-ground.js";
@@ -79,10 +79,9 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
   const depth = new THREE.MeshDepthMaterial({ side: THREE.DoubleSide });
   const meshes = [];
   let shellGeometry = null;
-  const maxShells = light ? 4 : 6;
+  const maxShells = light ? 4 : 5;
 
   let lods = null;
-  let shellLods = null;
   let baked = null;
   let shadowFrame = 0;
   let shadowKey = "";
@@ -101,16 +100,12 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       return mesh;
     };
     skinned(lods.mid, coat, 10);
-    // Shell copies share the LOD buffers; far away they use the coarse mesh.
-    const instanced = (g) => {
-      const shells = new THREE.InstancedBufferGeometry();
-      shells.index = g.index;
-      for (const [name, attribute] of Object.entries(g.attributes)) shells.setAttribute(name, attribute);
-      shells.instanceCount = maxShells;
-      return shells;
-    };
-    shellLods = { mid: instanced(lods.mid), far: instanced(lods.far) };
-    shellGeometry = shellLods.mid;
+    // Shells share the coarse mesh's buffers: under fuzz its sub-mm chord
+    // error is invisible, and every shell costs a skinned pass.
+    shellGeometry = new THREE.InstancedBufferGeometry();
+    shellGeometry.index = lods.far.index;
+    for (const [name, attribute] of Object.entries(lods.far.attributes)) shellGeometry.setAttribute(name, attribute);
+    shellGeometry.instanceCount = maxShells;
     skinned(shellGeometry, fur, 11);
     skinned(lods.far, ghost, 20).receiveShadow = false;
     // The shadow map sees only this coarse copy.
@@ -353,7 +348,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
         turn: b.neck.rotation.y + heading,
         height: height + b.neck.rotation.x * 0.05,
         sniff: pose.swish * (1 - amp),
-        light: 0.18 + light.direct * 0.55 + (1 - light.night) * 0.15,
+        light: 0.03 + light.direct * 0.6 + (1 - light.night) * 0.3,
       });
 
       // Eyes: blink every few seconds (twice now and then), slow-blink
@@ -371,6 +366,8 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       uniforms.catBlink.value = Math.min(1, Math.max(blink, pose.sleepy * (1 + state.lie * 0.9), yawn * 0.8, (light.rain ?? 0) * 0.25));
       uniforms.catPupil.value = lerp(0.12, 0.66, light.night);
       uniforms.catEyeshine.value = light.night;
+      // The see-through silhouette is unlit: keep it as dim as the scene.
+      ghost.color.setRGB(0.95, 0.85, 0.7).multiplyScalar(0.12 + 0.88 * (1 - light.night) * (0.4 + 0.6 * light.direct));
       state.gazeTimer -= step;
       if (state.gazeTimer < 0) {
         state.gazeTimer = 0.4 + Math.random() * 2.2;
@@ -497,7 +494,9 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
         leg.lastUpper = solved.upperAngle;
         // A loaf folds every leg underneath.
         if (lieW > 0.01) {
-          const tuck = spec.front ? [1.25, -2.35, 1.05, 1.1] : [-1.05, 2.45, -1.35, 0.1];
+          // Front: upper arm back, forearm and pastern forward under the
+          // chest. Hind: thigh forward, shin back, hock folded flat forward.
+          const tuck = spec.front ? [1.25, -2.6, 0.1, 1.5] : [-1.0, 2.6, -3.05, 1.45];
           leg.upper.rotation.x = lerp(leg.upper.rotation.x, tuck[0], lieW);
           leg.lower.rotation.x = lerp(leg.lower.rotation.x, tuck[1], lieW);
           leg.foot.rotation.x = lerp(leg.foot.rotation.x, tuck[2], lieW);
@@ -634,18 +633,12 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       // Fewer shells as the cat gets smaller on screen.
       if (shellGeometry && light.eye) {
         const d = light.eye.distanceTo(centre);
-        const count = this.debug.shells ?? Math.round(clamp(9 - d * 1.9, 2, maxShells));
-        // The full mesh only once the cat is big on screen (with hysteresis).
+        const count = this.debug.shells ?? Math.round(clamp(8.2 - d * 2, 2, maxShells));
         const body = meshes[0];
-        const near = body.geometry === lods.near ? d < 1.5 : d < 1.3;
-        body.geometry = near ? lods.near : lods.mid;
         // Beyond ~2 m the stripes span a few pixels: paint the body per vertex.
         const perVertex = body.material === coatFar ? d > 2.0 : d > 2.3;
         body.material = perVertex && uniforms.catBodyColours.value ? coatFar : coat;
-        const far = shellGeometry === shellLods.far ? d > 2.4 : d > 2.7;
-        shellGeometry = meshes[1].geometry = far ? shellLods.far : shellLods.mid;
-        if (baked) uniforms.catShellColours.value = baked[far ? "far" : "mid"].texture;
-        shellLods.mid.instanceCount = shellLods.far.instanceCount = count;
+        shellGeometry.instanceCount = count;
         uniforms.catPixelAngle.value = 1 / (light.pixelScale ?? 500);
         uniforms.shellCount.value = count;
       }
@@ -670,7 +663,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       if (!meshes.length) return;
       if (!baked) {
         baked = { mid: bakeShellColours(renderer, lods.mid), far: bakeShellColours(renderer, lods.far) };
-        uniforms.catShellColours.value = baked[shellGeometry === shellLods.far ? "far" : "mid"].texture;
+        uniforms.catShellColours.value = baked.far.texture;
         uniforms.catBodyColours.value = baked.mid.texture;
       }
       if (uniforms.catShadowOn.value < 0.5) return;
@@ -690,7 +683,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
     dispose() {
       disposed = true;
       if (lods) Object.values(lods).forEach((g) => g.dispose());
-      if (shellLods) Object.values(shellLods).forEach((g) => g.dispose());
+      shellGeometry?.dispose();
       coat.dispose();
       coatFar.dispose();
       fur.dispose();
@@ -820,4 +813,3 @@ function whiskers() {
   };
 }
 
-export { LEGS };
