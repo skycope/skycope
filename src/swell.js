@@ -11,14 +11,17 @@ export function swellAt(seed, wind = [0, 0]) {
   const speed = Math.hypot(wind[0], wind[1]);
   const k = 0.4;
   // A long-period groundswell: its crests run nearly parallel to the beach,
-  // turned a little by the seed; local wind only adds height.
+  // turned a little by the seed; local wind only adds height. Big enough to
+  // trip on the outer shelf (~1 m deep, 15 m out) as knee-to-thigh-high
+  // breakers seen from the sand; the inner surf zone stays depth-limited.
+  // Keep in step with the default in sea-surface.js.
   const angle = Math.sin(s * 6.283185) * 0.22;
   return {
     k,
     along: Math.sin(angle) * k,
     omega: SWELL_SPEED * Math.sqrt(9.81 * k),
     phase: ((s * 7.31) % 1) * 6.283185,
-    amplitude: 0.17 + Math.min(speed * 0.006, 0.07),
+    amplitude: 0.28 + Math.min(speed * 0.006, 0.07),
   };
 }
 
