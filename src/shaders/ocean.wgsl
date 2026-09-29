@@ -333,6 +333,27 @@ fn ocean(
     color += ambient_light * vec3f(0.05, 0.2, 0.18) * thin * 0.12;
   }
 
+  // ---- Bioluminescence. ------------------------------------------------------
+  // Cape waters bloom with dinoflagellates (Noctiluca, Lingulodinium) that
+  // flash blue when the water is churned. At night the breaking roller, the
+  // uprush, the surge round each rock and breaking whitecaps glow cyan-blue
+  // from within the foam and just under it, with single cells sparking in
+  // freshly stirred water. Blooms drift in patches along the coast.
+  if (night > 0.01 && foam.z > 0.01) {
+    let bloom = smoothstep(0.25, 0.7, value_noise(p.xz * 0.018 + vec2f(settings.time * 0.003, 3.7)));
+    let glow = foam.z * bloom * night;
+    let body = glow * (0.35 + 0.65 * cover) + glow * foam.y * 0.4;
+    var sparks = 0.0;
+    if (pixel < 0.06) {
+      let q = p.xz * 22.0;
+      let cell = floor(q);
+      let h = hash22(cell + floor(settings.time * 6.0 + hash22(cell).x * 6.0));
+      let spot = 1.0 - smoothstep(0.08, 0.3, length(fract(q) - 0.2 - h * 0.6));
+      sparks = step(0.9, h.y) * spot * glow * (1.0 - smoothstep(0.02, 0.06, pixel));
+    }
+    color += vec3f(0.05, 0.42, 0.95) * (body * 0.06 + sparks * 0.5);
+  }
+
   // Aerial perspective: air, not a wall of fog. The horizon stays crisp.
   return mix(color, sky, 1.0 - exp(-distance * 0.00022));
 }
@@ -493,12 +514,15 @@ fn kelp_canopy(p: vec2f, offshore: f32, settings: OceanSettings, noise: texture_
 //    decaying with the time since its crest passed;
 //  - whitecaps offshore, from the foam simulation over the wind sea;
 //  - the swash on the beach (shared with the ground shader).
-// Returns (surface coverage, bubble cloud under the surface).
+// Returns (surface coverage, bubble cloud under the surface, agitation).
 fn surf_foam(p: vec2f, metrics: vec4f, sea: Sea, pixel: f32, settings: OceanSettings,
-  noise: texture_3d<f32>, filtering: sampler, foam_layer: texture_2d<f32>, rock: RockSea) -> vec2f {
+  noise: texture_3d<f32>, filtering: sampler, foam_layer: texture_2d<f32>, rock: RockSea) -> vec3f {
   let offshore = max(0.0, metrics.x);
   var density = 0.0;
   var bubbles = 0.0;
+  // Agitation: water being churned right now (the roller, the uprush, the
+  // surge round a rock, a whitecap breaking), where plankton light up.
+  var agitation = 0.0;
   if (sea.breaking > 0.01) {
     let theta = sea.phase;
     // Whitewater starts at the crest's lip where the wave first breaks and
@@ -518,31 +542,35 @@ fn surf_foam(p: vec2f, metrics: vec4f, sea: Sea, pixel: f32, settings: OceanSett
     density = broken * max(roller * (0.7 + 0.6 * patches), min(residue * patches * 1.2, 0.95));
     // Entrained bubbles: a turquoise cloud in each breaker's wake.
     bubbles = broken * max(roller * 0.9, exp(-age / (period * 0.3)) * 0.8);
+    agitation = broken * max(roller, exp(-age / (period * 0.12)) * 0.6);
   }
   let wind = length(settings.wind);
   if (wind > 3.5) {
     let whitecap = textureSampleLevel(foam_layer, filtering, p / SEA_TILE, 0.0).rg * smoothstep(6.0, 20.0, offshore);
     density = max(density, whitecap.x * 0.85);
     bubbles = max(bubbles, whitecap.y * 0.8);
+    agitation = max(agitation, whitecap.y * 0.5);
   }
   var coords = vec2f(metrics.w * 0.7, -metrics.x);
   if (metrics.x < 2.5) {
     let s = swash(metrics.w, -metrics.x, settings.time, settings.swell);
     density = max(density, s.y);
     bubbles = max(bubbles, s.y * 0.6);
+    agitation = max(agitation, s.y * s.x * 0.8);
   }
   // Foam round the rocks, laced in coordinates wrapped round each one.
   let collar = rock.foam > density;
   density = max(density, rock.foam);
   bubbles = max(bubbles, rock.bubbles);
-  if (density < 0.01) { return vec2f(0.0, bubbles); }
+  agitation = max(agitation, rock.bubbles * 0.8);
+  if (density < 0.01) { return vec3f(0.0, bubbles, agitation); }
   // Foam rides the orbital motion: it sloshes shoreward under each crest and
   // back under each trough. Offshore, lace follows the sea itself.
   coords.y -= sea.excursion * sin(sea.phase);
   if (offshore > 20.0) { coords = p; }
   if (collar) { coords = rock.lace; }
   let coverage = foam_cover(coords, density, settings.time, pixel, noise, filtering);
-  return vec2f(coverage * 0.95, bubbles);
+  return vec3f(coverage * 0.95, bubbles, agitation);
 }
 
 // Foam as it really decays: dense froth first, then holes open, each round

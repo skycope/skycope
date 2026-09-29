@@ -172,6 +172,9 @@ for (const [name, time, weather, rain, view, windOverride] of [
   ["rocks-above", "2026-09-08T14:30:00Z", [0.2, 0.05, 0.1, 0.2], 0, [104.7, -0.6, [126, 5, 56]]],
   // A full moon over the surf: the moon path and moonlit foam.
   ["moon-beach", "2026-09-25T18:45:00Z", [0, 0, 0, 0], 0, [64, -0.06, [8.3, 2, 1.7]]],
+  // Moonless, over the surf and the rocks: bioluminescence in the breakers.
+  ["glow", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [44, -0.12, [8.3, 2, 1.7]]],
+  ["glow-rocks", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [104.7, -0.6, [126, 5, 56]]],
   ["horizon", "2026-09-08T16:32:00Z", [0, 0, 0, 0], 0],
   ["after-sunset", "2026-09-08T16:36:00Z", [0, 0, 0, 0], 0],
 ]) {
