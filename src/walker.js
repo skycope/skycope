@@ -1,5 +1,6 @@
 import { groundHeight, shoreDistance, islandPoint, ISLAND } from "./terrain.js";
-import { CAT_SCALE } from "./cat-rig.js";
+import { CAT_SCALE, STAND_HEIGHT } from "./cat-rig.js";
+import { seabedDepth, shoreAlong } from "./sea-surface.js";
 
 // The cat's movement and the camera that follows it, in coast metres (x
 // right, z toward the home horizon; heading φ points along (sin φ, cos φ)).
@@ -27,10 +28,20 @@ const STEP_UP = 0.08;
 const CLIMB = 0.75;
 // Walking straight at a rock it can reach, a cat hops up rather than stopping.
 const HOP_REACH = 0.7;
+// In the sea. The cat wades until the water reaches its back, then floats
+// with its back just under the surface and paddles: slowly, as cats do.
+// Water drags at its legs as it deepens. Past the kelp it turns back.
+const LEG = STAND_HEIGHT * CAT_SCALE;
+const FLOAT = 0.02;
+const SWIM_SPEED = 0.5;
+const SWIM_SPRINT = 0.78;
+export const SWIM_LIMIT = 24;
 
 export const CAMERA = { distance: 3.4, elevation: 0.38, min: 1.1, max: 8 };
 
-export function createWalker(obstacles) {
+// sea (sea-surface.js) gives the water level; wake (wake.js) takes the
+// cat's trail through it.
+export function createWalker(obstacles, sea = null, wake = null) {
   const grid = spatialGrid(obstacles);
   const cat = {
     x: 0,
@@ -53,6 +64,19 @@ export function createWalker(obstacles) {
     swish: 0,
     meowing: 0,
     onRock: false,
+    // Water: the surface over the cat, how deep it is there, how much the
+    // cat wades (0…1 of its leg) and floats, its slope for rolling on the
+    // waves, the body height (in the bind pose) the coat is wet to, and the
+    // shake that throws the water off afterwards (0 idle, then 0…1).
+    waterY: -Infinity,
+    water: 0,
+    wade: 0,
+    swim: 0,
+    waterSlope: [0, 0],
+    soak: -1,
+    shake: 0,
+    dryFor: 0,
+    shaken: true,
   };
   const camera = {
     yaw: 0,
@@ -70,6 +94,7 @@ export function createWalker(obstacles) {
   let blocked = 0;
   let lastDrag = -10;
   let clock = 0;
+  let last = null;
   // The last rock face the body met: outward normal, when, which way round
   // the cat is going, and how long it has pushed straight at it.
   const wall = { x: 0, z: 0, at: -10, side: 1, top: -Infinity, headOn: 0 };
@@ -82,6 +107,10 @@ export function createWalker(obstacles) {
     camera,
     events,
     surface,
+    // The water over (x, z): { level (−∞ where dry), flow }.
+    water(x, z) {
+      return waterAt(x, z, surface(x, z));
+    },
     home,
     walkTo(x, z) {
       target = { x, z };
@@ -155,17 +184,21 @@ export function createWalker(obstacles) {
       // Turn toward the wanted direction; a cat pivots rather than reversing.
       // Turning eases in and out (angular velocity, not snapped headings),
       // and a cat slows to turn sharply.
+      // A shake stops the cat where it stands.
+      if (cat.shake > 0) want = 0;
       let wantedTurn = 0;
       if (want > 0.01) {
         const diff = wrap(Math.atan2(dirX, dirZ) - cat.heading);
-        const rate = run ? 5.5 : 3.8;
+        const rate = (run ? 5.5 : 3.8) * (1 - cat.swim * 0.55);
         wantedTurn = clamp(diff * 6, -rate, rate);
         want *= Math.max(0, Math.cos(diff)) ** 0.8;
       }
       cat.turn += (wantedTurn - cat.turn) * Math.min(1, dt * 9);
       cat.heading = wrap(cat.heading + cat.turn * dt);
-      const topSpeed = run ? RUN_SPEED : WALK_SPEED;
-      const accel = cat.air > 0 ? 1 : run ? 7 : 4;
+      // Water drags at the legs; afloat, the cat paddles.
+      const drag = 1 - 0.55 * smooth(0.04, LEG, cat.water);
+      const topSpeed = lerp((run ? RUN_SPEED : WALK_SPEED) * drag, run ? SWIM_SPRINT : SWIM_SPEED, cat.swim);
+      const accel = (cat.air > 0 ? 1 : run ? 7 : 4) * lerp(drag, 0.35, cat.swim);
       // Speed eases toward the target: quick to start, softer to stop.
       const targetSpeed = want * topSpeed;
       const rate = targetSpeed > cat.speed ? accel : accel * 1.4;
@@ -174,8 +207,9 @@ export function createWalker(obstacles) {
       cat.running = cat.speed > 1.7;
 
       // Jump: straight up or forward, onto rocks if they are in reach.
-      if ((input.jump || hop) && cat.air === 0 && cat.sit < 0.5) {
-        cat.vy = JUMP_SPEED;
+      if ((input.jump || hop) && cat.air === 0 && cat.sit < 0.5 && cat.shake === 0) {
+        // Afloat, only a scramble: enough to haul out onto a rock.
+        cat.vy = JUMP_SPEED * lerp(1, 0.78, cat.swim);
         // A hop onto a rock goes only as high as it needs to.
         if (hop && !input.jump) {
           cat.vy = Math.min(cat.vy, Math.sqrt(2 * GRAVITY * (wall.top - cat.y + 0.12)));
@@ -204,15 +238,41 @@ export function createWalker(obstacles) {
         // In the air, momentum carries on once the body clears the rim.
         if (cat.air === 0) cat.speed *= 0.5;
       } else blocked = 0;
+      // The swell carries a floating cat back and forth (and the broken
+      // bores carry it in); it surges round wading legs.
+      if (cat.water > 0.02 && cat.air === 0 && last) {
+        const push = (cat.swim + (1 - cat.swim) * 0.3 * cat.wade) * dt;
+        tryMove(cat.x + last.flowX * push, cat.z + last.flowZ * push, true);
+      }
 
-      // Vertical: stick to the ground, or fly a ballistic arc.
-      const floor = surface(cat.x, cat.z);
+      // Water: the level here, and its slope for the body to roll with.
+      const bed = surface(cat.x, cat.z);
+      // (sea.at reuses one result object: copy it before sampling again.)
+      const water = { ...waterAt(cat.x, cat.z, bed) };
+      last = water;
+      const depth = Math.max(0, water.level - bed);
+      if (depth > 0) {
+        const e = 0.25;
+        const sx = waterAt(cat.x + e, cat.z, surface(cat.x + e, cat.z)).level;
+        const sz = waterAt(cat.x, cat.z + e, surface(cat.x, cat.z + e)).level;
+        cat.waterSlope[0] = Number.isFinite(sx) ? clamp((sx - water.level) / e, -0.5, 0.5) : 0;
+        cat.waterSlope[1] = Number.isFinite(sz) ? clamp((sz - water.level) / e, -0.5, 0.5) : 0;
+      } else cat.waterSlope[0] = cat.waterSlope[1] = 0;
+      const entering = depth > 0.03 && cat.water <= 0.03;
+      cat.water = depth;
+      cat.waterY = depth > 0 ? water.level : -Infinity;
+      cat.wade += (Math.min(1, depth / LEG) - cat.wade) * Math.min(1, dt * 10);
+      cat.swim += (smooth(0.22, 0.3, depth) - cat.swim) * Math.min(1, dt * 4);
+      if (entering && Math.abs(cat.speed) > 1.2) events.push({ type: "splash", speed: Math.abs(cat.speed) });
+
+      // Vertical: stick to the ground (or float), or fly a ballistic arc.
+      const floor = depth > 0 ? Math.max(bed, water.level - LEG - FLOAT) : bed;
       if (cat.air > 0) {
         cat.vy -= GRAVITY * dt;
         cat.y += cat.vy * dt;
         if (cat.y <= floor && cat.vy < 0) {
           cat.y = floor;
-          events.push({ type: "land", speed: -cat.vy });
+          events.push({ type: depth > 0.03 ? "splash" : "land", speed: -cat.vy });
           cat.vy = 0;
           cat.air = 0;
         }
@@ -224,14 +284,44 @@ export function createWalker(obstacles) {
       const airborne = cat.air > 0 ? Math.max(0, cat.y - floor) : 0;
       cat.air = cat.air > 0 ? Math.max(0.001, airborne) : 0;
       cat.airPitch = cat.air > 0 ? clamp(cat.vy * 0.08, -0.3, 0.3) : 0;
-      cat.onRock = floor > groundHeight(cat.x, cat.z) + 0.03;
+      cat.onRock = bed > groundHeight(cat.x, cat.z) + 0.03;
+
+      // The coat wets up to the waterline and dries over a minute or so.
+      // Out of the water, a soaked cat stops and shakes it off.
+      if (depth > 0) cat.soak = Math.max(cat.soak, clamp((water.level - cat.y - LEG) / CAT_SCALE, -0.2, 0.16));
+      cat.soak = Math.max(-1, cat.soak - dt * (cat.soak > -0.2 ? 0.0035 : 0.05));
+      if (depth > 0.1) cat.shaken = false;
+      cat.dryFor = depth > 0.005 ? 0 : cat.dryFor + dt;
+      if (!cat.shaken && cat.dryFor > 0.7 && cat.air === 0 && cat.soak > -0.13) {
+        cat.shaken = true;
+        cat.shake = 0.001;
+        events.push({ type: "shake" });
+      }
+      if (cat.shake > 0) {
+        cat.shake += dt / 1.1;
+        if (cat.shake >= 1) {
+          cat.shake = 0;
+          cat.soak -= 0.04;
+        }
+      }
+      // The wake: the body's waterline once it floats, churn from legs
+      // running through the shallows.
+      if (wake) {
+        const immersion = Math.max(cat.swim, smooth(0.14, 0.26, depth)) * (cat.air > 0 ? 0 : 1);
+        const speed = Math.abs(cat.speed);
+        const churn = smooth(0.4, 1.6, speed) * smooth(0.03, 0.12, depth) * 0.7;
+        const strength = Math.max(immersion * (0.45 + 0.55 * Math.min(1, speed / 0.6)), churn);
+        wake.body.half = 0.2 * CAT_SCALE * lerp(0.6, 1, cat.swim);
+        wake.move(cat.x, cat.z, cat.heading, immersion, speed, cat.air > 0 ? 0 : strength, lerp(0.09, 0.075, cat.swim) * CAT_SCALE);
+      }
 
       // How much the legs are stepping (the gait itself lives in cat.js).
       const pace = Math.max(Math.abs(cat.speed), Math.abs(cat.turn) * 0.1);
       cat.gaitAmp += (smooth(0, 0.18, pace) - cat.gaitAmp) * Math.min(1, dt * 8);
 
       // Idle: sit down after a few seconds, grow sleepy after half a minute.
-      const active = want > 0.01 || cat.air > 0 || Math.abs(cat.speed) > 0.05;
+      // Nor does a cat settle down in the water.
+      const active = want > 0.01 || cat.air > 0 || Math.abs(cat.speed) > 0.05 || depth > 0.02 || cat.shake > 0;
       cat.idle = active ? 0 : cat.idle + dt;
       const sitting = cat.idle > 4 ? 1 : 0;
       cat.sit += (sitting - cat.sit) * Math.min(1, dt * (sitting ? 1.6 : 5));
@@ -275,6 +365,11 @@ export function createWalker(obstacles) {
     cat.vy = 0;
     cat.idle = 0;
     cat.sit = 0;
+    cat.swim = cat.wade = cat.water = 0;
+    cat.waterY = -Infinity;
+    cat.shake = 0;
+    cat.shaken = true;
+    last = null;
     target = null;
     camera.yaw = cat.heading;
     camera.elevation = CAMERA.elevation;
@@ -283,18 +378,20 @@ export function createWalker(obstacles) {
     placeCamera(1);
   }
 
-  function tryMove(nx, nz) {
+  function tryMove(nx, nz, drift = false) {
     if (!grid.clearOfTrunks(nx, nz, CAT_RADIUS)) return false;
+    // Out past the kelp is too far for a cat.
+    if (shoreDistance(nx, nz) < -SWIM_LIMIT) return false;
     const next = surface(nx, nz);
-    const onRock = next > groundHeight(nx, nz) + 0.03;
-    // Cats don't swim: stop at the swash unless standing on a boulder.
-    if (!onRock && shoreDistance(nx, nz) < 0.45) return false;
-    const rise = next - (cat.air > 0 ? cat.y : surface(cat.x, cat.z));
+    // Rises are measured from where the cat is: afloat, a boulder's top
+    // above the water needs a scramble.
+    const rise = next - (cat.air > 0 || cat.swim > 0.5 ? cat.y : surface(cat.x, cat.z));
+    if (drift && rise > 0.02) return false;
     const run = Math.hypot(nx - cat.x, nz - cat.z) || 1e-4;
     // Pebbles are stepped over; a boulder's steep flank needs a jump.
     const tall = next - groundHeight(nx, nz) > 0.12;
     if (cat.air > 0 ? rise > 0.02 : tall && rise > 0.003 && rise / run > 1.6) return false;
-    if (!bodyClear(nx, nz, next - rise)) return false;
+    if (!drift && !bodyClear(nx, nz, next - rise)) return false;
     cat.x = nx;
     cat.z = nz;
     return true;
@@ -305,7 +402,7 @@ export function createWalker(obstacles) {
   function bodyClear(x, z, feet) {
     const sin = Math.sin(cat.heading);
     const cos = Math.cos(cat.heading);
-    const step = cat.air > 0 ? 0.03 : STEP_UP;
+    const step = cat.air > 0 || cat.swim > 0.5 ? 0.03 : STEP_UP;
     for (const [f, s, d] of PROBES) {
       const px = x + sin * f + cos * s;
       const pz = z + cos * f - sin * s;
@@ -336,9 +433,18 @@ export function createWalker(obstacles) {
     return true;
   }
 
-  // Walkable height: the ground mesh, or the top of a boulder.
+  // Walkable height: the ground mesh, the top of a boulder, or under the
+  // sea the seabed the water pass draws (ocean.wgsl seabed_depth), which the
+  // land mesh fades out above.
   function surface(x, z) {
-    return Math.max(groundHeight(x, z), grid.domeHeight(x, z));
+    let h = Math.max(groundHeight(x, z), grid.domeHeight(x, z));
+    const inland = shoreDistance(x, z);
+    if (inland < 0) h = Math.max(h, -seabedDepth(-inland, shoreAlong(x, z)));
+    return h;
+  }
+
+  function waterAt(x, z, bed) {
+    return sea ? sea.at(x, z, bed) : NO_WATER;
   }
 
   function updateCamera(dt, moving) {
@@ -437,8 +543,9 @@ function spatialGrid({ trunks, domes }) {
 }
 
 // How a paw print and a footstep sound: 0 rock, 1 wet sand, 2 dry sand,
-// 3 dune scrub, 4 forest floor.
-export function surfaceKind(x, z, onRock) {
+// 3 dune scrub, 4 forest floor, 5 water.
+export function surfaceKind(x, z, onRock, inWater = false) {
+  if (inWater) return 5;
   if (onRock) return 0;
   const inland = shoreDistance(x, z);
   if (inland < 1.7) return 1;
@@ -447,6 +554,11 @@ export function surfaceKind(x, z, onRock) {
   return 4;
 }
 
+const NO_WATER = { level: -Infinity, flowX: 0, flowZ: 0, breaking: 0 };
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
 function clamp(v, a, b) {
   return Math.min(b, Math.max(a, v));
 }

@@ -35,7 +35,9 @@ import {
 import { groundHeight, shoreDistance, ISLAND } from "./terrain.js";
 import { lightingAt } from "./sunlight.js";
 import { createWeatherPanel } from "./weather-panel.js";
-import { createWalker, surfaceKind } from "./walker.js";
+import { createWalker, surfaceKind, SWIM_LIMIT } from "./walker.js";
+import { createSea } from "./sea-surface.js";
+import { createWake } from "./wake.js";
 import { createSound } from "./sound.js";
 import { CAT_SCALE } from "./cat-rig.js";
 
@@ -96,6 +98,10 @@ const state = {
   lastChirp: -10,
   // How wet the cat's paws are (from wet sand); they print on rock.
   pawWet: 0,
+  // The sea under the cat (CPU twin of the water pass) and its wake.
+  sea: null,
+  wake: createWake(),
+  wakeTexture: null,
   hintShown: true,
   // The renderer reads `weather`: the live forecast, or the panel's override.
   weather: null,
@@ -356,6 +362,12 @@ function tap(clientX, clientY) {
     const x = origin[0] + direction[0] * t;
     const y = origin[1] + direction[1] * t;
     const z = origin[2] + direction[2] * t;
+    // The sea surface: swim there (not past the kelp).
+    if (y < 0 && shoreDistance(x, z) < 0) {
+      state.walker.walkTo(...(shoreDistance(x, z) > -SWIM_LIMIT + 1 ? [x, z] : pullInland(x, z, SWIM_LIMIT - 1)));
+      dismissHint();
+      return;
+    }
     if (y < state.walker.surface(x, z)) {
       // Bisect for the crossing.
       let lo = previous;
@@ -378,12 +390,13 @@ function tap(clientX, clientY) {
   }
 }
 
-// A tap on the sea walks the cat to the water's edge instead.
-function pullInland(x, z) {
+// A tap beyond reach brings the target back toward the island, to `offshore`
+// metres out.
+function pullInland(x, z, offshore = -0.6) {
   const dx = ISLAND.x - x;
   const dz = ISLAND.z - z;
   const r = Math.hypot(dx, dz) || 1;
-  const pull = 0.6 - shoreDistance(x, z);
+  const pull = -offshore - shoreDistance(x, z);
   return [x + (dx / r) * pull, z + (dz / r) * pull];
 }
 
@@ -590,8 +603,16 @@ async function startAtmosphere() {
   // The boulders the sea laps against, from the same seeded layout.
   const shore = createShoreTextures(gpu.gpu, state.landscape.shoreRocks);
   const land = createLandTexture(gpu.gpu, state.landscape.landField);
-  water.set({ shoreRocks: shore.rocks.createView(), shoreGrid: shore.grid.createView(), landField: land.createView() });
-  state.walker = createWalker(state.landscape.obstacles);
+  // The cat's wake: one row of texels, written only while it is in the water.
+  state.wakeTexture = gpu.gpu.createTexture({
+    label: "skycope-cat-wake",
+    size: [64, 1],
+    format: "rgba32float",
+    usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+  });
+  water.set({ shoreRocks: shore.rocks.createView(), shoreGrid: shore.grid.createView(), landField: land.createView(), catWake: state.wakeTexture.createView() });
+  state.sea = createSea(state.seed, waveModes.data);
+  state.walker = createWalker(state.landscape.obstacles, state.sea, state.wake);
   state.flight = state.walker.camera;
   state.landscape.resize(window.innerWidth, window.innerHeight);
   await tablePass.compile(skyTable);
@@ -610,6 +631,9 @@ async function startAtmosphere() {
     const dt = Math.min(gpuClock.deltaTime, 0.05);
     if (!motionPreference.matches) {
       state.time += dt;
+      const weather = state.weather;
+      state.sea.set(state.time, swellUniform(state.seed, weather?.wind ?? [0, 0]), weather?.wind ?? [0, 0]);
+      state.wake.tick(state.time);
       updateCat(dt);
       adaptQuality(gpuClock.deltaTime);
     }
@@ -651,6 +675,8 @@ async function startAtmosphere() {
     if (stepFoam) foamPass.set({ atmosphere: seaUniforms, foamHistory: foamTarget.read.color });
     // Between steps the water reads the history last written.
     water.set({ atmosphere: seaUniforms, skyTexture: skyTarget.write.color, foamLayer: stepFoam ? foamTarget.write.color : foamTarget.read.color });
+    const wake = state.wake.pack();
+    if (wake) gpu.gpu.queue.writeTexture({ texture: state.wakeTexture }, wake, { bytesPerRow: 64 * 16 }, [64, 1]);
     currentFrame.pass(wavesTarget, wavesPass);
     if (stepFoam) currentFrame.pass(foamTarget.write, foamPass);
     currentFrame.pass(skyTable, tablePass);
@@ -684,6 +710,7 @@ async function startAtmosphere() {
       dt: motionPreference.matches ? 0 : dt,
       surface: state.walker.surface,
       onStep: footstep,
+      wake: state.wake,
     });
   };
   document.body.dataset.renderer = "webgpu";
@@ -773,6 +800,14 @@ function updateCat(dt) {
   state.jump = false;
   for (const event of walker.events.splice(0)) {
     if (event.type === "jump") state.sound.jump();
+    if (event.type === "shake") state.sound.shake();
+    if (event.type === "splash") {
+      // Leaping or bounding into the water.
+      const strength = Math.min(1.5, event.speed / 3);
+      state.sound.splash(strength, 0);
+      state.wake.ring(cat.x, cat.z, 0.6 + strength);
+      state.landscape.catSplashed(state.time, strength, cat.waterY);
+    }
     if (event.type === "land") {
       state.sound.land(event.speed);
       let kind = 2;
@@ -787,6 +822,7 @@ function updateCat(dt) {
       state.landscape.catLanded(state.time, Math.min(1.5, event.speed / 3), kind, walker.surface);
     }
   }
+  state.sound.setSwim(cat.swim, Math.abs(cat.speed));
   // Purr once settled; chirrup at something new to watch.
   state.sound.setPurr(cat.sit > 0.9 && cat.idle > 8);
   const interest = state.landscape.interest;
@@ -803,6 +839,8 @@ function updateCat(dt) {
   const wind = state.weather?.wind ?? [0, 0];
   state.sound.update({
     sea: 1 - smooth(0, 30, inland),
+    // Afloat, the sea is all round the cat's ears.
+    underwater: cat.swim,
     seaPan: (seaX / r) * Math.cos(yaw) - (seaZ / r) * Math.sin(yaw),
     wind: Math.hypot(wind[0], wind[1]),
     rain: state.weather?.rain ?? 0,
@@ -818,7 +856,15 @@ function footstep(leg, x, z, heading, front, { side = 1, speed = 0 } = {}, silen
   const cat = state.walker.cat;
   const ground = state.walker.surface;
   const onRock = ground(x, z) > groundHeight(x, z) + 0.03;
-  const kind = surfaceKind(x, z, onRock);
+  // A paw set down in the water splashes instead of printing.
+  const depth = state.walker.water(x, z).level - ground(x, z);
+  const kind = surfaceKind(x, z, onRock, depth > 0.008);
+  if (kind === 5) {
+    state.pawWet = 1;
+    state.wake.ring(x, z, Math.min(1, 0.25 + depth * 4 + speed * 0.3));
+    if (!silent) state.sound.splash(Math.min(1, 0.15 + depth * 3 + speed * 0.4), leg.startsWith("l") ? -0.15 : 0.15);
+    return kind;
+  }
   const inland = shoreDistance(x, z);
   const e = 0.03;
   const y = ground(x, z);

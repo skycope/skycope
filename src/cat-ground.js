@@ -422,11 +422,15 @@ export function createPawPrints(parent) {
 // ---------------------------------------------------------------------------
 // Kicked-up sand: grains thrown from a paw as it pushes off dry sand at a
 // run, or sprayed round a landing. The GPU flies each one (drag and gravity
-// from its launch), so spawning is the only CPU work.
+// from its launch), so spawning is the only CPU work. The same system, lit
+// as foam, throws the water: splashes, drips off a lifted paw, and the
+// spray a shake flings off the coat. Drops die as they fall back into the
+// sea, and glint as they catch the sun.
 
 const GRAINS = 384;
 
-export function createDust(parent) {
+export function createDust(parent, { water = false, grains = GRAINS } = {}) {
+  const GRAINS = grains;
   const geometry = new THREE.BufferGeometry();
   const origin = new Float32Array(GRAINS * 3);
   const velocity = new Float32Array(GRAINS * 3);
@@ -446,30 +450,58 @@ export function createDust(parent) {
       uniform float dustTime;
       uniform float dustScale;
       varying float vAlpha;
+      varying float vGlint;
       void main() {
+        vGlint = 0.0;
         float t = dustTime - birth.x;
-        float life = 0.55 + birth.y * 0.5;
         vec3 p = position;
-        // Drag: velocity decays at rate k; gravity pulls the rest down.
-        float k = 3.0;
+        #ifdef WATER
+          // Drops: little drag, full gravity, gone once back in the sea.
+          float life = 0.8 + birth.y * 0.6;
+          float k = 0.8;
+          float g = 9.8;
+        #else
+          float life = 0.55 + birth.y * 0.5;
+          // Drag: velocity decays at rate k; gravity pulls the rest down.
+          float k = 3.0;
+          float g = 4.0;
+        #endif
         float travel = ( 1.0 - exp( -k * t ) ) / k;
         p += velocity * travel;
-        p.y -= 4.0 * ( t - travel ) / k;
+        p.y -= g * ( t - travel ) / k;
         vAlpha = ( t > 0.0 && t < life ) ? ( 1.0 - t / life ) * 0.8 : 0.0;
+        #ifdef WATER
+          vAlpha = ( t > 0.0 && t < life && p.y > position.y - 0.03 ) ? 0.85 * ( 1.0 - smoothstep( life * 0.6, life, t ) ) : 0.0;
+          vGlint = step( 0.8, fract( birth.y * 17.3 + t * 3.0 ) );
+        #endif
         vec4 mv = modelViewMatrix * vec4( p, 1.0 );
         gl_Position = vAlpha > 0.0 ? projectionMatrix * mv : vec4( 0.0, 0.0, -2.0, 1.0 );
-        gl_PointSize = clamp( dustScale * ( 0.0018 + birth.y * 0.0015 ) / -mv.z, 1.0, 5.0 );
+        #ifdef WATER
+          gl_PointSize = clamp( dustScale * ( 0.003 + birth.y * 0.004 ) / -mv.z, 1.0, 7.0 );
+        #else
+          gl_PointSize = clamp( dustScale * ( 0.0018 + birth.y * 0.0015 ) / -mv.z, 1.0, 5.0 );
+        #endif
       }`,
     fragmentShader: /* glsl */ `
       uniform vec3 dustLight;
       varying float vAlpha;
+      varying float vGlint;
       void main() {
         vec2 c = gl_PointCoord * 2.0 - 1.0;
         float a = ( 1.0 - smoothstep( 0.4, 1.0, dot( c, c ) ) ) * vAlpha;
+        #ifdef WATER
+          // A clear drop: a bright rim, and now and then the sun in it.
+          float r = dot( c, c );
+          gl_FragColor = vec4( dustLight * ( 0.55 + 0.6 * smoothstep( 0.2, 0.8, r ) + vGlint * 2.5 ), a * 0.7 );
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+        #else
         gl_FragColor = vec4( dustLight * vec3( 0.62, 0.56, 0.44 ), a );
+        #endif
       }`,
     transparent: true,
     depthWrite: false,
+    defines: water ? { WATER: "" } : {},
   });
   const points = new THREE.Points(geometry, material);
   points.frustumCulled = false;
@@ -479,20 +511,23 @@ export function createDust(parent) {
   const attrs = [geometry.attributes.position, geometry.attributes.velocity, geometry.attributes.birth];
   return {
     points,
+    // light: a brightness, or (water) the foam's colour.
     update(time, light, pixelScale) {
       material.uniforms.dustTime.value = time;
-      material.uniforms.dustLight.value.setRGB(light, light, light * 0.97);
+      if (light.isColor) material.uniforms.dustLight.value.copy(light);
+      else material.uniforms.dustLight.value.setRGB(light, light, light * 0.97);
       material.uniforms.dustScale.value = pixelScale;
     },
     // A spray of n grains from (x, y, z), thrown along (dx, dz) and up.
-    spray(time, x, y, z, dx, dz, n, speed) {
+    spray(time, x, y, z, dx, dz, n, speed, up = 1) {
       const first = next;
+      n = Math.min(n, GRAINS);
       for (let i = 0; i < n; i++) {
         const a = Math.random() * Math.PI * 2;
         const spread = Math.random() * 0.6;
         origin.set([x + Math.cos(a) * 0.01, y + 0.004, z + Math.sin(a) * 0.01], next * 3);
         const s = speed * (0.4 + Math.random() * 0.8);
-        velocity.set([(dx + Math.cos(a) * spread) * s, s * (0.5 + Math.random() * 0.9), (dz + Math.sin(a) * spread) * s], next * 3);
+        velocity.set([(dx + Math.cos(a) * spread) * s, s * (0.5 + Math.random() * 0.9) * up, (dz + Math.sin(a) * spread) * s], next * 3);
         birth.set([time, Math.random()], next * 2);
         next = (next + 1) % GRAINS;
       }

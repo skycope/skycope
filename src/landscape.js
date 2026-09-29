@@ -3,6 +3,7 @@ import { createForest } from "./forest.js";
 import { createFauna } from "./fauna.js";
 import { createCat } from "./cat.js";
 import { CAT_SKY } from "./cat-ground.js";
+import { CAT_SEA } from "./cat-coat.js";
 import { createCritters } from "./critters.js";
 import { createMotes } from "./motes.js";
 import { horizonRadiance, skyDomeRatio } from "./sunlight.js";
@@ -157,7 +158,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         direction: [direction.x, direction.y, -direction.z],
       };
     },
-    render({ celestial, cover, time, wind, rain = 0, view: flight, lighting, pose, dt, surface, onStep }) {
+    render({ celestial, cover, time, wind, rain = 0, view: flight, lighting, pose, dt, surface, onStep, wake = null }) {
       const pointer = [0.5, 0.5];
       const night = THREE.MathUtils.smoothstep(celestial.scene, 1, 2);
       forest.updateWind(time, wind);
@@ -230,7 +231,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         pixelScale: renderer.domElement.height / (2 * Math.tan((camera.fov * Math.PI) / 360)),
         wind,
         rain,
-      });
+      }, wake);
       // Plants part round the cat as it walks through them.
       forest.pushAt(pose.x, pose.z, pose.air > 0.05 ? 0 : 1);
       interest = critters.update(dt, time, pose, night);
@@ -266,6 +267,9 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     },
     catLanded(time, strength, kind, surface) {
       cat.land(time, strength, kind, surface);
+    },
+    catSplashed(time, strength, level) {
+      cat.splash(time, strength, level);
     },
     resize(width, height, quality = 1) {
       camera.aspect = width / height;
@@ -351,9 +355,13 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       buildEnvironment(lighting.sky.map((v) => (v * (1 + cover * 0.45)) / exposure), bounce.map((v) => v / exposure), uniform);
     }
     CAT_SKY.value.setRGB(sky[0] * Math.PI, sky[1] * Math.PI, sky[2] * Math.PI);
-    forest.updateFoamLight(
-      lighting.direct.map((v, i) => (v * Math.max(sunWorld.y, 0) * overcast) / Math.PI + sky[i] * 1.1),
-    );
+    const foamLight = lighting.direct.map((v, i) => (v * Math.max(sunWorld.y, 0) * overcast) / Math.PI + sky[i] * 1.1);
+    forest.updateFoamLight(foamLight);
+    CAT_SEA.foam.value.setRGB(...foamLight);
+    // The water column's own colour, as ocean.wgsl scatters it: sun and sky
+    // light times scattering over extinction.
+    const ambient = lighting.direct.map((v, i) => (v * (1 - cover * 0.8) * (0.4 + 0.6 * Math.max(sunWorld.y, 0))) / Math.PI + lighting.sky[i]);
+    CAT_SEA.colour.value.setRGB(ambient[0] * 0.0188, ambient[1] * 0.087, ambient[2] * 0.123);
     // Aerial perspective: the haze is the horizon sky toward each fragment,
     // bright and warm toward the sun, cooler and bluer away from it, rather
     // than one colour for the whole view.

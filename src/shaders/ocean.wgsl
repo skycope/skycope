@@ -1,6 +1,7 @@
 import { band_variance, cascade_size, SEA_TILE } from "./spectrum.wgsl";
 import { lut_uv, overcast_sky } from "./skyview.wgsl";
 import { rock_slots, rock_sea, rock_traces, rock_hides, RockSea, RockHit, RockHits } from "./rocks.wgsl";
+import { cat_near, cat_sea } from "./wake.wgsl";
 
 // Camera-relative metres: x right, y up, z toward the coast. Everything here is
 // linear light in the sky pass's exposed units; water.wgsl tonemaps once.
@@ -64,7 +65,7 @@ export fn ocean_view(
   settings: OceanSettings, noise: texture_3d<f32>, filtering: sampler, sky_texture: texture_2d<f32>,
   waves0: texture_2d<f32>, waves1: texture_2d<f32>, waves2: texture_2d<f32>, waves3: texture_2d<f32>,
   foam_layer: texture_2d<f32>, shore_rocks: texture_2d<f32>, shore_grid: texture_2d<u32>,
-  sky_table: texture_2d<f32>, land_field: texture_2d<f32>,
+  sky_table: texture_2d<f32>, land_field: texture_2d<f32>, cat_wake: texture_2d<f32>,
 ) -> vec3f {
   let right = vec3f(0.707107, 0.0, 0.707107);
   let forward = vec3f(-0.707107, 0.0, 0.707107);
@@ -132,6 +133,19 @@ export fn ocean_view(
       sea.height += rock.height;
       sea.variance = sea.variance * calm + rock.variance;
     }
+  }
+  // The cat swimming or wading: its collar, trail, ripples and splashes.
+  if (cat_near(p.xz, cat_wake)) {
+    let cat = cat_sea(p.xz, near_pixel, settings.time, cat_wake);
+    sea.height += cat.height;
+    sea.slope += cat.slope;
+    sea.variance += cat.variance;
+    if (cat.foam > rock.foam) {
+      rock.foam = cat.foam;
+      rock.lace = cat.lace;
+    }
+    rock.bubbles = max(rock.bubbles, cat.bubbles);
+    rock.occlusion = max(rock.occlusion, cat.occlusion);
   }
   return ocean(p, metrics, direction, light, sky, sea, footprint, distance, settings, noise, filtering, sky_texture,
     waves1, waves2, waves3, foam_layer, rock, slots, shore_rocks, sky_table, land_field);

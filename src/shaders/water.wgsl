@@ -21,6 +21,8 @@ import { equatorial_from_local, catalog_stars, faint_stars, moon_disc } from "./
 @group(0) @binding(12) var skyTable: texture_2d<f32>;
 // The island's height and albedo (src/land-field.js), for its reflection.
 @group(0) @binding(13) var landField: texture_2d<f32>;
+// The cat's wake, collar and splashes (src/wake.js).
+@group(0) @binding(14) var catWake: texture_2d<f32>;
 
 @fragment
 fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
@@ -35,7 +37,7 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
     atmosphere.light.rgb, atmosphere.ambient.rgb, atmosphere.swell, atmosphere.light.w, atmosphere.rain,
     atmosphere.ocean.z);
   var color = ocean_view(ray, light, sky, settings, cloudNoise, filtering, skyTexture,
-    waves0, waves1, waves2, waves3, foamLayer, shoreRocks, shoreGrid, skyTable, landField);
+    waves0, waves1, waves2, waves3, foamLayer, shoreRocks, shoreGrid, skyTable, landField, catWake);
   // The direct disc is composited through cloud transmission. Water uses its
   // integrated BRDF instead of reflecting a low-resolution disc a second time.
   let sun_distance = length(ray - atmosphere.sun);

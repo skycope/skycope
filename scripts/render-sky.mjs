@@ -101,6 +101,12 @@ const foam = effect(gpu, await wgsl("foam.wgsl"), {
 const shore = createShoreTextures(gpu.gpu, shoreRockData(rockLayout(seededRandom(1847))));
 // And the island's reflection field, from the seed's own shoots.
 const land = createLandTexture(gpu.gpu, landFieldData(createVegetation(1847).clusters));
+// No cat in the fixtures: an empty wake.
+const catWake = gpu.gpu.createTexture({
+  size: [64, 1],
+  format: "rgba32float",
+  usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+});
 const water = effect(
   gpu,
   (
@@ -124,6 +130,7 @@ const water = effect(
       shoreRocks: shore.rocks.createView(),
       shoreGrid: shore.grid.createView(),
       landField: land.createView(),
+      catWake: catWake.createView(),
       skyTable: tableTarget.color,
       filtering: sampler(gpu, {
         minFilter: "linear",
@@ -150,6 +157,7 @@ const baseWater = process.env.BASE_WATER
         foamLayer: foamTarget.write.color,
         shoreRocks: shore.rocks.createView(),
         shoreGrid: shore.grid.createView(),
+        landField: land.createView(),
         skyTable: tableTarget.color,
         filtering: sampler(gpu, { minFilter: "linear", magFilter: "linear", addressModeU: "repeat", addressModeV: "repeat", addressModeW: "repeat" }),
       },

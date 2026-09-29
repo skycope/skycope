@@ -69,6 +69,10 @@ export function bakeShellColours(renderer, geometry) {
   return target;
 }
 
+// The sea's light for the cat's submerged parts, set by the landscape: the
+// water column's in-scattered colour (ocean.wgsl) and the foam's.
+export const CAT_SEA = { colour: { value: new THREE.Color(0.01, 0.04, 0.06) }, foam: { value: new THREE.Color(0.8, 0.8, 0.8) } };
+
 export function catUniforms() {
   return {
     catTime: { value: 0 },
@@ -89,6 +93,14 @@ export function catUniforms() {
     catShellColours: { value: null },
     // Radians per pixel, for the shells' screen-size decisions.
     catPixelAngle: { value: 0.001 },
+    // The water round the cat: its level at catWaterAt (world x, z), its
+    // world slope, and whether there is any (w). catSoak: the bind-pose
+    // height the coat is wet to.
+    catWater: { value: new THREE.Vector4(0, 0, 0, 0) },
+    catWaterAt: { value: new THREE.Vector2() },
+    catSoak: { value: -1 },
+    catWaterColour: CAT_SEA.colour,
+    catFoamLight: CAT_SEA.foam,
   };
 }
 
@@ -116,7 +128,36 @@ uniform float catWet;
 uniform float catTime;
 uniform vec3 catWind;
 uniform float catPixelAngle;
+uniform vec4 catWater;
+uniform vec2 catWaterAt;
+uniform float catSoak;
+varying vec3 vWaterP;
+varying float vWet;
 `;
+
+// Under the surface the coat is seen through the water: dimmed and tinted
+// by the column above it (the same absorption as ocean.wgsl), and fading so
+// the sea, drawn behind, shows through. Where it meets the surface, a bright
+// wet meniscus. gl_FragColor is linear here (tonemapped after).
+const WATER_PARS = /* glsl */ `
+uniform vec4 catWater;
+uniform vec3 catWaterColour;
+uniform vec3 catFoamLight;
+varying vec3 vWaterP;
+varying float vWet;
+`;
+const WATER_FRAGMENT = /* glsl */ `#include <opaque_fragment>
+  if ( catWater.w > 0.5 ) {
+    float d = vWaterP.z;
+    if ( d > 0.0 ) {
+      vec3 through = exp( -vec3( 0.478, 0.103, 0.073 ) * d * 2.6 );
+      gl_FragColor.rgb = gl_FragColor.rgb * through + catWaterColour * ( 1.0 - through );
+      gl_FragColor.a *= 0.8 * exp( -d * 5.5 );
+    }
+    // Only a faint, broken film of light: froth caught in the fur.
+    float line = exp( -d * d / 0.000012 ) * ( 0.4 + 0.6 * fract( sin( dot( floor( vWaterP.xy * 90.0 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 ) );
+    gl_FragColor.rgb = mix( gl_FragColor.rgb, catFoamLight * 0.8, line * 0.22 );
+  }`;
 
 
 // Shared by both stages: the shell pass paints its coat per vertex.
@@ -371,11 +412,11 @@ void RE_Direct_Fur( const in IncidentLight directLight, const in vec3 geometryPo
 export function coatMaterial(uniforms, { shell = false, baked = false } = {}) {
   // Shells are fuzz at the silhouette: Lambert-lit, painted per vertex.
   const material = shell ? new THREE.MeshLambertMaterial({ color: 0xffffff }) : new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 });
-  material.customProgramCacheKey = () => `cat-coat-v3-${shell}-${baked}`;
+  material.customProgramCacheKey = () => `cat-coat-v4-${shell}-${baked}`;
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader
-      .replace("void main() {", `${VERTEX_PARS}${baked ? `uniform sampler2D catBodyColours;\nvarying vec3 vBakedColour;` : ""}${shell ? `uniform sampler2D catShellColours;\nvarying vec3 vShellColour;\nvarying float vShellShadow;\nuniform sampler2D catShadowMap;\nuniform float catShadowOn;` : ""}\nvoid main() {\n vCoat = coat; vRegion = region; vFur = furInfo; vBindNormal = normal; vCombBind = comb;${baked ? `\n vBakedColour = texelFetch( catBodyColours, ivec2( gl_VertexID % ${BAKE_WIDTH}, gl_VertexID / ${BAKE_WIDTH} ), 0 ).rgb;` : ""}`)
+      .replace("void main() {", `${VERTEX_PARS}${baked ? `uniform sampler2D catBodyColours;\nvarying vec3 vBakedColour;` : ""}${shell ? `uniform sampler2D catShellColours;\nvarying vec3 vShellColour;\nvarying float vShellShadow;\nuniform sampler2D catShadowMap;\nuniform float catShadowOn;` : ""}\nvoid main() {\n vCoat = coat; vRegion = region; vFur = furInfo; vBindNormal = normal; vCombBind = comb;\n vWet = max( catWet, smoothstep( catSoak + 0.015, catSoak - 0.015, position.y ) );${baked ? `\n vBakedColour = texelFetch( catBodyColours, ivec2( gl_VertexID % ${BAKE_WIDTH}, gl_VertexID / ${BAKE_WIDTH} ), 0 ).rgb;` : ""}`)
       .replace(
         "#include <begin_vertex>",
         shell
@@ -385,9 +426,9 @@ export function coatMaterial(uniforms, { shell = false, baked = false } = {}) {
           // shorter and flatter when wet.
           vShell = ( float( gl_InstanceID ) + 1.0 ) / shellCount;
           bool shellCulled = false;
-          float furLen = furLength * furInfo.y * ( 1.0 - catWet * 0.45 );
+          float furLen = furLength * furInfo.y * ( 1.0 - vWet * 0.45 );
           // (Added after skinning, below.)
-          vec3 shellOffset = normal * vShell * furLen * ( 0.8 - catWet * 0.3 ) + comb * vShell * vShell * furLen * 1.4;
+          vec3 shellOffset = normal * vShell * furLen * ( 0.8 - vWet * 0.3 ) + comb * vShell * vShell * furLen * 1.4;
           shellOffset.y -= vShell * vShell * furLen * 0.25;`
           : `#include <begin_vertex>\n vShell = 0.0;`,
       )
@@ -424,6 +465,9 @@ export function coatMaterial(uniforms, { shell = false, baked = false } = {}) {
             : ""
         }
         vec4 catWorld = modelMatrix * vec4( transformed, 1.0 );
+        // Depth under the local surface, which wobbles with little ripples.
+        vWaterP = vec3( catWorld.xz, catWater.x + dot( catWater.yz, catWorld.xz - catWaterAt ) - catWorld.y
+          + 0.005 * sin( dot( catWorld.xz, vec2( 23.0, 17.0 ) ) - catTime * 5.1 ) + 0.004 * sin( dot( catWorld.xz, vec2( -13.0, 29.0 ) ) - catTime * 3.7 ) );
         vCatShadow = catShadowMatrix * catWorld;
         vGroundH = catWorld.y - catGroundY;
         ${shell ? `{
@@ -441,15 +485,17 @@ export function coatMaterial(uniforms, { shell = false, baked = false } = {}) {
       );
     if (shell) {
       shader.fragmentShader = shader.fragmentShader
-        .replace("void main() {", `${SHELL_PARS}\nvoid main() {`)
-        .replace("#include <color_fragment>", `#include <color_fragment>\n${SHELL_COLOUR}`);
+        .replace("void main() {", `${SHELL_PARS}${WATER_PARS}\nvoid main() {`)
+        .replace("#include <color_fragment>", `#include <color_fragment>\n${SHELL_COLOUR}`)
+        .replace("#include <opaque_fragment>", WATER_FRAGMENT);
       return;
     }
     shader.fragmentShader = shader.fragmentShader
       .replace(
         "#include <lights_physical_pars_fragment>",
-        `#include <lights_physical_pars_fragment>\n${baked ? "#define CAT_BAKED\nvarying vec3 vBakedColour;\n" : ""}${shell ? "#define CAT_SHELL\nvarying vec3 vShellColour;\n" : ""}${FRAGMENT_PARS}\n#undef RE_Direct\n#define RE_Direct RE_Direct_Fur`,
+        `#include <lights_physical_pars_fragment>\n${baked ? "#define CAT_BAKED\nvarying vec3 vBakedColour;\n" : ""}${shell ? "#define CAT_SHELL\nvarying vec3 vShellColour;\n" : ""}${FRAGMENT_PARS}${WATER_PARS}\n#undef RE_Direct\n#define RE_Direct RE_Direct_Fur`,
       )
+      .replace("#include <opaque_fragment>", WATER_FRAGMENT)
       .replace("#include <color_fragment>", `#include <color_fragment>\n${shell ? SHELL_COLOUR : BASE_COLOUR}`)
       .replace(
         "#include <roughnessmap_fragment>",
@@ -501,7 +547,7 @@ const COMMON_COLOUR = /* glsl */ `
   vec3 coatColour;
   // Biases are in shadow depth, which spans 10 m (cat.js).
   furSelfShadow = catShadow( vCatShadow, 0.0016 );
-  furSheen = 1.0 + catWet * 1.6;
+  furSheen = 1.0 + vWet * 1.6;
   if ( catPart < 0.5 ) {
     #if defined( CAT_BAKED )
       Coat c;
@@ -579,7 +625,7 @@ const COMMON_COLOUR = /* glsl */ `
     furSheen = 1.0 - inner;
     furAO *= mix( 1.0, mix( 0.45, 1.0, v ), inner );
   }
-  coatColour *= 1.0 - catWet * 0.3;
+  coatColour *= 1.0 - vWet * 0.3;
 `;
 
 const BASE_COLOUR = /* glsl */ `
@@ -596,9 +642,9 @@ const SHELL_COLOUR = /* glsl */ `
   // height, so each strand is continuous), tapering toward a per-strand
   // length. Wet fur clumps into fewer, thicker points.
   float shellPart = floor( vCoat.w + 0.5 );
-  float len = vFur.y * ( 1.0 - catWet * 0.3 );
+  float len = vFur.y * ( 1.0 - vWet * 0.3 );
   if ( len < 0.08 || ( shellPart > 0.5 && shellPart < 1.5 ) ) discard;
-  float clumpScale = mix( 1150.0, 520.0, catWet );
+  float clumpScale = mix( 1150.0, 520.0, vWet );
   vec3 sp = vCoat.xyz * clumpScale + ( shellPart > 1.5 ? vec3( 0.0, 0.0, vCoat.z * 20.0 ) : vec3( 0.0 ) );
   float footprint = length( fwidth( sp ) );
   vec3 cell = floor( sp );
@@ -623,7 +669,7 @@ const SHELL_COLOUR = /* glsl */ `
   vec3 coatColour = vShellColour;
   coatColour *= mix( 0.62, 1.05, vShell );
   coatColour *= 1.0 - smoothstep( 0.7, 1.0, vShell / strandLen ) * 0.25;
-  coatColour *= mix( 1.0, vShellShadow, 0.65 ) * ( 1.0 - catWet * 0.3 );
+  coatColour *= mix( 1.0, vShellShadow, 0.65 ) * ( 1.0 - vWet * 0.3 );
   diffuseColor.rgb = coatColour;
   diffuseColor.a = alpha;
 `;

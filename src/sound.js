@@ -14,6 +14,7 @@ export function createSound() {
   let nextCricket = 0;
   let nextThunder = 12;
   let nextDrip = 0;
+  let nextPaddle = 0;
   let noise = null;
   let pink = null;
   let brown = null;
@@ -312,6 +313,31 @@ export function createSound() {
         0.26,
         0.13,
       );
+    },
+    // A paw or a whole cat hitting the water: a plunge, then droplets
+    // pattering back.
+    splash(strength, pan = 0) {
+      if (!ctx || !enabled) return;
+      const g = 0.03 + strength * 0.09;
+      burst({ buffer: pink, type: "bandpass", frequency: 900 + Math.random() * 400, to: 350, q: 1.2, gain: g, attack: 0.006, length: 0.08 + strength * 0.2, pan });
+      burst({ type: "highpass", frequency: 2600, q: 0.7, gain: g * 0.45, attack: 0.01, length: 0.1 + strength * 0.25, pan });
+      const drops = Math.round(1 + strength * 5);
+      for (let i = 0; i < drops; i++)
+        burst({ type: "bandpass", frequency: 1800 + Math.random() * 2600, q: 9, gain: g * 0.35, length: 0.02, pan: pan + Math.random() * 0.4 - 0.2, at: ctx.currentTime + 0.12 + Math.random() * 0.35 });
+    },
+    // Paddling: soft slops, one per stroke, quicker when it hurries.
+    setSwim(swim, speed) {
+      if (!ctx || !enabled || swim < 0.5) return;
+      const now = ctx.currentTime;
+      if (now < nextPaddle) return;
+      nextPaddle = now + 0.5 - Math.min(speed, 0.8) * 0.25;
+      burst({ buffer: pink, type: "lowpass", frequency: 700 + Math.random() * 300, q: 1.5, gain: 0.025 + speed * 0.02, attack: 0.02, length: 0.12, pan: Math.random() * 0.4 - 0.2 });
+    },
+    // A shake: a rapid flutter of fur throwing off spray.
+    shake() {
+      if (!ctx || !enabled) return;
+      for (let i = 0; i < 9; i++)
+        burst({ buffer: pink, type: "bandpass", frequency: 1500, q: 0.8, gain: 0.03 * Math.sin((i / 8) * Math.PI) + 0.008, attack: 0.02, length: 0.06, at: ctx.currentTime + 0.15 + i * 0.09 });
     },
     jump() {
       if (!ctx || !enabled) return;

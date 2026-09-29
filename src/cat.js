@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { CAT_SCALE, PAW_LIFT, STAND_HEIGHT, TAIL_BONES, TAIL_LENGTH, TAIL_ROOT, createRig, neutralFoot, solveLeg } from "./cat-rig.js";
 import { buildCatGeometry } from "./cat-body.js";
-import { bakeShellColours, catUniforms, coatMaterial, ghostMaterial } from "./cat-coat.js";
+import { bakeShellColours, catUniforms, coatMaterial, ghostMaterial, CAT_SEA } from "./cat-coat.js";
 import { createContactShadow, createDust, createPawPrints } from "./cat-ground.js";
 
 // A brown mackerel tabby. One seamless skinned body (cat-body.js) on a
@@ -26,6 +26,8 @@ const SHADOW_LAYER = 3;
 const WALK = { lh: 0, lf: 0.25, rh: 0.5, rf: 0.75 };
 const TROT = { lh: 0, rf: 1.0, rh: 0.5, lf: 0.5 };
 const GALLOP = { lh: 0, rh: 0.1, lf: 0.5, rf: 0.6 };
+// Swimming: a dog paddle in diagonal pairs, as swimming quadrupeds use.
+const PADDLE = { lf: 0, rh: 0.08, rf: 0.5, lh: 0.58 };
 // Postures (body frame, before scaling): the height of the mid-back over
 // the ground, the body's pitch, and where the paws rest [x, z].
 const POSTURE = {
@@ -152,6 +154,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
   contact.local.catScale.value = S;
   const prints = createPawPrints(parent);
   const dust = createDust(parent);
+  const splash = createDust(parent, { water: true, grains: light ? 160 : 256 });
 
   const temp = new THREE.Vector3();
   const local = new THREE.Vector3();
@@ -197,6 +200,8 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
     tailElevV: new Float32Array(TAIL_BONES),
     tailSideV: new Float32Array(TAIL_BONES),
     pawWet: 0,
+    // The paddle stroke's phase (0…1).
+    stroke: 0,
   };
   const tailP = Array.from({ length: TAIL_BONES + 1 }, () => new THREE.Vector3());
   const tailN = Array.from({ length: TAIL_BONES + 1 }, () => new THREE.Vector3(1, 0, 0));
@@ -214,7 +219,8 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
     // pose: from walker.js. ground(x, z) → height; onStep(leg, x, z,
     // heading, front, { side, speed }) fires as each paw lands and returns
     // the surface kind (walker.surfaceKind). light: see landscape.js.
-    update(pose, dt, time, ground, onStep, light) {
+    // wake (wake.js): where the paws stand in the water, and splash rings.
+    update(pose, dt, time, ground, onStep, light, wake = null) {
       if (firstFrame) {
         parent.updateMatrixWorld(true);
         firstFrame = false;
@@ -227,6 +233,18 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       const { x, z, heading } = pose;
       const sin = Math.sin(heading);
       const cos = Math.cos(heading);
+      // Water: afloat (swim), how deep the legs are in it (wade), and the
+      // shake that throws it off afterwards.
+      const inWater = Number.isFinite(pose.waterY);
+      const swim = pose.swim ?? 0;
+      const wade = (pose.wade ?? 0) * (1 - swim);
+      const shaking = pose.shake ?? 0;
+      const effort = clamp(speed / 0.7, 0, 1);
+      state.stroke = (state.stroke + lerp(1.15, 2.1, effort) * step * smooth(swim, 0.02, 0.3)) % 1;
+      const strokeC = state.stroke * Math.PI * 2;
+      uniforms.catWater.value.set(inWater ? pose.waterY : -100, pose.waterSlope?.[0] ?? 0, -(pose.waterSlope?.[1] ?? 0), inWater ? 1 : 0);
+      uniforms.catWaterAt.value.set(x, -z);
+      uniforms.catSoak.value = pose.soak ?? -1;
 
       // Postures blend: standing → sitting → lying (loaf) after a long
       // idle; a stalking crouch when something small moves nearby.
@@ -284,14 +302,36 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       const lean = clamp(-pose.turn * speed * 0.05, -0.25, 0.25);
       const rock = Math.cos(cycle) * 0.12 * gallop * amp;
       const posturePitch = POSTURE.sit.pitch * sitW + POSTURE.lie.pitch * lieW + POSTURE.crouch.pitch * crouch;
-      const pitch = slopePitch * (1 - sitW * 0.6) + posturePitch + pose.airPitch + rock;
+      let pitch = slopePitch * (1 - sitW * 0.6) + posturePitch + pose.airPitch + rock;
       const bodyHeight = lerp(lerp(STAND_HEIGHT, POSTURE.crouch.height, crouch), 0, pose.sit) + POSTURE.sit.height * sitW + POSTURE.lie.height * lieW;
       const baseGround = support - pose.air;
-      const height = baseGround + (bodyHeight + bob + state.dip) * S + pose.air;
+      let height = baseGround + (bodyHeight + bob + state.dip) * S + pose.air;
+      // Afloat: the back just under the surface, rump low and chin high,
+      // riding the waves' slope, bobbing and rolling a little with each
+      // stroke.
+      let bodyRoll = (roll + sway + lean) * (1 - pose.sit);
+      if (swim > 0.001) {
+        const slopeX = pose.waterSlope?.[0] ?? 0;
+        const slopeZ = pose.waterSlope?.[1] ?? 0;
+        const along = Math.atan(slopeX * sin + slopeZ * cos) * 0.7;
+        const across = Math.atan(slopeX * cos - slopeZ * sin) * 0.7;
+        const floatY = pose.waterY - 0.045 * S + Math.sin(strokeC * 2) * 0.004 * S + pose.air;
+        height = lerp(height, floatY, swim);
+        pitch = lerp(pitch, 0.2 - effort * 0.05 + along, swim);
+        bodyRoll = lerp(bodyRoll, across + Math.sin(strokeC) * 0.05 + lean * 0.5, swim);
+      }
+      // The shake rolls through the whole body, head first.
+      const shakeT = shaking * 1.1;
+      const shakeWave = (lag) => Math.sin((shakeT - lag) * Math.PI * 2 * 5.5);
+      const shakeEnv = (a, b) => (shaking > 0 ? Math.sin(Math.PI * clamp((shaking - a) / (b - a), 0, 1)) : 0);
+      const shakeHead = shakeEnv(0, 0.4);
+      const shakeBody = shakeEnv(0.15, 0.78);
+      const shakeTail = shakeEnv(0.45, 1);
+      bodyRoll += shakeWave(0.03) * 0.09 * shakeBody;
       // Sitting settles back onto the haunches; the front paws stay put.
       const shift = (0.03 * sitW - 0.005 * lieW) * S;
       root.position.set(x + sin * shift, height, z + cos * shift);
-      root.rotation.set(-pitch, heading, (roll + sway + lean) * (1 - pose.sit));
+      root.rotation.set(-pitch, heading, bodyRoll);
 
       // Spine: bends into turns (a cat turns its whole length), flexes and
       // extends at a gallop, the hips and shoulders roll alternately at a
@@ -301,8 +341,10 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       const flex = (Math.sin(cycle) * 0.2 * gallop + Math.sin(cycle * 2) * 0.02 * trot) * amp;
       const walkRoll = Math.sin(cycle) * 0.05 * amp * (1 - trot);
       const wiggle = crouch * Math.max(0, Math.sin(time * 0.9)) * Math.sin(time * 11) * 0.09;
-      b.chest.rotation.set(-flex * 0.6 + 0.04 * sitW, bend, -walkRoll * 0.7);
-      b.hips.rotation.set(flex - 0.22 * sitW - 0.05 * lieW, -bend * 0.8, walkRoll + wiggle);
+      // Paddling works the spine a little: shoulders and hips roll in turn.
+      const paddleRoll = Math.sin(strokeC) * 0.07 * swim;
+      b.chest.rotation.set(-flex * 0.6 + 0.04 * sitW, bend, -walkRoll * 0.7 - paddleRoll + shakeWave(0.02) * 0.32 * shakeBody);
+      b.hips.rotation.set(flex - 0.22 * sitW - 0.05 * lieW + Math.sin(strokeC * 2) * 0.03 * swim, -bend * 0.8, walkRoll + wiggle + paddleRoll - shakeWave(0.06) * 0.26 * shakeBody);
       // Breathing: slow at rest, deeper after running, and quick when purring.
       state.breath += step * Math.PI * 2 * lerp(0.33, 1.1, state.exertion);
       const breath = Math.sin(state.breath) * lerp(0.012, 0.03, state.exertion) + (pose.sit > 0.9 && pose.idle > 8 ? Math.sin(time * 150) * 0.002 : 0);
@@ -318,10 +360,11 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       // Head: leads into turns, watches, and floats steady while the body
       // bobs. Low and forward when stalking; resting low in a loaf.
       const chestPitch = pitch - (-flex * 0.6);
+      // Swimming, the head is held high, chin clear of the water.
       b.neck.rotation.set(
-        chestPitch * 0.85 - pose.lookUp - bob * 3 - 0.08 * amp * (1 - gallop) + 0.32 * crouch + 0.12 * lieW,
-        clamp(pose.look, -0.9, 0.9) - bend * 0.8,
-        pose.tilt - (sway + lean) * 0.8,
+        chestPitch * 0.85 - pose.lookUp - bob * 3 - 0.08 * amp * (1 - gallop) + 0.32 * crouch + 0.12 * lieW - swim * 0.32,
+        clamp(pose.look, -0.9, 0.9) - bend * 0.8 + shakeWave(0) * 0.22 * shakeHead,
+        pose.tilt - (sway + lean) * 0.8 + shakeWave(0) * 0.6 * shakeHead,
       );
       b.head.rotation.set(-0.12 * crouch, clamp(pose.look - b.neck.rotation.y, -0.3, 0.3) * 0.4, 0);
       // Jaw: open to meow, and one long yawn on settling down to sleep.
@@ -340,7 +383,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       // Ears swivel on their own, toward whatever is heard, flick now and
       // then, prick forward to watch something and flatten back at a run,
       // in rain, and to yawn.
-      const flat = Math.max(smooth(speed, 2, 3.4) * 0.6, (light.rain ?? 0) * 0.5, jaw * 1.2, state.wet * 0.2);
+      const flat = Math.max(smooth(speed, 2, 3.4) * 0.6, (light.rain ?? 0) * 0.5, jaw * 1.2, state.wet * 0.2, swim * 0.4, shakeHead * 0.5);
       for (const ear of state.ears) {
         ear.timer -= step;
         if (ear.timer < 0) {
@@ -352,7 +395,8 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
         ear.swivel += ((ear.target * (1 - alert) - alert * 0.1) - ear.swivel) * Math.min(1, step * 6);
         ear.flick *= Math.exp(-step * 18);
         const bone = ear.side > 0 ? b.earL : b.earR;
-        bone.rotation.set(-flat * 0.55 + alert * 0.12 - ear.flick * 0.25, ear.side * (ear.swivel + flat * 0.7), ear.side * (flat * 0.45 + ear.flick * 0.2));
+        const flap = shakeWave(0.01) * shakeHead * 0.5;
+        bone.rotation.set(-flat * 0.55 + alert * 0.12 - ear.flick * 0.25, ear.side * (ear.swivel + flat * 0.7), ear.side * (flat * 0.45 + ear.flick * 0.2) + flap);
       }
 
       // Whiskers.
@@ -417,7 +461,9 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       const stanceReach = stride * duty * 0.5;
       const rising = state.airVel > 0;
       toCoast.copy(parent.matrixWorld).invert();
+      let legIndex = -1;
       for (const leg of rig.legs) {
+        legIndex++;
         const { spec } = leg;
         const q = (((state.gait + offsets[spec.name]) % 1) + 1) % 1;
         // Neutral paw position for the current posture (body frame).
@@ -445,9 +491,11 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
           if (!leg.stance) {
             // Touchdown: a print, a footstep, perhaps a spray of sand.
             leg.stance = true;
-            if (amp > 0.25) {
+            if (amp > 0.25 && swim < 0.5) {
               const kind = onStep(spec.name, leg.plant.x, leg.plant.z, heading, spec.front, { side: spec.side, speed: gallop + trot * 0.4 });
               if (kind === 2 && speed > 1.3) dust.spray(time, leg.plant.x, ground(leg.plant.x, leg.plant.z), leg.plant.z, -sin, -cos, Math.round(4 + speed * 3), 0.6 + speed * 0.35);
+              // Bounding through the shallows throws water ahead and up.
+              if (kind === 5 && speed > 0.6) splash.spray(time, leg.plant.x, pose.waterY, leg.plant.z, sin * 0.6, cos * 0.6, Math.round(3 + speed * 5), 0.7 + speed * 0.45);
               if (spec.front) leg.lastPrint = { x: leg.plant.x, z: leg.plant.z };
             }
           }
@@ -475,7 +523,8 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
           const e = t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t);
           wx = leg.plant.fromX + (leg.plant.x - leg.plant.fromX) * e;
           wz = leg.plant.fromZ + (leg.plant.z - leg.plant.fromZ) * e;
-          lift = Math.sin(Math.PI * Math.pow(t, 0.8)) * lerp(0.028, 0.055, trot) * S * Math.min(1, amp * 2);
+          // In water a cat high-steps, lifting each paw clear.
+          lift = Math.sin(Math.PI * Math.pow(t, 0.8)) * lerp(0.028, 0.055, trot) * S * Math.min(1, amp * 2) * (1 + smooth(wade, 0.05, 0.5) * 1.8);
           leg.swing = Math.sin(Math.PI * Math.min(1, t * 1.3)) * Math.min(1, amp * 2);
         }
         const gy = ground(wx, wz);
@@ -502,6 +551,28 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
         } else {
           local.set(wx, gy + PAW_LIFT * S + lift, wz).applyMatrix4(parent.matrixWorld).applyMatrix4(inverse).sub(leg.upper.position);
         }
+        // Paddling: each paw circles under the body, pulling down and back
+        // with the toes spread, then curling up and forward to reach again.
+        // Treading water, the circles are smaller.
+        if (swim > 0.001) {
+          const th = ((((state.stroke + PADDLE[spec.name]) % 1) + 1) % 1) * Math.PI * 2;
+          const circle = lerp(0.6, 1, effort);
+          const recover = Math.max(0, -Math.sin(th));
+          if (spec.front) temp.set(-spec.side * 0.004, -0.118 - 0.045 * Math.sin(th) * circle, 0.04 + 0.06 * Math.cos(th) * circle);
+          else temp.set(-spec.side * 0.004, -0.14 - 0.04 * Math.sin(th) * circle, -0.02 + 0.065 * Math.cos(th) * circle);
+          local.lerp(temp, swim);
+          flexLeg = lerp(flexLeg, recover * (spec.front ? 1.25 : 0.75), swim);
+          // Each front stroke reaching forward stirs the surface ahead.
+          const phase = th / (Math.PI * 2);
+          if (spec.front && wake && swim > 0.6 && leg.lastPhase !== undefined && leg.lastPhase < 0.92 && phase >= 0.92) {
+            const ahead = 0.2 * S;
+            const px = x + sin * ahead + cos * spec.side * 0.04 * S;
+            const pz = z + cos * ahead - sin * spec.side * 0.04 * S;
+            wake.ring(px, pz, 0.25 + effort * 0.35);
+            if (effort > 0.5) splash.spray(time, px, pose.waterY, pz, sin * 0.3, cos * 0.3, 2, 0.5);
+          }
+          leg.lastPhase = phase;
+        }
         // Sitting: the hind hocks lie flat on the ground.
         if (!spec.front) flexLeg = lerp(flexLeg, spec.lean - (Math.PI / 2 - pitch - 0.12), sitW + lieW * 0.9);
         const solved = solveLeg(leg, local.x, local.z, local.y, flexLeg);
@@ -518,7 +589,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
         }
         // Planted paws lie flat on the ground, on slopes and rock too.
         leg.upper.updateMatrixWorld(true);
-        const planted = (leg.stance ? 1 : 1 - leg.swing) * (1 - lieW) * (pose.air > 0.01 ? 0 : 1);
+        const planted = (leg.stance ? 1 : 1 - leg.swing) * (1 - lieW) * (pose.air > 0.01 ? 0 : 1) * (1 - swim);
         if (planted > 0.01) {
           const e = 0.03;
           up.set(ground(wx - e, wz) - ground(wx + e, wz), 2 * e, ground(wx, wz - e) - ground(wx, wz + e)).normalize();
@@ -534,6 +605,17 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
         }
         leg.pawWorld = leg.pawWorld ?? new THREE.Vector3();
         leg.paw.getWorldPosition(leg.pawWorld).applyMatrix4(toCoast);
+        // Wading legs cut the water; a paw lifted out drips, one put back
+        // in splashes.
+        const p = leg.pawWorld;
+        const pawDepth = inWater ? pose.waterY - p.y : -1;
+        if (wake) wake.paw(legIndex, p.x, p.z, swim > 0.5 ? 0 : clamp(pawDepth, 0, 0.3));
+        const under = pawDepth > 0;
+        if (leg.under !== undefined && under !== leg.under && inWater && swim < 0.5 && pose.air === 0) {
+          if (under && speed > 0.25) splash.spray(time, p.x, pose.waterY, p.z, sin * 0.4, cos * 0.4, Math.round(2 + speed * 3), 0.45 + speed * 0.3);
+          else if (!under) splash.spray(time, p.x, pose.waterY + 0.01, p.z, 0, 0, 2, 0.15, 0.3);
+        }
+        leg.under = under;
       }
 
       // Tail: each segment's angles are a damped spring toward a pose that
@@ -567,11 +649,17 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
         // so level in the world is about −pitch here).
         const floorE = -pitch + 0.02;
         const down = lerp(-1.05, floorE, smooth(s, 0.05, 0.25));
-        const targetE = lerp(up2, down, pose.sit) + pose.air * 1.4 / S;
+        let targetE = lerp(up2, down, pose.sit) + pose.air * 1.4 / S;
+        // Wading, the tail is held high and dry; afloat it streams out
+        // level behind as a rudder.
+        targetE += wade * 0.6 * (1 - s * 0.5);
+        targetE = lerp(targetE, -pitch + 0.06 - s * 0.05, swim);
         const sway = Math.sin(time * (0.9 + swish * 2.5) - s * 2.6) * s * s * (0.22 + swish * 0.55) * (1 - crouch);
         const twitch = crouch * smooth(s, 0.75, 1) * Math.sin(time * 13) * 0.5 * (0.5 + 0.5 * Math.sin(time * 1.3));
         const gaitSway = Math.sin(cycle + Math.PI * s) * 0.06 * amp * (1 - gallop) * s;
-        const targetS = sway + twitch + gaitSway + sitW * s * 2.3 + lieW * s * 3.2;
+        let targetS = sway + twitch + gaitSway + sitW * s * 2.3 + lieW * s * 3.2;
+        targetS = lerp(targetS, Math.sin(strokeC - s * 3) * 0.1 * s - pose.turn * 0.25 * s, swim);
+        targetS += Math.sin((shakeT - 0.5 - s * 0.15) * Math.PI * 2 * 5.5) * 0.45 * s * shakeTail;
         if (step > 0) {
           const k = lerp(110, 16, s);
           const c = 2 * Math.sqrt(k) * 0.4;
@@ -586,7 +674,8 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
         tailP[i + 1].copy(tailP[i]).addScaledVector(dir(state.tailElev[i], state.tailSide[i]), seg);
         // The ground pushes the tail up rather than letting it sink in.
         worldPoint.copy(tailP[i + 1]).applyMatrix4(hipsToCoast);
-        const floor = ground(worldPoint.x, worldPoint.z) + 0.013 * S;
+        let floor = ground(worldPoint.x, worldPoint.z) + 0.013 * S;
+        if (swim > 0.3) floor = Math.max(floor, pose.waterY - 0.012 * S);
         if (worldPoint.y < floor) {
           const push = Math.min(0.6, (floor - worldPoint.y) / (seg * S));
           state.tailElev[i] += push;
@@ -636,7 +725,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
         Math.ceil((0.9 * S + length) * 10) / 10,
         ground,
       );
-      contact.local.catBody.value.set(x - sin * 0.01, z - cos * 0.01, heading, Math.max(0, (1 - pose.air * 6) * lerp(1, 1.4, pose.sit)));
+      contact.local.catBody.value.set(x - sin * 0.01, z - cos * 0.01, heading, Math.max(0, (1 - pose.air * 6) * lerp(1, 1.4, pose.sit) * (1 - swim)));
       rig.legs.forEach((leg, i) => {
         const p = leg.pawWorld;
         contact.local.catPaws.value[i].set(p.x, p.z, pose.air > 0.01 ? 1 : Math.max(0, p.y - ground(p.x, p.z) - PAW_LIFT * S * 0.5));
@@ -656,8 +745,17 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
         uniforms.catPixelAngle.value = 1 / (light.pixelScale ?? 500);
         uniforms.shellCount.value = count;
       }
+      // The shake flings water off the coat, tangent to the roll.
+      if (shaking > 0 && Math.max(shakeHead, shakeBody) > 0.3) {
+        const along = lerp(0.2, -0.15, shaking) * S;
+        const cx = x + sin * along;
+        const cz = z + cos * along;
+        const side = shakeWave(0) > 0 ? 1 : -1;
+        splash.spray(time, cx + cos * side * 0.07 * S, height + 0.02 * S, cz - sin * side * 0.07 * S, cos * side * 1.2, -sin * side * 1.2, light.eye ? 3 : 2, 1.3, 0.6);
+      }
       prints.update(time, light.night ?? 0);
       dust.update(time, 0.35 + direct * 0.9 + (1 - light.night) * 0.2, light.pixelScale ?? 500);
+      splash.update(time, CAT_SEA.foam.value, light.pixelScale ?? 500);
     },
     // A hard landing sprays sand round the paws.
     land(time, strength, kind, ground) {
@@ -669,6 +767,15 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
           const a = Math.random() * Math.PI * 2;
           dust.spray(time, p.x, ground(p.x, p.z), p.z, Math.cos(a), Math.sin(a), Math.round(3 + strength * 3), 0.4 + strength * 0.25);
         }
+      }
+    },
+    // Plunging into the water: a crown of spray round the body.
+    splash(time, strength, level) {
+      if (!Number.isFinite(level)) return;
+      const p = root.position;
+      for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2 + Math.random() * 0.5;
+        splash.spray(time, p.x + Math.cos(a) * 0.12 * S, level, p.z + Math.sin(a) * 0.12 * S, Math.cos(a), Math.sin(a), Math.round(3 + strength * 5), 0.8 + strength * 1.2);
       }
     },
     // Renders the cat's shadow map. Called by the landscape before the
@@ -709,6 +816,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       contact.dispose();
       prints.dispose();
       dust.dispose();
+      splash.dispose();
     },
   };
 }
