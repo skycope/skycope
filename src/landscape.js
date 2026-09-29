@@ -51,7 +51,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   land.scale.z = -1;
   const forest = createForest(land, seed);
   const fauna = createFauna(land, seed);
-  const cat = createCat(land);
+  const cat = createCat(land, { light });
   const critters = createCritters(land, seed, forest.obstacles.flowers);
   scene.add(land);
 
@@ -105,7 +105,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         direction: [direction.x, direction.y, -direction.z],
       };
     },
-    render({ celestial, cover, time, wind, view: flight, lighting, pose, dt, surface, onStep }) {
+    render({ celestial, cover, time, wind, rain = 0, view: flight, lighting, pose, dt, surface, onStep }) {
       const pointer = [0.5, 0.5];
       const night = THREE.MathUtils.smoothstep(celestial.scene, 1, 2);
       forest.updateWind(time, wind);
@@ -151,14 +151,21 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
           (1 - night * 0.9) *
           Math.min(1, sun.intensity / 2),
       );
-      prints.update(time);
       cat.update(pose, dt, time, surface, onStep, {
         night,
         direct: THREE.MathUtils.smoothstep(sunWorld.y, 0, 0.3) * (1 - cover * 0.9),
+        sun: sunWorld,
         sunX: sunWorld.x,
         sunZ: -sunWorld.z,
+        eye: camera.position,
+        pixelScale: renderer.domElement.height / (2 * Math.tan((camera.fov * Math.PI) / 360)),
+        wind,
+        rain,
       });
+      // Plants part round the cat as it walks through them.
+      forest.pushAt(pose.x, pose.z, pose.air > 0.05 ? 0 : 1);
       interest = critters.update(dt, time, pose, night);
+      cat.renderShadow(renderer, scene);
       renderer.render(scene, camera);
       if (perf && ++perfFrame % 90 === 0) {
         // `?perf` QA: readPixels forces the GPU to drain, so timing a burst of
@@ -181,8 +188,11 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     get interest() {
       return interest;
     },
-    addPrint(...args) {
-      prints.add(...args);
+    addPrint(print) {
+      prints.add(print);
+    },
+    catLanded(time, strength, kind, surface) {
+      cat.land(time, strength, kind, surface);
     },
     resize(width, height, quality = 1) {
       camera.aspect = width / height;

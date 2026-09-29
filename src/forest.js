@@ -26,6 +26,8 @@ export function createForest(scene, seed) {
     sunGlow: { value: 1 },
     // Lambert-lit white (sun/π + sky), set from the shared lighting model.
     foamLight: { value: new THREE.Color(1, 1, 1) },
+    // Where the cat is (coast x, z), how far it pushes, how hard.
+    catPush: { value: new THREE.Vector4(0, 0, 0.4, 0) },
   };
   const random = seededRandom(seed);
   const { wood: trunks, leaves, clusters, flowers, turf, layout } = createVegetation(seed);
@@ -118,6 +120,13 @@ export function createForest(scene, seed) {
       if (speed > 0.5)
         shared.breezeDir.value.set(wind[0] / speed, wind[1] / speed);
     },
+    // Leaves and blades bend away from the cat as it brushes through.
+    pushAt(x, z, strength) {
+      const push = shared.catPush.value;
+      push.x = x;
+      push.y = z;
+      push.w += (strength - push.w) * 0.2;
+    },
     updateFoamLight(rgb) {
       shared.foamLight.value.setRGB(rgb[0], rgb[1], rgb[2]);
     },
@@ -137,6 +146,7 @@ const WIND_GLSL = /* glsl */ `
 uniform float breezeTime;
 uniform float breezeStrength;
 uniform vec2 breezeDir;
+uniform vec4 catPush;
 varying float vGlint;
 // Height of the plant's base (per instance): wind bends from there, so a trunk
 // or stem is rooted wherever it stands. Zero for non-instanced meshes.
@@ -153,6 +163,20 @@ vec3 windOffset(vec3 p) {
     + vec3(breezeDir.x, -0.25, breezeDir.y) * (bob * h * 0.012 * amp);
 }
 `;
+
+// Low foliage parts round the cat: vertices within reach lean away from it,
+// more toward their tips, and pressed a little down. Tall plants' crowns
+// are out of reach, so only the lower ~60 cm of any plant moves.
+const PUSH_GLSL = /* glsl */ `
+{
+  vec2 away = mvPosition.xz - catPush.xy;
+  float d = length( away ) + 1e-4;
+  float above = max( mvPosition.y - anchorHeight, 0.0 );
+  float reach = catPush.z;
+  float push = catPush.w * ( 1.0 - smoothstep( reach * 0.3, reach, d ) ) * smoothstep( 0.0, 0.25, above ) * ( 1.0 - smoothstep( 0.35, 0.65, above ) );
+  mvPosition.xz += away / d * push * reach * 0.55;
+  mvPosition.y -= push * above * 0.35;
+}`;
 
 const PROJECT_GLSL = /* glsl */ `
 vec4 mvPosition = vec4( transformed, 1.0 );
@@ -483,7 +507,7 @@ function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = 
     if (sway)
       shader.vertexShader = shader.vertexShader.replace(
         "#include <project_vertex>",
-        PROJECT_GLSL,
+        foliage ? PROJECT_GLSL.replace("vAbove =", `${PUSH_GLSL}\nvAbove =`) : PROJECT_GLSL,
       );
     shader.fragmentShader =
       "uniform vec3 sunDirView;\nuniform vec3 sunTint;\nuniform float sunGlow;\nuniform float breezeTime;\nvarying float vGlint;\n" +
