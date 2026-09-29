@@ -14,11 +14,13 @@ import { createOcclusion } from "./occlusion.js";
 // highlight shoulder: Khronos PBR Neutral. It is linear through the
 // midtones, so colours stay as the materials and light make them, with only
 // a small toe: shadows stay open and lifted by skylight, as in a photograph,
-// rather than crushed by a filmic S-curve. Keep TONE_GAIN equal in both.
+// rather than crushed by a filmic S-curve. Keep TONE_GAIN and VIBRANCE
+// equal in both.
 THREE.ShaderChunk.tonemapping_pars_fragment =
   THREE.ShaderChunk.tonemapping_pars_fragment.replace(
     /vec3 CustomToneMapping\( vec3 color \) \{[^}]*\}/,
-    `vec3 CustomToneMapping( vec3 color ) {
+    `#define VIBRANCE 0.18
+    vec3 CustomToneMapping( vec3 color ) {
       // toneMappingExposure carries 1 + night adaptation (see scotopic in
       // atmosphere.wgsl); exposure itself is already in the light units.
       color = max( color * 1.5, vec3( 0.0 ) );
@@ -28,10 +30,17 @@ THREE.ShaderChunk.tonemapping_pars_fragment =
       float low = min( color.r, min( color.g, color.b ) );
       color -= low < 0.08 ? low - 6.25 * low * low : 0.04;
       float peak = max( color.r, max( color.g, color.b ) );
-      if ( peak < 0.76 ) return color;
-      float newPeak = 1.0 - 0.0576 / ( peak - 0.52 );
-      color *= newPeak / peak;
-      return mix( color, vec3( newPeak ), 1.0 - 1.0 / ( 0.15 * ( peak - newPeak ) + 1.0 ) );
+      if ( peak >= 0.76 ) {
+        float newPeak = 1.0 - 0.0576 / ( peak - 0.52 );
+        color *= newPeak / peak;
+        color = mix( color, vec3( newPeak ), 1.0 - 1.0 / ( 0.15 * ( peak - newPeak ) + 1.0 ) );
+      }
+      // A camera's picture profile: vibrance lifts muted colours (sky,
+      // leaves, sand) and leaves saturated ones be. Off by moonlight.
+      float luma = dot( color, vec3( 0.2126, 0.7152, 0.0722 ) );
+      float top = max( color.r, max( color.g, color.b ) );
+      float chroma = top > 1e-4 ? ( top - min( color.r, min( color.g, color.b ) ) ) / top : 0.0;
+      return max( vec3( luma ) + ( color - luma ) * ( 1.0 + VIBRANCE * ( 1.0 - chroma ) * ( 1.0 - rods ) ), vec3( 0.0 ) );
     }`,
   );
 

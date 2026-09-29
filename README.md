@@ -229,8 +229,11 @@ evaluates the same model on the CPU once per frame to get exposure, the direct
 sun (or moon) colour and zenith skylight. They go to both WebGPU passes as
 uniforms and drive the Three.js directional light, so land, sea, clouds and sky
 share one sun. Exposure adapts like an eye: the zenith stays steady through
-golden hour, then genuinely darkens through civil twilight, with limited dark
-adaptation at night. **Keep `atmosphere.wgsl` and `sunlight.js` in step.**
+golden hour, and it also partly meters the land (up to 1.5× as a low sun
+stops lighting the ground), then genuinely darkens through civil twilight,
+with limited dark adaptation at night. After the neutral tonemap, both layers
+apply the same gentle vibrance (`VIBRANCE`), a camera's picture profile that
+lifts muted colours. **Keep `atmosphere.wgsl` and `sunlight.js` in step.**
 
 The land's skylight is image based. When the sun moves, `skyDomeRatio` samples
 the scattering model over the whole dome (sun side warm and bright, anti-sun
