@@ -1,4 +1,6 @@
 import { band_variance, cascade_size, SEA_TILE } from "./spectrum.wgsl";
+import { lut_uv, overcast_sky } from "./skyview.wgsl";
+import { rock_slots, rock_sea, rock_traces, rock_hides, RockSea, RockHit, RockHits } from "./rocks.wgsl";
 
 // Camera-relative metres: x right, y up, z toward the coast. Everything here is
 // linear light in the sky pass's exposed units; water.wgsl tonemaps once.
@@ -17,6 +19,9 @@ export struct OceanSettings {
   // The breaking swell train from src/swell.js: shore-arc wavenumber,
   // angular frequency, phase, deep-water amplitude.
   swell: vec4f,
+  // Sky exposure and rain (mm/h), for the sky-view table in reflections.
+  exposure: f32,
+  rain: f32,
 };
 
 // Coastal Atlantic water: pure-water absorption (red goes first) plus a little
@@ -56,7 +61,8 @@ export fn ocean_view(
   ray: vec3f, sunlight: vec3f, sky: vec3f,
   settings: OceanSettings, noise: texture_3d<f32>, filtering: sampler, sky_texture: texture_2d<f32>,
   waves0: texture_2d<f32>, waves1: texture_2d<f32>, waves2: texture_2d<f32>, waves3: texture_2d<f32>,
-  foam_layer: texture_2d<f32>,
+  foam_layer: texture_2d<f32>, shore_rocks: texture_2d<f32>, shore_grid: texture_2d<u32>,
+  sky_table: texture_2d<f32>,
 ) -> vec3f {
   let right = vec3f(0.707107, 0.0, 0.707107);
   let forward = vec3f(-0.707107, 0.0, 0.707107);
@@ -72,7 +78,15 @@ export fn ocean_view(
   // layer (terrain is above sea level everywhere inland), so a ray whose
   // calm-sea hit lies clearly inland is never seen: skip its shading. The
   // margin keeps the soft waterline band, where the ground fades out, shaded.
-  if (shore_metrics((eye + direction * distance).xz).x < -1.5) { return sky; }
+  let calm = (eye + direction * distance).xz;
+  let calm_metrics = shore_metrics(calm);
+  if (calm_metrics.x < -1.5) { return sky; }
+  // Sea behind a boulder is hidden by the rock mesh too.
+  var slots = vec4u(0u);
+  if (calm_metrics.x < 14.0) {
+    slots = rock_slots(calm, shore_grid);
+    if (slots.x != 0u && rock_hides(eye, direction, distance, slots, shore_rocks)) { return sky; }
+  }
   // Only broad swells displace the intersection. Fine waves shade its normal;
   // tracing them with Newton steps produces discontinuous roots and dotted bands.
   // A ray covers more sea at grazing angles. Filter before sampling, not afterwards:
@@ -95,9 +109,30 @@ export fn ocean_view(
   }
   let p = eye + direction * distance;
   let metrics = shore_metrics(p.xz);
-  let sea = wave_surface(p.xz, metrics, footprint, settings, false, waves0, waves1, waves2, waves3, filtering);
+  var sea = wave_surface(p.xz, metrics, footprint, settings, false, waves0, waves1, waves2, waves3, filtering);
+  // Near the eye, the capillary ripples themselves (a few centimetres, too
+  // fine for the cascades), riding the wind; elsewhere they stay roughness.
+  let near_pixel = max(length(footprint[0]), length(footprint[1]));
+  if (near_pixel < 0.03) {
+    sea = capillaries(p.xz, near_pixel, sea, settings, waves3, filtering);
+  }
+  // Boulders at the waterline: lapping rings, a calm lee, a foam collar.
+  // The displaced hit is usually in the calm hit's grid cell: reuse its list.
+  var rock: RockSea;
+  rock.edge = 99.0;
+  if (metrics.x > -1.6 && metrics.x < 14.0) {
+    if (any(floor(p.xz * 0.5) != floor(calm * 0.5))) { slots = rock_slots(p.xz, shore_grid); }
+    if (slots.x != 0u) {
+      let pixel = max(length(footprint[0]), length(footprint[1]));
+      rock = rock_sea(p.xz, pixel, settings.time, length(settings.wind), settings.swell, slots, shore_rocks);
+      let calm = 1.0 - rock.shelter * 0.7;
+      sea.slope = sea.slope * calm + rock.slope;
+      sea.height += rock.height;
+      sea.variance = sea.variance * calm + rock.variance;
+    }
+  }
   return ocean(p, metrics, direction, light, sky, sea, footprint, distance, settings, noise, filtering, sky_texture,
-    waves1, waves2, waves3, foam_layer);
+    waves1, waves2, waves3, foam_layer, rock, slots, shore_rocks, sky_table);
 }
 
 fn ocean(
@@ -105,6 +140,7 @@ fn ocean(
   footprint: mat2x2f, distance: f32, settings: OceanSettings,
   noise: texture_3d<f32>, filtering: sampler, sky_texture: texture_2d<f32>,
   waves1: texture_2d<f32>, waves2: texture_2d<f32>, waves3: texture_2d<f32>, foam_layer: texture_2d<f32>,
+  rock: RockSea, slots: vec4u, shore_rocks: texture_2d<f32>, sky_table: texture_2d<f32>,
 ) -> vec3f {
   // Keep most wave slope even at grazing angles: distant water must stay
   // textured so the sun path breaks into streaks instead of a smooth band.
@@ -122,40 +158,61 @@ fn ocean(
   let pixel = max(length(footprint[0]), length(footprint[1]));
 
   // ---- Foam first: it shades the seabed and hides the water under it. ----
-  let foam = surf_foam(p.xz, metrics, sea, pixel, settings, noise, filtering, foam_layer);
+  let foam = surf_foam(p.xz, metrics, sea, pixel, settings, noise, filtering, foam_layer, rock);
+  // Rocks shade the water: the sun behind a boulder leaves no glitter and no
+  // light in the water, and the sky is partly hidden right at its foot.
+  let near_rocks = slots.x != 0u;
+  var traced: RockHits;
+  if (near_rocks) {
+    traced = rock_traces(p, light, reflected, refract(ray, normal, 0.7519), sqrt(sea.variance), slots, shore_rocks);
+  }
+  let sun_seen = 1.0 - traced.shadow;
+  let sky_seen = 1.0 - rock.occlusion * 0.5;
   let cover = foam.x;
 
   // ---- Reflection: the sky pass, sampled along the reflected ray. ----------
-  // Off-screen reflections fall back to the sky sampled at the horizon along
-  // this ray's azimuth, so the sunset gradient carries across the whole sea.
+  // It holds the clouds as seen; where the reflected ray leaves the screen,
+  // the sky-view table (the same scattering integral the sky is drawn from)
+  // gives the true sky in that direction, greyed by cloud cover.
   let forward_c = coast_forward(settings.azimuth, settings.pitch);
   let right_c = normalize(vec3f(forward_c.z, 0.0, -forward_c.x));
   let up_c = cross(forward_c, right_c);
   let aspect = settings.resolution.y / settings.resolution.x;
-  let horizon_dir = normalize(vec3f(ray.x, 0.05, ray.z));
-  let horizon_depth = max(dot(horizon_dir, forward_c), 0.2);
-  let horizon_uv = clamp(vec2f(
-    0.5 + dot(horizon_dir, right_c) * 0.9 / horizon_depth * aspect,
-    0.5 - dot(horizon_dir, up_c) * 0.9 / horizon_depth,
-  ), vec2f(0.001), vec2f(0.999));
-  let horizon_sky = textureSampleLevel(sky_texture, filtering, horizon_uv, 0.0).rgb;
-  var reflection = mix(horizon_sky, settings.skylight * 1.1, smoothstep(0.0, 0.45, reflected.y));
   let reflected_depth = dot(reflected, forward_c);
   let reflected_uv = vec2f(0.5 + dot(reflected, right_c) * 0.9 / max(reflected_depth, 0.01) * aspect,
     0.5 - dot(reflected, up_c) * 0.9 / max(reflected_depth, 0.01));
-  if (reflected_depth > 0.0 && all(reflected_uv > vec2f(0.0)) && all(reflected_uv < vec2f(1.0)) && cover < 0.98) {
+  let on_screen = reflected_depth > 0.0 && all(reflected_uv > vec2f(0.0)) && all(reflected_uv < vec2f(1.0));
+  let edge = min(min(reflected_uv.x, reflected_uv.y), min(1.0 - reflected_uv.x, 1.0 - reflected_uv.y));
+  let seen = select(0.0, smoothstep(0.0, 0.08, edge), on_screen && cover < 0.98);
+  var reflection = vec3f(0.0);
+  if (seen < 1.0) {
+    // Coast axes back to east / up / north.
+    let world = normalize(vec3f(0.707107 * (reflected.x - reflected.z), max(reflected.y, 0.01), 0.707107 * (reflected.x + reflected.z)));
+    let table = textureSampleLevel(sky_table, filtering, lut_uv(world), 0.0).rgb * settings.exposure
+      + vec3f(0.004, 0.007, 0.014) * night;
+    let clear = overcast_sky(table, settings.overcast, settings.rain);
+    let grey = dot(clear, vec3f(0.2126, 0.7152, 0.0722));
+    reflection = mix(clear, vec3f(grey) * vec3f(0.95, 0.98, 1.02), settings.overcast * 0.5);
+  }
+  if (seen > 0.0) {
     // Blur grows with sub-pixel roughness: a calm sea mirrors clouds sharply,
     // a choppy one smears them into vertical streaks.
     let spread = 0.004 + sqrt(sea.variance) * 0.05;
     let blur = vec2f(spread * aspect, spread * 2.2);
     let lo = vec2f(0.001);
     let hi = vec2f(0.999);
-    let blurred = (textureSampleLevel(sky_texture, filtering, clamp(reflected_uv + blur * vec2f(-0.7, -0.3), lo, hi), 0.0).rgb
-      + textureSampleLevel(sky_texture, filtering, clamp(reflected_uv + blur * vec2f(0.3, -0.7), lo, hi), 0.0).rgb
-      + textureSampleLevel(sky_texture, filtering, clamp(reflected_uv + blur * vec2f(0.7, 0.3), lo, hi), 0.0).rgb
-      + textureSampleLevel(sky_texture, filtering, clamp(reflected_uv + blur * vec2f(-0.3, 0.7), lo, hi), 0.0).rgb) * 0.25;
-    let edge = min(min(reflected_uv.x, reflected_uv.y), min(1.0 - reflected_uv.x, 1.0 - reflected_uv.y));
-    reflection = mix(reflection, blurred, smoothstep(0.0, 0.08, edge));
+    // Three bilinear taps on a triangle cover the kernel about as well as four.
+    let blurred = (textureSampleLevel(sky_texture, filtering, clamp(reflected_uv + blur * vec2f(0.0, -0.75), lo, hi), 0.0).rgb
+      + textureSampleLevel(sky_texture, filtering, clamp(reflected_uv + blur * vec2f(0.65, 0.375), lo, hi), 0.0).rgb
+      + textureSampleLevel(sky_texture, filtering, clamp(reflected_uv + blur * vec2f(-0.65, 0.375), lo, hi), 0.0).rgb) * 0.33333;
+    reflection = mix(reflection, blurred, seen);
+  }
+  // The rocks themselves in the water, traced: the sky pass knows nothing of
+  // the land, so without this calm water round a boulder mirrors only sky.
+  if (near_rocks) {
+    if (traced.mirrored.cover > 0.0) {
+      reflection = mix(reflection, rock_radiance(traced.mirrored, light, direct * sun_up, settings.skylight), traced.mirrored.cover);
+    }
   }
 
   // ---- Transmission: refract into the water column and onto the seabed. ----
@@ -164,11 +221,28 @@ fn ocean(
   let path = min(depth / down, 60.0);
   let column = exp(-(ABSORPTION + SCATTERING) * path);
   var bed_colour = vec3f(0.0);
+  var column_path = path;
+  // Boulders under the surface, seen through it before the bed.
+  var sunk = traced.sunk;
+  if (near_rocks) {
+    if (sunk.cover > 0.0 && sunk.t < path) {
+      let hit_depth = max(-sunk.y, 0.0);
+      let sun_down = refract(-light, vec3f(0.0, 1.0, 0.0), 0.7519);
+      let lit = direct * sun_up * sun_seen * max(dot(sunk.normal, light), 0.0) * 0.3183 * exp(-ABSORPTION * hit_depth / max(-sun_down.y, 0.2))
+        + settings.skylight * sky_seen * (0.55 + 0.45 * sunk.normal.y) * exp(-ABSORPTION * hit_depth * 1.2);
+      // Submerged granite: dark, slimed with algae.
+      let albedo = mix(sunk.albedo * 0.5, vec3f(0.035, 0.05, 0.02), smoothstep(0.05, 0.6, hit_depth));
+      bed_colour = albedo * lit;
+      column_path = mix(path, sunk.t, sunk.cover);
+    } else {
+      sunk.cover = 0.0;
+    }
+  }
   // Deep water hides the bottom: when less than ~0.1% of the seabed's light
   // could survive the round trip (blue, the most penetrating), its texture,
   // caustics and shadows cannot show, so they are not evaluated. Thick foam
   // hides it too.
-  if (column.b * exp(-ABSORPTION.b * depth * 1.2) > 0.0012 && cover < 0.97) {
+  if (column.b * exp(-ABSORPTION.b * depth * 1.2) > 0.0012 && cover < 0.97 && sunk.cover < 0.99) {
     let bed = p.xz + refracted.xz * path;
     let bed_metrics = shore_metrics(bed);
     let bed_depth = seabed_depth(max(0.0, bed_metrics.x), bed_metrics.w);
@@ -181,17 +255,18 @@ fn ocean(
     if (sun_up > 0.0) {
       sun_bed = direct * sun_up * max(light.y, 0.0) * 0.3183 * exp(-ABSORPTION * bed_depth / light_down)
         * caustics(bed, bed_depth, sun_down, sea, pixel, waves1, waves2, waves3, filtering)
-        * (1.0 - foam.y * 0.5);
+        * (1.0 - foam.y * 0.5) * sun_seen;
     }
-    let bed_light = (sun_bed + settings.skylight * exp(-ABSORPTION * bed_depth * 1.2)) * seabed_shadows(bed, settings, noise, filtering);
-    bed_colour = seabed(bed, offshore, settings, noise, filtering) * bed_light;
+    let bed_light = (sun_bed + settings.skylight * sky_seen * exp(-ABSORPTION * bed_depth * 1.2)) * seabed_shadows(bed, bed_metrics, settings, noise, filtering);
+    bed_colour = mix(seabed(bed, bed_metrics, offshore, settings, noise, filtering) * bed_light, bed_colour, sunk.cover);
   }
+  let column_t = exp(-(ABSORPTION + SCATTERING) * column_path);
   // Single scattering in the water column: sunlight scattered back toward the
   // eye, tinted by the absorption it survived. This is the colour of deep water.
   let sigma_t = ABSORPTION + SCATTERING;
-  let ambient_light = direct * sun_up * (0.4 + 0.6 * max(light.y, 0.0)) * 0.3183 + settings.skylight;
+  let ambient_light = direct * sun_up * sun_seen * (0.4 + 0.6 * max(light.y, 0.0)) * 0.3183 + settings.skylight * sky_seen;
   let inscatter_light = ambient_light * (SCATTERING / sigma_t) * 0.5;
-  var transmitted = bed_colour * column + inscatter_light * (1.0 - column);
+  var transmitted = bed_colour * column_t + inscatter_light * (1.0 - column_t);
   // Bubbles and sand stirred up by breaking waves: a milky, bright turquoise
   // cloud under the surface, lingering after the foam on top has gone.
   // Bubbles scatter white; the water around them tints it by absorption.
@@ -217,7 +292,7 @@ fn ocean(
   // Unresolved waves become microfacet roughness: the broad path's width and
   // length come from real slope variance, so it stretches from the horizon to
   // the viewer at low sun and tightens at noon.
-  let sun_disc = direct * sun_up * (1.0 - night * 0.2);
+  let sun_disc = direct * sun_up * (1.0 - night * 0.2) * sun_seen;
   if (max(sun_disc.r, max(sun_disc.g, sun_disc.b)) > 0.00001) {
     let alpha = sqrt(0.002 + sea.variance * 2.0);
     let half_vector = normalize(light + view);
@@ -251,7 +326,7 @@ fn ocean(
   // whole sky. Where it is thin the water glows through it, turquoise.
   if (cover > 0.001) {
     let facing = 0.55 + 0.45 * max(dot(normal, light), 0.0);
-    let foam_light = direct * sun_up * max(light.y, 0.08) * 0.3183 * facing + settings.skylight * 1.1;
+    let foam_light = direct * sun_up * sun_seen * max(light.y, 0.08) * 0.3183 * facing + settings.skylight * 1.1 * sky_seen;
     let thin = cover * (1.0 - cover) * 4.0;
     let foam_colour = vec3f(0.9, 0.93, 0.95) * foam_light;
     color = mix(color, foam_colour, cover);
@@ -260,6 +335,14 @@ fn ocean(
 
   // Aerial perspective: air, not a wall of fog. The horizon stays crisp.
   return mix(color, sky, 1.0 - exp(-distance * 0.00022));
+}
+
+// A boulder lit by the sun and sky: the Lambertian corestone, dark and wet
+// where the sea reaches it.
+fn rock_radiance(hit: RockHit, light: vec3f, sun: vec3f, skylight: vec3f) -> vec3f {
+  let wet = 1.0 - smoothstep(0.1, 0.7, hit.y);
+  let albedo = hit.albedo * mix(0.85, 0.4, wet);
+  return albedo * (sun * max(dot(hit.normal, light), 0.0) * 0.3183 + skylight * (0.5 + 0.5 * hit.normal.y));
 }
 
 fn ggx(nh: f32, nv: f32, nl: f32, a2: f32) -> f32 {
@@ -317,8 +400,7 @@ fn seabed_depth(offshore: f32, along: f32) -> f32 {
 
 // Sand with wave-formed ripples, granite outcrops, seagrass, and scattered
 // shells, graded by depth. Colours are linear albedo.
-fn seabed(p: vec2f, offshore: f32, settings: OceanSettings, noise: texture_3d<f32>, filtering: sampler) -> vec3f {
-  let metrics = shore_metrics(p);
+fn seabed(p: vec2f, metrics: vec4f, offshore: f32, settings: OceanSettings, noise: texture_3d<f32>, filtering: sampler) -> vec3f {
   let along = metrics.w;
   let ripple_warp = field(p * 0.35, noise, filtering) * 3.0;
   let ripples = 0.5 + 0.5 * sin(metrics.x * 5.5 + ripple_warp + along * 0.15);
@@ -373,8 +455,8 @@ fn caustics(bed: vec2f, depth: f32, sun_down: vec3f, sea: Sea, pixel: f32,
 }
 
 // Kelp canopy shadows and passing fish schools darken the seabed.
-fn seabed_shadows(p: vec2f, settings: OceanSettings, noise: texture_3d<f32>, filtering: sampler) -> f32 {
-  let offshore = max(0.0, shore_metrics(p).x);
+fn seabed_shadows(p: vec2f, metrics: vec4f, settings: OceanSettings, noise: texture_3d<f32>, filtering: sampler) -> f32 {
+  let offshore = max(0.0, metrics.x);
   let kelp = kelp_canopy(p + vec2f(1.5, 0.8), offshore, settings, noise, filtering);
   // A school circles slowly in the shallows; individual fish flicker within it.
   let t = settings.time * 0.05;
@@ -413,7 +495,7 @@ fn kelp_canopy(p: vec2f, offshore: f32, settings: OceanSettings, noise: texture_
 //  - the swash on the beach (shared with the ground shader).
 // Returns (surface coverage, bubble cloud under the surface).
 fn surf_foam(p: vec2f, metrics: vec4f, sea: Sea, pixel: f32, settings: OceanSettings,
-  noise: texture_3d<f32>, filtering: sampler, foam_layer: texture_2d<f32>) -> vec2f {
+  noise: texture_3d<f32>, filtering: sampler, foam_layer: texture_2d<f32>, rock: RockSea) -> vec2f {
   let offshore = max(0.0, metrics.x);
   var density = 0.0;
   var bubbles = 0.0;
@@ -449,55 +531,67 @@ fn surf_foam(p: vec2f, metrics: vec4f, sea: Sea, pixel: f32, settings: OceanSett
     density = max(density, s.y);
     bubbles = max(bubbles, s.y * 0.6);
   }
+  // Foam round the rocks, laced in coordinates wrapped round each one.
+  let collar = rock.foam > density;
+  density = max(density, rock.foam);
+  bubbles = max(bubbles, rock.bubbles);
   if (density < 0.01) { return vec2f(0.0, bubbles); }
   // Foam rides the orbital motion: it sloshes shoreward under each crest and
   // back under each trough. Offshore, lace follows the sea itself.
   coords.y -= sea.excursion * sin(sea.phase);
   if (offshore > 20.0) { coords = p; }
-  let lace = foam_lace(coords, settings.time, pixel, noise, filtering);
-  let coverage = smoothstep(1.0 - density - 0.08, 1.0 - density + 0.14, lace) * min(1.0, density * 2.5);
+  if (collar) { coords = rock.lace; }
+  let coverage = foam_cover(coords, density, settings.time, pixel, noise, filtering);
   return vec2f(coverage * 0.95, bubbles);
 }
 
-// The texture of foam in [0, 1]: warped clumps, crossed by bubble-wall
-// filaments at two scales (Voronoi cell walls, where bubbles crowd) that
-// break up where foam is thin. Thin foam keeps only filament pieces in its
-// clumps; thick foam fills everything but the holes. Features finer than the
-// pixel fade to their mean coverage. Keep in step with swashLace in surf.js.
-fn foam_lace(q: vec2f, time: f32, pixel: f32, noise: texture_3d<f32>, filtering: sampler) -> f32 {
-  // The flow tears and stretches foam: warp it so no two cells are alike.
-  let warp = vec2f(field(q * 0.27 + 3.1, noise, filtering), field(q * 0.27 + 17.7, noise, filtering)) - 0.5;
-  let w = q + warp * 2.2;
-  // Stretched to use the whole range: summed value noise clusters near 0.5.
-  let clumps = smoothstep(0.28, 0.72, field(w * 0.6 + vec2f(time * 0.02, 0.0), noise, filtering) * 0.6
-    + field(w * 1.7 + 5.0, noise, filtering) * 0.4);
-  let mask = field(w * 1.1 + 9.0, noise, filtering);
-  // Bubble walls are never straight: bend the cells at their own scale.
-  let bend = vec2f(field(w * 2.6 + 1.3, noise, filtering), field(w * 2.6 + 8.9, noise, filtering)) - 0.5;
-  let v = w + bend * 0.45;
-  let walls_big = mix(1.0 - smoothstep(0.0, 0.08 + 0.22 * clumps, voronoi_edge(v * 2.2)), 0.3, smoothstep(0.25, 0.8, pixel * 2.2));
-  let walls_small = mix(1.0 - smoothstep(0.0, 0.2, voronoi_edge(v * 6.3 + 7.3)), 0.3, smoothstep(0.25, 0.8, pixel * 6.3));
-  let filaments = max(walls_big * smoothstep(0.3, 0.6, mask), walls_small * smoothstep(0.45, 0.75, clumps));
-  return clamp(clumps * 0.6 + filaments * 0.4 - 0.04, 0.0, 1.0);
+// Foam as it really decays: dense froth first, then holes open, each round
+// its own seed and at its own rate, until they meet and leave a lace of
+// irregular walls, thick where the holes are small, thread-thin where they
+// have merged. Two scales of hole, warped by the flow so none are alike,
+// and the local density varies in clumps and streaks. Where the holes are
+// finer than the pixel, their mean coverage stands in. Keep in step with
+// swashFoam in surf.js.
+fn foam_cover(q: vec2f, density: f32, time: f32, pixel: f32, noise: texture_3d<f32>, filtering: sampler) -> f32 {
+  let warp = vec2f(field(q * 0.25 + 3.1, noise, filtering), field(q * 0.25 + 17.7, noise, filtering)) - 0.5;
+  let w = q + warp * 2.4;
+  let clump = field(w * 0.5 + vec2f(time * 0.02, 0.0), noise, filtering) * 0.6 + field(w * 1.7 + 5.0, noise, filtering) * 0.4;
+  let local = clamp(density * (0.2 + 1.9 * clump * clump), 0.0, 1.0);
+  if (local < 0.02) { return 0.0; }
+  let bend = vec2f(field(w * 2.3 + 1.3, noise, filtering), field(w * 2.3 + 8.9, noise, filtering)) - 0.5;
+  let big = foam_holes(w * 1.3 + bend * 1.1, local, pixel * 1.3);
+  if (big < 0.005) { return 0.0; }
+  let small = foam_holes(w * 4.1 + bend * 2.2 + 7.3, min(1.0, local * 1.15), pixel * 4.1);
+  // Thin foam is a film of bubbles, not solid white: speckled, see-through.
+  let speck = mix(field(w * 11.0 + 3.0, noise, filtering), 0.5, smoothstep(0.3, 0.8, pixel * 11.0));
+  let film = mix(0.45 + 0.55 * speck, 1.0, smoothstep(0.35, 0.85, local));
+  return big * small * film * smoothstep(0.02, 0.2, local);
 }
 
-// Distance to the nearest cell wall (F2 - F1) of a Voronoi diagram. The
-// cells don't animate (that was 36 sines a pixel): the foam's own motion and
-// its changing density re-form the lace instead.
-fn voronoi_edge(q: vec2f) -> f32 {
-  let cell = floor(q);
-  let local = fract(q);
-  var f1 = 8.0;
-  var f2 = 8.0;
-  for (var j = -1; j <= 1; j++) {
-    for (var i = -1; i <= 1; i++) {
-      let offset = vec2f(f32(i), f32(j));
-      let point = offset + hash22(cell + offset) * 0.8 + 0.1 - local;
+// Coverage of foam around holes of one scale (cells one unit across): each
+// hole grows from its cell's seed as the foam thins (local 1 → 0).
+fn foam_holes(q: vec2f, local: f32, cells_per_pixel: f32) -> f32 {
+  let thin = 1.0 - local;
+  let mean = 1.0 - min(0.92, 3.1 * thin * thin * 0.5);
+  if (cells_per_pixel > 0.8) { return mean; }
+  // Seeds stay within the middle 60% of their cells, so the nearest is
+  // always among the four cells round the point's nearest corner.
+  let base = floor(q - 0.5);
+  var nearest = 8.0;
+  var seed = 0.0;
+  for (var j = 0; j <= 1; j++) {
+    for (var i = 0; i <= 1; i++) {
+      let cell = base + vec2f(f32(i), f32(j));
+      let h = hash22(cell);
+      let point = cell + 0.2 + h * 0.6 - q;
       let d = dot(point, point);
-      if (d < f1) { f2 = f1; f1 = d; } else if (d < f2) { f2 = d; }
+      if (d < nearest) { nearest = d; seed = h.y; }
     }
   }
-  return sqrt(f2) - sqrt(f1);
+  let radius = thin * (0.25 + 0.8 * pow(fract(seed * 7.13), 1.5));
+  let soft = 0.05 + cells_per_pixel * 0.6;
+  let open = smoothstep(radius - soft, radius + soft, sqrt(nearest));
+  return mix(open, mean, smoothstep(0.3, 0.8, cells_per_pixel));
 }
 
 // Signed shore geometry for the island, matching terrain.js: (offshore
@@ -711,6 +805,40 @@ fn wave_surface(p: vec2f, metrics: vec4f, footprint: mat2x2f, settings: OceanSet
   // under each crest, steepening it by the Jacobian; troughs flatten.
   sea.slope += wind_slope / clamp(1.0 - compression * 0.9, 0.45, 1.6);
   sea.variance += (0.003 + 0.00512 * max(speed, 2.0)) * 0.332;
+  return sea;
+}
+
+// Capillary ripples: the finest wind-sea cascade again, shrunk 7× and 17×
+// and turned (1–5 cm ripples), drifting downwind, faded by the pixel
+// footprint. One texture read an octave, since each texel already holds
+// its slopes. What they resolve is taken out of the roughness, so the sheen
+// neither doubles nor dims.
+fn capillaries(p: vec2f, pixel: f32, sea_in: Sea, settings: OceanSettings, waves3: texture_2d<f32>, filtering: sampler) -> Sea {
+  var sea = sea_in;
+  let speed = length(settings.wind);
+  let downwind = select(vec2f(0.8, 0.6), settings.wind / max(speed, 0.001), speed > 0.3);
+  let strength = 0.35 + min(speed, 10.0) * 0.06;
+  let size = cascade_size(3);
+  var slope = vec2f(0.0);
+  var resolved = 0.0;
+  var scale = 7.3;
+  var turn = mat2x2f(vec2f(0.6, 0.8), vec2f(-0.8, 0.6));
+  for (var i = 0; i < 2; i++) {
+    // The cascade's shortest waves are size / 16; shrunk, size / (16 scale).
+    let k = TAU * 16.0 * scale / size;
+    let keep = exp(-0.65 * (k * pixel) * (k * pixel));
+    if (keep > 0.02) {
+      let q = turn * (p + downwind * settings.time * 0.06) * scale / size + f32(i) * 0.37;
+      let w = textureSampleLevel(waves3, filtering, q, 0.0);
+      // Shrunk by `scale` in both height and length: the same steepness.
+      slope += transpose(turn) * w.yz * strength * keep;
+      resolved += keep * keep;
+    }
+    scale *= 2.35;
+    turn = turn * mat2x2f(vec2f(0.28, 0.96), vec2f(-0.96, 0.28));
+  }
+  sea.slope += slope;
+  sea.variance = max(sea.variance * (1.0 - 0.2 * resolved), sea.variance * 0.6);
   return sea;
 }
 
