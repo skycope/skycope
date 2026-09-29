@@ -27,6 +27,8 @@ export function createForest(scene, seed) {
     sunGlow: { value: 1 },
     // Lambert-lit white (sun/π + sky), set from the shared lighting model.
     foamLight: { value: new THREE.Color(1, 1, 1) },
+    // Night (0–1), for bioluminescence in the swash.
+    nightGlow: { value: 0 },
     // The breaking swell train (src/swell.js), for swash on sand and rocks.
     swell: { value: new THREE.Vector4(...swellUniform(seed, [0, 0])) },
     // Where the cat is (coast x, z), how far it pushes, how hard.
@@ -132,6 +134,9 @@ export function createForest(scene, seed) {
       push.x = x;
       push.y = z;
       push.w += (strength - push.w) * 0.2;
+    },
+    updateNight(night) {
+      shared.nightGlow.value = night;
     },
     updateFoamLight(rgb) {
       shared.foamLight.value.setRGB(rgb[0], rgb[1], rgb[2]);
@@ -427,6 +432,7 @@ float detailRoughness = mix( mix( mix( 0.95, 0.9, rocky ), 0.28, wet ), 0.35, cl
 // and glossy for a few seconds as it drains. The film mirrors the sky.
 float swashFilm = 0.0;
 float swashCover = 0.0;
+float swashGlow = 0.0;
 if ( inland < 4.5 ) {
   float along = shoreAlong( coast );
   vec4 sw = swash( along, inland, breezeTime );
@@ -438,6 +444,18 @@ if ( inland < 4.5 ) {
   diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.55, 0.56, 0.55 ), sw.z * ( 1.0 - wet ) * 0.85 );
   diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.66, 0.76, 0.76 ), swashFilm * smoothstep( 0.0, 0.25, sw.w ) );
   swashCover = max( swashCover, bubbles.x );
+  // At night the uprush lights the plankton it carries (ocean.wgsl).
+  if ( nightGlow > 0.01 ) {
+    float bloom = smoothstep( 0.25, 0.7, dNoise( coast * 0.018 + vec2( breezeTime * 0.003, 3.7 ) ) );
+    // Single cells flashing: round points, each at its own moment.
+    vec2 gq = coast * 22.0;
+    vec2 gc = floor( gq );
+    float flick = dHash( gc + floor( breezeTime * 6.0 + dHash( gc ) * 6.0 ) );
+    vec2 at = vec2( dHash( gc + 3.1 ), dHash( gc + 7.7 ) );
+    float spot = 1.0 - smoothstep( 0.05, 0.2, length( fract( gq ) - 0.2 - at * 0.6 ) );
+    float spark = step( 0.965, flick ) * spot * ( 0.3 + 0.7 * fract( flick * 37.1 ) ) * ( 1.0 - smoothstep( 0.015, 0.05, pixel ) );
+    swashGlow = sw.y * sw.x * bloom * nightGlow * ( 0.1 + 0.9 * swashCover + spark * 7.0 );
+  }
   diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.88, 0.9, 0.92 ), swashCover );
   detailHeight *= 1.0 - swashFilm * 0.9;
   detailHeight += swashCover * 0.004;
@@ -461,10 +479,19 @@ vec3 q = vec3( vWorld.x, vWorld.y, -vWorld.z );
 vec2 coast = q.xz;
 float footprint = max( max( fwidth( q.x ), fwidth( q.y ) ), fwidth( q.z ) );
 float up = max( ( vec4( normalize( vNormal ), 0.0 ) * viewMatrix ).y, 0.0 );
-float macro = dFbm3( q * 0.45, footprint * 0.45 );
-float mid = dFbm3( q * 2.1 + 5.0, footprint * 2.1 );
+// One stack of noise octaves: the first two are the broad weathering tone,
+// the next two the mid-scale detail. Each fades to its mean once finer than
+// ~2 pixels.
+mat3 turn3 = mat3( 0.0, 0.8, 0.6, -0.8, 0.36, -0.48, -0.6, -0.48, 0.64 );
+float macro = dNoise3( q * 0.45 ) * 0.65 + dNoise3( turn3 * q * 0.93 + 1.7 ) * 0.35;
+float mid = mix( dNoise3( q * 2.1 + 5.0 ), 0.5, smoothstep( 0.2, 0.5, footprint * 2.1 ) ) * 0.6
+  + mix( dNoise3( turn3 * q * 4.3 + 3.3 ), 0.5, smoothstep( 0.2, 0.5, footprint * 4.3 ) ) * 0.4;
 // Weathered, pitted relief at a few centimetres: the surface a hand feels.
-float relief = dFbm3( q * 9.0 + 2.0, footprint * 9.0 );
+// Only within ~10 m, where it can be seen.
+float relief = 0.5;
+if ( footprint < 0.02 ) {
+  relief = mix( dNoise3( q * 9.0 + 2.0 ) * 0.6 + dNoise3( turn3 * q * 19.0 ) * 0.4, 0.5, smoothstep( 0.2, 0.5, footprint * 19.0 ) );
+}
 diffuseColor.rgb *= 0.66 + macro * 0.6 + ( mid - 0.5 ) * 0.24 + ( relief - 0.5 ) * 0.12;
 // Iron-oxide staining: warm streaks drawn down the flanks from above.
 float iron = smoothstep( 0.52, 0.78, dNoise3( vec3( q.x * 1.3, q.y * 0.3, q.z * 1.3 ) + 3.0 ) ) * smoothstep( 0.35, 0.65, macro );
@@ -472,10 +499,10 @@ diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 1.3, 0.98, 0.
 // Patina: undersides and hollows darken where rain and light don't reach.
 diffuseColor.rgb *= mix( 0.72, 1.0, smoothstep( 0.0, 0.5, up + mid * 0.3 ) );
 // Joint cracks and exfoliation seams: thin dark lines, faded with distance.
-float crackWidth = 0.006 + footprint * 0.8;
+float crackWidth = 0.0035 + footprint * 0.6;
 float seam = 1.0 - smoothstep( 0.0, crackWidth, abs( dNoise3( q * 0.8 + 11.0 ) + ( mid - 0.5 ) * 0.08 - 0.5 ) );
-seam *= ( 1.0 - smoothstep( 0.015, 0.04, footprint ) ) * smoothstep( 0.5, 0.62, dNoise3( q * 0.37 + 2.0 ) ) * smoothstep( 0.3, 0.6, dNoise3( q * 3.1 + 6.0 ) );
-diffuseColor.rgb *= 1.0 - seam * 0.45;
+seam *= ( 1.0 - smoothstep( 0.015, 0.04, footprint ) ) * smoothstep( 0.5, 0.62, macro * 0.7 + mid * 0.3 ) * smoothstep( 0.3, 0.6, relief + mid * 0.3 );
+diffuseColor.rgb *= 1.0 - seam * 0.3;
 // Grain: coarse porphyritic granite, feldspar crystals a centimetre or two.
 float grainFade = 1.0 - smoothstep( 0.004, 0.012, footprint );
 float feldspar = 0.0;
@@ -501,7 +528,7 @@ float lichenZone = smoothstep( 0.9, 1.6, y ) * smoothstep( 0.3, 0.8, up );
 float lichen = 0.0;
 float orange = 0.0;
 if ( lichenZone > 0.01 ) {
-  float rosette = dFbm3( q * 3.2 + 7.0, footprint * 3.2 );
+  float rosette = mid * 0.7 + macro * 0.3;
   float fray = mix( dNoise3( q * 17.0 ), 0.5, smoothstep( 0.2, 0.5, footprint * 17.0 ) );
   lichen = smoothstep( 0.6, 0.64, rosette + ( fray - 0.5 ) * 0.16 ) * lichenZone;
   float colonies = smoothstep( 0.45, 0.75, rosette ) * lichenZone;
@@ -547,7 +574,7 @@ float sheet = 1.0 - smoothstep( runup - 0.15, runup + 0.05, y + ( relief - 0.5 )
 float damp = 1.0 - smoothstep( 0.2, 0.6 + swell.w * 2.5, y );
 diffuseColor.rgb *= mix( 1.0, 0.7, damp * ( 1.0 - sheet ) );
 diffuseColor.rgb *= mix( 1.0, 0.55, sheet );
-float detailHeight = macro * 0.05 + mid * 0.015 + relief * 0.008 + feldspar * 0.0015 - biotite * 0.001 - seam * 0.006 + barnacles * 0.004 + lichen * 0.002;
+float detailHeight = macro * 0.05 + mid * 0.018 + relief * 0.022 + feldspar * 0.0015 - biotite * 0.001 - seam * 0.006 + barnacles * 0.004 + lichen * 0.002;
 float detailRoughness = mix( mix( mix( 0.82, 0.95, max( barnacles, lichen ) ), 0.5, damp ), 0.12, sheet );
 detailHeight *= 1.0 - sheet * 0.8;
 `;
@@ -614,20 +641,6 @@ float dNoise3( vec3 p ) {
     mix( mix( dHash3( i + vec3( 0, 0, 1 ) ), dHash3( i + vec3( 1, 0, 1 ) ), u.x ), mix( dHash3( i + vec3( 0, 1, 1 ) ), dHash3( i + vec3( 1, 1, 1 ) ), u.x ), u.y ),
     u.z );
 }
-// Three octaves of 3D value noise, each faded to its mean once finer than
-// ~2 pixels (cycles: the first octave's cells per pixel).
-float dFbm3( vec3 p, float cycles ) {
-  float v = 0.0;
-  float a = 0.5;
-  for ( int i = 0; i < 3; i++ ) {
-    float fade = smoothstep( 0.2, 0.5, cycles );
-    v += a * ( fade < 0.99 ? mix( dNoise3( p ), 0.5, fade ) : 0.5 );
-    p = mat3( 0.0, 0.8, 0.6, -0.8, 0.36, -0.48, -0.6, -0.48, 0.64 ) * p * 2.03;
-    cycles *= 2.03;
-    a *= 0.5;
-  }
-  return v / 0.875;
-}
 // Signed shore distance, matching terrain.js (positive inland).
 float dShore( vec2 p ) {
   vec2 d = p - vec2( 58.0, 70.0 );
@@ -686,6 +699,7 @@ function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = 
         #ifdef USE_FOG
           float filmFresnel = 0.02 + 0.98 * pow( 1.0 - max( dot( normal, normalize( vViewPosition ) ), 0.0 ), 5.0 );
           totalEmissiveRadiance += fogColor * filmFresnel * swashFilm * ( 1.0 - swashCover ) * 0.9;
+          totalEmissiveRadiance += vec3( 0.05, 0.42, 0.95 ) * swashGlow * 0.12;
         #endif`,
       );
     if (ground || rock || bark) {

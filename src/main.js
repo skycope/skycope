@@ -120,6 +120,8 @@ const state = {
   // history. foamFrames counts frames since it was last invalidated; calm
   // counts seconds without whitecap-strength wind (the history pass sleeps).
   foamFrames: 0,
+  // Seconds of sea time since the whitecap history last stepped.
+  foamStep: 0,
   calm: 0,
   atmosphere: null,
   water: null,
@@ -617,9 +619,13 @@ async function startAtmosphere() {
     // the history pass sleeps and the water skips its lookups.
     state.calm = Math.hypot(wind[0], wind[1]) > 3.5 ? 0 : state.calm + dt;
     const whitecaps = state.calm < 20;
+    // Whitecap foam lives for seconds: stepping its history every other
+    // frame, over both frames' time, looks the same and halves its cost.
+    state.foamStep += motionPreference.matches ? 0 : dt;
+    const stepFoam = whitecaps && (state.foamFrames === 0 || state.skyFrames % 2 === 0);
     const seaUniforms = {
       ...uniforms,
-      ocean: [motionPreference.matches ? 0 : dt, state.foamFrames > 0 ? 1 : 0, 0, 0],
+      ocean: [stepFoam ? state.foamStep : 0, state.foamFrames > 0 ? 1 : 0, 0, 0],
     };
     // Temporal clouds: each frame marches one pixel of every 2x2 block, in
     // turn; the resolve reprojects the rest from last frame's cloud layer.
@@ -640,21 +646,24 @@ async function startAtmosphere() {
       cloudLayer: cloudTarget.color,
       cloudHistory: skyTarget.read.colors[1],
     });
-    if (whitecaps) foamPass.set({ atmosphere: seaUniforms, foamHistory: foamTarget.read.color });
-    water.set({ atmosphere: seaUniforms, skyTexture: skyTarget.write.color, foamLayer: foamTarget.write.color });
+    if (stepFoam) foamPass.set({ atmosphere: seaUniforms, foamHistory: foamTarget.read.color });
+    // Between steps the water reads the history last written.
+    water.set({ atmosphere: seaUniforms, skyTexture: skyTarget.write.color, foamLayer: stepFoam ? foamTarget.write.color : foamTarget.read.color });
     currentFrame.pass(wavesTarget, wavesPass);
-    if (whitecaps) currentFrame.pass(foamTarget.write, foamPass);
+    if (stepFoam) currentFrame.pass(foamTarget.write, foamPass);
     currentFrame.pass(skyTable, tablePass);
     currentFrame.pass(cloudTarget, cloudPass);
     currentFrame.pass(skyTarget.write, atmosphere);
     currentFrame.pass(output, water);
     skyTarget.swap();
     state.skyFrames++;
-    if (whitecaps) {
+    if (stepFoam) {
       foamTarget.swap();
       state.foamFrames++;
-    } else {
+      state.foamStep = 0;
+    } else if (!whitecaps) {
       state.foamFrames = 0;
+      state.foamStep = 0;
     }
     state.previousView = {
       azimuth: state.flight.azimuth,

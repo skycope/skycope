@@ -6,6 +6,7 @@ import * as THREE from "three";
 // swash() returns (film, foam density, wetness of the sand, film depth).
 export const SWASH_GLSL = /* glsl */ `
 uniform vec4 swell;
+uniform float nightGlow;
 float shoreAlong( vec2 p ) {
   vec2 d = p - vec2( 58.0, 70.0 );
   return atan( d.y, d.x ) * 62.0;
@@ -56,7 +57,7 @@ float swashValue( vec2 p ) {
 }
 // Foam as in foam_cover (ocean.wgsl): holes open round their own seeds as
 // the foam thins, at two scales, until only irregular lace is left.
-float swashHoles( vec2 q, float local, float cellsPerPixel ) {
+float swashHoles( vec2 q, float local, float cellsPerPixel, float warp ) {
   float thin = 1.0 - local;
   float mean = 1.0 - min( 0.92, 1.55 * thin * thin );
   if ( cellsPerPixel > 0.8 ) return mean;
@@ -72,20 +73,22 @@ float swashHoles( vec2 q, float local, float cellsPerPixel ) {
   }
   float radius = thin * ( 0.25 + 0.8 * pow( fract( seed * 7.13 ), 1.5 ) );
   float soft = 0.05 + cellsPerPixel * 0.6;
-  float open = smoothstep( radius - soft, radius + soft, sqrt( nearest ) );
+  float open = smoothstep( radius - soft, radius + soft, sqrt( nearest ) + ( warp - 0.5 ) * 0.35 * thin );
   return mix( open, mean, smoothstep( 0.3, 0.8, cellsPerPixel ) );
 }
-float swashFoam( vec2 q, float density, float time, float pixel ) {
+float swashFoam( vec2 qIn, float density, float time, float pixelIn ) {
+  vec2 q = qIn * 1.6;
+  float pixel = pixelIn * 1.6;
   vec2 w = q + ( vec2( swashValue( q * 0.25 + 3.1 ), swashValue( q * 0.25 + 17.7 ) ) - 0.5 ) * 2.4;
   float clump = swashValue( w * 0.5 + vec2( time * 0.02, 0.0 ) ) * 0.6 + swashValue( w * 1.7 + 5.0 ) * 0.4;
-  float local = clamp( density * ( 0.2 + 1.9 * clump * clump ), 0.0, 1.0 );
+  float fray = mix( swashValue( w * 6.1 + 2.2 ), 0.5, smoothstep( 0.3, 0.8, pixel * 6.1 ) );
+  float local = clamp( density * ( 0.2 + 1.9 * clump * clump ) * ( 0.65 + 0.7 * fray ), 0.0, 1.0 );
   if ( local < 0.02 ) return 0.0;
   vec2 bend = vec2( swashValue( w * 2.3 + 1.3 ), swashValue( w * 2.3 + 8.9 ) ) - 0.5;
-  float big = swashHoles( w * 1.3 + bend * 1.1, local, pixel * 1.3 );
+  float big = swashHoles( w * 1.3 + bend * 1.1, local, pixel * 1.3, fray );
   if ( big < 0.005 ) return 0.0;
-  float small = swashHoles( w * 4.1 + bend * 2.2 + 7.3, min( 1.0, local * 1.15 ), pixel * 4.1 );
-  float speck = mix( swashValue( w * 11.0 + 3.0 ), 0.5, smoothstep( 0.3, 0.8, pixel * 11.0 ) );
-  float film = mix( 0.45 + 0.55 * speck, 1.0, smoothstep( 0.35, 0.85, local ) );
+  float small = swashHoles( w * 4.1 + bend * 2.2 + 7.3, min( 1.0, local * 1.15 ), pixel * 4.1, 1.0 - fray );
+  float film = mix( 0.45 + 0.55 * fray, 1.0, smoothstep( 0.35, 0.85, local ) );
   return big * small * film * smoothstep( 0.02, 0.2, local );
 }
 // Little bubbles, a few millimetres to a few centimetres: bright rims round
@@ -101,6 +104,8 @@ vec2 swashBubbles( vec2 p, float time, float pixel, float gate ) {
   float scale = 34.0;
   mat2 turn = mat2( 0.8, 0.6, -0.6, 0.8 );
   for ( int layer = 0; layer < 3; layer++ ) {
+    // Even this layer's largest bubbles are below a pixel: so are the rest.
+    if ( pixel * scale > 1.0 ) break;
     float fl = float( layer );
     float clump = swashValue( p * ( 2.3 + fl ) + fl * 5.1 );
     float share = gate * ( 0.04 + 0.5 * clump * clump * clump );
@@ -117,11 +122,11 @@ vec2 swashBubbles( vec2 p, float time, float pixel, float gate ) {
       if ( footprint > 0.8 ) continue;
       vec2 d = q - ( cell + 0.5 + ( h - 0.5 ) * 0.9 );
       float dist = length( d );
-      float hollow = smoothstep( 0.12, 0.3, r );
+      float hollow = smoothstep( 0.28, 0.45, r );
       float rim = smoothstep( r * 0.6 * hollow, r * 0.9 * hollow + 0.001, dist ) * ( 1.0 - smoothstep( r, r * 1.12, dist ) );
       float glint = 1.0 - smoothstep( 0.0, r * 0.22, length( d + r * vec2( 0.35, -0.35 ) ) );
       float resolved = 1.0 - smoothstep( 0.35, 0.8, footprint );
-      result += vec2( rim * 0.85, glint ) * resolved;
+      result += vec2( rim * mix( 0.6, 0.85, hollow ), glint ) * resolved;
     }
     scale *= 1.93;
     turn = turn * mat2( 0.28, 0.96, -0.96, 0.28 );

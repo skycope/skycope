@@ -78,6 +78,7 @@ const shader = effect(gpu, await wgsl("sky.wgsl"), {
   },
 });
 const JITTER = [[0, 0], [1, 1], [1, 0], [0, 1]];
+let benchSea = null;
 // The wind-sea cascades and the whitecap history (see src/main.js).
 const wavesFormat = { format: "rgba16float" };
 const wavesTarget = target(gpu, { size: [128, 128], colors: [wavesFormat, wavesFormat, wavesFormat, wavesFormat] });
@@ -129,6 +130,23 @@ const water = effect(
     },
   },
 );
+// BASE_WATER=path/to/water.wgsl: a second water shader (an older checkout's)
+// benched against this one, interleaved in the same process (BENCH=1).
+const baseWater = process.env.BASE_WATER
+  ? effect(gpu, (await resolveShader({ entry: process.env.BASE_WATER, validate: "off" })).wgsl, {
+      set: {
+        cloudNoise: noise.createView(),
+        skyTexture: skyTarget.write.color,
+        starCatalog: starCatalog.createView(),
+        waves0: wavesTarget.colors[0],
+        waves1: wavesTarget.colors[1],
+        waves2: wavesTarget.colors[2],
+        waves3: wavesTarget.colors[3],
+        foamLayer: foamTarget.write.color,
+        filtering: sampler(gpu, { minFilter: "linear", magFilter: "linear", addressModeU: "repeat", addressModeV: "repeat", addressModeW: "repeat" }),
+      },
+    })
+  : null;
 const gpuTimer = timer(gpu);
 const timings = [];
 const waterTimings = [];
@@ -144,6 +162,7 @@ await shader.compile(skyTarget.write);
 await waves.compile(wavesTarget);
 await foam.compile(foamTarget.write);
 await water.compile(output);
+if (baseWater) await baseWater.compile(output);
 // Optional view: [heading in degrees, pitch in radians, optional [x, y, z]
 // coast metres]; default is home.
 for (const [name, time, weather, rain, view, windOverride] of [
@@ -238,6 +257,7 @@ for (const [name, time, weather, rain, view, windOverride] of [
     modes.write(waveModes.update(sea.time, sea.wind));
     foam.set({ atmosphere: sea, foamHistory: foamTarget.read.color });
     water.set({ atmosphere: sea, skyTexture: skyTarget.write.color, foamLayer: foamTarget.write.color });
+    benchSea = sea;
     frame(gpu, (f) => {
       f.pass({ target: wavesTarget, timer: gpuTimer.span("waves") }, waves);
       f.pass({ target: foamTarget.write, timer: gpuTimer.span("foam") }, foam);
@@ -263,6 +283,19 @@ for (const [name, time, weather, rain, view, windOverride] of [
       bench[label] = ((performance.now() - begin) / 120).toFixed(3);
     }
     console.log(`${name} bench ms/frame:`, JSON.stringify(bench));
+    if (baseWater) {
+      baseWater.set({ atmosphere: benchSea, skyTexture: skyTarget.write.color, foamLayer: foamTarget.write.color });
+      const best = { base: Infinity, water: Infinity };
+      for (let k = 0; k < 16; k++)
+        for (const [label, e] of k % 2 ? [["base", baseWater], ["water", water]] : [["water", water], ["base", baseWater]]) {
+          await gpu.gpu.queue.onSubmittedWorkDone();
+          const begin = performance.now();
+          frame(gpu, (f) => { for (let i = 0; i < 24; i++) f.pass(output, e); });
+          await gpu.gpu.queue.onSubmittedWorkDone();
+          best[label] = Math.min(best[label], (performance.now() - begin) / 24);
+        }
+      console.log(`${name} ab base ${best.base.toFixed(3)} new ${best.water.toFixed(3)} ${((best.water / best.base - 1) * 100).toFixed(1)}%`);
+    }
   }
   await gpu.settled();
   const pixels = await output.read();

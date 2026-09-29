@@ -284,7 +284,11 @@ fn ocean(
   let backlit = pow(max(dot(-view.xz, light.xz) / max(length(light.xz), 0.001), 0.0), 2.0)
     * smoothstep(-0.02, 0.1, sea.height) * sun_up * (1.0 - smoothstep(0.1, 0.6, light.y))
     * (1.0 + sea.breaking * smoothstep(-0.2, 0.0, sea.phase) * (1.0 - smoothstep(0.1, 0.9, sea.phase)) * 3.0);
-  transmitted += vec3f(0.06, 0.42, 0.34) * direct * backlit * 0.035;
+  // Steep, thin crest faces pass the most light; shallow water tints it
+  // toward the sand's gold-green.
+  let steep = smoothstep(0.08, 0.35, length(sea.slope));
+  let crest_tint = mix(vec3f(0.06, 0.42, 0.34), vec3f(0.18, 0.46, 0.22), 1.0 - smoothstep(0.5, 3.0, depth));
+  transmitted += crest_tint * direct * sun_seen * backlit * (0.03 + 0.09 * steep);
 
   var color = mix(transmitted, reflection, fresnel * (1.0 - kelp * 0.6));
 
@@ -342,16 +346,16 @@ fn ocean(
   if (night > 0.01 && foam.z > 0.01) {
     let bloom = smoothstep(0.25, 0.7, value_noise(p.xz * 0.018 + vec2f(settings.time * 0.003, 3.7)));
     let glow = foam.z * bloom * night;
-    let body = glow * (0.35 + 0.65 * cover) + glow * foam.y * 0.4;
+    let body = glow * (0.1 + 0.9 * cover) + glow * foam.y * 0.3;
     var sparks = 0.0;
     if (pixel < 0.06) {
       let q = p.xz * 22.0;
       let cell = floor(q);
       let h = hash22(cell + floor(settings.time * 6.0 + hash22(cell).x * 6.0));
       let spot = 1.0 - smoothstep(0.08, 0.3, length(fract(q) - 0.2 - h * 0.6));
-      sparks = step(0.9, h.y) * spot * glow * (1.0 - smoothstep(0.02, 0.06, pixel));
+      sparks = step(0.95, h.y) * spot * (0.3 + 0.7 * fract(h.x * 37.1)) * glow * (1.0 - smoothstep(0.02, 0.06, pixel));
     }
-    color += vec3f(0.05, 0.42, 0.95) * (body * 0.06 + sparks * 0.5);
+    color += vec3f(0.05, 0.42, 0.95) * (body * 0.16 + sparks * 1.2);
   }
 
   // Aerial perspective: air, not a wall of fog. The horizon stays crisp.
@@ -429,16 +433,27 @@ fn seabed(p: vec2f, metrics: vec4f, offshore: f32, settings: OceanSettings, nois
   sand *= 0.82 + ripples * 0.22;
   // Granite boulders and reef: a patch field, dark and lichen-flecked, in
   // broad blocky outcrops and gullies like the Cape's granite coasts.
-  let reef = smoothstep(0.6, 0.68, field(p * 0.09 + 7.0, noise, filtering) * 0.62 + field(p * 0.37, noise, filtering) * 0.28
-      + field(p * 1.6, noise, filtering) * 0.1)
-    * smoothstep(3.0, 10.0, offshore);
-  let rock = mix(vec3f(0.07, 0.075, 0.055), vec3f(0.2, 0.19, 0.12), field(p * 2.1, noise, filtering));
-  // Seagrass meadows in the calmer mid-shelf.
-  let grass = smoothstep(0.55, 0.66, field(p * 0.16 - 3.0, noise, filtering))
-    * smoothstep(5.0, 12.0, offshore) * (1.0 - smoothstep(30.0, 45.0, offshore));
-  let blades = 0.6 + 0.4 * field(p * vec2f(6.0, 1.3) + settings.time * vec2f(0.15, 0.0), noise, filtering);
-  var colour = mix(sand, vec3f(0.05, 0.1, 0.03) * blades, grass);
-  colour = mix(colour, rock, reef);
+  // Neither reaches the first metres of the shallows: skip their lookups there.
+  var colour = sand;
+  var reef = 0.0;
+  if (offshore > 3.0) {
+    reef = smoothstep(0.6, 0.68, field(p * 0.09 + 7.0, noise, filtering) * 0.62 + field(p * 0.37, noise, filtering) * 0.28
+        + field(p * 1.6, noise, filtering) * 0.1)
+      * smoothstep(3.0, 10.0, offshore);
+    // Seagrass meadows in the calmer mid-shelf.
+    if (offshore > 5.0 && offshore < 45.0) {
+      let grass = smoothstep(0.55, 0.66, field(p * 0.16 - 3.0, noise, filtering))
+        * smoothstep(5.0, 12.0, offshore) * (1.0 - smoothstep(30.0, 45.0, offshore));
+      if (grass > 0.0) {
+        let blades = 0.6 + 0.4 * field(p * vec2f(6.0, 1.3) + settings.time * vec2f(0.15, 0.0), noise, filtering);
+        colour = mix(sand, vec3f(0.05, 0.1, 0.03) * blades, grass);
+      }
+    }
+    if (reef > 0.0) {
+      let rock = mix(vec3f(0.07, 0.075, 0.055), vec3f(0.2, 0.19, 0.12), field(p * 2.1, noise, filtering));
+      colour = mix(colour, rock, reef);
+    }
+  }
   // Scattered shell grit and darker pebbles: soft, round and sub-metre.
   let cell = floor(p * 2.0);
   let spot = hash22(cell);
@@ -580,25 +595,29 @@ fn surf_foam(p: vec2f, metrics: vec4f, sea: Sea, pixel: f32, settings: OceanSett
 // and the local density varies in clumps and streaks. Where the holes are
 // finer than the pixel, their mean coverage stands in. Keep in step with
 // swashFoam in surf.js.
-fn foam_cover(q: vec2f, density: f32, time: f32, pixel: f32, noise: texture_3d<f32>, filtering: sampler) -> f32 {
+fn foam_cover(q_in: vec2f, density: f32, time: f32, pixel_in: f32, noise: texture_3d<f32>, filtering: sampler) -> f32 {
+  // Metres to foam units: holes of ~50 cm and ~15 cm.
+  let q = q_in * 1.6;
+  let pixel = pixel_in * 1.6;
   let warp = vec2f(field(q * 0.25 + 3.1, noise, filtering), field(q * 0.25 + 17.7, noise, filtering)) - 0.5;
   let w = q + warp * 2.4;
   let clump = field(w * 0.5 + vec2f(time * 0.02, 0.0), noise, filtering) * 0.6 + field(w * 1.7 + 5.0, noise, filtering) * 0.4;
-  let local = clamp(density * (0.2 + 1.9 * clump * clump), 0.0, 1.0);
+  // Frayed: finer noise tears the edges of every clump.
+  let fray = mix(field(w * 6.1 + 2.2, noise, filtering), 0.5, smoothstep(0.3, 0.8, pixel * 6.1));
+  let local = clamp(density * (0.2 + 1.9 * clump * clump) * (0.65 + 0.7 * fray), 0.0, 1.0);
   if (local < 0.02) { return 0.0; }
   let bend = vec2f(field(w * 2.3 + 1.3, noise, filtering), field(w * 2.3 + 8.9, noise, filtering)) - 0.5;
-  let big = foam_holes(w * 1.3 + bend * 1.1, local, pixel * 1.3);
+  let big = foam_holes(w * 1.3 + bend * 1.1, local, pixel * 1.3, fray);
   if (big < 0.005) { return 0.0; }
-  let small = foam_holes(w * 4.1 + bend * 2.2 + 7.3, min(1.0, local * 1.15), pixel * 4.1);
+  let small = foam_holes(w * 4.1 + bend * 2.2 + 7.3, min(1.0, local * 1.15), pixel * 4.1, 1.0 - fray);
   // Thin foam is a film of bubbles, not solid white: speckled, see-through.
-  let speck = mix(field(w * 11.0 + 3.0, noise, filtering), 0.5, smoothstep(0.3, 0.8, pixel * 11.0));
-  let film = mix(0.45 + 0.55 * speck, 1.0, smoothstep(0.35, 0.85, local));
+  let film = mix(0.45 + 0.55 * fray, 1.0, smoothstep(0.35, 0.85, local));
   return big * small * film * smoothstep(0.02, 0.2, local);
 }
 
 // Coverage of foam around holes of one scale (cells one unit across): each
 // hole grows from its cell's seed as the foam thins (local 1 → 0).
-fn foam_holes(q: vec2f, local: f32, cells_per_pixel: f32) -> f32 {
+fn foam_holes(q: vec2f, local: f32, cells_per_pixel: f32, warp: f32) -> f32 {
   let thin = 1.0 - local;
   let mean = 1.0 - min(0.92, 3.1 * thin * thin * 0.5);
   if (cells_per_pixel > 0.8) { return mean; }
@@ -618,7 +637,8 @@ fn foam_holes(q: vec2f, local: f32, cells_per_pixel: f32) -> f32 {
   }
   let radius = thin * (0.25 + 0.8 * pow(fract(seed * 7.13), 1.5));
   let soft = 0.05 + cells_per_pixel * 0.6;
-  let open = smoothstep(radius - soft, radius + soft, sqrt(nearest));
+  // Holes are torn, not round: the distance is bent by the fray noise.
+  let open = smoothstep(radius - soft, radius + soft, sqrt(nearest) + (warp - 0.5) * 0.35 * thin);
   return mix(open, mean, smoothstep(0.3, 0.8, cells_per_pixel));
 }
 
@@ -851,7 +871,7 @@ fn capillaries(p: vec2f, pixel: f32, sea_in: Sea, settings: OceanSettings, waves
   var resolved = 0.0;
   var scale = 7.3;
   var turn = mat2x2f(vec2f(0.6, 0.8), vec2f(-0.8, 0.6));
-  for (var i = 0; i < 2; i++) {
+  for (var i = 0; i < select(1, 2, pixel < 0.012); i++) {
     // The cascade's shortest waves are size / 16; shrunk, size / (16 scale).
     let k = TAU * 16.0 * scale / size;
     let keep = exp(-0.65 * (k * pixel) * (k * pixel));

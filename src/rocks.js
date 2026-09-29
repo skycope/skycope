@@ -20,7 +20,9 @@ export function rockLayout(random) {
       scale: new THREE.Vector3(size, size * 0.7, size * 0.85),
       rotation: new THREE.Euler(random(), random() * 6, random()),
       color: new THREE.Color().setHSL(0.09, 0.06, 0.27 + random() * 0.12),
-      variant: i % ROCK_VARIANTS,
+      // Scattered all round the shore: one shape, so each ground chunk
+      // keeps one draw for them. The boulder fields below get all three.
+      variant: 0,
     });
   }
   // Granite boulder fields, as on the Cape Peninsula's shores: a few clusters

@@ -110,6 +110,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       const pointer = [0.5, 0.5];
       const night = THREE.MathUtils.smoothstep(celestial.scene, 1, 2);
       forest.updateWind(time, wind);
+      forest.updateNight(night);
       fauna.update(time, wind, night);
       const sinA = Math.sin(flight.azimuth);
       const cosA = Math.cos(flight.azimuth);
