@@ -90,6 +90,8 @@ float swashHoles( vec2 q, float local, float cellsPerPixel, float warp ) {
   return mix( open, mean, smoothstep( 0.3, 0.8, cellsPerPixel ) );
 }
 float swashFoam( vec2 qIn, float density, float time, float pixelIn ) {
+  // Nothing to lace (the clumps multiply density): skip every lookup.
+  if ( density < 0.007 ) return 0.0;
   vec2 q = qIn * 1.6;
   float pixel = pixelIn * 1.6;
   vec2 w = q + ( vec2( swashValue( q * 0.25 + 3.1 ), swashValue( q * 0.25 + 17.7 ) ) - 0.5 ) * 2.4;
@@ -101,10 +103,17 @@ float swashFoam( vec2 qIn, float density, float time, float pixelIn ) {
   float big = swashHoles( w * 1.3 + bend * 1.1, local, pixel * 1.3, fray );
   if ( big < 0.005 ) return 0.0;
   float small = swashHoles( w * 4.1 + bend * 2.2 + 7.3, min( 1.0, local * 1.15 ), pixel * 4.1, 1.0 - fray );
-  // The finest, here only (the sand is where foam is seen closest): the
-  // bubble web itself, cells a few centimetres across, open wherever the
-  // foam is not dense; its mean stands in beyond a few metres.
-  float web = swashHoles( w * 11.0 + bend * 3.1 + 2.9, 0.7 + 0.3 * local, pixel * 11.0, fray );
+  // The finest, here only (the sand is where foam is seen closest): pinholes
+  // a centimetre or two across, one to each few-centimetre cell of the warped
+  // foam, opening as the foam thins; their mean stands in beyond a few metres.
+  float web = 1.0;
+  if ( pixel * 11.0 < 0.8 ) {
+    vec2 pin = w * 11.0 + bend * 3.1;
+    vec2 ph = swashHash( floor( pin ) );
+    float pr = ( 1.0 - local ) * ( 0.12 + 0.2 * ph.y );
+    float ps = 0.04 + pixel * 11.0 * 0.5;
+    web = mix( smoothstep( pr - ps, pr + ps, length( fract( pin ) - 0.5 - ( ph - 0.5 ) * 0.4 ) ), 1.0 - 3.0 * pr * pr, smoothstep( 0.3, 0.8, pixel * 11.0 ) );
+  }
   float film = mix( 0.45 + 0.55 * fray, 1.0, smoothstep( 0.35, 0.85, local ) );
   return big * small * web * film * smoothstep( 0.02, 0.2, local );
 }
@@ -118,6 +127,8 @@ float swashFoam( vec2 qIn, float density, float time, float pixelIn ) {
 // (coverage, highlight).
 vec2 swashBubbles( vec2 p, float time, float pixel, float gate ) {
   vec2 result = vec2( 0.0 );
+  // No froth, no bubbles: skip the search on sand the swash has left.
+  if ( gate <= 0.0 ) return result;
   float scale = 34.0;
   mat2 turn = mat2( 0.8, 0.6, -0.6, 0.8 );
   for ( int layer = 0; layer < 3; layer++ ) {
