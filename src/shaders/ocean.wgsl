@@ -242,14 +242,11 @@ fn ocean(
   // edge by the slope spread of the reflected lobe.
   // Skipped where it cannot show: seen steeply the sea reflects under 4% and
   // the column's own colour hides it; far offshore the island is a sliver
-  // on the horizon the sky reflection already carries. Nor can a ray from
-  // the open water heading within 30° of straight out to sea meet land: it
-  // leaves the island faster than any headland's shore curves out after it
-  // (the shore radius changes at most ~0.5 m per metre along such a ray).
+  // on the horizon the sky reflection already carries. (Rays heading out to
+  // sea are traced too: skipping them drew a hard seam across the water.)
   // The island rises above the horizon: the plain mirror ray finds it.
   let mirror = reflect(ray, normal);
-  let seaward = metrics.x > 0.0 && dot(mirror.xz, metrics.yz) > 0.866 * length(mirror.xz);
-  if (settings.mirror_land > 0.5 && mirror.y > 0.0 && mirror.y < 0.6 && fresnel > 0.035 && cover < 0.98 && metrics.x < 70.0 && !seaward) {
+  if (settings.mirror_land > 0.5 && mirror.y > 0.0 && mirror.y < 0.6 && fresnel > 0.035 && cover < 0.98 && metrics.x < 70.0) {
     let land = land_reflection(p, mirror, sqrt(sea.variance), light, direct * sun_up, settings.skylight, land_field, filtering);
     if (land.a > 0.0) {
       reflection = mix(reflection, land.rgb, land.a * smoothstep(0.035, 0.06, fresnel));

@@ -73,6 +73,10 @@ export function createWalker(obstacles, sea = null, wake = null) {
     wade: 0,
     swim: 0,
     waterSlope: [0, 0],
+    // The water's velocity past the cat (its flow less the cat's own
+    // motion), and how fast the water is rising round it (m/s).
+    flow: [0, 0],
+    rising: 0,
     soak: -1,
     shake: 0,
     dryFor: 0,
@@ -252,12 +256,19 @@ export function createWalker(obstacles, sea = null, wake = null) {
       last = water;
       const depth = Math.max(0, water.level - bed);
       if (depth > 0) {
+        // Over the sand, never a rock top: the film over a boulder beside
+        // the cat read as a steep slope and tilted its waterline through
+        // the body.
         const e = 0.25;
-        const sx = waterAt(cat.x + e, cat.z, surface(cat.x + e, cat.z)).level;
-        const sz = waterAt(cat.x, cat.z + e, surface(cat.x, cat.z + e)).level;
-        cat.waterSlope[0] = Number.isFinite(sx) ? clamp((sx - water.level) / e, -0.5, 0.5) : 0;
-        cat.waterSlope[1] = Number.isFinite(sz) ? clamp((sz - water.level) / e, -0.5, 0.5) : 0;
+        const sx = waterAt(cat.x + e, cat.z, groundHeight(cat.x + e, cat.z)).level;
+        const sz = waterAt(cat.x, cat.z + e, groundHeight(cat.x, cat.z + e)).level;
+        cat.waterSlope[0] = Number.isFinite(sx) ? clamp((sx - water.level) / e, -0.3, 0.3) : 0;
+        cat.waterSlope[1] = Number.isFinite(sz) ? clamp((sz - water.level) / e, -0.3, 0.3) : 0;
       } else cat.waterSlope[0] = cat.waterSlope[1] = 0;
+      const moving = cat.air > 0 ? 0 : cat.speed;
+      cat.flow[0] = (depth > 0 ? water.flowX : 0) - Math.sin(cat.heading) * moving;
+      cat.flow[1] = (depth > 0 ? water.flowZ : 0) - Math.cos(cat.heading) * moving;
+      cat.rising += ((dt > 0 ? (depth - cat.water) / dt : 0) - cat.rising) * Math.min(1, dt * 12);
       const entering = depth > 0.03 && cat.water <= 0.03;
       cat.water = depth;
       cat.waterY = depth > 0 ? water.level : -Infinity;
@@ -312,6 +323,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
         const churn = smooth(0.4, 1.6, speed) * smooth(0.03, 0.12, depth) * 0.7;
         const strength = Math.max(immersion * (0.45 + 0.55 * Math.min(1, speed / 0.6)), churn);
         wake.body.half = 0.2 * CAT_SCALE * lerp(0.6, 1, cat.swim);
+        wake.body.flow = depth > 0 ? cat.flow : [0, 0];
         wake.move(cat.x, cat.z, cat.heading, immersion, speed, cat.air > 0 ? 0 : strength, lerp(0.09, 0.075, cat.swim) * CAT_SCALE);
       }
 

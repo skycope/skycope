@@ -6,10 +6,12 @@
 //   3… the trail, newest first: x, z, birth time, strength
 //   …  four paws: x, z, depth in the water
 //   …  splash rings: x, z, birth time, strength
+//   …  the water's velocity past the cat: x, z
 // Coast metres, on the sea's clock (main.js state.time).
 export const WAKE = { width: 64, trail: 28, paws: 4, rings: 16 };
 const PAWS = 3 + WAKE.trail;
 const RINGS = PAWS + WAKE.paws;
+const FLOW = RINGS + WAKE.rings;
 // How long foam and ripples outlive their source.
 const TRAIL_LIFE = 11;
 const RING_LIFE = 3;
@@ -19,12 +21,14 @@ export function createWake() {
   const trail = [];
   const rings = [];
   const paws = Array.from({ length: WAKE.paws }, () => [0, 0, 0]);
-  const body = { x: 0, z: 0, heading: 0, immersion: 0, speed: 0, half: 0.2, radius: 0.08, strength: 0 };
+  const body = { x: 0, z: 0, heading: 0, immersion: 0, speed: 0, half: 0.2, radius: 0.08, strength: 0, flow: [0, 0] };
   let now = 0;
   let idle = false;
 
   return {
     body,
+    // Where each paw stands and how deep in the water (x, z, depth).
+    paws,
     get now() {
       return now;
     },
@@ -71,11 +75,12 @@ export function createWake() {
       let reach = 0.6;
       for (const t of trail) reach = Math.max(reach, Math.hypot(t[0] - body.x, t[1] - body.z) + 0.2 + 0.3 * Math.min(now - t[2], 5) + body.radius * 4);
       for (const r of rings) reach = Math.max(reach, Math.hypot(r[0] - body.x, r[1] - body.z) + 0.3 + 0.4 * (now - r[2]));
-      for (const p of paws) if (p[2] > 0.005) reach = Math.max(reach, Math.hypot(p[0] - body.x, p[1] - body.z) + 0.2 + 0.25 * Math.min(body.speed, 2.5));
+      for (const p of paws) if (p[2] > 0.005) reach = Math.max(reach, Math.hypot(p[0] - body.x, p[1] - body.z) + 0.2 + 0.25 * Math.min(Math.hypot(body.flow[0], body.flow[1]), 2.5));
       data.set([body.x, body.z, reach, rings.length], 8);
       trail.forEach((t, i) => data.set(t, (3 + i) * 4));
       paws.forEach((p, i) => data.set([p[0], p[1], p[2], 0], (PAWS + i) * 4));
       rings.forEach((r, i) => data.set(r, (RINGS + i) * 4));
+      data.set([body.flow[0], body.flow[1], 0, 0], FLOW * 4);
       return data;
     },
   };
