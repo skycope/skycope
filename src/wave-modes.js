@@ -23,21 +23,31 @@ export function bandVariance(wind) {
 // look like syrup when they crawl.
 const SPEEDS = [0.22, 0.3, 0.42, 0.58];
 
-// Static per seed and wind; only the phases move with time.
+// Fixed seeded lattice: wind changes energy, never an existing wavevector.
+// Amplitudes approach their weather target over 12 seconds of animation time.
 export function createWaveModes(seed) {
   const data = new Float32Array(MODES * CASCADES * 4);
   const omega = new Float64Array(MODES * CASCADES);
   const start = new Float64Array(MODES * CASCADES);
+  const target = new Float32Array(data.length);
   let key = "";
+  let last = null;
   return {
     data,
     update(time, wind) {
       const next = `${wind[0].toFixed(2)},${wind[1].toFixed(2)}`;
       if (next !== key) {
         key = next;
-        build(seed, wind, data, omega, start);
+        build(seed, wind, target, omega, start);
+        if (last === null) data.set(target);
       }
+      // A suspended tab or preview clock does not integrate a weather jump.
+      const dt = last === null ? 0 : Math.max(0, Math.min(time - last, 0.1));
+      last = time;
+      const response = -Math.expm1(-dt / 12);
       for (let i = 0; i < omega.length; i++) {
+        const o = i * 4;
+        data[o + 2] += (target[o + 2] - data[o + 2]) * response;
         const phase = (start[i] - omega[i] * time) % (2 * Math.PI);
         data[i * 4 + 3] = phase < 0 ? phase + 2 * Math.PI : phase;
       }
@@ -59,15 +69,14 @@ function build(seed, wind, data, omega, start) {
       const r = hash4(i, c, seed % 65536);
       // Stratified in log wavenumber across the band.
       const magnitude = 4 * 4 ** ((i + r[0]) / MODES);
-      // Directional spreading around the wind, wider for short waves; a few
-      // weaker trains run against it (reflection, older seas).
-      const x = r[1] * 2 - 1;
-      let angle = windAngle + x * Math.abs(x) * (1.1 + 0.25 * c);
-      let weight = 1;
-      if (r[2] < 0.14) {
-        angle += Math.PI;
-        weight = 0.12;
-      }
+      // Stratified fixed directions cover a wind turn without lattice snaps.
+      // A broad forward lobe and small opposing tail preserve older sea.
+      const angle = (((i * 13) % MODES + r[1]) / MODES) * 2 * Math.PI + r[2] * 0.15;
+      const alignment = Math.cos(angle - windAngle);
+      const forward = Math.max(alignment, 0);
+      const backward = Math.max(-alignment, 0);
+      // Mean directional weight is close to one over the whole circle.
+      const weight = 0.1 + 3.0 * forward * forward + 0.18 * backward * backward;
       // Snap to the tile's lattice so the cascade tiles seamlessly.
       const kx = (Math.round(Math.cos(angle) * magnitude) * 2 * Math.PI) / size;
       const kz = (Math.round(Math.sin(angle) * magnitude) * 2 * Math.PI) / size;

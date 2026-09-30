@@ -38,6 +38,10 @@ const SWIM_SPRINT = 0.78;
 export const SWIM_LIMIT = 24;
 
 export const CAMERA = { distance: 3.4, elevation: 0.38, min: 1.1, max: 8 };
+// How close the spring arm may pull the camera to the cat, and how far the
+// lens keeps from a trunk.
+const ARM_MIN = 0.9;
+const ARM_CLEARANCE = 0.35;
 
 // sea (sea-surface.js) gives the water level; wake (wake.js) takes the
 // cat's trail through it.
@@ -89,6 +93,8 @@ export function createWalker(obstacles, sea = null, wake = null) {
     azimuth: 0,
     pitch: 0,
     pointer: [0.5, 0.5],
+    // The spring arm's current length as a fraction of `distance`.
+    arm: 1,
   };
   let target = null;
   let blocked = 0;
@@ -464,9 +470,15 @@ export function createWalker(obstacles, sea = null, wake = null) {
     const tz = cat.z;
     const ty = camera.targetY + 0.26 * CAT_SCALE;
     const horizontal = Math.cos(camera.elevation) * camera.distance;
-    let x = tx - Math.sin(camera.yaw) * horizontal;
-    let z = tz - Math.cos(camera.yaw) * horizontal;
-    let y = ty + Math.sin(camera.elevation) * camera.distance;
+    // Spring arm: shorten the boom to just short of the first trunk, rock or
+    // rise of ground between the cat and the camera. It pulls in quickly and
+    // lets out slowly, so passing a tree doesn't make the view pump.
+    const reach = armReach(tx, ty, tz, horizontal, Math.sin(camera.elevation) * camera.distance);
+    camera.arm += (reach - camera.arm) * (reach < camera.arm ? Math.min(1, ease * 2.5) : ease * 0.35);
+    if (ease >= 1) camera.arm = reach;
+    let x = tx - Math.sin(camera.yaw) * horizontal * camera.arm;
+    let z = tz - Math.cos(camera.yaw) * horizontal * camera.arm;
+    let y = ty + Math.sin(camera.elevation) * camera.distance * camera.arm;
     // Clear the ground (and boulders), and never dip toward the sea surface.
     const clearance = shoreDistance(x, z) > -1 ? surface(x, z) + 0.45 : 0.9;
     y = Math.max(y, clearance, 0.9);
@@ -478,6 +490,50 @@ export function createWalker(obstacles, sea = null, wake = null) {
     const heading = Math.atan2(dx, dz);
     camera.azimuth = heading - Math.PI / 4;
     camera.pitch = Math.atan2(ty - camera.y, Math.hypot(dx, dz)) + LOOK_LIFT;
+  }
+
+  // The unobstructed fraction (0…1) of the boom from the cat's head toward
+  // the camera (`horizontal` back along −yaw, `rise` up). Trunks are
+  // cylinders up to their crowns, padded by the lens's clearance; ground and boulders are
+  // sampled along the boom. Never closer than ARM_MIN metres.
+  function armReach(tx, ty, tz, horizontal, rise) {
+    const bx = -Math.sin(camera.yaw) * horizontal;
+    const bz = -Math.cos(camera.yaw) * horizontal;
+    const length = Math.hypot(horizontal, rise) || 1;
+    let t = 1;
+    for (const trunk of grid.trunksNear(tx + bx / 2, tz + bz / 2, horizontal / 2 + 1)) {
+      // Segment (tx, tz) + s·(bx, bz) against the padded circle.
+      const r = trunk.r + ARM_CLEARANCE;
+      const ox = tx - trunk.x;
+      const oz = tz - trunk.z;
+      const a = bx * bx + bz * bz;
+      const b = ox * bx + oz * bz;
+      const c = ox * ox + oz * oz - r * r;
+      if (c < 0 || a < 1e-6) continue;
+      const disc = b * b - a * c;
+      if (disc < 0) continue;
+      const s = (-b - Math.sqrt(disc)) / a;
+      if (!(s > 0 && s < t)) continue;
+      // A trunk only blocks below its crown: a high boom passes over the
+      // branching (about 40% of the tree's height, from its girth; see
+      // obstaclesFor in forest.js), and leaves there are only a veil.
+      const crownBase = surface(trunk.x, trunk.z) + 0.4 * Math.max(1.5, (trunk.r - 0.02) / 0.034);
+      if (ty + rise * s > crownBase) continue;
+      t = s;
+    }
+    // Ground and boulders: step out along the boom until it meets them.
+    const steps = 14;
+    for (let i = 2; i <= steps; i++) {
+      const s = (i / steps) * t;
+      const px = tx + bx * s;
+      const pz = tz + bz * s;
+      if (shoreDistance(px, pz) < -1) break;
+      if (ty + rise * s < surface(px, pz) + 0.3) {
+        t = ((i - 1) / steps) * t;
+        break;
+      }
+    }
+    return Math.max(t, Math.min(1, ARM_MIN / length));
   }
 }
 
@@ -500,6 +556,16 @@ function spatialGrid({ trunks, domes }) {
   let found = null;
   const at = (x, z) => cells.get(Math.floor(x / cell) * 4096 + Math.floor(z / cell));
   return {
+    // Trunks within `radius` of (x, z) (whole cells; may include a few more).
+    trunksNear(x, z, radius) {
+      const out = new Set();
+      for (let i = Math.floor((x - radius) / cell); i <= Math.floor((x + radius) / cell); i++)
+        for (let j = Math.floor((z - radius) / cell); j <= Math.floor((z + radius) / cell); j++) {
+          const c = cells.get(i * 4096 + j);
+          if (c) for (const t of c.trunks) out.add(t);
+        }
+      return out;
+    },
     clearOfTrunks(x, z, radius) {
       const c = at(x, z);
       if (!c) return true;

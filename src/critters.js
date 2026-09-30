@@ -1,13 +1,16 @@
 import * as THREE from "three";
 import { seededRandom } from "./random.js";
 import { groundHeight, islandPoint, shoreDistance } from "./terrain.js";
+import { rockLayout } from "./rocks.js";
 
 // Small things worth a cat's attention, animated on the CPU (a few dozen
 // matrices a frame) with wingbeats and leg scuttles in the vertex shader:
 // - butterflies (cabbage whites, painted ladies, blues) visiting fynbos
 //   flowers by day, scattering when the cat comes close;
 // - fireflies drifting and blinking over the scrub at night;
-// - ghost crabs on the beach that sidle about, then bolt and burrow.
+// - ghost crabs on the beach that sidle about, then bolt and burrow;
+// - kelp gulls standing about at the swash edge, pecking and pacing, that
+//   walk off from a cat and take wing if it keeps coming.
 // `interest` is the nearest one, for the cat's head (and tail) to follow.
 export function createCritters(group, seed, flowers) {
   const random = seededRandom(seed ^ 0x2c1b3c6d);
@@ -72,12 +75,58 @@ export function createCritters(group, seed, flowers) {
   crabMesh.geometry.setAttribute("scuttle", crabGait);
   group.add(crabMesh);
 
+  // Kelp gulls: a loose party on the wet sand where the swash turns.
+  const gullCount = 5;
+  const gullMesh = new THREE.InstancedMesh(gullGeometry(), gullMaterial(shared), gullCount);
+  gullMesh.frustumCulled = false;
+  const gullPeck = new THREE.InstancedBufferAttribute(new Float32Array(gullCount), 1);
+  const gullWing = new THREE.InstancedBufferAttribute(new Float32Array(gullCount), 1);
+  gullMesh.geometry.setAttribute("peck", gullPeck);
+  gullMesh.geometry.setAttribute("wing", gullWing);
+  group.add(gullMesh);
+  // Along the beach from the home view, where the cat starts: in sight of
+  // it, but a walk away.
+  // Clear of the boulders: the same layout forest.js draws (its random
+  // stream starts with the rocks).
+  const boulders = rockLayout(seededRandom(seed)).map((r) => ({ x: r.position.x, z: r.position.z, r: Math.max(r.scale.x, r.scale.z) + 0.6 }));
+  const clear = (x, z) => boulders.every((b) => (x - b.x) ** 2 + (z - b.z) ** 2 > b.r * b.r);
+  const home = Math.atan2(-70, -52);
+  const gullSpot = { theta: home + 0.15 };
+  for (let k = 0; k < 40; k++) {
+    const theta = home + (k % 2 ? -1 : 1) * (0.1 + k * 0.01);
+    const probe = [0, 1, 2].map((j) => islandPoint(theta + (j - 1) * 0.03, 1));
+    if (probe.every((q) => clear(q.x, q.z))) { gullSpot.theta = theta; break; }
+  }
+  const gulls = Array.from({ length: gullCount }, () => landGull({}, gullSpot.theta));
+
   const matrix = new THREE.Matrix4();
   const position = new THREE.Vector3();
   const quaternion = new THREE.Quaternion();
   const scale = new THREE.Vector3();
   const euler = new THREE.Euler(0, 0, 0, "YXZ");
   const interest = { x: 0, y: 0, z: 0, near: false, kind: "" };
+
+  // A gull alights near the party's spot on the shore, facing into the wind
+  // more or less, each its own size (females smaller).
+  function landGull(gull, theta) {
+    let { x, z } = islandPoint(theta, 1);
+    for (let k = 0; k < 12; k++) {
+      const q = islandPoint(theta + (random() - 0.5) * 0.08, 0.4 + random() * 1.4);
+      if (clear(q.x, q.z)) { x = q.x; z = q.z; break; }
+    }
+    return Object.assign(gull, {
+      x, z, y: groundHeight(x, z),
+      heading: random() * Math.PI * 2,
+      state: "idle",
+      timer: 1 + random() * 3,
+      peck: 0,
+      pecking: 0,
+      size: 0.9 + random() * 0.2,
+      vx: 0, vz: 0, vy: 0,
+      flight: 0,
+      away: 0,
+    });
+  }
 
   function spawnCrab(crab) {
     const { x, z } = islandPoint(random() * Math.PI * 2, 1.2 + random() * 3.5);
@@ -223,6 +272,89 @@ export function createCritters(group, seed, flowers) {
       }
       crabMesh.instanceMatrix.needsUpdate = true;
       crabGait.needsUpdate = true;
+
+      // Gulls: peck, look about and pace; step away from a cat at a few
+      // metres, and take off, fly low along the shore and alight farther
+      // on if it keeps coming. They roost elsewhere at night.
+      gullMesh.visible = night < 0.6;
+      if (gullMesh.visible) {
+        for (let i = 0; i < gullCount; i++) {
+          const g = gulls[i];
+          const dc = Math.hypot(g.x - cat.x, g.z - cat.z);
+          const ax = (g.x - cat.x) / (dc || 1);
+          const az = (g.z - cat.z) / (dc || 1);
+          g.timer -= dt;
+          if (g.state !== "fly") {
+            if (dc < 2.2 + cat.speed * 0.5) {
+              // Too close: up and away, low along the shore.
+              g.state = "fly";
+              g.flight = 0;
+              const along = Math.atan2(g.z - 70, g.x - 58);
+              const side = Math.sign(Math.sin(along) * ax * -1 + Math.cos(along) * az) || 1;
+              g.away = along + side * (0.25 + random() * 0.2);
+              g.vy = 2.2;
+            } else if (dc < 4.5) {
+              g.state = "walk";
+              g.heading = Math.atan2(ax, az);
+              g.timer = 0.6;
+            } else if (g.timer < 0) {
+              const r = random();
+              g.state = r < 0.35 ? "walk" : "idle";
+              if (g.state === "walk") g.heading += (random() - 0.5) * 2.4;
+              g.timer = g.state === "walk" ? 0.8 + random() * 1.5 : 1.5 + random() * 4;
+            }
+          }
+          let speed = 0;
+          if (g.state === "walk") speed = dc < 4.5 ? 0.9 : 0.35;
+          if (g.state === "fly") {
+            // Toward the landing spot, climbing, then gliding down onto it.
+            g.flight += dt;
+            if (!g.target) {
+              g.target = islandPoint(g.away, 0.8);
+              for (let k = 0; k < 10 && !clear(g.target.x, g.target.z); k++) g.target = islandPoint(g.away + (k + 1) * 0.02, 0.8 + k * 0.2);
+            }
+            const target = g.target;
+            const tx = target.x - g.x;
+            const tz = target.z - g.z;
+            const td = Math.hypot(tx, tz);
+            const want = Math.atan2(tx, tz);
+            const turn = Math.atan2(Math.sin(want - g.heading), Math.cos(want - g.heading));
+            g.heading += turn * Math.min(1, dt * 2);
+            const ground = groundHeight(g.x, g.z);
+            const cruise = ground + Math.min(3.5, 0.6 + td * 0.25);
+            g.y += (cruise - g.y) * Math.min(1, dt * 1.5);
+            speed = Math.min(6, 2 + g.flight * 3, td * 1.2 + 0.4);
+            if (td < 0.4 && g.flight > 1.5) {
+              g.state = "idle";
+              g.target = null;
+              g.timer = 2 + random() * 3;
+              g.y = ground;
+            }
+          }
+          const nx = g.x + Math.sin(g.heading) * speed * dt;
+          const nz = g.z + Math.cos(g.heading) * speed * dt;
+          const inland = shoreDistance(nx, nz);
+          if (g.state === "fly" || (inland > 0.1 && inland < 6 && clear(nx, nz))) {
+            g.x = nx;
+            g.z = nz;
+          } else if (g.state === "walk") g.heading += Math.PI * 0.5 * dt;
+          if (g.state !== "fly") g.y = groundHeight(g.x, g.z);
+          // Head: pecks at the sand now and then while idle; bobs as it walks.
+          if (g.state === "idle" && g.pecking <= 0 && random() < dt * 0.5) g.pecking = 0.5;
+          g.pecking -= dt;
+          const peck = g.state === "idle"
+            ? (g.pecking > 0 ? Math.sin((g.pecking / 0.5) * Math.PI) : 0)
+            : g.state === "walk" ? Math.abs(Math.sin(time * 9 + i)) * 0.25 : 0;
+          gullPeck.setX(i, peck);
+          gullWing.setX(i, g.state === "fly" ? Math.min(1, g.flight * 4) : 0);
+          euler.set(g.state === "fly" ? -0.1 : 0, g.heading, 0);
+          place(gullMesh, i, g.x, g.y, g.z, euler, g.size);
+          if (g.state !== "fly") consider(g.x, g.y + 0.3, g.z, "gull");
+        }
+        gullMesh.instanceMatrix.needsUpdate = true;
+        gullPeck.needsUpdate = true;
+        gullWing.needsUpdate = true;
+      }
       return best < 6 ? interest : null;
 
       function place(mesh, index, x, y, z, rotation, s) {
@@ -234,7 +366,7 @@ export function createCritters(group, seed, flowers) {
       }
     },
     dispose() {
-      for (const m of [flyMesh, glowMesh, crabMesh]) {
+      for (const m of [flyMesh, glowMesh, crabMesh, gullMesh]) {
         m.geometry.dispose();
         m.material.dispose();
         m.dispose();
@@ -340,6 +472,121 @@ function crabGeometry() {
     o += l.length;
   });
   geometry.setAttribute("leg", new THREE.BufferAttribute(legAttr, 1));
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function gullMaterial(shared) {
+  const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, side: THREE.DoubleSide });
+  material.customProgramCacheKey = () => "standing-gull";
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.time = shared.time;
+    shader.vertexShader = shader.vertexShader
+      .replace("void main() {", "uniform float time;\nattribute float peck;\nattribute float wing;\nattribute vec2 part;\nvoid main() {")
+      .replace(
+        "#include <begin_vertex>",
+        `#include <begin_vertex>
+        // part.x: head and neck weight (pecks forward and down about the
+        // neck's base); part.y: signed wing span (folded along the back at
+        // rest, spread and beating in flight). Legs (part.x < 0) tuck up.
+        float h = max( part.x, 0.0 );
+        vec3 neck = vec3( 0.0, 0.2, 0.1 );
+        float a = peck * 1.1 * h;
+        vec3 d = transformed - neck;
+        transformed = mix( transformed, neck + vec3( d.x, d.y * cos( a ) - d.z * sin( a ), d.y * sin( a ) + d.z * cos( a ) ), step( 0.01, h ) );
+        float span = abs( part.y );
+        float beat = sin( time * 8.0 + instanceMatrix[3].x ) * 0.8 * wing;
+        transformed.x = mix( transformed.x, sign( part.y ) * span * cos( beat ), wing * step( 0.001, span ) );
+        transformed.y += span * sin( beat ) * wing;
+        transformed.y += max( -part.x, 0.0 ) * wing * 0.08;`,
+      );
+  };
+  return material;
+}
+
+// A kelp gull standing, facing +z, about 60 cm long: white head and body,
+// slate-black back and folded wings over a white-tipped black tail, a
+// yellow bill and olive legs. \`part\` drives head, wings and legs.
+function gullGeometry() {
+  const positions = [];
+  const colours = [];
+  const parts = [];
+  const lin = (c) => c.map((v) => v ** 2.2);
+  const WHITE = lin([0.9, 0.9, 0.88]);
+  const BACK = lin([0.12, 0.12, 0.13]);
+  const BILL = lin([0.85, 0.7, 0.15]);
+  const LEG = lin([0.55, 0.55, 0.4]);
+  const add = (geometry, colour, part = [0, 0], shade = null) => {
+    const g = geometry.index ? geometry.toNonIndexed() : geometry;
+    const p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      positions.push(p.getX(i), p.getY(i), p.getZ(i));
+      const c = shade ? shade(p.getX(i), p.getY(i), p.getZ(i)) : colour;
+      colours.push(...c);
+      parts.push(...(typeof part === "function" ? part(p.getX(i), p.getY(i), p.getZ(i)) : part));
+    }
+  };
+  // Body: white below, the dark mantle over the back.
+  const body = new THREE.SphereGeometry(1, 10, 7);
+  body.scale(0.075, 0.075, 0.19);
+  body.rotateX(0.18);
+  body.translate(0, 0.19, -0.02);
+  add(body, WHITE, [0, 0], (x, y) => (y > 0.215 ? BACK : WHITE));
+  // Head and bill.
+  const head = new THREE.SphereGeometry(0.05, 8, 6);
+  head.scale(1, 1, 1.15);
+  head.translate(0, 0.29, 0.15);
+  add(head, WHITE, [1, 0]);
+  const neck = new THREE.CylinderGeometry(0.035, 0.05, 0.1, 6);
+  neck.rotateX(0.5);
+  neck.translate(0, 0.25, 0.12);
+  add(neck, WHITE, [0.6, 0]);
+  const bill = new THREE.ConeGeometry(0.014, 0.07, 5);
+  bill.rotateX(Math.PI / 2 + 0.15);
+  bill.translate(0, 0.28, 0.225);
+  add(bill, BILL, [1, 0]);
+  // Folded wings along the back, tips crossing over the tail; in flight
+  // they spread to ~1.4 m.
+  for (const side of [-1, 1]) {
+    // [folded position, span when spread]: arm, wrist and the long hand.
+    const root0 = [[side * 0.05, 0.235, 0.1], 0.08];
+    const root1 = [[side * 0.05, 0.235, -0.08], 0.08];
+    const wristF = [[side * 0.055, 0.24, -0.02], 0.36];
+    const wristB = [[side * 0.05, 0.23, -0.2], 0.36];
+    const tip = [[side * 0.04, 0.22, -0.32], 0.7];
+    const tris = [[root0, root1, wristF], [root1, wristB, wristF], [wristF, wristB, tip]];
+    for (const [lower, colour] of [[0, BACK], [0.004, WHITE]]) {
+      const pts = [];
+      const spans = [];
+      for (const t of tris) for (const v of lower ? [t[0], t[2], t[1]] : t) {
+        pts.push(v[0][0], v[0][1] - lower, v[0][2]);
+        spans.push(side * v[1]);
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
+      let k = 0;
+      // The dark upper wing ends in a white-spotted black hand; the
+      // underside (seen as the wings beat) is white.
+      add(g, colour, () => [0, spans[k++]]);
+    }
+  }
+  // Tail.
+  const tail = new THREE.BufferGeometry();
+  tail.setAttribute("position", new THREE.Float32BufferAttribute([0.04, 0.2, -0.17, -0.04, 0.2, -0.17, 0, 0.21, -0.28], 3));
+  add(tail, WHITE);
+  // Legs.
+  for (const side of [-1, 1]) {
+    const leg = new THREE.CylinderGeometry(0.006, 0.006, 0.14, 4);
+    leg.translate(side * 0.03, 0.07, 0.0);
+    add(leg, LEG, [-1, 0]);
+    const foot = new THREE.BufferGeometry();
+    foot.setAttribute("position", new THREE.Float32BufferAttribute([side * 0.03, 0.002, -0.01, side * 0.055, 0.002, 0.05, side * 0.005, 0.002, 0.05], 3));
+    add(foot, LEG, [-1, 0]);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("color", new THREE.Float32BufferAttribute(colours, 3));
+  geometry.setAttribute("part", new THREE.Float32BufferAttribute(parts, 2));
   geometry.computeVertexNormals();
   return geometry;
 }

@@ -23,21 +23,24 @@ import { equatorial_from_local, catalog_stars, faint_stars, moon_disc } from "./
 @group(0) @binding(13) var landField: texture_2d<f32>;
 // The cat's wake, collar and splashes (src/wake.js).
 @group(0) @binding(14) var catWake: texture_2d<f32>;
+// The distant islands' skylines (src/archipelago.js, archipelago.wgsl).
+@group(0) @binding(15) var islandTable: texture_2d<f32>;
 
 @fragment
 fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   let ray = view_ray(uv, atmosphere.resolution, atmosphere.pointer, atmosphere.flight.w, atmosphere.pitch);
   let night = smoothstep(1.0, 2.0, atmosphere.scene);
-  let light = normalize(mix(atmosphere.sun, atmosphere.moon, night));
+  let light_sum = mix(atmosphere.sun, atmosphere.moon, night);
+  let light = light_sum / max(length(light_sum), 0.00001);
   let sky_sample = textureSampleLevel(skyTexture, filtering, uv, 0.0);
   let sky = sky_sample.rgb;
   let settings = OceanSettings(atmosphere.time, atmosphere.scene, atmosphere.wind,
     atmosphere.weather.w, atmosphere.resolution, atmosphere.seed,
     atmosphere.flight.xyz, atmosphere.flight.w, atmosphere.pitch,
     atmosphere.light.rgb, atmosphere.ambient.rgb, atmosphere.swell, atmosphere.light.w, atmosphere.rain,
-    atmosphere.ocean.z);
+    atmosphere.ocean.z, atmosphere.ocean.w, atmosphere.pointer);
   var color = ocean_view(ray, light, sky, settings, cloudNoise, filtering, skyTexture,
-    waves0, waves1, waves2, waves3, foamLayer, shoreRocks, shoreGrid, skyTable, landField, catWake);
+    waves0, waves1, waves2, waves3, foamLayer, shoreRocks, shoreGrid, skyTable, landField, catWake, islandTable);
   // The direct disc is composited through cloud transmission. Water uses its
   // integrated BRDF instead of reflecting a low-resolution disc a second time.
   let sun_distance = length(ray - atmosphere.sun);
@@ -55,13 +58,11 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   if (ray.y > -0.001) {
     color += night_sky(ray, night, sky_sample.a * above_sea, dot(sky, vec3f(0.2126, 0.7152, 0.0722)));
   }
-  if (atmosphere.rain > 0.01) {
-    color += rain_streaks(uv) * (atmosphere.ambient.rgb * 0.8 + vec3f(0.01));
-  }
-  let screen = uv - 0.5;
-  let vignette = 1.0 - dot(screen, screen) * 0.18;
-  let grain = (hash2(floor(uv * atmosphere.resolution)).x - 0.5) / 255.0;
-  return vec4f(tonemap(color * vignette, night) + grain, 1.0);
+  // Rain streaks, vignette and film grain are one lens pass over both
+  // layers, drawn last by the land layer (landscape.js). This keeps only a
+  // one-level dither against banding in the sky's gradients.
+  let dither = (hash2(floor(uv * atmosphere.resolution)).x - 0.5) / 255.0;
+  return vec4f(tonemap(color, night) + dither, 1.0);
 }
 
 // The Moon and stars need full-resolution pixels: the cloud pass is
@@ -97,25 +98,6 @@ fn night_sky(ray: vec3f, night: f32, clear: f32, background: f32) -> vec3f {
 
 // Rain: thin slanted streaks. Each column falls at its own speed and phase,
 // so drops never line up into rows; two depths give parallax.
-fn rain_streaks(uv: vec2f) -> f32 {
-  var total = 0.0;
-  for (var layer = 0; layer < 2; layer++) {
-    let scale = select(vec2f(3.0, 26.0), vec2f(5.0, 44.0), layer == 1);
-    let p = uv * atmosphere.resolution / scale;
-    let slant = atmosphere.wind.x * 0.012;
-    let x = p.x + p.y * slant;
-    let column = floor(x);
-    let lane = hash2(vec2f(column, f32(layer) * 7.0));
-    let y = p.y + atmosphere.time * (2.2 + lane.y * 1.6) * (1.0 + f32(layer) * 0.6) + lane.x * 40.0;
-    let cell = floor(y);
-    let random = hash2(vec2f(column, cell));
-    let local = vec2f(fract(x), fract(y));
-    total += step(random.x, min(0.5, atmosphere.rain * 0.1)) * (1.0 - smoothstep(0.08, 0.2, abs(local.x - 0.5 - (random.y - 0.5) * 0.6)))
-      * smoothstep(0.0, 0.4, local.y) * (1.0 - smoothstep(0.5, 1.0, local.y)) * (0.6 + f32(layer) * 0.4);
-  }
-  return total;
-}
-
 fn hash2(p: vec2f) -> vec2f {
   var q = fract(vec3f(p.x, p.y, p.x) * vec3f(0.1031, 0.1030, 0.0973));
   q += dot(q, q.yzx + 33.33);

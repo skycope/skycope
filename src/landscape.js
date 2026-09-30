@@ -6,7 +6,12 @@ import { CAT_SKY } from "./cat-ground.js";
 import { CAT_SEA } from "./cat-coat.js";
 import { createCritters } from "./critters.js";
 import { createMotes } from "./motes.js";
-import { horizonRadiance, skyDomeRatio } from "./sunlight.js";
+import { createPrecipitation } from "./precipitation.js";
+import { cloudTransmission } from "./cloud-transmission.js";
+import { createMeshProfiler } from "./mesh-profiler.js";
+import { createArchipelago } from "./archipelago.js";
+import { createLens } from "./lens.js";
+import { horizonRadiance, skyDomeRatio, skyDomeMean, skyEnvironmentKey } from "./sunlight.js";
 
 // The mesh layer tonemaps with the same curve as the WebGPU water pass
 // (atmosphere.wgsl), so land, sea and sky share one exposure and one
@@ -18,11 +23,11 @@ import { horizonRadiance, skyDomeRatio } from "./sunlight.js";
 THREE.ShaderChunk.tonemapping_pars_fragment =
   THREE.ShaderChunk.tonemapping_pars_fragment.replace(
     /vec3 CustomToneMapping\( vec3 color \) \{[^}]*\}/,
-    `#define VIBRANCE 0.18
+    `#define VIBRANCE 0.04
     vec3 CustomToneMapping( vec3 color ) {
       // toneMappingExposure carries 1 + night adaptation (see scotopic in
       // atmosphere.wgsl); exposure itself is already in the light units.
-      color = max( color * 1.5, vec3( 0.0 ) );
+      color = max( color * 1.35, vec3( 0.0 ) );
       float rods = clamp( toneMappingExposure - 1.0, 0.0, 1.0 );
       float scotopic = dot( color, vec3( 0.06, 0.56, 0.38 ) );
       color = mix( color, vec3( 0.72, 0.9, 1.35 ) * scotopic, rods * 0.6 * ( 1.0 - smoothstep( 0.25, 1.5, scotopic ) ) );
@@ -82,6 +87,14 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   const critters = createCritters(land, seed, forest.obstacles.flowers);
   scene.add(land);
   const motes = createMotes(scene, seed);
+  // The distant islands: their own scene and depth range, drawn first.
+  const archipelago = createArchipelago(seed, { light });
+  // Vignette, rain on the lens, veiling glare and grain, over both layers.
+  const lens = createLens();
+  renderer.info.autoReset = false;
+  const precipitation = createPrecipitation(scene, seed, { light, habitat: forest.habitat, obstacles: forest.obstacles });
+  let cloudBeam = 1, cloudTime = -Infinity, cloudKey = "";
+  let rainRate = 0;
   const moteLight = new THREE.Color();
 
   // Skylight is image-based: the scattering model's own sky dome (sun side
@@ -130,13 +143,14 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   scene.add(sun, sun.target);
   let previousLighting = "";
   let environmentKey = "";
+  let environmentTime = -Infinity;
   // Horizon haze toward and away from the sun, unexposed; see updateLighting.
   let hazeToward = [0, 0, 0];
   let hazeAway = [0, 0, 0];
   const prints = cat.prints;
   let interest = null;
   const perf = new URLSearchParams(window.location.search).has("perf");
-  let perfFrame = 0;
+  const profiler = createMeshProfiler(renderer, canvas, perf);
 
   const sunWorld = new THREE.Vector3(0, 1, 0);
   const sunTint = new THREE.Color(1, 0.92, 0.75);
@@ -160,6 +174,11 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     // `?perf` QA: scales every splash the cat and the surf throw.
     splash: SPLASH,
     landField: forest.landField,
+    // `?perf` QA: the distant islands' mesh, camera and light uniforms.
+    archipelago,
+    lens: perf ? lens : null,
+    get weatherSurface() { return precipitation.surface; },
+    get cloudTransmission() { return cloudBeam; },
     // A screen point (−1…1) to a ray in coast metres, for tap-to-walk.
     pick(x, y) {
       ndc.set(x, y);
@@ -170,7 +189,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         direction: [direction.x, direction.y, -direction.z],
       };
     },
-    render({ celestial, cover, time, wind, rain = 0, view: flight, lighting, pose, dt, surface, water = null, onStep, wake = null }) {
+    render({ celestial, cover, weather = null, time, wind, rain = 0, view: flight, lighting, pose, dt, weatherDt = dt, reducedMotion = false, paused = false, surface, water = null, onStep, wake = null }) {
       const pointer = [0.5, 0.5];
       const night = THREE.MathUtils.smoothstep(celestial.scene, 1, 2);
       forest.updateWind(time, wind);
@@ -208,7 +227,16 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         domeTime = now;
         domeRatio = skyDomeRatio(celestial.sun, envWidth);
       }
-      updateLighting(celestial, cover, lighting);
+      const cloudLight = celestial.sun.map((v, i) => v * (1 - night) + celestial.moon[i] * night);
+      const cloudNorm = Math.hypot(...cloudLight) || 1;
+      const cloudDirection = cloudLight.map(v => v / cloudNorm);
+      const beamKey = `${Math.round(flight.x / 3)}:${Math.round(flight.z / 3)}:${cloudDirection.map(v => v.toFixed(2))}:${weather?.low}:${weather?.mid}:${weather?.high}:${cover.toFixed(2)}`;
+      if (beamKey !== cloudKey || time - cloudTime >= .25 || time < cloudTime) {
+        cloudKey = beamKey; cloudTime = time;
+        cloudBeam = weather ? .07 + .93 * cloudTransmission(seed, { ...weather, x: flight.x, y: flight.y, z: flight.z, sun: cloudDirection, wind, time }) : 1 - Math.pow(cover, 1.5) * .93;
+      }
+      rainRate = rain;
+      updateLighting(celestial, cover, lighting, cloudBeam);
       // The Three scene mirrors coast z (the land group is z-flipped).
       camera.position.set(flight.x, flight.y, -flight.z);
       const cp = Math.cos(flight.pitch);
@@ -222,6 +250,13 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         .addScaledVector(lookUp, (pointer[1] - 0.5) * 0.009);
       camera.lookAt(lookTarget);
       camera.updateMatrixWorld();
+      const far = archipelago.camera;
+      far.position.copy(camera.position);
+      far.quaternion.copy(camera.quaternion);
+      far.updateMatrixWorld();
+      precipitation.update({ dt: weatherDt, rain, wind, camera, reducedMotion, paused,
+        brightness: Math.max(...lighting.sky) + Math.max(...lighting.direct) * cloudBeam * .2 });
+      forest.updateWeather?.(precipitation.surface);
       // Leaf translucency and glints follow the light in view space. Overcast
       // and low light retract them so night foliage never glows.
       sunView.copy(sunWorld).transformDirection(camera.matrixWorldInverse);
@@ -229,13 +264,13 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         sunView,
         sunTint,
         THREE.MathUtils.smoothstep(sunWorld.y, -0.02, 0.12) *
-          (1 - cover * 0.8) *
+          cloudBeam *
           (1 - night * 0.9) *
           Math.min(1, sun.intensity / 2),
       );
       cat.update(pose, dt, time, surface, onStep, {
         night,
-        direct: THREE.MathUtils.smoothstep(sunWorld.y, 0, 0.3) * (1 - cover * 0.9),
+        direct: THREE.MathUtils.smoothstep(sunWorld.y, 0, 0.3) * cloudBeam,
         sun: sunWorld,
         sunX: sunWorld.x,
         sunZ: -sunWorld.z,
@@ -252,21 +287,23 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       moteLight.copy(sun.color).multiplyScalar(sun.intensity * THREE.MathUtils.smoothstep(sunWorld.y, 0.0, 0.1) * (1 - night));
       motes.update(time, wind, camera.position, sunWorld, moteLight,
         renderer.domElement.height / (2 * Math.tan((camera.fov * Math.PI) / 360)));
-      cat.renderShadow(renderer, scene);
-      renderer.render(scene, camera);
-      if (perf && ++perfFrame % 90 === 0) {
-        // `?perf` QA: readPixels forces the GPU to drain, so timing a burst of
-        // extra renders measures real mesh-layer cost, not command submission.
-        const gl = renderer.getContext();
-        const pixel = new Uint8Array(4);
-        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
-        const started = performance.now();
-        for (let i = 0; i < 6; i++) renderer.render(scene, camera);
-        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
-        canvas.dataset.meshMs = ((performance.now() - started) / 6).toFixed(2);
-        canvas.dataset.triangles = String(renderer.info.render.triangles);
-        canvas.dataset.drawCalls = String(renderer.info.render.calls);
-      }
+      lens.update({
+        camera, time, rain, wind, sky: lighting.sky, sunDirection: sunWorld, sunColour: sun.color,
+        sunVisible: cloudBeam * THREE.MathUtils.smoothstep(sunWorld.y, -0.01, 0.06) * (1 - night),
+        width: renderer.domElement.width, height: renderer.domElement.height,
+      });
+      profiler.render(() => {
+        renderer.info.reset();
+        cat.renderShadow(renderer, scene);
+        // Islands kilometres out, then the near scene over them with a
+        // fresh depth buffer: each gets the whole depth precision.
+        renderer.render(archipelago.scene, far);
+        renderer.autoClear = false;
+        renderer.clearDepth();
+        renderer.render(scene, camera);
+        renderer.render(lens.scene, camera);
+        renderer.autoClear = true;
+      });
       if (!canvas.dataset.triangles) {
         canvas.dataset.triangles = String(renderer.info.render.triangles);
         canvas.dataset.drawCalls = String(renderer.info.render.calls);
@@ -287,6 +324,9 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     resize(width, height, quality = 1) {
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
+      archipelago.camera.fov = camera.fov;
+      archipelago.camera.aspect = camera.aspect;
+      archipelago.camera.updateProjectionMatrix();
       // The mesh layer is MSAA'd, so it needs fewer pixels than the sea:
       // 1.6 MP (0.8 MP on phones), scaled down further by adaptive quality.
       const budget = light ? 800000 : 1600000;
@@ -298,8 +338,14 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         Math.round(height * scale),
         false,
       );
+      archipelago.uniforms.pixelAngle.value = 1 / (0.9 * Math.round(height * scale));
     },
     dispose() {
+      profiler.dispose();
+      precipitation.dispose();
+      archipelago.geometry.dispose();
+      archipelago.material.dispose();
+      lens.dispose();
       const geometries = new Set();
       const materials = new Set();
       scene.traverse((object) => {
@@ -333,11 +379,11 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   // Light comes from src/sunlight.js in exposed linear units: the same sun
   // colour and skylight the WebGPU sky and sea use. Three's Lambert divides by
   // π, so skylight radiance becomes π × radiance of irradiance.
-  function updateLighting(celestial, cover, lighting) {
+  function updateLighting(celestial, cover, lighting, beam) {
     const [r, g, b] = lighting.direct;
     const peak = Math.max(r, g, b, 1e-6);
     // Heavy cloud all but removes direct sun (and its shadows).
-    const overcast = 1 - Math.pow(cover, 1.5) * 0.93;
+    const overcast = beam;
     sun.color.setRGB(r / peak, g / peak, b / peak);
     sun.intensity = peak * overcast;
     sunTint.copy(sun.color);
@@ -353,9 +399,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     // blue-grey (the tonemap reads it from the exposure uniform).
     renderer.toneMappingExposure = 1 + night;
     scene.environmentIntensity = exposure;
-    forest.updateSkySH(skySH.coefficients, exposure);
-    const key = `${previousLighting}:${domeKey}:${lighting.gloom.toFixed(2)}`;
-    const mean = domeMean(uniform);
+    const mean = skyDomeMean(domeRatio, envWidth, uniform);
     const sky = lighting.sky.map((v, i) => v * mean[i] * (1 + cover * 0.45));
     // Ground bounce: the island's mean albedo (sand, soil and leaves) under
     // sun and sky, at its true brightness relative to the sky, so undersides
@@ -363,10 +407,17 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     const bounce = lighting.direct.map(
       (v, i) => (v * Math.max(sunWorld.y, 0) * overcast / Math.PI + sky[i]) * [0.2, 0.19, 0.15][i],
     );
-    if (key !== environmentKey && domeRatio) {
+    // Only incident light invalidates PMREM/SH. Camera shadow anchors do not.
+    const skyUnit = lighting.sky.map((v) => (v * (1 + cover * 0.45)) / exposure);
+    const bounceUnit = bounce.map((v) => v / exposure);
+    const key = skyEnvironmentKey(domeKey, uniform, skyUnit, bounceUnit);
+    const now = performance.now();
+    if (key !== environmentKey && domeRatio && now - environmentTime >= 250) {
       environmentKey = key;
-      buildEnvironment(lighting.sky.map((v) => (v * (1 + cover * 0.45)) / exposure), bounce.map((v) => v / exposure), uniform);
+      environmentTime = now;
+      buildEnvironment(skyUnit, bounceUnit, uniform);
     }
+    forest.updateSkySH(skySH.coefficients, exposure);
     CAT_SKY.value.setRGB(sky[0] * Math.PI, sky[1] * Math.PI, sky[2] * Math.PI);
     const foamLight = lighting.direct.map((v, i) => (v * Math.max(sunWorld.y, 0) * overcast) / Math.PI + sky[i] * 1.1);
     forest.updateFoamLight(foamLight);
@@ -388,26 +439,21 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     const toward = haze(hazeToward);
     const away = haze(hazeAway);
     forest.updateHaze(toward, away);
+    const isles = archipelago.uniforms;
+    isles.sunDirection.value.copy(sunWorld);
+    isles.sunLight.value.copy(sun.color).multiplyScalar(sun.intensity);
+    isles.skyLight.value.setRGB(...sky);
+    isles.bounceLight.value.setRGB(...bounce);
+    // Under a deck the horizon behind the islands is the cloud's grey
+    // underside, not the clear-sky haze: dim their veil to match.
+    const veil = (1 - 0.6 * THREE.MathUtils.smoothstep(cover, 0.5, 1)) * (1 - 0.3 * Math.min(1, rainRate / 4));
+    isles.hazeToward.value.setRGB(...toward).multiplyScalar(veil);
+    isles.hazeAway.value.setRGB(...away).multiplyScalar(veil);
+    // Clear maritime air (~50 km visibility, blue fading first); cloud and
+    // rain close it in to a few kilometres.
+    const thick = 1 + 3 * THREE.MathUtils.smoothstep(cover, 0.4, 1) + Math.min(rainRate, 8) * 1.2;
+    isles.extinction.value.set(5e-5 * thick, 6e-5 * thick, 8e-5 * thick);
     scene.fog.color.setRGB((toward[0] + away[0]) / 2, (toward[1] + away[1]) / 2, (toward[2] + away[2]) / 2);
-  }
-
-  // Cosine-weighted mean of the dome ratio: what a level surface receives.
-  function domeMean(uniform) {
-    const mean = [0, 0, 0];
-    if (!domeRatio) return [1, 1, 1];
-    const rows = envWidth / 4;
-    let total = 0;
-    for (let j = 0; j < rows; j++) {
-      const elevation = ((j + 0.5) / (rows * 2)) * Math.PI;
-      const w = Math.sin(elevation) * Math.cos(elevation);
-      for (let i = 0; i < envWidth; i++) {
-        const k = (j * envWidth + i) * 3;
-        for (let c = 0; c < 3; c++) mean[c] += w * domeRatio[k + c];
-        total += w;
-      }
-    }
-    // Overcast: the CIE dome, (1 + 2 sin h) / 3, whose cosine mean is 7/9.
-    return mean.map((v) => (v / total) * (1 - uniform) + uniform);
   }
 
   // Sky above the horizon from the dome ratio (CIE overcast when cloudy or
@@ -427,7 +473,13 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       // Below the horizon the ground (and sea) returns bounce light; within
       // a few degrees it is still mostly the hazy horizon sky.
       const ground = THREE.MathUtils.smoothstep(-up, 0.0, 0.12);
+      // The land never sees the whole sky: trees, dunes and the hill fill
+      // the lowest 20° of it on average, returning their own bounce light.
+      // A statistical local horizon (vertical walls see 0.64 of the open sky
+      // instead of 0.8), so shade is not lit as if on an open plain.
+      const hide = up > 0 ? 0.6 * (1 - THREE.MathUtils.smoothstep(up, 0, 0.34)) : 0;
       const across = Math.cos(elevation);
+      const rgb = [0, 0, 0];
       for (let i = 0; i < width; i++) {
         const k = (skyRow * width + i) * 3;
         const o = (j * width + i) * 4;
@@ -436,7 +488,14 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         THREE.SphericalHarmonics3.getBasisAt(shDirection, shBasis);
         for (let c = 0; c < 3; c++) {
           const sky1 = sky[c] * (domeRatio[k + c] * (1 - uniform) + cie * uniform);
-          const radiance = sky1 + (bounce[c] - sky1) * ground;
+          const seen = sky1 + (bounce[c] * 1.2 - sky1) * hide;
+          rgb[c] = seen + (bounce[c] - seen) * ground;
+        }
+        // Shade lit by a blue sky reads blue in a photograph, but not the
+        // saturated cyan of the raw dome: half its chroma, about luminance.
+        const luma = rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+        for (let c = 0; c < 3; c++) {
+          const radiance = luma + (rgb[c] - luma) * 0.5;
           envData[o + c] = half(radiance);
           const weight = radiance * cell * across;
           for (let b = 0; b < 9; b++) skySH.coefficients[b].setComponent(c, skySH.coefficients[b].getComponent(c) + shBasis[b] * weight);

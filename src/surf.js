@@ -14,7 +14,7 @@ float shoreAlong( vec2 p ) {
   return atan( d.y, d.x ) * 62.0;
 }
 float swashEnvelope( float along, float time ) {
-  return 0.8 + 0.17 * sin( along * 0.032258 - time * 0.061 + 1.3 ) + 0.1 * sin( along * 0.016129 + time * 0.023 );
+  return 0.72 + 0.19 * sin( along * 0.032258 - time * 0.061 + 1.3 ) + 0.1 * sin( along * 0.016129 + time * 0.023 ) + 0.12 * sin( along * 0.112903 - time * 0.13 + 2.4 );
 }
 float breakerTheta( float psi, float beta, float q ) {
   float psi1 = psi - beta * cos( psi );
@@ -25,24 +25,27 @@ float breakerTheta( float psi, float beta, float q ) {
 float swashPhase( float along, float time ) {
   return breakerTheta( along * swell.x - swell.y * time + swell.z, 0.65, 0.75 );
 }
-vec4 swash( float along, float inland, float time ) {
+vec4 swash( float along, float inland, float time, float pixel ) {
   float s = fract( -swashPhase( along, time ) / 6.283185 );
   float cusps = 1.0 + 0.2 * cos( along * 0.693548 + 0.9 * sin( along * 0.048387 ) );
   float reach = ( 1.2 + swell.w * 6.0 ) * swashEnvelope( along, time ) * cusps;
   float u = s / 0.82;
   float rise = pow( min( u, 1.0 ), 0.65 );
   float front = u < 1.0 ? -0.6 + ( reach + 0.6 ) * sin( 3.141593 * rise ) : -0.6;
-  float film = 1.0 - smoothstep( front - 0.1, front + 0.02, inland );
+  // The film's edge, widened by the pixel so it never steps.
+  float film = 1.0 - smoothstep( front - 0.1 - pixel, front + 0.02 + pixel, inland );
   float edge = smoothstep( front - 0.5, front - 0.02, inland ) * film;
   float backwash = smoothstep( 0.4, 0.6, rise );
   float foam = film * mix( max( edge * 0.95, 0.6 - 0.25 * rise ), 0.5 * ( 1.0 - min( u, 1.0 ) ) + edge * 0.25, backwash );
-  float mark = exp( -pow( ( inland - reach ) / 0.09, 2.0 ) ) * backwash * max( 1.0 - u, 0.0 ) * 0.7;
+  float markDistance = ( inland - reach ) / 0.09;
+  float mark = exp( -markDistance * markDistance ) * backwash * max( 1.0 - u, 0.0 ) * 0.7;
   foam = max( foam, mark );
   float y = clamp( ( inland + 0.6 ) / ( reach + 0.6 ), 0.0, 1.0 );
   float exposed = pow( 1.0 - asin( y ) / 3.141593, 1.0 / 0.65 );
-  float period = 6.283185 / swell.y;
-  float age = ( inland < reach && u > exposed ) ? ( u - exposed ) * 0.82 * period : 99.0;
-  float wet = max( film, exp( -age / 5.0 ) );
+  float period = 6.283185 / max( swell.y, 0.001 );
+  // Last retreat includes the preceding bore, so moisture survives phase wrap.
+  float age = max( u - exposed + ( u < exposed ? 1.0 / 0.82 : 0.0 ), 0.0 ) * 0.82 * period;
+  float wet = max( film, exp( -age / 24.0 ) * ( 1.0 - smoothstep( reach - 0.12, reach + 0.12, inland ) ) );
   return vec4( film, foam, wet, max( front - inland, 0.0 ) );
 }
 vec2 swashHash( vec2 p ) {
@@ -63,68 +66,69 @@ float swashValue( vec2 p ) {
 // Keep in step with swash_line in ocean.wgsl.
 float swashLine( float along, float inland, vec4 sw, float time, float pixel ) {
   if ( sw.x < 0.01 || sw.w > 0.3 ) return 0.0;
-  float width = 0.05 + 0.1 * sw.y;
-  float scallop = swashValue( vec2( along * 3.1, inland * 1.3 - time * 0.4 ) ) * 0.6
-    + swashValue( vec2( along * 11.0, inland * 5.0 ) + 7.0 ) * 0.4;
-  float soft = max( pixel * 1.2, 0.008 );
-  float back = width * ( 0.5 + scallop );
-  return sw.x * ( 1.0 - smoothstep( back - soft, back + soft, sw.w ) ) * smoothstep( 0.1, 0.4, sw.y + 0.2 );
+  float width = 0.04 + 0.1 * sw.y;
+  float fine = mix( swashValue( vec2( along * 37.0, inland * 9.0 - time * 0.8 ) + 3.0 ), 0.5, smoothstep( 0.01, 0.03, pixel ) );
+  float scallop = swashValue( vec2( along * 3.1, inland * 1.3 - time * 0.4 ) ) * 0.5
+    + swashValue( vec2( along * 11.0, inland * 5.0 ) + 7.0 ) * 0.3 + fine * 0.2;
+  float soft = max( pixel * 1.2, 0.006 );
+  float back = width * ( 0.35 + 1.1 * scallop );
+  float body = 1.0 - smoothstep( back - soft, back + soft, sw.w );
+  float clots = mix( 0.72 + 0.28 * fine, 1.0, 1.0 - smoothstep( 0.0, 0.02 + pixel, sw.w ) );
+  return sw.x * body * clots * smoothstep( 0.1, 0.4, sw.y + 0.2 );
 }
-// Foam as in foam_cover (ocean.wgsl): holes open round their own seeds as
-// the foam thins, at two scales (three here), until only irregular lace is left.
-float swashHoles( vec2 q, float local, float cellsPerPixel, float warp ) {
-  float thin = 1.0 - local;
-  float mean = 1.0 - min( 0.92, 1.55 * thin * thin );
-  if ( cellsPerPixel > 0.8 ) return mean;
-  vec2 base = floor( q - 0.5 );
+// Foam as in foam_cover (ocean.wgsl): Plateau walls between warped bubble
+// seeds, fat and closing into a raft where the foam is fresh, beaded threads
+// where it has aged; translucent where thin. Keep the two in step.
+float swashLace( vec2 q, float local, float cellsPerPixel, float fray, float tear ) {
+  float bead = smoothstep( 0.15, 0.75, fray );
+  float width = mix( 0.025, 0.4, local * local * local ) * ( 0.15 + 1.2 * bead );
+  float closed = smoothstep( 0.6, 1.0, local );
+  float mean = mix( min( width * ( 2.3 - 1.4 * width ), 1.0 ), 1.0, closed * 0.9 );
+  if ( cellsPerPixel > 0.6 ) return mean;
+  vec2 base = floor( q );
   float nearest = 8.0;
+  float second = 8.0;
   float seed = 0.0;
-  for ( int j = 0; j <= 1; j++ ) for ( int i = 0; i <= 1; i++ ) {
+  for ( int j = -1; j <= 1; j++ ) for ( int i = -1; i <= 1; i++ ) {
     vec2 cell = base + vec2( float( i ), float( j ) );
     vec2 h = swashHash( cell );
     vec2 d = cell + 0.2 + h * 0.6 - q;
     float r = dot( d, d );
-    if ( r < nearest ) { nearest = r; seed = h.y; }
+    second = min( second, max( r, nearest ) );
+    if ( r < nearest ) { nearest = r; seed = h.x; }
   }
-  float radius = thin * ( 0.25 + 0.8 * pow( fract( seed * 7.13 ), 1.5 ) );
-  float soft = 0.05 + cellsPerPixel * 0.6;
-  float open = smoothstep( radius - soft, radius + soft, sqrt( nearest ) + ( warp - 0.5 ) * 0.35 * thin );
-  return mix( open, mean, smoothstep( 0.3, 0.8, cellsPerPixel ) );
+  float gap = sqrt( second ) - sqrt( nearest ) + ( tear - 0.5 ) * 0.28 + ( fray - 0.5 ) * 0.05;
+  float cellWidth = width * ( 0.6 + 0.8 * fract( seed * 13.7 ) ) + clamp( ( closed - seed ) * 3.0, 0.0, 1.0 ) * 1.2;
+  float soft = 0.03 + cellsPerPixel * 1.1;
+  float wall = ( 1.0 - smoothstep( cellWidth - soft, cellWidth + soft, gap ) ) * min( 1.0, ( cellWidth + 0.006 ) / soft );
+  return mix( wall, mean, smoothstep( 0.25, 0.6, cellsPerPixel ) );
 }
 float swashFoam( vec2 qIn, float density, float time, float pixelIn ) {
   // Nothing to lace (the clumps multiply density): skip every lookup.
   if ( density < 0.007 ) return 0.0;
-  vec2 q = qIn * 1.6;
+  vec2 q = qIn * 1.6 + vec2( time * 0.01, -time * 0.03 );
   float pixel = pixelIn * 1.6;
   vec2 w = q + ( vec2( swashValue( q * 0.25 + 3.1 ), swashValue( q * 0.25 + 17.7 ) ) - 0.5 ) * 2.4;
   float clump = swashValue( w * 0.5 + vec2( time * 0.02, 0.0 ) ) * 0.6 + swashValue( w * 1.7 + 5.0 ) * 0.4;
-  float fray = pixel * 6.1 < 0.8 ? mix( swashValue( w * 6.1 + 2.2 ), 0.5, smoothstep( 0.3, 0.8, pixel * 6.1 ) ) : 0.5;
-  float local = clamp( density * ( 0.2 + 1.9 * clump * clump ) * ( 0.65 + 0.7 * fray ), 0.0, 1.0 );
-  if ( local < 0.02 ) return 0.0;
-  vec2 bend = pixel * 1.3 < 0.8 ? vec2( swashValue( w * 2.3 + 1.3 ), swashValue( w * 2.3 + 8.9 ) ) - 0.5 : vec2( 0.0 );
-  float big = swashHoles( w * 1.3 + bend * 1.1, local, pixel * 1.3, fray );
-  if ( big < 0.005 ) return 0.0;
-  float small = swashHoles( w * 4.1 + bend * 2.2 + 7.3, min( 1.0, local * 1.15 ), pixel * 4.1, 1.0 - fray );
-  // The finest, here only (the sand is where foam is seen closest): pinholes
-  // a centimetre or two across, one to each few-centimetre cell of the warped
-  // foam, opening as the foam thins; their mean stands in beyond a few metres.
-  float web = 1.0;
-  if ( pixel * 11.0 < 0.8 ) {
-    vec2 pin = w * 11.0 + bend * 3.1;
-    vec2 ph = swashHash( floor( pin ) );
-    float pr = ( 1.0 - local ) * ( 0.12 + 0.2 * ph.y );
-    float ps = 0.04 + pixel * 11.0 * 0.5;
-    web = mix( smoothstep( pr - ps, pr + ps, length( fract( pin ) - 0.5 - ( ph - 0.5 ) * 0.4 ) ), 1.0 - 3.0 * pr * pr, smoothstep( 0.3, 0.8, pixel * 11.0 ) );
+  float fray = 0.5;
+  float tear = 0.5;
+  if ( pixel * 6.1 < 0.8 ) {
+    fray = mix( swashValue( w * 6.1 + 2.2 ), 0.5, smoothstep( 0.3, 0.8, pixel * 6.1 ) );
+    if ( pixel * 19.0 < 0.8 ) tear = mix( swashValue( w * 19.0 + 4.4 ), 0.5, smoothstep( 0.3, 0.8, pixel * 19.0 ) );
   }
-  float film = mix( 0.45 + 0.55 * fray, 1.0, smoothstep( 0.35, 0.85, local ) );
-  return big * small * web * film * smoothstep( 0.02, 0.2, local );
+  float local = clamp( density * ( 0.08 + 2.0 * clump * clump ) * ( 0.7 + 0.6 * fray ), 0.0, 1.0 );
+  if ( local < 0.02 ) return 0.0;
+  vec2 bend = pixel * 2.6 < 0.8 ? vec2( swashValue( w * 2.3 + 1.3 ), swashValue( w * 2.3 + 8.9 ) ) - 0.5 : vec2( 0.0 );
+  float lace = swashLace( w * 2.6 + bend * 1.1, local, pixel * 2.6, fray, tear );
+  float opacity = mix( 0.45, 0.93, smoothstep( 0.3, 0.95, local ) ) * ( 0.62 + 0.38 * tear );
+  return lace * opacity * smoothstep( 0.02, 0.12, local );
 }
 // Little bubbles, a few millimetres to a few centimetres: bright rims round
 // clear centres with a pinpoint highlight, each living a few seconds before
 // it pops and another rises. Sizes are heavy-tailed (many tiny, a few big),
 // each sits anywhere in its cell and may cross into the next (the two
 // nearest cells on each axis are searched), and they gather where the foam
-// clumps. Three layers, each turned and at a non-integer scale, so no
+// clumps. Two layers, each turned and at a non-integer scale, so no
 // lattice shows. They average away once smaller than a pixel. Returns
 // (coverage, highlight).
 vec2 swashBubbles( vec2 p, float time, float pixel, float gate ) {
@@ -133,7 +137,7 @@ vec2 swashBubbles( vec2 p, float time, float pixel, float gate ) {
   if ( gate <= 0.0 ) return result;
   float scale = 34.0;
   mat2 turn = mat2( 0.8, 0.6, -0.6, 0.8 );
-  for ( int layer = 0; layer < 3; layer++ ) {
+  for ( int layer = 0; layer < 2; layer++ ) {
     // Even this layer's largest bubbles are below a pixel: so are the rest.
     if ( pixel * scale > 1.0 ) break;
     float fl = float( layer );
@@ -280,7 +284,7 @@ export function createSurf(group, rocks, shared, { light = false } = {}) {
         if (far > 60) continue;
         const lod = clamp(12 / far, 0.2, 1);
         // The set and the swash's reach up the beach (swash above).
-        const envelope = 0.8 + 0.17 * Math.sin(rock.along * 0.032258 - time * 0.061 + 1.3) + 0.1 * Math.sin(rock.along * 0.016129 + time * 0.023);
+        const envelope = 0.72 + 0.19 * Math.sin(rock.along * 0.032258 - time * 0.061 + 1.3) + 0.1 * Math.sin(rock.along * 0.016129 + time * 0.023) + 0.12 * Math.sin(rock.along * 0.112903 - time * 0.13 + 2.4);
         const reach = (1.2 + swell.w * 6) * envelope;
         const exposure = 1 - smooth(-1.5, reach, rock.inland - rock.r);
         if (exposure <= 0) continue;

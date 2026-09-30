@@ -34,12 +34,19 @@ import {
 } from "./weather.js";
 import { groundHeight, shoreDistance, ISLAND } from "./terrain.js";
 import { lightingAt } from "./sunlight.js";
+import { archipelagoUniform, archipelagoSunVisibility, ISLAND_SLOTS } from "./archipelago.js";
 import { createWeatherPanel } from "./weather-panel.js";
 import { createWalker, surfaceKind, SWIM_LIMIT } from "./walker.js";
 import { createSea } from "./sea-surface.js";
 import { createWake } from "./wake.js";
 import { createSound } from "./sound.js";
 import { CAT_SCALE } from "./cat-rig.js";
+import { reviewFixture, applyReviewFixture } from "./review-fixtures.js";
+import { createLoadingScreen } from "./loading-screen.js";
+
+const review = reviewFixture(window.location.search);
+const PERF = new URLSearchParams(window.location.search).has("perf");
+const loading = createLoadingScreen();
 
 // You are a cat: WASD/arrows walk (relative to the camera), shift runs,
 // space jumps, M meows. Click or tap the ground to walk there; drag orbits
@@ -81,7 +88,7 @@ const events = new AbortController();
 const state = {
   seed: sceneSeed(window.location.search),
   date: new Date(),
-  debugMinutes: null,
+  debugMinutes: review?.minutes ?? null,
   celestial: null,
   pointer: [0.5, 0.5],
   // The camera the WebGPU passes and Three.js share (walker.camera).
@@ -95,6 +102,9 @@ const state = {
   pinch: 0,
   lastInput: 0,
   lastFrame: 0,
+  weatherFrame: 0,
+  firstFrame: false,
+  loadingRaf: 0,
   lastChirp: -10,
   // How wet the cat's paws are (from wet sand); they print on rock.
   pawWet: 0,
@@ -143,7 +153,7 @@ const state = {
 };
 
 // `?perf` QA exposes live state, e.g. to aim the camera at the sun.
-if (new URLSearchParams(window.location.search).has("perf")) window.skycope = state;
+if (PERF) window.skycope = state;
 
 start();
 
@@ -305,6 +315,7 @@ function connectControls() {
   document.addEventListener(
     "visibilitychange",
     () => {
+      state.weatherFrame = performance.now();
       updateTime();
       syncLoop();
       if (
@@ -408,7 +419,7 @@ function dismissHint() {
 
 function updateTime() {
   const live = state.debugMinutes === null;
-  state.date = live ? new Date() : dateAtCapeMinutes(state.debugMinutes);
+  state.date = live ? new Date() : dateAtCapeMinutes(state.debugMinutes, review?.date ?? new Date());
   state.celestial = skyAt(state.date);
   timeLabel.textContent = capeTime(state.date);
   timeToggle.querySelector("span").textContent = `${capeTime(state.date)}${live ? "" : " · preview"}`;
@@ -486,6 +497,7 @@ function applyWeather() {
 }
 
 async function startAtmosphere() {
+  loading.stage("graphics");
   // Low power: the sky and sea are cheap now, and a discrete GPU would spin
   // up fans for no visible gain.
   const gpu = await init({ powerPreference: "low-power" });
@@ -593,6 +605,9 @@ async function startAtmosphere() {
     },
   });
   state.water = water;
+  loading.stage("world");
+  // Let the new stage paint before synchronous seeded geometry preparation.
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   const { createLandscape } = await import("./landscape.js");
   if (state.disposed) return;
   state.landscape = createLandscape(
@@ -610,11 +625,22 @@ async function startAtmosphere() {
     format: "rgba32float",
     usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
   });
-  water.set({ shoreRocks: shore.rocks.createView(), shoreGrid: shore.grid.createView(), landField: land.createView(), catWake: state.wakeTexture.createView() });
+  // The distant islands' skylines for the sea (archipelago.wgsl).
+  const islandTable = gpu.gpu.createTexture({
+    label: "skycope-islands",
+    size: [ISLAND_SLOTS, 1],
+    format: "rgba32float",
+    usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+  });
+  updateIslandTable(islandTable, state.flight ?? FIRST_VIEW, state.celestial);
+  water.set({ shoreRocks: shore.rocks.createView(), shoreGrid: shore.grid.createView(), landField: land.createView(), catWake: state.wakeTexture.createView(), islandTable: islandTable.createView() });
   state.sea = createSea(state.seed, waveModes.data);
   state.walker = createWalker(state.landscape.obstacles, state.sea, state.wake);
+  applyReviewFixture(state.walker, review, state.landscape.obstacles);
   state.flight = state.walker.camera;
   state.landscape.resize(window.innerWidth, window.innerHeight);
+  loading.stage("sky");
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   await tablePass.compile(skyTable);
   await cloudPass.compile(cloudTarget);
   await atmosphere.compile(skyTarget.write);
@@ -628,7 +654,10 @@ async function startAtmosphere() {
   });
   const gpuClock = clock(gpu);
   state.renderFrame = (currentFrame) => {
+    const cpuStarted = performance.now();
     const dt = Math.min(gpuClock.deltaTime, 0.05);
+    const weatherDt = state.weatherFrame ? Math.max(0, Math.min(2, (cpuStarted - state.weatherFrame) / 1000)) : dt;
+    state.weatherFrame = cpuStarted;
     if (!motionPreference.matches) {
       state.time += dt;
       const weather = state.weather;
@@ -651,7 +680,7 @@ async function startAtmosphere() {
     const seaUniforms = {
       ...uniforms,
       // z: trace the island's reflection in the sea (not on the phone budget).
-      ocean: [stepFoam ? state.foamStep : 0, state.foamFrames > 0 ? 1 : 0, LIGHT ? 0 : 1, 0],
+      ocean: [stepFoam ? state.foamStep : 0, state.foamFrames > 0 ? 1 : 0, LIGHT ? 0 : 1, state.landscape?.cloudTransmission ?? 1],
     };
     // Temporal clouds: each frame marches one pixel of every 2x2 block, in
     // turn; the resolve reprojects the rest from last frame's cloud layer.
@@ -675,6 +704,7 @@ async function startAtmosphere() {
     if (stepFoam) foamPass.set({ atmosphere: seaUniforms, foamHistory: foamTarget.read.color });
     // Between steps the water reads the history last written.
     water.set({ atmosphere: seaUniforms, skyTexture: skyTarget.write.color, foamLayer: stepFoam ? foamTarget.write.color : foamTarget.read.color });
+    updateIslandTable(islandTable, state.flight, state.celestial);
     const wake = state.wake.pack();
     if (wake) gpu.gpu.queue.writeTexture({ texture: state.wakeTexture }, wake, { bytesPerRow: 64 * 16 }, [64, 1]);
     currentFrame.pass(wavesTarget, wavesPass);
@@ -704,6 +734,9 @@ async function startAtmosphere() {
       time: state.time,
       wind: state.weather?.wind ?? [0, 0],
       rain: state.weather?.rain ?? 0,
+      weather: state.weather,
+      weatherDt,
+      reducedMotion: motionPreference.matches,
       view: state.flight,
       lighting: state.lighting,
       pose: state.walker.cat,
@@ -713,6 +746,14 @@ async function startAtmosphere() {
       onStep: footstep,
       wake: state.wake,
     });
+    if (PERF) {
+      canvas.dataset.frameIntervalMs = (gpuClock.deltaTime * 1000).toFixed(2);
+      canvas.dataset.cpuFrameMs = (performance.now() - cpuStarted).toFixed(2);
+    }
+    if (!state.firstFrame) {
+      state.firstFrame = true;
+      state.loadingRaf = requestAnimationFrame(() => loading.ready());
+    }
   };
   document.body.dataset.renderer = "webgpu";
   syncLoop();
@@ -779,8 +820,31 @@ function createUniforms() {
     previous: [0, 0, 0, 0],
     swell: swellUniform(state.seed, weather?.wind ?? [0, 0]),
     // Filled in per frame for the sea passes.
-    ocean: [0, 0, 0, 0],
+    ocean: [0, 0, 0, state.landscape?.cloudTransmission ?? 1],
   };
+}
+
+// The archipelago for the sea (archipelago.js), with the share of the sun
+// (or moon) its islands leave visible from the camera, refreshed as either
+// moves.
+const islandCache = { seed: null, data: null, key: "", texels: new Float32Array(ISLAND_SLOTS * 4) };
+function updateIslandTable(texture, view, sky) {
+  if (islandCache.seed !== state.seed) {
+    islandCache.seed = state.seed;
+    islandCache.data = archipelagoUniform(state.seed);
+    islandCache.key = "";
+  }
+  const night = smooth(1, 2, sky.scene);
+  const l = sky.sun.map((v, i) => v * (1 - night) + sky.moon[i] * night);
+  const n = Math.hypot(...l) || 1;
+  const coast = [Math.SQRT1_2 * (l[0] + l[2]) / n, l[1] / n, Math.SQRT1_2 * (l[2] - l[0]) / n];
+  const key = `${coast.map((v) => v.toFixed(4))}:${Math.round(view.x * 2)}:${Math.round(view.y * 2)}:${Math.round(view.z * 2)}`;
+  if (key !== islandCache.key) {
+    islandCache.key = key;
+    islandCache.data[0][1] = archipelagoSunVisibility([view.x, view.y, view.z], coast, state.seed);
+    islandCache.data.forEach((v, i) => islandCache.texels.set(v, i * 4));
+    state.gpu.gpu.queue.writeTexture({ texture }, islandCache.texels, { bytesPerRow: ISLAND_SLOTS * 16 }, [ISLAND_SLOTS, 1]);
+  }
 }
 
 // The cat walks; the camera follows. Keys are camera-relative.
@@ -791,11 +855,12 @@ function updateCat(dt) {
     (held("d", "arrowright") ? 1 : 0) - (held("a", "arrowleft") ? 1 : 0),
     (held("w", "arrowup") ? 1 : 0) - (held("s", "arrowdown") ? 1 : 0),
   ];
+  if (review?.run && state.time < 27) move[1] = 1;
   if (move[0] || move[1]) dismissHint();
   const walker = state.walker;
   const cat = walker.update(
     dt,
-    { move, run: held("shift"), jump: state.jump, rain: (state.weather?.rain ?? 0) > 0.5 },
+    { move, run: held("shift") || Boolean(review?.run && state.time < 27), jump: state.jump, rain: (state.weather?.rain ?? 0) > 0.5 },
     state.landscape.interest,
   );
   state.jump = false;
@@ -902,6 +967,9 @@ function smooth(a, b, x) {
 }
 
 function adaptQuality(deltaTime) {
+  // Settled 30fps pacing is intentional, not evidence of missed 60fps work.
+  // Exclude that cadence and development fixture captures from adaptation.
+  if (review || (state.keys.size === 0 && state.walker?.cat.idle > 6 && performance.now() - state.lastInput > 6000)) return;
   if (deltaTime <= 0 || deltaTime > 0.12) return;
   state.frameMs += (deltaTime * 1000 - state.frameMs) * 0.025;
   state.sampleCount++;
@@ -941,6 +1009,7 @@ function tick(timestamp) {
   const settled =
     cat && cat.idle > 6 && performance.now() - state.lastInput > 6000 && !state.keys.size;
   const interval = 1000 / (settled ? IDLE_FPS : ACTIVE_FPS);
+  canvas.dataset.targetFps = String(settled ? IDLE_FPS : ACTIVE_FPS);
   if (timestamp - state.lastFrame < interval - 3) return;
   state.lastFrame = timestamp;
   frame(state.gpu, state.renderFrame);
@@ -972,10 +1041,11 @@ function quarterSize([width, height]) {
 function resetSkyHistory() {
   state.skyFrames = 0;
   state.previousView = null;
-  state.foamFrames = 0;
 }
 
 function useFallback(error) {
+  cancelAnimationFrame(state.loadingRaf);
+  loading.fail(error);
   document.body.dataset.renderer = "fallback";
   cancelAnimationFrame(state.raf);
   const gpu = state.gpu;
@@ -995,6 +1065,8 @@ function stopAtmosphere() {
   clearInterval(state.weatherTimer);
   state.weatherRequest?.abort();
   cancelAnimationFrame(state.raf);
+  cancelAnimationFrame(state.loadingRaf);
+  loading.dispose();
   state.sound.dispose();
   state.gpu?.dispose();
   state.landscape?.dispose();

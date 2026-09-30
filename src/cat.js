@@ -66,12 +66,15 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
 
   const coat = coatMaterial(uniforms);
   const coatFar = coatMaterial(uniforms, { baked: true });
+  // Farther still the body itself swaps to the coarse mesh (a third of the
+  // triangles), painted from the coarse mesh's own bake.
+  const coatFarthest = coatMaterial({ ...uniforms, catBodyColours: uniforms.catShellColours }, { baked: true });
   const fur = coatMaterial(uniforms, { shell: true });
   const ghost = ghostMaterial();
   // The cat draws in the transparent pass, after the (fading) ground and
   // rocks, and marks its pixels in the stencil buffer, so the silhouette
   // shows only where something covers it.
-  for (const material of [coat, coatFar, fur])
+  for (const material of [coat, coatFar, coatFarthest, fur])
     Object.assign(material, {
       transparent: true,
       stencilWrite: true,
@@ -216,12 +219,15 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
   const tailN = Array.from({ length: TAIL_BONES + 1 }, () => new THREE.Vector3(1, 0, 0));
   const tailRoot = new THREE.Vector3(...TAIL_ROOT).sub(b.spine.position).sub(b.hips.position);
   let firstFrame = true;
+  // Dev: the lab's benchmark toggles parts to attribute cost; QA captures
+  // can hold the lids open (blink: 0) and find it from the scene graph.
+  const debug = { meshes, shells: null, blink: null };
+  root.userData.debug = debug;
 
   return {
     root,
     prints,
-    // Dev: the lab's benchmark toggles parts to attribute cost.
-    debug: { meshes, shells: null },
+    debug,
     get ready() {
       return meshes.length > 0;
     },
@@ -477,8 +483,8 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       const blinkLen = state.blinkT > 0.5 ? 0.9 : 0.16;
       state.blinkT = Math.max(0, state.blinkT - step);
       const blink = state.blinkT > 0 ? Math.sin((state.blinkT / blinkLen) * Math.PI) : 0;
-      uniforms.catBlink.value = Math.min(1, Math.max(blink, pose.sleepy * (1 + state.lie * 0.9), yawn * 0.8, (light.rain ?? 0) * 0.25));
-      uniforms.catPupil.value = lerp(0.12, 0.66, light.night);
+      uniforms.catBlink.value = debug.blink ?? Math.min(1, Math.max(blink, pose.sleepy * (1 + state.lie * 0.9), yawn * 0.8, (light.rain ?? 0) * 0.25));
+      uniforms.catPupil.value = pupilResponse(uniforms.catPupil.value, light, step);
       uniforms.catEyeshine.value = light.night;
       // The see-through silhouette is unlit: keep it as dim as the scene.
       ghost.color.setRGB(0.95, 0.85, 0.7).multiplyScalar(0.12 + 0.88 * (1 - light.night) * (0.4 + 0.6 * light.direct));
@@ -704,11 +710,13 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       const hipsToCoast = inverse.multiplyMatrices(toCoast, b.hips.matrixWorld);
       for (let i = 0; i < TAIL_BONES; i++) {
         const s = i / TAIL_BONES;
-        const carried = 0.5 + smooth(s, 0, 0.5) * 0.8 - smooth(s, 0.75, 1) * 0.9;
+        // Walking: up like a question mark, the tip hooked over forward.
+        const carried = 0.55 + smooth(s, 0, 0.45) * 0.95 + smooth(s, 0.72, 1) * 0.75;
         // At a gallop: out behind, a little low at the root, curving up
         // toward the tip.
         const streaming = lerp(0.15 - s * 0.1, -0.02 + smooth(s, 0.2, 1) * 0.38, gallop);
-        const resting = -0.55 + smooth(s, 0.3, 1) * 1.0;
+        // Standing: hanging low in a relaxed curve, the tip hooked up.
+        const resting = -1.1 + smooth(s, 0.45, 1) * 1.4;
         const stalking = -0.45 + smooth(s, 0.2, 0.6) * 0.3;
         let up2 = lerp(resting, lerp(carried, streaming, smooth(speed, 1.6, 3)), moving);
         up2 = lerp(up2, stalking, crouch);
@@ -806,11 +814,17 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       // Fewer shells as the cat gets smaller on screen.
       if (shellGeometry && light.eye) {
         const d = light.eye.distanceTo(centre);
-        const count = this.debug.shells ?? Math.round(clamp(8.2 - d * 2, 2, maxShells));
+        // Never fewer than three: the outer shells are the pelt's soft edge.
+        const count = this.debug.shells ?? Math.round(clamp(8.4 - d * 2, 3, maxShells));
         const body = meshes[0];
         // Beyond ~2 m the stripes span a few pixels: paint the body per vertex.
-        const perVertex = body.material === coatFar ? d > 2.0 : d > 2.3;
-        body.material = perVertex && uniforms.catBodyColours.value ? coatFar : coat;
+        // Beyond ~2.6 m the coarse mesh's chords are under a pixel beneath
+        // the fur, and its savings pay for the third shell.
+        const perVertex = body.material === coat ? d > 2.3 : d > 2.0;
+        const coarse = body.geometry === lods.far ? d > 2.45 : d > 2.65;
+        const ready = uniforms.catBodyColours.value;
+        body.material = perVertex && ready ? (coarse ? coatFarthest : coatFar) : coat;
+        body.geometry = perVertex && ready && coarse ? lods.far : lods.mid;
         shellGeometry.instanceCount = count;
         uniforms.catPixelAngle.value = 1 / (light.pixelScale ?? 500);
         uniforms.shellCount.value = count;
@@ -933,6 +947,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       shellGeometry?.dispose();
       coat.dispose();
       coatFar.dispose();
+      coatFarthest.dispose();
       fur.dispose();
       ghost.dispose();
       depth.dispose();
@@ -945,6 +960,14 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       splash.dispose();
     },
   };
+}
+
+// A stable physiological response: subdued daylight opens pupils too, and
+// a time-step-independent approach avoids a jump when preview light changes.
+export function pupilResponse(current, light, dt) {
+  const darkness = Math.max(light.night, 1 - clamp(light.direct, 0, 1));
+  const target = lerp(0.12, 0.66, darkness);
+  return current + (target - current) * (1 - Math.exp(-Math.max(dt, 0) / 0.35));
 }
 
 // Whiskers: four rows a side from the whisker pads, two brows over each

@@ -86,16 +86,19 @@ export function skyRadiance(view, sun, samples = 12) {
     const radius = Math.hypot(p[0], p[1], p[2]);
     const height = radius - EARTH_RADIUS;
     const d = densities(Math.max(height, 0));
+    // Exact in-segment integration, as in atmosphere.wgsl.
+    const ex = extinction(depth);
     for (let c = 0; c < 3; c++) depth[c] += d[c] * dt;
     const sunMu = (p[0] * sun[0] + p[1] * sun[1] + p[2] * sun[2]) / radius;
     const tr = transmittance(height, sunMu);
-    const ex = extinction(depth);
     const lifted = transmittance(height, sunMu + 0.06);
     for (let c = 0; c < 3; c++) {
-      const light = tr[c] * ex[c];
+      const tau = (RAYLEIGH[c] * d[0] + MIE[c] * 1.11 * d[1] + OZONE[c] * d[2]) * dt;
+      const within = tau < 1e-4 ? 1 : (1 - Math.exp(-tau)) / tau;
+      const light = tr[c] * ex[c] * within;
       rayleigh[c] += light * d[0] * dt;
       mie[c] += light * d[1] * dt;
-      multiple[c] += lifted[c] * ex[c] * (d[0] * RAYLEIGH[c] + d[1] * MIE[c]) * dt;
+      multiple[c] += lifted[c] * ex[c] * within * (d[0] * RAYLEIGH[c] + d[1] * MIE[c]) * dt;
     }
   }
   const g = 0.8;
@@ -161,8 +164,12 @@ export function lightingAt(celestial, weather = null) {
   const moon = scotopic(sunRadiance(celestial.moon)).map((v) => v * moonK * 0.95);
   const direct = sun.map((v, c) => (v + (moon[c] - v) * night) * exposure);
   const moonSky = scotopic(skyRadiance([0, 1, 0], celestial.moon, 4));
+  // Airglow and starlight: the sky pass draws the dome at its floor
+  // (0.004, 0.007, 0.014); the land takes 2.5× — the whole dome's worth,
+  // seen by a fully dark-adapted eye — so a moonless beach still reads as
+  // pale sand and dark scrub under a blue night, not black.
   const sky = zenith.map(
-    (v, c) => (v + moonSky[c] * moonK * 0.6) * exposure + [0.004, 0.007, 0.014][c] * night,
+    (v, c) => (v + moonSky[c] * moonK * 0.6) * exposure + [0.01, 0.0175, 0.035][c] * night,
   );
   const cover = weather?.cover ?? 0;
   const rain = weather?.rain ?? 0;
@@ -234,4 +241,30 @@ export function skyDomeRatio(sun, width = 64) {
     }
   }
   return out;
+}
+
+// Cosine and solid-angle weights for an equirectangular upper hemisphere.
+// Returns radiance-equivalent irradiance (E / pi), as used by the mesh and
+// water Lambertian terms. CIE overcast is normalized to unit E / pi.
+export function skyDomeMean(dome, width, uniform = 0) {
+  if (!dome) return [1, 1, 1];
+  const rows = width / 4;
+  const mean = [0, 0, 0];
+  let total = 0;
+  for (let j = 0; j < rows; j++) {
+    const elevation = ((j + 0.5) / (rows * 2)) * Math.PI;
+    const weight = Math.sin(elevation) * Math.cos(elevation);
+    for (let i = 0; i < width; i++) {
+      const k = (j * width + i) * 3;
+      for (let c = 0; c < 3; c++) mean[c] += weight * dome[k + c];
+      total += weight;
+    }
+  }
+  return mean.map((v) => (v / total) * (1 - uniform) + uniform);
+}
+
+// Cache only incident light in unexposed units. Camera position and shadow
+// anchors cannot alter the sky dome; quantization bounds weather rebuilds.
+export function skyEnvironmentKey(domeKey, uniform, sky, bounce) {
+  return `${domeKey}:${uniform.toFixed(2)}:${[...sky, ...bounce].map((v) => v.toPrecision(3)).join()}`;
 }

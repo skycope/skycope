@@ -20,7 +20,7 @@ fn fs_main(@builtin(position) position: vec4f) -> @location(0) vec4f {
   // The sea covers everything below the horizon; a clear forecast has no
   // cloud to march through at all.
   let cover = max(max(atmosphere.weather.x, atmosphere.weather.y), atmosphere.weather.z);
-  if (ray.y < -0.02 || cover < 0.01) { return vec4f(0.0, 0.0, 0.0, 1.0); }
+  if (ray.y < -0.12 || cover < 0.01) { return vec4f(0.0, 0.0, 0.0, 1.0); }
   let lean = (atmosphere.pointer - 0.5) * vec2f(0.014, 0.009);
   // Flight shifts the cloud volume gently: the miniature cloud space maps tens
   // of metres of travel to fractions of its 44-unit ray range.
@@ -40,6 +40,9 @@ fn fs_main(@builtin(position) position: vec4f) -> @location(0) vec4f {
       * smoothstep(-0.01, 0.02, atmosphere.moon.y) * (0.5 - 0.5 * cos(atmosphere.celestial.z * 6.283185));
   }
   let sky = overcast_sky(behind, atmosphere.weather.w, atmosphere.rain);
+  // Just below the horizon only the deck's underside (the far sea fades
+  // into this colour, so it must not be the bright clear-sky haze).
+  if (ray.y < -0.02) { return cloud_deck(ray, sky, vec3f(0.0), 1.0); }
   return render_clouds(eye, ray, atmosphere.sun, atmosphere.moon, sky, night);
 }
 
@@ -90,11 +93,12 @@ fn render_clouds(eye: vec3f, ray: vec3f, sun: vec3f, moon: vec3f, sky: vec3f, ni
       + cloud_density(position + light * 2.8) * 1.1;
     // Beer's law with a long multiple-scattering tail, and the "powder" term
     // that darkens thin sunward edges: the look of real cumulus.
-    let beer = exp(-optical_depth * 1.7) * 0.75 + exp(-optical_depth * 0.35) * 0.25;
+    // Bright sunlit tops over grey, self-shadowed bases.
+    let beer = exp(-optical_depth * 2.4) * 0.75 + exp(-optical_depth * 0.35) * 0.25;
     let powder = 1.0 - exp(-density * 3.0);
     let height_light = smoothstep(-3.5, 6.0, position.y);
-    var lighting = direct_light * beer * mix(1.0, powder, 0.5) * phase * 0.075 * dim;
-    lighting += sky_up * (0.55 + height_light * 0.7) + sky_side * 0.25;
+    var lighting = direct_light * beer * mix(1.0, powder, 0.5) * phase * 0.24 * dim;
+    lighting += sky_up * (0.3 + height_light * 0.5) + sky_side * 0.15;
     // Deep, low decks are dark underneath: little light survives the column.
     lighting *= (1.0 - atmosphere.weather.x * atmosphere.weather.w * 0.5 * (1.0 - height_light))
       * (1.0 - smoothstep(0.3, 8.0, atmosphere.rain) * 0.4);
@@ -104,16 +108,35 @@ fn render_clouds(eye: vec3f, ray: vec3f, sun: vec3f, moon: vec3f, sky: vec3f, ni
     radiance += lighting * alpha * transmission;
     transmission *= 1.0 - alpha;
   }
+  // A heavy low deck has no gaps toward the horizon: far off, the rays that
+  // slip under or between the marched billows still end in cloud. Close the
+  // bright strip with the deck's own underside, hazed into the sky.
+  return cloud_deck(ray, sky, radiance, transmission);
+}
+
+fn cloud_deck(ray: vec3f, sky: vec3f, radiance_in: vec3f, transmission_in: f32) -> vec4f {
+  let heavy = max(max(atmosphere.weather.x, atmosphere.weather.y * 0.9), atmosphere.weather.w * 0.9);
+  let deck = smoothstep(0.35, 0.9, heavy) * (1.0 - smoothstep(0.0, 0.12, ray.y)) * transmission_in;
+  var radiance = radiance_in;
+  var transmission = transmission_in;
+  if (deck > 0.001) {
+    let base = (atmosphere.ambient.rgb * 0.55 + sky * 0.2) * (1.0 - smoothstep(0.3, 8.0, atmosphere.rain) * 0.4);
+    let underside = mix(base, sky, 0.6);
+    radiance += underside * deck;
+    transmission *= 1.0 - deck;
+  }
   return vec4f(radiance, transmission);
 }
 
 fn cloud_density(position: vec3f) -> f32 {
-  let drift = -vec3f(atmosphere.wind.x, 0.0, atmosphere.wind.y) * atmosphere.time * 0.012;
+  let drift = -vec3f(atmosphere.wind.x, 0.0, -atmosphere.wind.y) * atmosphere.time * 0.012;
   let p = position + drift;
   // Three cloud decks respond to the provider’s low, middle and high coverage.
-  let lower = smoothstep(-3.8, -1.6, p.y) * (1.0 - smoothstep(-0.5, 2.0, p.y));
+  // Overlap decks around the camera altitude: the old low-deck fade ended
+  // at y=2 while the mid deck began at 1.8, leaving a clear horizon gap.
+  let lower = smoothstep(-3.8, -1.6, p.y) * (1.0 - smoothstep(1.0, 3.2, p.y));
   let upper = smoothstep(4.0, 5.1, p.y) * (1.0 - smoothstep(5.6, 7.5, p.y));
-  let middle = smoothstep(1.8, 3.0, p.y) * (1.0 - smoothstep(3.5, 4.6, p.y));
+  let middle = smoothstep(1.5, 2.8, p.y) * (1.0 - smoothstep(3.5, 4.6, p.y));
   let profile = max(max(lower, upper * 0.92), middle);
   let coverage = max(max(lower * atmosphere.weather.x, upper * atmosphere.weather.z), middle * atmosphere.weather.y);
   if (profile < 0.01 || coverage < 0.01) { return 0.0; }

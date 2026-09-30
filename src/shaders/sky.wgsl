@@ -28,10 +28,12 @@ fn fs_main(@builtin(position) position: vec4f, @location(0) uv: vec2f) -> SkyOut
   let night = smoothstep(1.0, 2.0, atmosphere.scene);
   let sky = atmosphere_color(ray, atmosphere.sun, atmosphere.moon, night, atmosphere.light.w);
   var clouds = vec4f(0.0, 0.0, 0.0, 1.0);
-  // The sea covers everything below the horizon: no clouds there, just the
-  // horizon colour that distant water fades into.
-  if (ray.y >= -0.02) { clouds = reconstruct_clouds(floor(position.xy), ray); }
+  // The sea covers everything below the horizon; just under it the far sea
+  // fades into this colour, a cloud deck's underside when there is one.
+  if (ray.y >= -0.12) { clouds = reconstruct_clouds(floor(position.xy), ray); }
   var out: SkyOutput;
+  // The distant archipelago is geometry in the land layer (archipelago.js),
+  // drawn over this at full resolution; the sea traces it for reflections.
   out.sky = vec4f(clouds.rgb + sky * clouds.a, clouds.a);
   out.clouds = clouds;
   return out;

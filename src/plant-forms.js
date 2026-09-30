@@ -128,8 +128,12 @@ export function tuftGeometry(blades = 24, levels = 3, heads = 0) {
 // clusters.
 export function reedGeometry(culms = 30, detail = 1) {
   const m = mesher();
-  const random = seededRandom(23);
+  const organIds = [];
   for (let c = 0; c < culms; c++) {
+    // Each culm owns its random stream: removing spikelet detail never
+    // changes the next culm, so the far clump retains the same architecture.
+    const random = seededRandom(23 ^ Math.imul(c + 1, 0x9e3779b1));
+    organIds.push(`reed:${c}`);
     const azimuth = random() * Math.PI * 2;
     const lean = Math.sqrt(random()) * 0.38;
     const length = (0.6 + random() * 0.4) * (1 - lean * 0.45);
@@ -172,7 +176,9 @@ export function reedGeometry(culms = 30, detail = 1) {
       }
     }
   }
-  return m.finish();
+  const geometry = m.finish();
+  geometry.userData.organIds = organIds;
+  return geometry;
 }
 
 // A pinnate frond, unit length, rising from the origin along +z and arching

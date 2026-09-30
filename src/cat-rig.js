@@ -8,7 +8,7 @@ import * as THREE from "three";
 // ears, a breathing ribcage, the loose belly pouch, and a jointed tail.
 
 export const STAND_HEIGHT = 0.2;
-export const PAW_LIFT = 0.013;
+export const PAW_LIFT = 0.015;
 export const TAIL_BONES = 14;
 export const TAIL_LENGTH = 0.3;
 export const TAIL_ROOT = [0, 0.04, -0.165];

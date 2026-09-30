@@ -7,6 +7,9 @@ import {
   smoothstep,
 } from "./terrain.js";
 import { seededRandom } from "./random.js";
+import { createHabitat, sampleHabitat } from "./habitat.js";
+import { foliageDemand, demandRadius } from "./plant-growth.js";
+import { MATERIAL_HEX } from "./material-palette.js";
 
 // Plant colours are chosen as sRGB hue/saturation/lightness, as a painter
 // would pick them. (three's setHSL defaults to the linear working space,
@@ -18,6 +21,7 @@ const hslColour = (h, s, l) => new THREE.Color().setHSL(h, s, l, THREE.SRGBColor
 // lean and grow away from the wind, strongest at the beach edge.
 const PREVAILING = new THREE.Vector3(0.9, 0, -0.436);
 const GOLDEN_ANGLE = 2.39996;
+const DEAD_WOOD = new THREE.Color(MATERIAL_HEX.deadGrowth);
 
 // Growth archetypes span the coastal gradient. A tree blends wind-sheared
 // scrub toward canopy with interior shelter; saplings and dead snags are
@@ -26,7 +30,7 @@ const GOLDEN_ANGLE = 2.39996;
 const SCRUB = {
   height: 0.5,
   spread: 1.5,
-  lift: 0.16,
+  lift: 0.06,
   flag: 1.0,
   droop: 0.3,
   flatten: 0.48,
@@ -35,7 +39,7 @@ const SCRUB = {
 const CANOPY = {
   height: 1.0,
   spread: 1.0,
-  lift: 0.55,
+  lift: 0.35,
   flag: 0.22,
   droop: 0.55,
   flatten: 0.74,
@@ -60,6 +64,7 @@ export function createVegetation(seed) {
   const lists = () => [wood, leaves, clusters, turf, fronds, succulents, needles, reeds, ...Object.values(flowers)];
   const layout = vegetationLayout(seed);
   const ecotypes = growthTraits(seed);
+  const habitat = createHabitat(seed, layout);
   // Known crown volumes let neighbouring buds compete for space (crown shyness).
   const crowns = layout
     .filter((p) => p.kind === "tree" && p.form !== "snag")
@@ -70,6 +75,7 @@ export function createVegetation(seed) {
       r: crownRadius(p, ecotypes[p.ecotype]),
     }));
   for (const plant of layout) {
+    plant.habitat = sampleHabitat(habitat, plant.x, plant.z);
     const random = seededRandom(plant.seed);
     const root = new THREE.Vector3(
       plant.x,
@@ -104,11 +110,22 @@ export function createVegetation(seed) {
     // Every part remembers its plant's ground height: wind bends a plant from
     // its own base, so trunks and stems stay anchored on any slope.
     lists().forEach((list, i) => {
-      for (let k = before[i]; k < list.length; k++) list[k].ground = root.y;
+      for (let k = before[i]; k < list.length; k++) {
+        const organ = list[k];
+        organ.ground = root.y;
+        organ.id = `${plant.id}:${i}:${k - before[i]}`;
+        organ.patchId = plant.patchId;
+        organ.materialClass ??= plant.kind === "aloe" || plant.kind === "protea" ? "waxy" : plant.form === "snag" ? "dead" : "live";
+        if (i === 0 && organ.materialClass !== "dead") organ.materialClass = "bark";
+        // Self-pruned twigs keep their bark but go grey. Colours are shared
+        // between a plant's segments, so a dead one gets its own copy.
+        if (organ.materialClass === "dead" && i === 0 && plant.form !== "snag")
+          organ.color = organ.color.clone().lerp(DEAD_WOOD, 0.45);
+      }
     });
   }
   growTurf(seed, layout, turf);
-  return { ...parts, layout, plants: layout.length };
+  return { ...parts, layout, habitat, producers: habitat.producers, plants: layout.length };
 }
 
 // Poisson-style dart throwing modulated by a clustering field: trees clump into
@@ -278,6 +295,16 @@ export function vegetationLayout(seed) {
       seed: Math.max(1, Math.floor(random() * 0xffffffff)),
     });
   }
+  // Stable identities and a regional age; every candidate keeps its kind, so
+  // the understorey stays as dense as it grows (a community filter that
+  // thinned open ground to 38% left the hills bare dirt).
+  const habitat = createHabitat(seed, plants);
+  plants.forEach((plant, i) => {
+    const site = sampleHabitat(habitat, plant.x, plant.z);
+    plant.id = `${seed}:plant:${i}`;
+    plant.patchId = site.id;
+    plant.age = plant.form === "sapling" ? 0.12 : site.age;
+  });
   return plants;
 }
 
@@ -323,10 +350,11 @@ function growthTraits(seed) {
       hue: 0.25 + random() * 0.08,
       saturation: 0.3 + waxy * 0.16,
       light: 0.15 + (1 - waxy) * 0.1,
+      // Weathered bark is dark: grey-brown at 18–30% lightness.
       bark: hslColour(
         0.09 + random() * 0.06,
-        0.08 + random() * 0.18,
-        0.25 + random() * 0.17,
+        0.08 + random() * 0.16,
+        0.18 + random() * 0.12,
       ),
     };
   });
@@ -367,13 +395,15 @@ function growTree(root, plant, traits, crowns, random, wood, clusters, fronds) {
   }
   const habit = HABITS[traits.habit] ?? {};
   const arche = { ...archetype(plant) };
+  arche.lift += (plant.habitat?.competition ?? 0) * .3;
+  arche.flatten *= .82 + (plant.age ?? .5) * .28;
   if (habit.flatten) arche.flatten = habit.flatten;
   if (habit.droop) arche.droop = habit.droop;
   if (habit.lift) arche.lift = habit.lift;
   const height = plant.height;
   const bark = snag
     ? hslColour(0.1, 0.04, 0.4 + random() * 0.12)
-    : new THREE.Color(traits.bark).multiplyScalar(0.55 + random() * 0.35);
+    : new THREE.Color(traits.bark).multiplyScalar(0.7 + random() * 0.35);
   const color = hslColour(
     traits.hue + (random() - 0.5) * 0.035,
     traits.saturation + random() * 0.1,
@@ -442,6 +472,8 @@ function growTree(root, plant, traits, crowns, random, wood, clusters, fronds) {
     color,
     bark,
     neighbours,
+    age: plant.age,
+    site: plant.habitat,
     vines: Boolean(habit.vines) && detail,
     random,
     wood,
@@ -481,6 +513,8 @@ function growShrub(root, plant, traits, random, wood, clusters) {
     color,
     bark,
     neighbours: [],
+    age: plant.age,
+    site: plant.habitat,
     random,
     wood,
     clusters,
@@ -506,13 +540,16 @@ function colonizeCrown(options) {
     bark,
     neighbours,
     vines = false,
+    age = .5,
+    site = { light: 1, lightX: 0, lightZ: 0 },
     random,
     wood,
     clusters,
   } = options;
   const pointCount = Math.round((detail ? 150 : 95) * arche.points);
   // Lowest a branch may run above the soil beneath it.
-  const clearance = Math.max(0.12, crownR * 0.16);
+  // Low enough that crowns reach down toward the ground, not lollipops on stilts.
+  const clearance = Math.max(0.12, crownR * 0.08);
   const px = [];
   const py = [];
   const pz = [];
@@ -595,8 +632,8 @@ function colonizeCrown(options) {
       const horizontal = Math.hypot(nx[n] - crownCenter.x, nz[n] - crownCenter.z);
       // Gravity droops long reaches; the prevailing wind keeps pushing growth.
       a[1] -= arche.droop * (horizontal / crownR) * 0.8 - arche.lift * 0.25;
-      a[0] += PREVAILING.x * flag * 0.3 + (random() - 0.5) * 0.35;
-      a[2] += PREVAILING.z * flag * 0.3 + (random() - 0.5) * 0.35;
+      a[0] += site.lightX * .65 + PREVAILING.x * flag * 0.3 + (random() - 0.5) * 0.35;
+      a[2] += site.lightZ * .65 + PREVAILING.z * flag * 0.3 + (random() - 0.5) * 0.35;
       const length = Math.hypot(a[0], a[1], a[2]) || 1;
       const x = nx[n] + (a[0] / length) * step;
       const z = nz[n] + (a[2] / length) * step;
@@ -638,18 +675,18 @@ function colonizeCrown(options) {
       nz[n] = nz[n] * 0.5 + (nz[p] + nz[c]) * 0.25;
     }
   }
-  // Pipe-model radii: a branch supports the tips above it.
-  const tips = new Array(nx.length).fill(1);
-  const hasChild = new Array(nx.length).fill(false);
-  for (let n = nx.length - 1; n >= 0; n--) {
-    if (parent[n] >= 0) {
-      tips[parent[n]] += tips[n];
-      hasChild[parent[n]] = true;
-    }
-  }
-  // A segment narrows to its thickest child, so stems taper continuously
-  // through every fork instead of stepping down at each node.
-  const radiusFor = (tipCount) => Math.min(baseRadius, baseRadius * 0.2 * Math.pow(tipCount, 0.45));
+  // Light-starved old lower shoots self-prune; retained dead twigs carry
+  // no foliage demand. Demand is summed once from terminal leaf budgets.
+  const hasChild = childCount.map(count => count > 0);
+  const terminal = parent.map((_, n) => {
+    if (hasChild[n] || snag) return 0;
+    const lower = (ny[n] - crownCenter.y) / Math.max(.1, crownR * arche.flatten);
+    const light = site.light * (.65 + Math.max(0, lower) * .35);
+    return age > .45 && lower < -.25 && light < .5 ? 0 : .65 + light * .7;
+  });
+  const tips = foliageDemand(parent, terminal);
+  const referenceDemand = Math.max(1, ...seeds.map((_, n) => tips[n]));
+  const radiusFor = demand => demandRadius(demand, baseRadius, referenceDemand);
   const thickestChild = new Array(nx.length).fill(0);
   for (let n = seeds.length; n < nx.length; n++)
     thickestChild[parent[n]] = Math.max(thickestChild[parent[n]], tips[n]);
@@ -662,14 +699,15 @@ function colonizeCrown(options) {
     const radius = radiusFor(tips[n]);
     const endRadius = hasChild[n] ? radiusFor(thickestChild[n]) : radius * 0.45;
     branch(wood, start, end, radius, bark, endRadius);
-    if (snag || tips[n] > 3) continue;
+    if (tips[n] === 0) wood[wood.length - 1].materialClass = "dead";
+    if (snag || tips[n] === 0 || tips[n] > 2.7) continue;
     // Terminal and near-terminal shoots carry leaf clusters in a golden-angle
     // spiral, sized to the plant's own crown. Each cluster is darkened by its
     // depth into the canopy — ambient occlusion baked at placement, since the
     // generator knows where the crown surface is.
     const direction = end.clone().sub(start).normalize();
     const phase = random() * Math.PI * 2;
-    const count = (detail ? 4 : 3) + (hasChild[n] ? 0 : detail ? 3 : 2);
+    const count = (detail ? 3 : 2) + (hasChild[n] ? 0 : detail ? 3 : 2);
     // Shoots of many small leaves (10–20 cm), not a few giant ones.
     const leafScale =
       (traits.leaf[0] + traits.leaf[1]) *
@@ -1028,6 +1066,7 @@ function growAloe(root, height, random, { wood, leaves, succulents, flowers }) {
       const at = root.clone().lerp(crown, 0.45 + (i / count) * 0.5).addScaledVector(out, height * 0.04);
       const hang = out.clone().multiplyScalar(0.35).add(new THREE.Vector3(0, -1, 0)).normalize();
       organ(succulents, at, hang, out, height * (0.28 + random() * 0.08), dead.clone().multiplyScalar(0.75 + random() * 0.4));
+      succulents[succulents.length - 1].materialClass = "dead";
     }
   }
   const count = 18 + Math.floor(random() * 10);
@@ -1217,6 +1256,7 @@ function growTurf(seed, layout, turf) {
     );
     const size = (0.28 + random() * 0.3) * (1 - dune * 0.2);
     turf.push({
+      id: `${seed}:turf:${i}`, materialClass: dune > 0.5 ? "thatch" : "live",
       position: new THREE.Vector3(x, y - 0.02, z),
       scale: new THREE.Vector3(size, size * (0.8 + random() * 0.6), size),
       rotation: new THREE.Euler((random() - 0.5) * 0.2, random() * 6.28, (random() - 0.5) * 0.2),
@@ -1227,3 +1267,4 @@ function growTurf(seed, layout, turf) {
     });
   }
 }
+

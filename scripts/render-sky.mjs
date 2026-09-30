@@ -12,6 +12,7 @@ import { swellUniform } from "../src/swell.js";
 import { createWaveModes } from "../src/wave-modes.js";
 import { rockLayout, shoreRockData } from "../src/rocks.js";
 import { seededRandom } from "../src/random.js";
+import { archipelagoUniform, ISLAND_SLOTS } from "../src/archipelago.js";
 import { createShoreTextures, createLandTexture } from "../src/shore-textures.js";
 import { landFieldData } from "../src/land-field.js";
 import { createVegetation } from "../src/vegetation.js";
@@ -101,6 +102,13 @@ const foam = effect(gpu, await wgsl("foam.wgsl"), {
 const shore = createShoreTextures(gpu.gpu, shoreRockData(rockLayout(seededRandom(1847))));
 // And the island's reflection field, from the seed's own shoots.
 const land = createLandTexture(gpu.gpu, landFieldData(createVegetation(1847).clusters));
+// The seed's distant islands, as the site bakes them for the sea.
+const islandTable = gpu.gpu.createTexture({
+  size: [ISLAND_SLOTS, 1],
+  format: "rgba32float",
+  usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+});
+gpu.gpu.queue.writeTexture({ texture: islandTable }, new Float32Array(archipelagoUniform(1847).flat()), { bytesPerRow: ISLAND_SLOTS * 16 }, [ISLAND_SLOTS, 1]);
 // No cat in the fixtures: an empty wake.
 const catWake = gpu.gpu.createTexture({
   size: [64, 1],
@@ -131,6 +139,7 @@ const water = effect(
       shoreGrid: shore.grid.createView(),
       landField: land.createView(),
       catWake: catWake.createView(),
+      islandTable: islandTable.createView(),
       skyTable: tableTarget.color,
       filtering: sampler(gpu, {
         minFilter: "linear",

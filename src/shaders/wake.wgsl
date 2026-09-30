@@ -24,7 +24,7 @@ export fn cat_near(p: vec2f, wake: texture_2d<f32>) -> bool {
 // waves (~15 cm) leaving at c, fading by the footprint. Adds to out.
 fn ripple(out: ptr<function, RockSea>, q: vec2f, front: f32, width: f32, amp: f32, k: f32, pixel: f32) {
   let r = max(length(q), 0.001);
-  let y = (r - front) / width;
+  let y = (r - front) / max(width, 0.001);
   if (abs(y) > 3.0) { return; }
   let a = amp * exp(-y * y);
   let keep = exp(-0.65 * (k * pixel) * (k * pixel));
@@ -40,18 +40,20 @@ export fn cat_sea(p: vec2f, pixel: f32, time: f32, wake: texture_2d<f32>) -> Roc
   let body = textureLoad(wake, vec2i(0, 0), 0);
   let motion = textureLoad(wake, vec2i(1, 0), 0);
   let counts = textureLoad(wake, vec2i(2, 0), 0);
-  let speed = motion.x;
-  let radius = motion.z;
+  let speed = max(motion.x, 0.0);
+  let radius = max(motion.z, 0.008);
   var foam = 0.0;
   var bubbles = 0.0;
 
   // The trail, segment by segment from the cat backward.
-  var prev = body.xy;
-  var prev_age = 0.0;
-  let n = min(i32(motion.w), TRAIL);
+  let head = textureLoad(wake, vec2i(3, 0), 0);
+  var prev = select(head.xy, body.xy, body.w > 0.01);
+  var prev_age = select(max(time - head.z, 0.0), 0.0, body.w > 0.01);
+  let n = clamp(i32(motion.w), 0, TRAIL);
   for (var i = 0; i < n; i++) {
     let t = textureLoad(wake, vec2i(3 + i, 0), 0);
     let age = time - t.z;
+    if (age < 0.0 || t.w <= 0.0) { continue; }
     let seg = t.xy - prev;
     let h = clamp(dot(p - prev, seg) / max(dot(seg, seg), 1e-6), 0.0, 1.0);
     let d = length(p - prev - seg * h);
@@ -128,16 +130,16 @@ export fn cat_sea(p: vec2f, pixel: f32, time: f32, wake: texture_2d<f32>) -> Roc
     bubbles = max(bubbles, furrow * 0.8);
     let heap = exp(-max(edge, 0.0) / 0.05) * pace * 0.008 * wet * clamp(-u / 0.04, -1.0, 1.0);
     out.height += heap;
-    out.slope -= normalize(q + 1e-5) * heap / 0.05 * step(0.0, edge);
+    out.slope -= q / max(length(q), 0.001) * heap / 0.05 * step(0.0, edge);
     ripple(&out, q, 0.05 + fract(time * 2.3 + f32(j) * 0.37) * 0.3, 0.05, (0.0015 + 0.003 * pace) * min(paw.z * 20.0, 1.0), 55.0, pixel);
   }
 
   // Splashes: rings running outward and a burst of froth.
-  let m = min(i32(counts.w), 16);
+  let m = clamp(i32(counts.w), 0, 16);
   for (var k = 0; k < m; k++) {
     let s = textureLoad(wake, vec2i(RINGS + k, 0), 0);
     let age = time - s.z;
-    if (age > 3.0) { continue; }
+    if (age < 0.0 || age > 3.0 || s.w <= 0.0) { continue; }
     let q = p - s.xy;
     let front = 0.4 * age;
     ripple(&out, q, front, 0.04 + 0.1 * age, 0.009 * s.w * exp(-age / 1.1) * sqrt(0.1 / (0.1 + front)), 50.0, pixel);
@@ -145,7 +147,8 @@ export fn cat_sea(p: vec2f, pixel: f32, time: f32, wake: texture_2d<f32>) -> Roc
     let r2 = dot(q, q) / (spread * spread);
     let burst = exp(-age / (0.7 + 0.3 * min(s.w, 2.0))) * min(s.w, 1.2) * exp(-r2);
     // Froth pushed out to the first crest as it leaves.
-    let rim = exp(-age / 0.5) * s.w * exp(-pow((sqrt(dot(q, q)) - front) / 0.04, 2.0)) * 0.5;
+    let rim_distance = (length(q) - front) / 0.04;
+    let rim = exp(-age / 0.5) * s.w * exp(-rim_distance * rim_distance) * 0.5;
     foam = max(foam, max(burst * 0.9, rim));
     bubbles = max(bubbles, burst);
   }

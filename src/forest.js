@@ -14,6 +14,8 @@ import { createSurf, SWASH_GLSL } from "./surf.js";
 import { swellUniform } from "./swell.js";
 import { rockLayout, rockGeometry, shoreRockData, ROCK_VARIANTS } from "./rocks.js";
 import { landFieldData } from "./land-field.js";
+import { MATERIAL_HEX } from "./material-palette.js";
+import { groundDetailData, groundCover } from "./ground-detail.js";
 import {
   finish,
   tuftGeometry,
@@ -53,15 +55,20 @@ export function createForest(scene, seed, { light = false } = {}) {
     shadowCentre: { value: new THREE.Vector3() },
     // The sky dome's radiance as nine SH coefficients (landscape.js).
     skySH: { value: Array.from({ length: 9 }, () => new THREE.Vector3()) },
+    rainWetness: { value: 0 },
+    rainFilm: { value: 0 },
   };
   // `?perf` QA: the console can read and tweak the shared lighting uniforms.
   scene.userData.forestShared = shared;
   const random = seededRandom(seed);
-  const { wood: trunks, leaves, clusters, flowers, turf, fronds, succulents, needles, reeds, layout } = createVegetation(seed);
+  const { wood: trunks, leaves, clusters, flowers, turf, fronds, succulents, needles, reeds, layout, habitat, producers = [] } = createVegetation(seed);
   const rocks = addRocks(scene, random, shared);
   const surf = createSurf(scene, rocks, shared, { light });
   const obstacles = obstaclesFor(layout, rocks);
-  addGround(scene, shared, occludersFor(layout, rocks), coverFor(layout, turf));
+  const groundOccluders = occludersFor(layout, rocks);
+  const groundCover = coverFor(layout, turf);
+  addGround(scene, shared, groundOccluders, groundCover);
+  addGroundDetails(scene, shared, groundDetailData(seed, producers, { light }), groundOccluders);
   // Sky occlusion for every plant part the generator did not bake one for:
   // the canopy field at its foot (trunks feel less of it than the grass).
   const visible = occlusionField(occludersFor(layout, []));
@@ -82,15 +89,30 @@ export function createForest(scene, seed, { light = false } = {}) {
   // Unit cylinders; each instance's taper narrows the top to where the next
   // segment starts. Wind bends each short segment as a whole, so one ring of
   // vertices per end is enough (the old two-ring tube cost 2.3× the triangles).
+  // Twigs under ~1.2 cm radius (almost half the segments, and mostly hidden
+  // in the leaves) are square in section: a few pixels wide, a seven-sided
+  // tube reads no rounder, and it spent 14 triangles on each.
+  const TWIG = 0.012;
   addInstances(
     scene,
     new THREE.CylinderGeometry(1, 1, 1, 7, 1, true),
     woodMaterial,
-    trunks,
+    trunks.filter((w) => w.scale.x >= TWIG),
     true,
     [
       { geometry: new THREE.CylinderGeometry(1, 1, 1, 5, 1, true), keep: (w) => w.scale.x > 0.03, distance: 38 },
       { geometry: new THREE.CylinderGeometry(1, 1, 1, 3, 1, true), keep: (w) => w.scale.x > 0.07, distance: 85 },
+    ],
+  );
+  addInstances(
+    scene,
+    new THREE.CylinderGeometry(1, 1, 1, 4, 1, true),
+    woodMaterial,
+    trunks.filter((w) => w.scale.x < TWIG),
+    true,
+    [
+      { geometry: new THREE.CylinderGeometry(1, 1, 1, 3, 1, true), keep: (w) => w.scale.x > 0.006, distance: 18 },
+      { keep: () => false, distance: 38 },
     ],
   );
   const clusterMaterial = new THREE.MeshStandardMaterial({
@@ -109,11 +131,11 @@ export function createForest(scene, seed, { light = false } = {}) {
   // pixels: the layer was bound by vertex work on pixel-sized triangles, not
   // by fill. Far levels keep a half, then a third, of the shoots (a stable
   // per-shoot choice), grown so the canopy covers the same area. Near shoots
-  // are 14 small folded leaves (84 triangles, 98 vertices; was 6 big ones at
-  // 120 and 102), only in the chunks round the cat: past ~17 m a leaf is a
+  // are 10 small folded leaves (60 triangles, 70 vertices; 14 cost 84 and
+  // the extra four were hidden by their neighbours), only round the cat: past ~17 m a leaf is a
   // few pixels and its folds are invisible, and full shoots out to 25 m cost
   // a millisecond. Then 7, 3 and 1 larger leaf cards (28, 12, 4 vertices).
-  addInstances(scene, shootGeometry(14, 1), clusterMaterial, clusters, true, [
+  addInstances(scene, shootGeometry(10, 1), clusterMaterial, clusters, true, [
     { geometry: shootGeometry(7, 0), grow: 1.12, distance: 6 },
     { geometry: shootGeometry(3, 0), grow: 1.35 * Math.SQRT2, keep: (c) => shootShare(c) < 0.5, distance: 52 },
     { geometry: shootGeometry(1, 0), grow: 1.9 * Math.sqrt(3), keep: (c) => shootShare(c) < 0.34, distance: 95 },
@@ -191,6 +213,7 @@ export function createForest(scene, seed, { light = false } = {}) {
   addInstances(scene, spikeGeometry(), petalMaterial, flowers.spike, true, [{ geometry: spikeGeometry(14), distance: 31 }, { keep: () => false, distance: 84 }], { chunk: 40 });
   addInstances(scene, white(bellGeometry()), petalMaterial, flowers.bell, false, { keep: () => false, distance: 31 }, { chunk: 40 });
   return {
+    habitat,
     // Trunks and boulders, for the cat to walk around (or climb).
     obstacles,
     // The boulders the sea touches, for the water pass (rocks.js).
@@ -219,6 +242,10 @@ export function createForest(scene, seed, { light = false } = {}) {
     },
     updateNight(night) {
       shared.nightGlow.value = night;
+    },
+    updateWeather(surface) {
+      shared.rainWetness.value = surface?.wetness ?? 0;
+      shared.rainFilm.value = surface?.film ?? 0;
     },
     updateFoamLight(rgb) {
       shared.foamLight.value.setRGB(rgb[0], rgb[1], rgb[2]);
@@ -282,9 +309,18 @@ vec3 windOffset(vec3 p) {
   vGust = gust;
   float sway = sin(breezeTime * 0.8 + p.x * 0.11 + p.z * 0.09);
   float bob = sin(breezeTime * 2.3 + p.x * 0.9 + p.z * 0.7 + h * 0.6);
-  float amp = breezeStrength * (0.25 + 0.75 * gust);
-  vec3 offset = vec3(breezeDir.x, 0.0, breezeDir.y) * ((sway * 0.7 + gust * 0.6) * h * h * 0.0035 * amp)
-    + vec3(breezeDir.x, -0.25, breezeDir.y) * (bob * h * 0.012 * amp);
+  // A gust front carries real weight: crowns heel over as it arrives and
+  // rock back behind it. Soft caps keep the lean to tens of centimetres (a
+  // tall crown a little more), so nothing whips unnaturally; every term is a
+  // smooth function of position, so the joints stay joined.
+  float amp = breezeStrength * (0.25 + 0.75 * gust) * (1.0 + gust * 1.5);
+  float leanCap = 0.12 + h * 0.02;
+  float lean = (sway * 0.7 + gust * 0.6) * h * h * 0.009 * amp;
+  lean = leanCap * tanh(lean / leanCap);
+  float bobAmp = bob * h * 0.02 * amp;
+  bobAmp = 0.1 * tanh(bobAmp / 0.1);
+  vec3 offset = vec3(breezeDir.x, 0.0, breezeDir.y) * lean
+    + vec3(breezeDir.x, -0.25, breezeDir.y) * bobAmp;
   #ifdef PLIANT
     float blade = h * h / ( 0.25 + h ) * ( 1.0 - smoothstep( 1.2, 2.6, h ) );
     float lash = sin( breezeTime * 2.7 + p.x * 1.3 + p.z * 0.9 ) * ( 0.15 + 0.3 * gust );
@@ -314,6 +350,24 @@ const PUSH_GLSL = /* glsl */ `
   float push = catPush.w * ( 1.0 - smoothstep( reach * 0.3, reach, d ) ) * smoothstep( 0.0, 0.25, above ) * ( 1.0 - smoothstep( 0.35, 0.65, above ) );
   mvPosition.xz += away / d * push * reach * 0.55;
   mvPosition.y -= push * above * 0.35;
+}`;
+
+// Foliage the camera noses into folds out of its way: leaves and blades
+// within about a metre of the eye close up toward their own stem or base,
+// the way a hand pushed into a bush parts it, instead of slicing through
+// the lens as flat green planes. No discard: the geometry just moves.
+const FOLD_GLSL = /* glsl */ `
+{
+  vec3 foldWorld = ( modelMatrix * vec4( mvPosition.xyz, 1.0 ) ).xyz;
+  float fold = 1.0 - smoothstep( 0.3, 1.1, length( foldWorld - cameraPosition ) );
+  if ( fold > 0.0 ) {
+    #ifdef USE_INSTANCING
+      vec3 foldAnchor = instanceMatrix[3].xyz;
+    #else
+      vec3 foldAnchor = mvPosition.xyz;
+    #endif
+    mvPosition.xyz = mix( mvPosition.xyz, foldAnchor, fold * 0.94 );
+  }
 }`;
 
 const PROJECT_GLSL = /* glsl */ `
@@ -353,8 +407,8 @@ function occlusionGlsl(foliage) {
     reflectedLight.directSpecular *= farShade;
     ${
       foliage
-        ? `vec3 canopyGreen = diffuseColor.rgb * vec3( 2.0, 2.25, 1.45 );
-    reflectedLight.indirectDiffuse += foamLight * canopyGreen * diffuseColor.rgb * vShade * 0.5;`
+        ? `vec3 canopyReflectance = vec3( 0.13, 0.20, 0.07 );
+    reflectedLight.indirectDiffuse += foamLight * canopyReflectance * diffuseColor.rgb * vShade * 0.25;`
         : ""
     }
   }
@@ -401,14 +455,14 @@ const FOLIAGE_GLSL = /* glsl */ `
   // it comes out deeper and yellower: red and blue absorbed on the way.
   vec3 transmit = min( diffuseColor.rgb * vec3( 1.0, 1.25, 0.45 ), vec3( 0.3 ) );
   reflectedLight.directDiffuse += leafSun * transmit * RECIPROCAL_PI
-    * ( behind * ( 0.85 + forward * 1.6 ) + forward * 0.15 );
+    * behind * ( 0.55 + forward * 0.4 );
   // Glossy leaves mirror the sky (SKY_SH_GLSL). Deep in a crown the leaves
-  // around each one hide most of it (vCrownAO), and duller organs (grass
+  // around each one hide most of it (canopyShade), and duller organs (grass
   // blades) reflect less: SHEEN is relative to a leaf's 0.6.
-  reflectedLight.indirectSpecular *= vCrownAO * vCrownAO * ( SHEEN / 0.6 );
+  reflectedLight.indirectSpecular *= SHEEN / 0.6;
   // Skylight through the canopy: undersides glow faintly green.
   reflectedLight.indirectDiffuse += transmit / max( diffuseColor.rgb, vec3( 0.001 ) ) * reflectedLight.indirectDiffuse
-    * clamp( -normal.y * 0.5 + 0.5, 0.0, 1.0 ) * 0.5;
+    * clamp( -normal.y * 0.5 + 0.5, 0.0, 1.0 ) * 0.25;
   // A thin leaf can only mirror the sun from its sunlit face: lit from
   // behind, the light reaches the eye by transmission alone. Two-sided
   // shading otherwise lets three's sun specular glare off the shaded face,
@@ -436,6 +490,14 @@ const FOLIAGE_GLSL = /* glsl */ `
 // grain is about a pixel; they twinkle as the eye moves.
 const SAND_GLINT_GLSL = /* glsl */ `
 #include <lights_fragment_end>
+// A bush is a tangle of twigs and small leaves: its sheen is hidden in its
+// own shade, and a dark shrub must not mirror the blue sky grey.
+// Lit as foliage, not paint: a soft leaf sheen stays, and skylight through
+// the outer leaves tints it green.
+reflectedLight.indirectSpecular *= 1.0 - lowCover * 0.5;
+reflectedLight.directSpecular *= 1.0 - lowCover * 0.5;
+reflectedLight.indirectDiffuse *= 1.0 + lowCover * vec3( 0.1, 0.35, 0.0 );
+reflectedLight.directDiffuse += leafSun * diffuseColor.rgb * vec3( 0.2, 0.3, 0.08 ) * lowCover * RECIPROCAL_PI;
 if ( sandGlint > 0.01 && dHash( glintCell + 0.37 ) < 0.1 ) {
   vec3 tilt = vec3( dHash( glintCell + 1.1 ), dHash( glintCell + 2.3 ), dHash( glintCell + 3.7 ) ) - 0.5;
   vec3 facet = normalize( normal + tilt * 0.9 );
@@ -561,6 +623,125 @@ if ( grassy > 0.02 ) {
   diffuseColor.rgb *= mix( 1.0, 0.72 + strokes * 0.3 + tufts * 0.3, cover );
   diffuseColor.rgb *= 1.0 + cover * 0.25 * ( vGroundGust - 0.55 ) * breezeStrength;
 }
+// Strandveld and fynbos scrub over the hills (vGroundMask2.x): bush bodies
+// about a metre across built of 30 cm clumps, dark grey-green (real fynbos
+// is 5–10% albedo) with bronze restio stands, domed by the bump so each
+// catches the sun on one side, the soil between them darkened as if by
+// their shade. Close to the eye, where tufts and shrubs are real geometry,
+// the painted bushes flatten into a low mat. A gust turns up the paler
+// undersides of the leaves in travelling bands, like the sward's.
+float scrub = vGroundMask2.x;
+float sourfig = vGroundMask2.y;
+float bushCover = 0.0;
+float bushDome = 0.0;
+float scrubFar = smoothstep( 0.0012, 0.005, px );
+// Painted cover can only ever look flat up close: within ~6–10 m of the eye
+// it thins away to the plain ground, where tufts and shrubs are geometry.
+float coverNear = smoothstep( 5.5, 11.0, length( vViewPosition ) );
+if ( scrub > 0.02 ) {
+  // Individual bushes: a cellular field, one bush per 1.25 m cell (or a gap),
+  // each its own size, species and tone, so a hillside reads as a mosaic of
+  // rounded shrubs with dark crevices between them, not a painted blob.
+  float body = dNoise( coast * 0.35 + 13.0 ) * 0.6 + dNoise( coast * 0.9 - 7.0 ) * 0.4;
+  float density = clamp( scrub * ( 0.3 + body * 0.85 ), 0.0, 0.92 );
+  // Each bush throws a shadow downsun of it, as a half-metre shrub would:
+  // the cue that stands it up off the slope.
+  vec3 sunW = inverseTransformDirection( sunDirView, viewMatrix );
+  vec2 sunC = vec2( sunW.x, -sunW.z );
+  vec2 throwC = -sunC / max( sunW.y, 0.3 ) * 0.36;
+  float c1 = mix( dNoise( coast * 4.2 + 2.0 ), 0.5, smoothstep( 0.25, 0.6, px * 4.2 ) );
+  float c2 = mix( dNoise( mat2( 0.8, -0.6, 0.6, 0.8 ) * coast * 9.5 + 9.0 ), 0.5, smoothstep( 0.25, 0.6, px * 9.5 ) );
+  float c3 = mix( dNoise( coast * 21.0 + 5.0 ), 0.5, smoothstep( 0.25, 0.6, px * 21.0 ) );
+  float c4 = mix( dNoise( coast * 47.0 + 1.0 ), 0.5, smoothstep( 0.25, 0.6, px * 47.0 ) );
+  // Lobes: a bush's outline bulges and bites at the scale of its clumps.
+  float lobe = ( dNoise( coast * 2.2 + 17.0 ) - 0.5 ) * 0.5 + ( c1 - 0.5 ) * 0.3;
+  vec2 bg = coast * 0.8;
+  vec2 bcell = floor( bg );
+  vec2 bf = fract( bg );
+  float d1 = 9.0;
+  float edgeD = 9.0;
+  float shadowD = 9.0;
+  float bushSize = 1.0;
+  vec2 bid = vec2( 0.0 );
+  for ( int j = -1; j <= 1; j++ ) for ( int i = -1; i <= 1; i++ ) {
+    vec2 o = vec2( float( i ), float( j ) );
+    vec2 cid = bcell + o;
+    if ( dHash( cid + 2.2 ) > density ) continue;
+    float rad = 0.45 + 0.42 * dHash( cid + 8.1 );
+    vec2 c = o + 0.2 + 0.6 * vec2( dHash( cid + 1.7 ), dHash( cid + 4.3 ) ) - bf;
+    vec2 squash = vec2( 1.0, 0.8 + 0.4 * dHash( cid + 6.6 ) );
+    float d = length( c * squash ) / rad + lobe;
+    shadowD = min( shadowD, length( ( c + throwC * rad ) * squash ) / rad + lobe );
+    edgeD = min( edgeD, d );
+    if ( d < d1 ) { d1 = d; bid = cid; bushSize = rad; }
+  }
+  // Clumps, not blobs: several octaves break each outline, and the last
+  // 20–40 cm is a sparse fringe of sprigs with sand and litter showing
+  // between them. Every edge is antialiased by its own screen derivative.
+  float ragged = d1 + ( c1 - 0.5 ) * 0.4 + ( c2 - 0.5 ) * 0.3 + ( c3 - 0.5 ) * 0.2;
+  float fringe = 0.3 / ( 1.25 * bushSize );
+  float sprigs = c3 * 0.55 + c4 * 0.45;
+  float edgeAt = 1.0 - fringe * smoothstep( 0.35, 0.75, sprigs );
+  float aa = fwidth( ragged ) * 1.5 + 0.02;
+  bushCover = ( 1.0 - smoothstep( edgeAt - fringe * 0.5 - aa, edgeAt + aa, ragged ) ) * smoothstep( 0.02, 0.15, scrub ) * coverNear;
+  float dome = sqrt( max( 0.0, 1.0 - d1 * d1 ) );
+  // Clumps with dark hollows between them, sprigs within the clumps.
+  // Up close, single sprigs of small leaves with dark gaps between them.
+  float sprig = mix( smoothstep( 0.38, 0.62, c4 ), 0.5, smoothstep( 0.1, 0.3, px * 47.0 ) );
+  float speck = smoothstep( 0.3, 0.7, c1 ) * 0.36 + c2 * 0.26 + smoothstep( 0.3, 0.7, c3 ) * 0.18 + sprig * 0.2;
+  // Species by bush: olive, dark bottle, grey-green, bronze restio.
+  float kind = dHash( bid + 5.5 );
+  vec3 bush = kind < 0.38 ? vec3( 0.06, 0.08, 0.032 )
+    : kind < 0.66 ? vec3( 0.042, 0.062, 0.027 )
+    : kind < 0.86 ? vec3( 0.068, 0.076, 0.052 )
+    : vec3( 0.085, 0.07, 0.04 );
+  bush *= 0.8 + 0.4 * dHash( bid + 9.9 );
+  // Darker low on the dome, in the hollows and on the side away from the
+  // sun; outer sprigs catch the light. A gust turns up paler undersides.
+  bush *= ( 0.6 + 0.4 * dome ) * ( 0.5 + speck * 1.0 );
+  bush *= 1.0 + ( vGroundGust - 0.55 ) * 0.3 * breezeStrength;
+  // The soil round each bush lies in its shade, and in its cast shadow.
+  float scrubOn = smoothstep( 0.02, 0.15, scrub );
+  float rim = ( 1.0 - smoothstep( 0.9, 1.5, edgeD ) ) * ( 1.0 - bushCover ) * coverNear;
+  float castShade = ( 1.0 - smoothstep( 0.8, 1.05, shadowD ) ) * ( 1.0 - bushCover ) * smoothstep( 0.05, 0.25, sunW.y ) * coverNear;
+  diffuseColor.rgb *= ( 1.0 - rim * 0.3 * scrubOn ) * ( 1.0 - castShade * 0.4 * scrubOn );
+  diffuseColor.rgb = mix( diffuseColor.rgb, bush, bushCover );
+  sandGlint *= 1.0 - bushCover;
+  // Relief for the bump: each bush a dome that lights on its sunward side,
+  // its clumps and sprigs in smaller relief.
+  // Relief rises over a band inside the outline, not in a step at it: a
+  // step there beaded every edge with spiky bump normals.
+  float reliefCover = ( 1.0 - smoothstep( 0.5, 1.0, ragged ) ) * scrubOn * coverNear;
+  bushDome = reliefCover * ( dome * bushSize * 0.18 * mix( 0.5, 1.0, scrubFar ) + c1 * 0.03 + c2 * 0.015 + c3 * 0.006 + sprig * 0.003 );
+}
+// Sour fig on the dune band: fleshy finger leaves in creeping mats, green
+// going red-bronze where they are stressed, starred with magenta flowers.
+float figCover = 0.0;
+float figRelief = 0.0;
+if ( sourfig > 0.02 ) {
+  // Rosettes of finger leaves with dark gaps between them.
+  float f1 = mix( smoothstep( 0.35, 0.65, dNoise( coast * 16.0 + 4.0 ) ), 0.5, smoothstep( 0.2, 0.5, px * 16.0 ) );
+  float f2 = mix( smoothstep( 0.4, 0.6, dNoise( coast * 37.0 - 2.0 ) ), 0.5, smoothstep( 0.15, 0.4, px * 37.0 ) );
+  float fingers = f1 * 0.6 + f2 * 0.4;
+  float lobes = mix( dNoise( coast * 5.0 + 1.0 ), 0.5, smoothstep( 0.25, 0.6, px * 5.0 ) );
+  float matN = dNoise( coast * 0.8 + 21.0 ) * 0.62 + dNoise( coast * 2.1 + 3.0 ) * 0.26 + lobes * 0.12;
+  float figEdge = mix( 0.84, 0.66, sourfig );
+  float figN = matN + ( fingers - 0.5 ) * 0.08 + ( lobes - 0.5 ) * 0.06;
+  float figAA = fwidth( figN ) * 1.5 + 0.01;
+  figCover = smoothstep( figEdge - figAA, figEdge + 0.06 + figAA, figN ) * ( 1.0 - bushCover ) * smoothstep( 0.02, 0.2, sourfig ) * coverNear;
+  vec3 fig = mix( vec3( 0.045, 0.07, 0.024 ), vec3( 0.1, 0.052, 0.03 ), smoothstep( 0.62, 0.85, dNoise( coast * 0.9 + 8.0 ) ) );
+  fig *= ( 0.35 + fingers * 1.1 ) * ( 0.6 + lobes * 0.8 ) * 0.85;
+  vec2 fg = coast * 6.0;
+  vec2 fid = floor( fg );
+  float bloom = step( 0.92, dHash( fid + 17.0 ) ) * ( 1.0 - smoothstep( 0.03, 0.05, length( fract( fg ) - 0.3 - 0.4 * vec2( dHash( fid + 2.0 ), dHash( fid + 5.0 ) ) ) ) );
+  bloom = mix( bloom, 0.015, smoothstep( 0.006, 0.02, px ) );
+  fig = mix( fig, vec3( 0.5, 0.05, 0.28 ), bloom );
+  diffuseColor.rgb *= 1.0 - smoothstep( figEdge - 0.1, figEdge, matN ) * ( 1.0 - figCover ) * 0.15 * sourfig * coverNear;
+  diffuseColor.rgb = mix( diffuseColor.rgb, fig, figCover );
+  sandGlint *= 1.0 - figCover;
+  figRelief = smoothstep( figEdge - 0.04, figEdge + 0.12, figN ) * ( 1.0 - bushCover ) * ( 0.012 + fingers * 0.008 ) * coverNear;
+}
+float lowCover = max( bushCover, figCover );
 // Cat-scale clutter, one object per cell: pebbles and shells on the sand
 // (thickest along the wrack line, with stranded kelp), fallen leaves and
 // twigs under the trees. It fades out where an object would span less than
@@ -585,7 +766,7 @@ if ( nearDetail > 0.01 ) {
       float shell = step( 0.78, dHash( id + 2.2 ) );
       vec2 e = q / ( size * vec2( 1.0, mix( 0.72, 0.85, shell ) ) );
       float d = length( e );
-      float cover = ( 1.0 - smoothstep( 0.82, 1.0, d ) ) * sandy * nearDetail;
+      float cover = ( 1.0 - smoothstep( 0.82, 1.0, d ) ) * sandy * nearDetail * ( 1.0 - lowCover );
       // Beach pebbles: granite greys, iron browns, the odd pale quartz.
       float kind = dHash( id + 4.4 );
       vec3 pebble = kind < 0.45 ? mix( vec3( 0.22, 0.21, 0.2 ), vec3( 0.4, 0.38, 0.35 ), dHash( id + 8.8 ) )
@@ -604,7 +785,7 @@ if ( nearDetail > 0.01 ) {
     }
     // Stranded kelp in drifts along the wrack line.
   }
-  float floorMix = max( litter, smoothstep( 9.0, 15.0, inland ) * 0.35 ) * ( 1.0 - rocky ) * ( 1.0 - grassy * 0.6 ) * nearDetail;
+  float floorMix = max( litter, smoothstep( 9.0, 15.0, inland ) * 0.35 ) * ( 1.0 - rocky ) * ( 1.0 - grassy * 0.6 ) * ( 1.0 - lowCover ) * nearDetail;
   if ( floorMix > 0.02 ) {
     // Fallen leaves: pointed ovals, veined, in autumn browns to fresh green.
     vec2 g = coast * 13.0;
@@ -618,7 +799,7 @@ if ( nearDetail > 0.01 ) {
       float halfWidth = len * 0.42 * ( 1.0 - pow( abs( q.x ) / len, 2.0 ) );
       float leaf = ( 1.0 - smoothstep( halfWidth * 0.8, halfWidth, abs( q.y ) ) ) * step( abs( q.x ), len ) * floorMix;
       float vein = 1.0 - smoothstep( 0.0, 0.012, abs( q.y ) ) * 0.25;
-      vec3 leafColour = mix( mix( vec3( 0.36, 0.2, 0.07 ), vec3( 0.55, 0.36, 0.1 ), dHash( id + 4.8 ) ), vec3( 0.25, 0.3, 0.1 ), step( 0.8, dHash( id + 9.9 ) ) );
+      vec3 leafColour = mix( mix( vec3( 0.12, 0.087, 0.055 ), vec3( 0.25, 0.21, 0.15 ), dHash( id + 4.8 ) ), vec3( 0.11, 0.14, 0.07 ), step( 0.92, dHash( id + 9.9 ) ) );
       diffuseColor.rgb = mix( diffuseColor.rgb, leafColour * vein * ( 0.8 + grain * 0.3 ), leaf * 0.9 );
       clutterHeight += leaf * 0.002;
     }
@@ -638,8 +819,10 @@ if ( nearDetail > 0.01 ) {
     }
   }
 }
-float detailHeight = grain * 0.004 + ripple * 0.012 * dry * ( 1.0 - grassy ) + mottled * 0.03 * ( 1.0 - wet ) + rocky * strata * 0.08 + clutterHeight + sward * 0.02;
-float detailRoughness = mix( mix( mix( 0.95, 0.9, rocky ), 0.28, wet ), 0.35, clutterGloss );
+float detailHeight = grain * 0.004 + ripple * 0.012 * dry * ( 1.0 - grassy ) * ( 1.0 - lowCover ) + mottled * 0.03 * ( 1.0 - wet ) + rocky * strata * 0.08 + clutterHeight + sward * 0.02
+  + bushDome + figRelief;
+float detailRoughness = mix( mix( mix( mix( 0.95, 0.9, rocky ), 0.8, bushCover ), 0.28, wet ), 0.35, clutterGloss );
+detailRoughness = mix( detailRoughness, 0.55, figCover );
 // The swash (surf.js, on the sea's clock): each bore's film runs up the sand
 // and drains back, froth at its front and lace left in the backwash, little
 // bubbles popping in it, the swash mark at the top, and sand that stays dark
@@ -649,16 +832,16 @@ float swashCover = 0.0;
 float swashGlow = 0.0;
 if ( inland < 4.5 ) {
   float along = shoreAlong( coast );
-  vec4 sw = swash( along, inland, breezeTime );
-  swashFilm = sw.x;
   float pixel = length( fwidth( coast ) );
+  vec4 sw = swash( along, inland, breezeTime, pixel );
+  swashFilm = sw.x;
   swashCover = swashFoam( vec2( along * 0.7, inland ), sw.y, breezeTime, pixel );
   // Bubbles ride in the froth and just behind the front, and dot the film.
   vec2 bubbles = swashBubbles( coast, breezeTime, pixel, smoothstep( 0.04, 0.35, sw.y + sw.x * 0.12 ) );
   // Sand the swash has soaked darkens like the band below it, no further:
   // a few centimetres of clear film over it barely absorb, and only tint
   // it toward aqua where the film thickens behind the front.
-  diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.6, 0.6, 0.58 ), sw.z * ( 1.0 - wet ) * 0.85 );
+  diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.55, 0.55, 0.53 ), sw.z * ( 1.0 - wet ) * 0.9 );
   diffuseColor.rgb *= mix( vec3( 1.0 ), vec3( 0.9, 0.98, 1.0 ), swashFilm * smoothstep( 0.0, 0.8, sw.w ) );
   swashCover = max( swashCover, bubbles.x );
   // The crisp white roll of froth at the bore's leading edge. It rides the
@@ -685,8 +868,13 @@ if ( inland < 4.5 ) {
   // into moving sparkles. Only where a pixel resolves them.
   float nearFilm = swashFilm * ( 1.0 - smoothstep( 0.01, 0.04, pixel ) );
   if ( nearFilm > 0.0 ) detailHeight += nearFilm * dNoise( vec2( along * 6.0, inland * 9.0 + breezeTime * 1.3 ) ) * 0.0025;
-  detailHeight += lace * 0.004;
-  detailRoughness = mix( detailRoughness, 0.18, sw.z );
+  // No relief from the lace: its threads are near a pixel wide, and the
+  // derivative bump turned them into stair-stepped dashes on the mirror.
+  // Freshly drained sand is glassy for a few seconds (a film in the pores
+  // mirrors the sky), then dulls as it drains while staying dark.
+  float glassy = sw.z * sw.z * sw.z * sw.z;
+  detailRoughness = mix( detailRoughness, 0.25, sw.z );
+  detailRoughness = mix( detailRoughness, 0.07, glassy );
   detailRoughness = mix( detailRoughness, 0.04, swashFilm * ( 1.0 - swashCover ) );
   // Froth is a rough scatterer, not a mirror: only its bubbles glint.
   detailRoughness = mix( detailRoughness, 0.7, swashCover );
@@ -724,61 +912,65 @@ if ( footprint < 0.02 ) {
 diffuseColor.rgb *= 0.66 + macro * 0.6 + ( mid - 0.5 ) * 0.24 + ( relief - 0.5 ) * 0.12;
 // Iron-oxide staining: warm streaks drawn down the flanks from above.
 float iron = smoothstep( 0.52, 0.78, dNoise3( vec3( q.x * 1.3, q.y * 0.3, q.z * 1.3 ) + 3.0 ) ) * smoothstep( 0.35, 0.65, macro );
-diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 1.3, 0.98, 0.72 ), iron * 0.55 );
+diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 1.3, 0.98, 0.72 ), iron * 0.45 );
+// Dark water streaks: rain draining off the crown leaves grey-black runs of
+// cyanobacteria down the steep flanks, a hand wide, ragged at the ends.
+float drip = smoothstep( 0.56, 0.86, dNoise3( vec3( q.x * 2.1 + q.z * 1.5, q.y * 0.22, q.z * 2.1 - q.x * 1.5 ) + 8.0 ) + ( mid - 0.5 ) * 0.2 )
+  * ( 1.0 - smoothstep( 0.35, 0.8, up ) );
+diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.6, 0.6, 0.6 ), drip * 0.5 );
 // Patina: undersides and hollows darken where rain and light don't reach.
 diffuseColor.rgb *= mix( 0.72, 1.0, smoothstep( 0.0, 0.5, up + mid * 0.3 ) );
 // Joint cracks and exfoliation seams: thin dark lines, faded with distance.
 float crackWidth = 0.0035 + footprint * 0.6;
 float seam = 1.0 - smoothstep( 0.0, crackWidth, abs( dNoise3( q * 0.8 + 11.0 ) + ( mid - 0.5 ) * 0.08 - 0.5 ) );
-seam *= ( 1.0 - smoothstep( 0.015, 0.04, footprint ) ) * smoothstep( 0.5, 0.62, macro * 0.7 + mid * 0.3 ) * smoothstep( 0.3, 0.6, relief + mid * 0.3 );
-diffuseColor.rgb *= 1.0 - seam * 0.3;
+// Broken into short runs, not endless arcs.
+seam *= smoothstep( 0.52, 0.68, dNoise3( q * 2.3 + 3.0 ) ) * ( 1.0 - smoothstep( 0.015, 0.04, footprint ) ) * smoothstep( 0.5, 0.62, macro * 0.7 + mid * 0.3 ) * smoothstep( 0.3, 0.6, relief + mid * 0.3 );
+diffuseColor.rgb *= 1.0 - seam * 0.16;
 // Grain: coarse porphyritic granite, feldspar crystals a centimetre or two.
 float grainFade = 1.0 - smoothstep( 0.004, 0.012, footprint );
 float feldspar = 0.0;
 float biotite = 0.0;
 float quartz = 0.0;
 if ( grainFade > 0.01 ) {
-  feldspar = smoothstep( 0.58, 0.72, dNoise3( q * 38.0 ) ) * grainFade;
-  quartz = smoothstep( 0.6, 0.75, dNoise3( q * 61.0 + 4.0 ) ) * grainFade;
-  biotite = smoothstep( 0.7, 0.8, dNoise3( q * 110.0 + 9.0 ) ) * grainFade;
-  diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 1.32, 1.22, 1.12 ), feldspar );
-  diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.82, 0.84, 0.88 ), quartz );
-  diffuseColor.rgb *= 1.0 - biotite * 0.7;
+  // Soft thresholds: weathered crystals blur into each other; hard ones
+  // read as a printed camouflage pattern.
+  // Two rotated lattices averaged: one alone leaves square crystals.
+  float f2 = 0.5 + ( dNoise3( q * 38.0 ) + dNoise3( turn3 * q * 38.0 + 1.3 ) - 1.0 ) * 0.85;
+  float b2 = 0.5 + ( dNoise3( q * 150.0 + 9.0 ) + dNoise3( turn3 * q * 131.0 + 2.1 ) - 1.0 ) * 0.85;
+  feldspar = smoothstep( 0.5, 0.8, f2 ) * grainFade;
+  quartz = smoothstep( 0.55, 0.82, dNoise3( turn3 * q * 61.0 + 4.0 ) ) * grainFade;
+  biotite = smoothstep( 0.64, 0.82, b2 ) * grainFade * ( 1.0 - smoothstep( 0.2, 0.5, footprint * 150.0 ) );
+  diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 1.09, 1.07, 1.04 ), feldspar );
+  diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.86, 0.88, 0.91 ), quartz );
+  diffuseColor.rgb *= 1.0 - biotite * 0.4;
 }
 // Far away the grain's mean: the crystals lighten the rock a little overall.
-diffuseColor.rgb *= mix( 1.04, 1.0, grainFade );
+diffuseColor.rgb *= mix( 1.03, 1.0, grainFade );
 // The shore's zones, by height above the sea.
 float y = q.y + ( mid - 0.5 ) * 0.25;
-// Lichen crusts above the spray: grey-green rosettes, orange Xanthoria.
-// Crusts: ragged-edged patches a hand or two across. Rosettes: round
-// orange colonies a few centimetres wide, scattered and clustered where the
-// crusts are, each its own size; they average to a faint tint far off.
+// Lichen crusts above the spray: grey-green crusts and orange Xanthoria.
+// Crusts: ragged-edged patches a hand or two across. Xanthoria grows in
+// lobed, fuzzy-edged colonies where birds perch and the crusts are, each
+// thinning at its margin; far off they average to a faint warm tint.
 float lichenZone = smoothstep( 0.9, 1.6, y ) * smoothstep( 0.3, 0.8, up );
 float lichen = 0.0;
 float orange = 0.0;
+float fray = 0.5;
 if ( lichenZone > 0.01 ) {
   float rosette = mid * 0.7 + macro * 0.3;
-  float fray = mix( dNoise3( q * 17.0 ), 0.5, smoothstep( 0.2, 0.5, footprint * 17.0 ) );
-  lichen = smoothstep( 0.6, 0.64, rosette + ( fray - 0.5 ) * 0.16 ) * lichenZone;
+  fray = mix( dNoise3( q * 17.0 ), 0.5, smoothstep( 0.2, 0.5, footprint * 17.0 ) );
+  lichen = smoothstep( 0.57, 0.66, rosette + ( fray - 0.5 ) * 0.16 ) * lichenZone;
   float colonies = smoothstep( 0.45, 0.75, rosette ) * lichenZone;
-  if ( footprint < 0.03 ) {
-    vec2 g = coast * 11.0 + q.y * 2.0;
-    vec2 cell = floor( g );
-    vec2 f = fract( g );
-    for ( int j = -1; j <= 1; j++ ) for ( int i = -1; i <= 1; i++ ) {
-      vec2 o = vec2( float( i ), float( j ) );
-      vec2 id = cell + o;
-      if ( dHash( id + 21.0 ) > colonies * 0.8 ) continue;
-      vec2 c = o + vec2( dHash( id ), dHash( id + 5.3 ) ) - f;
-      float r = 0.12 + 0.4 * pow( dHash( id + 9.1 ), 2.0 );
-      orange = max( orange, 1.0 - smoothstep( r * 0.75, r, length( c ) ) );
-    }
-    orange *= 1.0 - smoothstep( 0.012, 0.03, footprint );
-  }
-  orange = mix( orange, colonies * 0.12, smoothstep( 0.012, 0.03, footprint ) );
+  float lobes = mix( dNoise3( q * 5.0 + 7.0 ), 0.5, smoothstep( 0.2, 0.5, footprint * 5.0 ) ) * 0.6
+    + mix( dNoise3( turn3 * q * 11.0 + 2.0 ), 0.5, smoothstep( 0.2, 0.5, footprint * 11.0 ) ) * 0.28
+    + ( fray - 0.5 ) * 0.24;
+  float margin = 0.03 + footprint * 2.0;
+  orange = smoothstep( 0.72 - colonies * 0.12, 0.72 - colonies * 0.12 + margin, lobes + 0.12 ) * colonies;
+  // Thin, patchy thallus toward the margin: the rock shows through.
+  orange *= 0.55 + 0.45 * smoothstep( 0.35, 0.65, fray );
 }
-diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.38, 0.4, 0.33 ) * ( 0.8 + mid * 0.4 ), lichen * 0.5 );
-diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.55, 0.3, 0.07 ), orange * 0.7 );
+diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.38, 0.4, 0.33 ) * ( 0.8 + mid * 0.4 ), lichen * 0.45 );
+diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.5, 0.31, 0.1 ) * ( 0.85 + fray * 0.3 ), orange * 0.55 );
 // Black splash-zone lichen, a ragged band.
 float splash = smoothstep( 0.15, 0.45, y ) * ( 1.0 - smoothstep( 0.9, 1.5, y + ( macro - 0.5 ) * 0.6 ) );
 diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.05, 0.05, 0.045 ), splash * smoothstep( 0.4, 0.65, mid + macro * 0.3 ) * 0.55 );
@@ -786,11 +978,11 @@ diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.05, 0.05, 0.045 ), splash * sm
 float barnacleZone = smoothstep( 0.0, 0.12, y ) * ( 1.0 - smoothstep( 0.35, 0.6, y ) );
 float barnacles = 0.0;
 if ( barnacleZone > 0.01 && footprint < 0.02 ) {
-  barnacles = smoothstep( 0.62, 0.74, dNoise3( q * 55.0 ) ) * smoothstep( 0.35, 0.6, dNoise3( q * 4.0 + 1.0 ) )
+  barnacles = smoothstep( 0.58, 0.8, dNoise3( q * 55.0 ) ) * smoothstep( 0.35, 0.6, dNoise3( q * 4.0 + 1.0 ) )
     * barnacleZone * ( 1.0 - smoothstep( 0.005, 0.015, footprint ) );
 }
 diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.46, 0.44, 0.4 ), barnacleZone * 0.25 );
-diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.62, 0.6, 0.55 ), barnacles * 0.5 );
+diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.62, 0.6, 0.55 ), barnacles * 0.35 );
 // Green algae and weed at and below the waterline, thinning upward.
 float algae = ( 1.0 - smoothstep( -0.1, 0.3, y ) ) * smoothstep( 0.3, 0.55, mid + relief * 0.3 );
 diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.09, 0.12, 0.05 ) * ( 0.7 + mid * 0.6 ), algae * 0.6 );
@@ -798,14 +990,21 @@ diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.09, 0.12, 0.05 ) * ( 0.7 + mid
 // draining, and damp rock below the highest run-up.
 float surgeS = fract( -swashPhase( shoreAlong( coast ), breezeTime ) / 6.283185 ) / 0.82;
 float surgeNow = surgeS < 1.0 ? pow( sin( 3.141593 * pow( surgeS, 0.65 ) ), 2.0 ) : 0.0;
-float runup = 0.12 + ( 0.25 + swell.w * 2.5 ) * surgeNow;
+// The sheet runs up no more than ~0.6 m even in a storm (the spray above is
+// the surf's), and only its lower part is continuous: higher up it drains
+// at once, lingering in hollows and running off in streaks.
+float runup = min( 0.12 + ( 0.22 + swell.w * 1.2 ) * surgeNow, 0.6 );
 float sheet = 1.0 - smoothstep( runup - 0.15, runup + 0.05, y + ( relief - 0.5 ) * 0.1 );
-float damp = 1.0 - smoothstep( 0.2, 0.6 + swell.w * 2.5, y );
-diffuseColor.rgb *= mix( 1.0, 0.7, damp * ( 1.0 - sheet ) );
-diffuseColor.rgb *= mix( 1.0, 0.55, sheet );
-float detailHeight = macro * 0.05 + mid * 0.018 + relief * 0.022 + feldspar * 0.0015 - biotite * 0.001 - seam * 0.006 + barnacles * 0.004 + lichen * 0.002;
-float detailRoughness = mix( mix( mix( 0.82, 0.95, max( barnacles, lichen ) ), 0.5, damp ), 0.12, sheet );
-detailHeight *= 1.0 - sheet * 0.8;
+float hollow = 1.0 - smoothstep( 0.32, 0.58, mid * 0.55 + relief * 0.45 );
+float streak = smoothstep( 0.5, 0.8, dNoise3( vec3( q.x * 5.6 + q.z * 4.2, q.y * 0.7, q.z * 5.6 - q.x * 4.2 ) + 4.0 ) ) * ( 1.0 - up );
+sheet *= mix( 1.0, max( hollow, streak ), smoothstep( 0.08, 0.3, y ) );
+// Damp rock below the highest recent run-up, a ragged line.
+float damp = 1.0 - smoothstep( 0.2, min( 0.55 + swell.w * 1.2, 0.95 ), y + ( macro - 0.5 ) * 0.2 );
+diffuseColor.rgb *= mix( 1.0, 0.8, damp * ( 1.0 - sheet ) );
+diffuseColor.rgb *= mix( 1.0, 0.65, sheet );
+float detailHeight = macro * 0.05 + mid * 0.018 + relief * 0.022 + feldspar * 0.0006 - biotite * 0.0004 - seam * 0.006 + barnacles * 0.0015 + lichen * 0.002;
+float detailRoughness = mix( mix( mix( 0.82, 0.95, max( barnacles, lichen ) ), 0.55, damp ), 0.32, sheet );
+detailHeight *= 1.0 - sheet * 0.3;
 `;
 
 // Bark: vertical fissures between corky plates, the plates' faces paler
@@ -815,23 +1014,32 @@ detailHeight *= 1.0 - sheet * 0.8;
 // crusts patch the rest. Detail finer than a pixel averages out.
 const BARK_COLOUR_GLSL = /* glsl */ `
 #include <color_fragment>
-float barkPx = max( fwidth( vWorld.y ), fwidth( vWorld.x + vWorld.z ) );
-float around = ( vWorld.x * 0.7 + vWorld.z * 0.7 ) * 26.0;
-float fissure = dNoise( vec2( around, vWorld.y * 1.8 ) ) * 0.65
-  + mix( dNoise( vec2( around * 2.3, vWorld.y * 5.0 ) ), 0.5, smoothstep( 0.2, 0.5, barkPx * 60.0 ) ) * 0.35;
-float plates = smoothstep( 0.32, 0.62, fissure );
-float crack = 1.0 - smoothstep( 0.18, 0.34, fissure );
-diffuseColor.rgb *= 0.5 + plates * 0.62;
-diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * 0.35, crack * 0.8 );
-// Weathered plate faces go silvery grey.
-diffuseColor.rgb = mix( diffuseColor.rgb, vec3( dot( diffuseColor.rgb, vec3( 0.33 ) ) ), plates * 0.15 );
+// In trunk space (vBark: the point on the stem's circle, in metres, and the
+// distance along its axis), in 3D noise so the pattern wraps round the stem
+// without a seam. The old world-plane projection drew white rings and
+// chevrons wherever a limb crossed the plane's stripes.
+vec3 barkP = vBark;
+float barkPx = max( length( fwidth( barkP.xy ) ), fwidth( barkP.z ) );
+// Fissures run along the stem: narrow round it, long along it.
+float fissure = dNoise3( vec3( barkP.xy * 24.0, barkP.z * 3.2 ) ) * 0.62
+  + mix( dNoise3( vec3( barkP.xy * 55.0 + 3.0, barkP.z * 9.0 ) ), 0.5, smoothstep( 0.2, 0.5, barkPx * 55.0 ) ) * 0.38;
+float plates = smoothstep( 0.34, 0.6, fissure );
+float crack = 1.0 - smoothstep( 0.2, 0.34, fissure );
+diffuseColor.rgb *= 0.62 + plates * 0.5;
+diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * 0.4, crack * 0.75 );
+// Weathered plate faces go a little grey.
+diffuseColor.rgb = mix( diffuseColor.rgb, vec3( dot( diffuseColor.rgb, vec3( 0.33 ) ) ), plates * 0.12 );
 vec3 barkUp = ( vec4( normalize( vNormal ), 0.0 ) * viewMatrix ).xyz;
-float moss = smoothstep( 0.25, 0.8, barkUp.y + ( dNoise( vec2( around * 0.3, vWorld.y * 1.2 ) + 9.0 ) - 0.5 ) * 0.9 )
-  * smoothstep( 0.35, 0.65, dNoise( vec2( around * 0.12, vWorld.y * 0.5 ) + 3.0 ) );
-diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.09, 0.13, 0.04 ) * ( 0.7 + fissure * 0.6 ), moss * 0.55 );
-float bark_lichen = smoothstep( 0.68, 0.8, dNoise( vec2( around * 0.4, vWorld.y * 3.0 ) + 5.0 ) ) * ( 1.0 - moss );
-diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.42, 0.44, 0.36 ), bark_lichen * 0.5 );
-float detailHeight = plates * 0.012 - crack * 0.006 + moss * 0.004;
+float moss = smoothstep( 0.25, 0.8, barkUp.y + ( dNoise3( vec3( barkP.xy * 4.0, barkP.z * 1.2 ) + 9.0 ) - 0.5 ) * 0.9 )
+  * smoothstep( 0.35, 0.65, dNoise3( vec3( barkP.xy * 1.5, barkP.z * 0.5 ) + 3.0 ) );
+diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.06, 0.09, 0.03 ) * ( 0.7 + fissure * 0.6 ), moss * 0.55 );
+// Crustose lichen in ragged patches on about a quarter of the bark: grey-
+// green, only a little paler than the bark itself.
+float lichenPatch = dNoise3( vec3( barkP.xy * 7.0, barkP.z * 2.2 ) + 5.0 ) * 0.7
+  + mix( dNoise3( vec3( barkP.xy * 30.0, barkP.z * 9.0 ) ), 0.5, smoothstep( 0.2, 0.5, barkPx * 30.0 ) ) * 0.3;
+float bark_lichen = smoothstep( 0.55, 0.64, lichenPatch ) * ( 1.0 - moss ) * ( 1.0 - crack * 0.7 );
+diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.13, 0.14, 0.11 ) * ( 0.85 + fissure * 0.3 ), bark_lichen * 0.55 );
+float detailHeight = plates * 0.01 - crack * 0.006 + moss * 0.003 + bark_lichen * 0.0015;
 float detailRoughness = 0.92;
 `;
 
@@ -925,18 +1133,23 @@ function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = 
             + sin( breezeTime * leafRate * 2.37 + leafPhase * 1.9 ) * 0.3;
           float leafAmp = ${flutter.toFixed(3)} * ( 0.2 + breezeStrength );
           transformed += normal * ( flap * leafFlutter.y * leafAmp );
+          // In a gust, leaves flipped over by their flutter show their paler
+          // undersides: bands of lighter foliage run through the crowns.
+          vFlip = smoothstep( 0.55, 1.25, gustAt( windAnchor ) ) * min( 1.0, breezeStrength * 1.5 ) * smoothstep( 0.15, 0.85, flap );
+        #else
+          vFlip = 0.0;
         #endif`
             : ""
         }`,
       );
     shader.vertexShader = shader.vertexShader.replace(
       "void main() {",
-      `${flutter ? "attribute vec2 leafFlutter;\n" : ""}${taper ? "attribute float taper;\n" : ""}void main() {`,
+      `${flutter ? "attribute vec2 leafFlutter;\nvarying float vFlip;\n" : ""}${taper ? "attribute float taper;\n" : ""}void main() {`,
     );
     if (sway)
       shader.vertexShader = shader.vertexShader.replace(
         "#include <project_vertex>",
-        foliage ? PROJECT_GLSL.replace("vAbove =", `${PUSH_GLSL}\nvAbove =`) : PROJECT_GLSL,
+        foliage ? PROJECT_GLSL.replace("vAbove =", `${PUSH_GLSL}\n${FOLD_GLSL}\nvAbove =`) : PROJECT_GLSL,
       );
     shader.vertexShader = shader.vertexShader.replace(
       "#include <worldpos_vertex>",
@@ -952,7 +1165,7 @@ function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = 
       }`,
     );
     shader.fragmentShader = defines +
-      "uniform vec3 sunDirView;\nuniform vec3 sunTint;\nuniform float sunGlow;\nuniform float breezeTime;\nvarying float vGlint;\nvarying float vGust;\n" +
+      "uniform vec3 sunDirView;\nuniform vec3 sunTint;\nuniform float sunGlow;\nuniform float breezeTime;\nuniform float rainWetness;\nuniform float rainFilm;\nvarying float vGlint;\nvarying float vGust;\n" +
       "uniform vec3 hazeToward;\nuniform vec3 hazeAway;\nuniform vec3 foamLight;\nvarying float vShade;\nvarying float vShadowFar;\n" +
       shader.fragmentShader
         .replace("#include <fog_fragment>", FOG_GLSL)
@@ -970,7 +1183,7 @@ function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = 
         .replace(
           "void main() {",
           ground
-            ? "varying vec3 vWorld;\nattribute vec4 groundMask;\nvarying vec4 vGroundMask;\nvarying float vGroundGust;\nvoid main() {\n  vGroundMask = groundMask;\n  // Gust bands are metres wide: the 0.5 m ground grid resolves them.\n  vGroundGust = gustAt( position.xz );"
+            ? "varying vec3 vWorld;\nattribute vec4 groundMask;\nvarying vec4 vGroundMask;\nattribute vec2 groundMask2;\nvarying vec2 vGroundMask2;\nvarying float vGroundGust;\nvoid main() {\n  vGroundMask = groundMask;\n  vGroundMask2 = groundMask2;\n  // Gust bands are metres wide: the 0.5 m ground grid resolves them.\n  vGroundGust = gustAt( position.xz );"
             : "varying vec3 vWorld;\nvoid main() {",
         )
         .replace(
@@ -982,9 +1195,28 @@ function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = 
           #endif
           vWorld = ( modelMatrix * detailWorld ).xyz;`,
         );
+      if (bark)
+        // Trunk space for the bark: the unit cylinder's circle scaled to the
+        // stem's radius, and distance along its axis, which carries across
+        // joints between segments of one limb. Each plant's own base height
+        // shifts the pattern, so neighbours don't share it.
+        shader.vertexShader = shader.vertexShader
+          .replace("void main() {", "varying vec3 vBark;\nvoid main() {")
+          .replace(
+            "vWorld = ( modelMatrix * detailWorld ).xyz;",
+            `vWorld = ( modelMatrix * detailWorld ).xyz;
+            #ifdef USE_INSTANCING
+              float barkR = length( instanceMatrix[0].xyz );
+              vec3 barkAxis = normalize( instanceMatrix[1].xyz );
+            #else
+              float barkR = 1.0;
+              vec3 barkAxis = vec3( 0.0, 1.0, 0.0 );
+            #endif
+            vBark = vec3( position.x * barkR, position.z * barkR, dot( detailWorld.xyz, barkAxis ) + anchorHeight * 7.31 );`,
+          );
       shader.fragmentShader = shader.fragmentShader
         .replace("uniform float breezeTime;\n", "")
-        .replace("void main() {", DETAIL_GLSL + (ground ? "varying vec4 vGroundMask;\nvarying float vGroundGust;\n" + SWASH_GLSL : rock ? SWASH_GLSL : "") + "\nvoid main() {")
+        .replace("void main() {", (bark ? "varying vec3 vBark;\n" : "") + DETAIL_GLSL + (ground ? "varying vec4 vGroundMask;\nvarying vec2 vGroundMask2;\nvarying float vGroundGust;\n" + SWASH_GLSL : rock ? SWASH_GLSL : "") + "\nvoid main() {")
         .replace("#include <color_fragment>", ground ? GROUND_COLOUR_GLSL : rock ? ROCK_COLOUR_GLSL : BARK_COLOUR_GLSL)
         .replace("#include <roughnessmap_fragment>", "#include <roughnessmap_fragment>\n  roughnessFactor = detailRoughness;")
         .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>
@@ -1000,6 +1232,16 @@ function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = 
           vec3 grad = sign( det ) * ( hx * r1 + hy * r2 );
           normal = normalize( abs( det ) * normal - grad * ${ground ? "1.4" : rock ? "2.2" : "3.0"} );
         }`);
+      // Film drains sooner than absorbed moisture. The local sky visibility
+      // also gives a conservative canopy shelter approximation for receivers.
+      shader.fragmentShader = shader.fragmentShader.replace(
+        "#include <roughnessmap_fragment>",
+        `float rainExposure = clamp( 1.0 - vShade * 1.15, 0.08, 1.0 );
+        float rainDamp = rainWetness * rainExposure;
+        diffuseColor.rgb *= 1.0 - rainDamp * ${bark ? "0.2" : "0.14"};
+        detailRoughness = mix( detailRoughness, ${bark ? "0.65" : ground ? "0.38" : "0.34"}, rainFilm * rainExposure );
+        #include <roughnessmap_fragment>`,
+      );
     }
     if (ground)
       // Sand sparkle, lit by the shadowed sun from three's light loop.
@@ -1012,7 +1254,15 @@ function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = 
         .replace("#include <lights_fragment_maps>", SKY_SH_GLSL);
     if (foliage)
       shader.fragmentShader = shader.fragmentShader
-        .replace("void main() {", `varying vec3 vLeafNormal;\nvarying float vCrownAO;\n${rooted ? "varying float vAbove;\n" : ""}void main() {`)
+        .replace("void main() {", `varying vec3 vLeafNormal;\n${flutter ? "varying float vFlip;\n" : ""}${rooted ? "varying float vAbove;\n" : ""}void main() {`)
+        .replace(
+          "#include <color_fragment>",
+          flutter
+            ? `#include <color_fragment>
+          // Undersides: paler, greyer, a little bluer than the upper face.
+          diffuseColor.rgb = mix( diffuseColor.rgb, mix( diffuseColor.rgb, vec3( dot( diffuseColor.rgb, vec3( 0.3, 0.55, 0.15 ) ) ), 0.35 ) * vec3( 1.5, 1.5, 1.6 ), vFlip * 0.7 );`
+            : "#include <color_fragment>",
+        )
         .replace("#include <lights_fragment_begin>", LEAF_LIGHTS_GLSL)
         .replace("#include <lights_fragment_end>", FOLIAGE_GLSL);
     if (bent) {
@@ -1023,13 +1273,12 @@ function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = 
       // back-face flip), as light doesn't care which side of a leaf faces
       // the camera. The unbent normal goes to the translucency terms.
       shader.vertexShader = shader.vertexShader
-        .replace("void main() {", "attribute vec3 bendNormal;\nvarying vec3 vLeafNormal;\nvarying float vCrownAO;\nvoid main() {")
+        .replace("void main() {", "attribute vec3 bendNormal;\nvarying vec3 vLeafNormal;\nvoid main() {")
         .replace(
           "#include <defaultnormal_vertex>",
           `#include <defaultnormal_vertex>
           vLeafNormal = transformedNormal;
-          // The bent normal's length carries the shoot's depth in its crown.
-          vCrownAO = length( bendNormal );
+          // Visibility is carried by canopyShade; bendNormal is a direction.
           vec3 bendView = normalize( normalMatrix * bendNormal );
           vec3 outerLeaf = dot( transformedNormal, bendView ) < 0.0 ? -transformedNormal : transformedNormal;
           transformedNormal = normalize( mix( outerLeaf, bendView, ${bent.toFixed(2)} ) );`,
@@ -1038,6 +1287,24 @@ function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = 
         "#include <normal_fragment_begin>",
         THREE.ShaderChunk.normal_fragment_begin.replace("normal *= faceDirection;", ""),
       );
+    }
+    if (rock) {
+      // The foot sees almost no sky where it meets the sand (or the stone it
+      // rests on): contact shadow, like the bark foot.
+      shader.vertexShader = shader.vertexShader
+        .replace("void main() {", "varying float vRockAbove;\nvoid main() {")
+        .replace("vWorld = ( modelMatrix * detailWorld ).xyz;", "vWorld = ( modelMatrix * detailWorld ).xyz;\n          vRockAbove = vWorld.y - anchorHeight;");
+      shader.fragmentShader = shader.fragmentShader
+        .replace("void main() {", "varying float vRockAbove;\nvoid main() {")
+        .replace(
+          "#include <lights_fragment_end>",
+          `#include <lights_fragment_end>
+          {
+            float contact = mix( 0.45, 1.0, smoothstep( 0.0, 0.5, vRockAbove ) );
+            reflectedLight.indirectDiffuse *= contact;
+            reflectedLight.indirectSpecular *= contact;
+          }`,
+        );
     }
     if (bark)
       // Soil, moss and damp darken the trunk's foot, so it grows out of the
@@ -1082,7 +1349,7 @@ function obstaclesFor(layout, rocks) {
 // Each rock's true top surface, rasterized from its mesh into a small height
 // tile (6 cm cells): what the cat stands on, climbs, and is blocked by.
 function rockSurfaces(rocks) {
-  const sources = Array.from({ length: ROCK_VARIANTS }, (_, v) => rockGeometry(3, v));
+  const sources = Array.from({ length: ROCK_VARIANTS }, (_, v) => rockGeometry(7, v));
   const matrix = new THREE.Matrix4();
   const quaternion = new THREE.Quaternion();
   const v = new THREE.Vector3();
@@ -1223,7 +1490,7 @@ function coverFor(layout, turf) {
   const moss = new THREE.Color();
   for (const p of layout)
     if (p.kind === "moss")
-      splat(p.x, p.z, 0.7 + p.height * 5, 1.4, grass, moss.setHSL(0.24 + noise2(p.x * 0.3, p.z * 0.3) * 0.1, 0.5, 0.2));
+      splat(p.x, p.z, 0.7 + p.height * 5, 1.4, grass, moss.setHSL(0.24 + noise2(p.x * 0.3, p.z * 0.3) * 0.1, 0.35, 0.26, THREE.SRGBColorSpace));
   for (const p of layout) {
     if (p.kind === "tree") {
       splat(p.x, p.z, Math.min(5, 1 + p.height * 0.4), 0.9, humus);
@@ -1231,7 +1498,7 @@ function coverFor(layout, turf) {
     } else if (p.kind === "shrub" || p.kind === "protea" || p.kind === "erica" || p.kind === "fern" || p.kind === "moss") {
       splat(p.x, p.z, 0.4 + p.height * 0.9, 0.8, humus);
     } else if (p.kind === "restio" || p.kind === "daisies" || p.kind === "aloe") {
-      splat(p.x, p.z, 0.4 + p.height * 0.6, 0.6, grass);
+      splat(p.x, p.z, 0.4 + p.height * 0.6, 0.6, grass, new THREE.Color(MATERIAL_HEX.dryThatch));
       splat(p.x, p.z, 0.3 + p.height * 0.4, 0.4, humus);
     }
   }
@@ -1265,13 +1532,13 @@ function addGround(scene, shared, occluders, cover) {
   // dune tones and leaf litter into forest soil, dithered by noise over metres.
   // Warm, pale granitic sand; forest soil a red-brown loam under litter
   // rather than a grey mud, with living green cover through the interior.
-  const sand = new THREE.Color("#c2ae8c");
+  const sand = new THREE.Color(MATERIAL_HEX.sand);
   // Wet sand only a little darker: the swash film carries the rest (surf.js).
-  const wetSand = new THREE.Color("#897a5d");
-  const dune = new THREE.Color("#ae9a74");
-  const litter = new THREE.Color("#6b5034");
-  const moss = new THREE.Color("#3a5626");
-  const humusColour = new THREE.Color("#5a4029");
+  const wetSand = new THREE.Color(MATERIAL_HEX.wetSand);
+  const dune = new THREE.Color(MATERIAL_HEX.dune);
+  const litter = new THREE.Color(MATERIAL_HEX.litter);
+  const moss = new THREE.Color(MATERIAL_HEX.moss);
+  const humusColour = new THREE.Color(MATERIAL_HEX.humus);
   const thatch = new THREE.Color();
   const color = new THREE.Color();
   for (let i = 0; i < position.count; i++) {
@@ -1323,6 +1590,26 @@ function addGround(scene, shared, occluders, cover) {
     masks[i * 4 + 3] = grass;
   }
   geometry.setAttribute("groundMask", new THREE.BufferAttribute(masks, 4));
+  // Painted low cover (ground-detail.js): strandveld scrub and sour-fig mats,
+  // kept off exposed granite.
+  const cover2 = new Float32Array(position.count * 2);
+  for (let i = 0; i < position.count; i++) {
+    const { scrub, sourfig } = groundCover(position.getX(i), position.getZ(i), undefined, shades[i]);
+    const bare = 1 - masks[i * 4 + 1] * 0.9;
+    cover2[i * 2] = scrub * bare;
+    cover2[i * 2 + 1] = sourfig * bare;
+  }
+  geometry.setAttribute("groundMask2", new THREE.BufferAttribute(cover2, 2));
+  // Entirely submerged triangles cannot survive the waterline clipping or
+  // alpha fade. A 1.5 m shore margin preserves every visible low-angle edge.
+  const oldIndex = geometry.index.array;
+  const kept = [];
+  for (let i = 0; i < oldIndex.length; i += 3) {
+    if ([oldIndex[i], oldIndex[i + 1], oldIndex[i + 2]].some((v) =>
+      shoreDistance(position.getX(v), position.getZ(v)) > -1.5))
+      kept.push(oldIndex[i], oldIndex[i + 1], oldIndex[i + 2]);
+  }
+  geometry.setIndex(kept);
   const material = new THREE.MeshStandardMaterial({
     vertexColors: true,
     roughness: 0.95,
@@ -1333,6 +1620,32 @@ function addGround(scene, shared, occluders, cover) {
   const mesh = new THREE.Mesh(geometry, material);
   mesh.receiveShadow = true;
   scene.add(mesh);
+}
+
+function addGroundDetails(scene, shared, details, occluders) {
+  const visible = occlusionField(occluders);
+  for (const list of Object.values(details))
+    for (const part of list) part.shade = (1 - visible(part.position.x, part.position.z)) * 0.65;
+  const leafMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.96, side: THREE.DoubleSide });
+  const woodMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 });
+  const mineralMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.88 });
+  for (const material of [leafMaterial, woodMaterial, mineralMaterial]) patchMaterial(material, shared);
+  const near = [{ keep: () => false, distance: 22 }];
+  addInstances(scene, groundLeafGeometry(), leafMaterial, details.leaves, false, near);
+  addInstances(scene, new THREE.CylinderGeometry(0.65, 1, 1, 3, 1, false), woodMaterial, details.twigs, false, near);
+  addInstances(scene, new THREE.CylinderGeometry(0.4, 1, 1, 4, 1, false), woodMaterial, details.roots, false, [{ keep: () => false, distance: 30 }]);
+  addInstances(scene, new THREE.IcosahedronGeometry(1, 0), mineralMaterial, details.stones, false, near);
+}
+
+function groundLeafGeometry() {
+  // Folded, curled debris has an edge and a thickness cue at low camera
+  // angles. Every variant is opaque; there is no alpha atlas/overdraw pass.
+  return finish([
+    0, 0, -0.5,
+    -0.3, 0.2, -0.22, 0, 0.05, -0.22, 0.3, 0.3, -0.22,
+    -0.42, 0.45, 0.18, 0, 0.15, 0.18, 0.42, 0.18, 0.18,
+    0.08, 0.75, 0.5,
+  ], [0, 2, 1, 0, 3, 2, 1, 2, 4, 2, 5, 4, 2, 3, 5, 3, 6, 5, 4, 5, 7, 5, 6, 7]);
 }
 
 // A leafy shoot, grown the way a real one is: a short twig carrying leaves
@@ -1602,6 +1915,14 @@ function bellGeometry() {
 // A stable pseudo-random number per shoot, by position: far levels keep
 // the shoots below a share, so each coarser level keeps a subset of the last.
 function shootShare(shoot) {
+  if (shoot.id) {
+    if (shoot.lodShare === undefined) {
+      let hash = 2166136261;
+      for (let i = 0; i < shoot.id.length; i++) hash = Math.imul(hash ^ shoot.id.charCodeAt(i), 16777619);
+      shoot.lodShare = (hash >>> 0) / 4294967296;
+    }
+    return shoot.lodShare;
+  }
   const h = Math.sin(shoot.position.x * 12.9898 + shoot.position.z * 78.233 + shoot.position.y * 37.719) * 43758.5453;
   return h - Math.floor(h);
 }
@@ -1749,10 +2070,35 @@ function addRocks(scene, random, shared, rocks = rockLayout(random)) {
     shadowSide: THREE.FrontSide,
   });
   patchMaterial(material, shared, { rock: true, fade: true });
-  for (let v = 0; v < ROCK_VARIANTS; v++)
-    addInstances(scene, rockGeometry(5, v), material, rocks.filter((r) => r.variant === v), true, [
-      { geometry: rockGeometry(3, v), distance: 22 },
-      { geometry: rockGeometry(2, v), distance: 60 },
+  // Sky occlusion from the neighbours: stones piled against each other see
+  // less sky than a lone one on open sand (canopyShade, per instance).
+  for (const rock of rocks) {
+    const ri = Math.max(rock.scale.x, rock.scale.z) * 0.9;
+    let visible = 1;
+    for (const other of rocks) {
+      if (other === rock) continue;
+      const rj = Math.max(other.scale.x, other.scale.z) * 0.9;
+      const d2 = (rock.position.x - other.position.x) ** 2 + (rock.position.z - other.position.z) ** 2;
+      if (d2 > (ri + rj) ** 2 * 4) continue;
+      // A small stone barely shades a big one.
+      visible *= 1 - 0.5 * Math.min(1, rj / ri) * Math.exp(-d2 / (ri + rj) ** 2);
+    }
+    rock.shade = Math.min(0.4, 1 - visible);
+    rock.ground ??= terrainHeight(rock.position.x, rock.position.z);
+  }
+  // The boulder fields get a fine mesh up close for crisp joints and clefts;
+  // the scattered stones (mostly under half a metre) a light one.
+  for (let v = 0; v < ROCK_VARIANTS; v++) {
+    const own = rocks.filter((r) => r.variant === v);
+    addInstances(scene, rockGeometry(12, v), material, own.filter((r) => r.cluster !== undefined && r.scale.x > 0.6), true, [
+      { geometry: rockGeometry(7, v), distance: 4 },
+      { geometry: rockGeometry(4, v), distance: 20 },
+      { geometry: rockGeometry(2, v), distance: 50 },
     ]);
+    addInstances(scene, rockGeometry(5, v), material, own.filter((r) => r.cluster === undefined || r.scale.x <= 0.6), true, [
+      { geometry: rockGeometry(3, v), distance: 12 },
+      { geometry: rockGeometry(1, v), distance: 40 },
+    ]);
+  }
   return rocks;
 }

@@ -18,6 +18,7 @@ export function createWake() {
   const data = new Float32Array(WAKE.width * 4);
   const trail = [];
   const rings = [];
+  const bound = new Float64Array(3);
   const paws = Array.from({ length: WAKE.paws }, () => [0, 0, 0]);
   const body = { x: 0, z: 0, heading: 0, immersion: 0, speed: 0, half: 0.2, radius: 0.08, strength: 0 };
   let now = 0;
@@ -29,11 +30,23 @@ export function createWake() {
       return now;
     },
     tick(time) {
+      if (!Number.isFinite(time)) return;
+      // A preview/reset clock must not expose future events to sqrt/decay.
+      if (time < now) {
+        trail.length = rings.length = 0;
+        body.immersion = body.speed = body.strength = 0;
+        paws.forEach((p) => { p[2] = 0; });
+      }
       now = time;
     },
     // The body each frame (walker.js). A trail point is dropped every
     // quarter metre, or every stroke-length of time while treading water.
     move(x, z, heading, immersion, speed, strength, radius) {
+      if (![x, z, heading, immersion, speed, strength, radius].every(Number.isFinite)) return;
+      immersion = Math.max(0, Math.min(1, immersion));
+      speed = Math.max(0, speed);
+      strength = Math.max(0, Math.min(2, strength));
+      radius = Math.max(0.008, Math.min(1, radius));
       Object.assign(body, { x, z, heading, immersion, speed, strength, radius });
       if (strength < 0.03) return;
       const last = trail[0];
@@ -43,13 +56,16 @@ export function createWake() {
       }
     },
     paw(i, x, z, depth) {
+      if (!Number.isInteger(i) || i < 0 || i >= WAKE.paws || ![x, z, depth].every(Number.isFinite)) return;
+      depth = Math.max(0, depth);
       const p = paws[i];
       p[0] = x;
       p[1] = z;
       p[2] = depth;
     },
     ring(x, z, strength) {
-      rings.unshift([x, z, now, strength]);
+      if (![x, z, strength].every(Number.isFinite) || strength <= 0) return;
+      rings.unshift([x, z, now, Math.min(strength, 2)]);
       if (rings.length > WAKE.rings) rings.pop();
     },
     // The texels, or null when nothing has changed since an empty upload.
@@ -67,16 +83,41 @@ export function createWake() {
       idle = false;
       data.fill(0);
       data.set([body.x, body.z, body.heading, body.immersion, body.speed, body.half, body.radius, trail.length], 0);
-      // Bound: foam spreads and rings run outward from every source.
-      let reach = 0.6;
-      for (const t of trail) reach = Math.max(reach, Math.hypot(t[0] - body.x, t[1] - body.z) + 0.2 + 0.3 * Math.min(now - t[2], 5) + body.radius * 4);
-      for (const r of rings) reach = Math.max(reach, Math.hypot(r[0] - body.x, r[1] - body.z) + 0.3 + 0.4 * (now - r[2]));
-      for (const p of paws) if (p[2] > 0.005) reach = Math.max(reach, Math.hypot(p[0] - body.x, p[1] - body.z) + 0.2 + 0.25 * Math.min(body.speed, 2.5));
-      data.set([body.x, body.z, reach, rings.length], 8);
+      // Enclose active sources, rather than centring a broad disk on the cat.
+      // Three Gaussian widths retain >99.9% of the visible ripple packet;
+      // bounds include the expanding foam as well as its advancing front.
+      bound[2] = -1;
+      if (body.immersion > 0.01) encloseSource(bound, body.x, body.z, body.half + body.radius + 0.9);
+      for (const t of trail) {
+        const age = Math.max(0, now - t[2]);
+        const foam = 3 * (body.radius * (1 + age * 0.5) + 0.03);
+        const ripple = age < 4.5 ? body.radius + 0.32 * age + 3 * (0.08 + 0.09 * age) : 0;
+        encloseSource(bound, t[0], t[1], Math.max(foam, ripple));
+      }
+      for (const r of rings) {
+        const age = Math.max(0, now - r[2]);
+        encloseSource(bound, r[0], r[1], Math.max(0.4 * age + 3 * (0.04 + 0.1 * age), 3 * (0.05 + 0.22 * Math.sqrt(age) * (0.5 + r[3] * 0.5))));
+      }
+      for (const p of paws) if (p[2] > 0.005) encloseSource(bound, p[0], p[1], 0.925);
+      data.set(bound, 8);
+      data[11] = rings.length;
       trail.forEach((t, i) => data.set(t, (3 + i) * 4));
       paws.forEach((p, i) => data.set([p[0], p[1], p[2], 0], (PAWS + i) * 4));
       rings.forEach((r, i) => data.set(r, (RINGS + i) * 4));
       return data;
     },
   };
+}
+
+// Conservative circle union using one reusable CPU scratch buffer.
+function encloseSource(bound, x, z, radius) {
+  if (bound[2] < 0) { bound[0] = x; bound[1] = z; bound[2] = radius; return; }
+  const d = Math.hypot(x - bound[0], z - bound[1]);
+  if (d + radius <= bound[2]) return;
+  if (d + bound[2] <= radius) { bound[0] = x; bound[1] = z; bound[2] = radius; return; }
+  const grown = (bound[2] + d + radius) * 0.5;
+  const shift = (grown - bound[2]) / Math.max(d, 1e-6);
+  bound[0] += (x - bound[0]) * shift;
+  bound[1] += (z - bound[1]) * shift;
+  bound[2] = grown;
 }

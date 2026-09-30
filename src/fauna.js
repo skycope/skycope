@@ -5,7 +5,8 @@ import { ISLAND } from "./terrain.js";
 // Wildlife as a handful of instanced meshes animated on the CPU (a few
 // hundred matrices a frame) with wingbeats in the vertex shader:
 // - kelp gulls soaring in loose thermals over the island, flapping now and then;
-// - Cape cormorants, black and fast, skimming the sea in long lines;
+// - Cape cormorants, black and fast, skimming the sea far out in long,
+//   ragged skeins that string out, bunch up and undulate as they go;
 // - a dolphin pod porpoising offshore, clipped at the sea surface so only
 //   the arcs above water show (the WebGPU sea is drawn underneath).
 // Coordinates are coast metres; the land group mirrors z like forest.js.
@@ -22,7 +23,7 @@ export function createFauna(group, seed) {
     flapRate: 5.5,
   });
   const cormorants = flock(group, shared, {
-    count: 18,
+    count: 96,
     body: 0.5,
     span: 0.95,
     colour: [0.03, 0.03, 0.035],
@@ -44,13 +45,36 @@ export function createFauna(group, seed) {
     drift: random() * 100,
     flapBias: random(),
   }));
-  // Cormorants fly in lines along a great offshore loop.
-  const lineOffset = random() * Math.PI * 2;
-  const pods = Array.from({ length: 5 }, (_, i) => ({
-    angle: random() * Math.PI * 2,
-    radius: 92 + random() * 30,
-    phase: i * 1.3 + random(),
-  }));
+  // Cormorants: a few skeins, each following its leader along a wandering
+  // offshore circuit 150-400 m from the beach. Birds keep uneven spacing
+  // and side offsets, and each skein's line rises and falls in a slow wave
+  // travelling back along it, all low over the water.
+  const skeins = [];
+  for (let n = 0, s = 0; n < cormorants.count; s++) {
+    const size = Math.min(cormorants.count - n, 12 + Math.floor(random() * 22));
+    const spacing = 1.4 + random() * 1.2;
+    const birds = [];
+    let along = 0;
+    for (let k = 0; k < size; k++) {
+      birds.push({
+        along,
+        side: (random() - 0.5) * 3.5,
+        lift: random() * 1.3,
+        glide: random(),
+      });
+      along += spacing * (0.6 + random() * 0.8);
+    }
+    skeins.push({
+      first: n,
+      birds,
+      angle: random() * Math.PI * 2,
+      radius: 215 + random() * 230,
+      speed: (13 + random() * 4) * (random() < 0.5 ? -1 : 1),
+      height: 0.6 + random() * 1.6,
+      phase: random() * 100,
+    });
+    n += size;
+  }
 
   const matrix = new THREE.Matrix4();
   const position = new THREE.Vector3();
@@ -85,17 +109,25 @@ export function createFauna(group, seed) {
         }
         gulls.mesh.instanceMatrix.needsUpdate = true;
         gulls.flap.needsUpdate = true;
-        let n = 0;
-        for (const line of pods) {
-          const a = line.angle + time * 0.05 + lineOffset;
-          for (let k = 0; k < cormorants.count / pods.length && n < cormorants.count; k++, n++) {
-            const along = a - k * 0.035;
-            const x = ISLAND.x + Math.cos(along) * line.radius + k * 0.8;
-            const z = ISLAND.z + Math.sin(along) * line.radius;
-            const y = 1.2 + Math.sin(time * 0.7 + k + line.phase) * 0.25;
-            euler.set(0, -Math.atan2(Math.cos(along), -Math.sin(along)) + Math.PI / 2, 0);
-            place(cormorants.mesh, n, x, y, z, euler);
-            cormorants.flap.setX(n, 1);
+        for (const skein of skeins) {
+          const dir = Math.sign(skein.speed);
+          for (let k = 0; k < skein.birds.length; k++) {
+            const b = skein.birds[k];
+            // Where the leader was when it passed the spot this bird is at.
+            const t = time - b.along / Math.abs(skein.speed);
+            const radius = skein.radius + Math.sin(t * 0.011 + skein.phase) * 40
+              + b.side + Math.sin(b.along * 0.045 + time * 0.23 + skein.phase) * 5;
+            const a = skein.angle + (t * skein.speed) / skein.radius;
+            const x = ISLAND.x + Math.cos(a) * radius;
+            const z = ISLAND.z + Math.sin(a) * radius;
+            const y = Math.max(0.5, skein.height + b.lift + Math.sin(b.along * 0.06 - time * 0.9 + skein.phase) * 0.7);
+            // Tangent to the circuit, in the direction of travel.
+            const tx = -Math.sin(a) * dir;
+            const tz = Math.cos(a) * dir;
+            euler.set(0, Math.atan2(tx, tz), Math.sin(time * 0.5 + b.along) * 0.06);
+            place(cormorants.mesh, skein.first + k, x, y, z, euler);
+            // Steady beats, with the odd short glide.
+            cormorants.flap.setX(skein.first + k, Math.sin(time * 0.4 + b.glide * 40) > 0.93 ? 0 : 1);
           }
         }
         cormorants.mesh.instanceMatrix.needsUpdate = true;
@@ -175,7 +207,8 @@ export function createFauna(group, seed) {
     };
     const mesh = new THREE.InstancedMesh(geometry, material, spec.count);
     mesh.frustumCulled = false;
-    mesh.castShadow = true;
+    // No shadows: the sun's shadow map only re-renders when the sun or the
+    // cat moves on, so a moving bird's shadow would be left behind.
     parent.add(mesh);
     return { mesh, flap, count: spec.count };
   }

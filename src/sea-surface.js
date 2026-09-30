@@ -18,18 +18,8 @@ export function seabedDepth(offshore, along) {
   return offshore * 0.06 + Math.max(0, offshore - 13) * 0.16 + Math.max(0, offshore - 30) * 0.3 + Math.max(0, offshore - 50) * 0.3 - bar;
 }
 
-function setEnvelope(along, time) {
-  return 0.8 + 0.17 * Math.sin(along * 0.032258 - time * 0.061 + 1.3) + 0.1 * Math.sin(along * 0.016129 + time * 0.023);
-}
-
-function breakerTheta(psi, beta, q) {
-  const psi1 = psi - beta * Math.cos(psi);
-  const theta = psi1 + q * Math.sin(psi1);
-  return psi1 + q * Math.sin(theta);
-}
-
-// (film, metres behind the uprush front) on the sand; see swash in ocean.wgsl.
-function swash(along, inland, time, swell) {
+// Film, froth, moisture and retreat age over the sand, matching shader twins.
+export function swashState(along, inland, time, swell) {
   const theta = breakerTheta(along * swell[0] - swell[1] * time + swell[2], 0.65, 0.75);
   const s = fract(-theta / TAU);
   const cusps = 1 + 0.2 * Math.cos(along * 0.693548 + 0.9 * Math.sin(along * 0.048387));
@@ -40,7 +30,27 @@ function swash(along, inland, time, swell) {
   const film = 1 - smooth(front - 0.1, front + 0.02, inland);
   // The film runs up fast and drains back: its flow, inland positive.
   const flow = u < 1 ? (rise < 0.5 ? 1 : -0.6) : 0;
-  return [film, Math.max(front - inland, 0), flow];
+  const edge = smooth(front - 0.5, front - 0.02, inland) * film;
+  const backwash = smooth(0.4, 0.6, rise);
+  let foam = film * ((1 - backwash) * Math.max(edge * 0.95, 0.6 - 0.25 * rise) + backwash * (0.5 * (1 - Math.min(u, 1)) + edge * 0.25));
+  const markDistance = (inland - reach) / 0.09;
+  foam = Math.max(foam, Math.exp(-markDistance * markDistance) * backwash * Math.max(1 - u, 0) * 0.7);
+  const y = clamp((inland + 0.6) / (reach + 0.6), 0, 1);
+  const exposed = Math.pow(1 - Math.asin(y) / Math.PI, 1 / 0.65);
+  const period = TAU / Math.max(swell[1], 0.001);
+  const age = Math.max(u - exposed + (u < exposed ? 1 / 0.82 : 0), 0) * 0.82 * period;
+  const wet = Math.max(film, Math.exp(-age / 24) * (1 - smooth(reach - 0.12, reach + 0.12, inland)));
+  return { film, foam, wet, depth: Math.max(front - inland, 0), flow, age, reach };
+}
+
+function setEnvelope(along, time) {
+  return 0.72 + 0.19 * Math.sin(along * 0.032258 - time * 0.061 + 1.3) + 0.1 * Math.sin(along * 0.016129 + time * 0.023) + 0.12 * Math.sin(along * 0.112903 - time * 0.13 + 2.4);
+}
+
+function breakerTheta(psi, beta, q) {
+  const psi1 = psi - beta * Math.cos(psi);
+  const theta = psi1 + q * Math.sin(psi1);
+  return psi1 + q * Math.sin(theta);
 }
 
 // modes: the wave-modes buffer (wave-modes.js), phases updated per frame.
@@ -131,7 +141,7 @@ export function createSea(seed, modes) {
       if (inland < 0) out.level = height(x, z, -inland, along, dx / r, dz / r, true);
       if (inland > -1 && inland < 9) {
         // The swash film over the sand, a few centimetres deep.
-        const [film, behind, flow] = swash(along, inland, time, swell);
+        const { film, depth: behind, flow } = swashState(along, inland, time, swell);
         if (film > 0.2) {
           out.level = Math.max(out.level, ground + film * Math.min(0.06, 0.008 + behind * 0.03));
           if (inland > -0.5) {

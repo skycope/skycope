@@ -20,6 +20,11 @@ export const EYE = 1;
 export const EAR = 2;
 
 const BIG = 1;
+// The primitives are the skin; the coat stands off it. Each is inflated by
+// its fur weight times this (m), so the silhouette carries a pelt's volume
+// (a domestic tabby's ~5 mm of coat) instead of a hairless figurine's, the
+// bare nose leather stays put and the eye sockets open with the lids.
+export const LOFT = 0.005;
 
 // Two levels of detail, as grid cells (m) for the field surface. Every pass
 // of the body is bound by skinned vertices, not pixels, so each gets the
@@ -28,8 +33,8 @@ const BIG = 1;
 // closest camera the silhouette is within ~0.2 mm), and a coarse one for
 // the fur shells, the shadow map and the see-through silhouette. The face,
 // paws and tail tip are refined a level at both sizes.
-const LODS = { mid: 0.0066, far: 0.0115 };
-const LIGHT_LODS = { mid: 0.0085, far: 0.013 };
+const LODS = { mid: 0.0071, far: 0.0124 };
+const LIGHT_LODS = { mid: 0.0092, far: 0.014 };
 
 export const buildStats = {};
 export function buildCatGeometry(rig, { light = false } = {}) {
@@ -122,8 +127,8 @@ function anatomy(rig) {
     } else {
       // Thigh: the femur inside a broad, flat haunch muscle. Shin with the
       // calf behind, the heel's point at the hock, then the long hock.
-      cone(`${n}Upper`, [0, 0, 0], [0, -a, 0], 0.028, 0.019, { k: 0.02, sx: 0.8, region: [0, 0.4, 0, 0], comb: down(`${n}Upper`) });
-      ell(`${n}Upper`, [0, -a * 0.36, -0.004], [0.027, a * 0.64, 0.047], { axis: true, k: 0.025, region: [0, 0.35, 0, 0], comb: [0, -0.6, -0.8] });
+      cone(`${n}Upper`, [0, 0, 0], [0, -a, 0], 0.028, 0.022, { k: 0.02, sx: 0.8, region: [0, 0.4, 0, 0], comb: down(`${n}Upper`) });
+      ell(`${n}Upper`, [0, -a * 0.36, -0.004], [0.034, a * 0.64, 0.047], { axis: true, k: 0.025, region: [0, 0.35, 0, 0], comb: [0, -0.6, -0.8] });
       cone(`${n}Lower`, [0, 0, 0], [0, -b, 0], 0.021, 0.0122, { k: 0.012, sx: 0.8, region: leg, comb: down(`${n}Lower`), fur: 0.75 });
       ell(`${n}Lower`, [0, -b * 0.3, -0.008], [0.014, b * 0.32, 0.017], { axis: true, k: 0.012, region: leg, comb: down(`${n}Lower`), fur: 0.75 });
       ell(`${n}Foot`, [0, 0.005, -0.008], [0.0075, 0.009, 0.0085], { axis: true, k: 0.008, region: leg, comb: [0, -1, 0], fur: 0.6 });
@@ -142,22 +147,24 @@ function anatomy(rig) {
   // Head (in the head's frame): a round cranium, the brow, broad cheeks,
   // a short muzzle with whisker pads, the nose leather, and the jaw hinged
   // beneath. Eye sockets are carved out for the eyes to sit in.
-  ell("head", H([0, 0.007, -0.008]), [0.042, 0.037, 0.042], { k: 0.03, region: head, comb: [0, 0.2, -1], fur: 0.6 });
+  ell("head", H([0, 0.007, -0.008]), [0.039, 0.035, 0.042], { k: 0.03, region: head, comb: [0, 0.2, -1], fur: 0.6 });
   ell("head", H([0, 0.0135, 0.013]), [0.029, 0.024, 0.027], { k: 0.016, region: head, comb: [0, 0.5, -0.9], fur: 0.5 });
   for (const side of [1, -1]) {
     ell("head", H([0.025 * side, -0.012, 0.004]), [0.027, 0.024, 0.027], { k: 0.014, region: head, comb: [side * 0.9, -0.3, -0.5], fur: 0.85 });
-    ell("head", H([0.0088 * side, -0.0185, 0.0375]), [0.0108, 0.009, 0.0102], { k: 0.007, region: head, comb: [side, -0.35, -0.25], fur: 0.35, fine: true });
+    ell("head", H([0.0088 * side, -0.0185, 0.0375]), [0.0118, 0.0095, 0.0106], { k: 0.007, region: head, comb: [side, -0.35, -0.25], fur: 0.45, fine: true });
   }
   ell("head", H([0, -0.0085, 0.032]), [0.0125, 0.0118, 0.0148], { k: 0.011, region: head, comb: [0, 0.4, -1], fur: 0.3, fine: true });
-  ell("head", H([0, -0.0064, 0.0452]), [0.0058, 0.0042, 0.0032], { k: 0.0042, region: head, comb: [0, 0.4, -1], fur: 0, fine: true, nose: true });
+  ell("head", H([0, -0.0064, 0.0452]), [0.0058, 0.0042, 0.0032], { k: 0.0042, region: head, comb: [0, 0.4, -1], fur: 0, loft: 0.15, fine: true, nose: true });
   ell("jaw", H([0, -0.0235, 0.012]), [0.0178, 0.0092, 0.024], { k: 0.01, region: head, comb: [0, -0.3, -1], fur: 0.5, fine: true });
   ell("jaw", H([0, -0.0272, 0.0245]), [0.0092, 0.0062, 0.0095], { k: 0.006, region: head, comb: [0, -0.4, -1], fur: 0.35, fine: true });
   for (const side of [1, -1]) {
     const socket = new THREE.Matrix4()
       .makeRotationFromEuler(new THREE.Euler(0.05, side * 0.3, side * 0.16, "YXZ"))
       .invert();
-    ell("head", H([0.0184 * side, 0.0084, 0.0346]), [0.0108, 0.0112, 0.009], {
+    ell("head", H([0.0184 * side, 0.0084, 0.0346]), [0.0099, 0.0099, 0.0086], {
       sub: true,
+      // Opens with the brow's coat, so the lids stay snug round the globe.
+      loft: 0.6,
       k: 0.0035,
       basis: new THREE.Matrix3().setFromMatrix4(socket).elements,
       region: head,
@@ -167,8 +174,9 @@ function anatomy(rig) {
 
   // Tail: a root that blends into the rump, then tapering segments, one
   // per bone, the tip rounded.
-  const radius = (s) => 0.0148 * (1 - s * 0.4) - Math.max(0, s - 0.93) * 0.05;
-  cone("tail0", [0, 0.034, -0.138], [TAIL_ROOT[0], TAIL_ROOT[1], TAIL_ROOT[2] - 0.03], 0.019, radius(0.1), { body: true, k: 0.02, region: [0, 0, 0.6, 0], comb: [0, 0.1, -1], fur: 1.1 });
+  // A cat's tail is nearly as thick at the tip as the root under its fur.
+  const radius = (s) => 0.0115 * (1 - 0.25 * THREE.MathUtils.smoothstep(s, 0.5, 1)) - Math.max(0, s - 0.93) * 0.05;
+  cone("tail0", [0, 0.034, -0.138], [TAIL_ROOT[0], TAIL_ROOT[1], TAIL_ROOT[2] - 0.03], 0.019, radius(0.1), { body: true, k: 0.02, region: [0, 0, 0.6, 0], comb: [0, 0.1, -1], fur: 1.3 });
   for (let i = 0; i < TAIL_BONES; i++) {
     const s0 = i / TAIL_BONES;
     const s1 = (i + 1) / TAIL_BONES;
@@ -179,7 +187,7 @@ function anatomy(rig) {
       k: 0.006,
       region: [0, 0, 1, 0],
       comb: [0, 0, -1],
-      fur: 1.15 + s1 * 0.25,
+      fur: 1.5,
       fine: s1 > 0.85,
     });
   }
@@ -246,8 +254,9 @@ function createField(prims) {
   const primDistance = (p, x, y, z) => {
     const dx = x - p.c.x, dy = y - p.c.y, dz = z - p.c.z;
     const bound = Math.sqrt(dx * dx + dy * dy + dz * dz) - p.R;
-    if (bound > 0.03) return bound;
-    return p.kind === 0 ? ellipsoidDistance(p, x, y, z) : coneDistance(p, x, y, z);
+    const loft = (p.loft ?? p.fur) * LOFT;
+    if (bound > 0.03) return bound - loft;
+    return (p.kind === 0 ? ellipsoidDistance(p, x, y, z) : coneDistance(p, x, y, z)) - loft;
   };
   const evaluate = (x, y, z, list = prims, record = false) => {
     let d = BIG;
@@ -456,6 +465,8 @@ function bake(mesh, field, prims, rig) {
   const comb = [0, 0, 0];
   const AO_STEPS = [0.004, 0.009, 0.016, 0.026, 0.04];
   const AO_WEIGHTS = [0.32, 0.26, 0.2, 0.14, 0.08];
+  // Ear bases, a little up into the ear (the shells there lie up it).
+  const earBases = ["earL", "earR"].map((name) => rig.bones[name].localToWorld(new THREE.Vector3(0, 0.008, 0)));
   for (let v = 0; v < count; v++) {
     const [x, y, z] = verts[v];
     const list = field.near(x, y, z, 0.06);
@@ -492,12 +503,7 @@ function bake(mesh, field, prims, rig) {
       out.skinWeight[v * 4 + i] = top[i] ? top[i][1] / sum : 0;
     }
     // Fur lies along the skin: project the comb onto the tangent plane.
-    const dot = comb[0] * g[0] + comb[1] * g[1] + comb[2] * g[2];
-    let cx = comb[0] - g[0] * dot, cy = comb[1] - g[1] * dot, cz = comb[2] - g[2] * dot;
-    const cl = Math.hypot(cx, cy, cz) || 1;
-    cx /= cl;
-    cy /= cl;
-    cz /= cl;
+    const [cx, cy, cz] = furFlow([x, y, z], g, region.map((r) => r / total), comb);
     // Occlusion from the field: how much of the space just outside the skin
     // is taken up by the cat's own body (armpits, under the chin, between
     // the legs, the base of the ears).
@@ -515,8 +521,13 @@ function bake(mesh, field, prims, rig) {
     out.normal.set(g, v * 3);
     out.coat.set([x, y, z, FUR], v * 4);
     out.region.set(region.map((r) => r / total), v * 4);
-    // Fur is very short round the eyes, so it never grows over them.
+    // Fur is very short round the eyes, so it never grows over them, and
+    // round the base of the ears, so it never pokes through them.
     let nearEye = 1;
+    for (const base of earBases) {
+      const d = Math.hypot(x - base.x, y - base.y, z - base.z);
+      nearEye = Math.min(nearEye, THREE.MathUtils.smoothstep(d, 0.01, 0.026));
+    }
     for (const side of [1, -1]) {
       const e = eyeCentre(side);
       const d = Math.hypot(x - e[0] - HEAD[0], y - e[1] - HEAD[1], z - e[2] - HEAD[2]);
@@ -557,14 +568,45 @@ function part(count) {
   };
 }
 
+// Continuous anatomical flow supplements the primitive/bone comb near joins.
+// The limb and tail directions still come from their own bone axes.
+export function furFlow(position, normal, region, primitiveComb) {
+  const [x, y, z] = position;
+  const [head, leg, tail, paw] = region;
+  const body = Math.max(0, 1 - head - leg - tail - paw);
+  const neck = THREE.MathUtils.smoothstep(z, 0.10, 0.19);
+  const cheek = THREE.MathUtils.smoothstep(HEAD[1] + 0.012 - y, 0, 0.04);
+  const side = Math.tanh(x / 0.018);
+  const anatomical = [
+    head * side * cheek * 0.8 + body * side * 0.18,
+    -head * cheek * 0.65 - body * (0.22 + neck * 0.8),
+    -head * (1 - cheek * 0.55) - body * (1 - neck * 0.7),
+  ];
+  const blend = Math.min(0.8, (head + body) * 0.8);
+  const direction = primitiveComb.map((v, c) => v * (1 - blend) + anatomical[c] * blend);
+  const dot = direction.reduce((sum, v, c) => sum + v * normal[c], 0);
+  let tangent = direction.map((v, c) => v - normal[c] * dot);
+  let length = Math.hypot(...tangent);
+  if (length < 1e-5) {
+    // A projected comb at a pole needs a deterministic tangent, not NaNs.
+    const axis = Math.abs(normal[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+    const along = axis.reduce((sum, v, c) => sum + v * normal[c], 0);
+    tangent = axis.map((v, c) => v - normal[c] * along);
+    length = Math.hypot(...tangent);
+  }
+  return tangent.map((v) => v / length);
+}
+
 // ---------------------------------------------------------------------------
 // Eyes: globes set into the sockets, gazing forward and a little out. The
 // coat coordinates are the eye's own (+z along the gaze, x outward), so the
 // iris and pupil are drawn per pixel.
 
-export const EYE_RADIUS = 0.0102;
+// Set forward with the coat round it (LOFT), so the globe fills its lids
+// rather than peering from a pit.
+export const EYE_RADIUS = 0.0098;
 export function eyeCentre(side) {
-  return [0.0184 * side, 0.0066, 0.027];
+  return [0.019 * side, 0.0062, 0.0287];
 }
 export const EYE_GAZE = { yaw: 0.26, pitch: -0.04 };
 

@@ -7,69 +7,172 @@ import { terrainHeight, islandPoint, noise2, ISLAND, shoreDistance } from "./ter
 // offline water renderer (scripts/render-sky.mjs) can build the same rocks.
 
 // Corestone shapes. Boulder fields read as one repeated blob when every rock
-// shares a mesh, so there are a few, each with its own joints and sheeting.
-export const ROCK_VARIANTS = 3;
+// shares a mesh, so there are several, each with its own joints, clefts and
+// weathering pits.
+export const ROCK_VARIANTS = 5;
+// The scattered shore stones take one shape per ground chunk (forest.js
+// CHUNK), so each chunk still draws them in one call.
+const SCATTER_CELL = 20;
 
 export function rockLayout(random) {
   const rocks = [];
   for (let i = 0; i < 230; i++) {
     const { x, z } = islandPoint(random() * Math.PI * 2, random() * 7 - 2);
     const size = 0.15 + random() ** 3 * 1.2;
+    const sy = size * (0.55 + random() * 0.3);
+    // Half sunk in the sand, a joint face roughly down: stones on a beach
+    // settle onto their flattest side and the sand drifts up round them.
     rocks.push({
-      position: new THREE.Vector3(x, terrainHeight(x, z) + size * 0.25, z),
-      scale: new THREE.Vector3(size, size * 0.7, size * 0.85),
-      rotation: new THREE.Euler(random(), random() * 6, random()),
-      color: new THREE.Color().setHSL(0.09, 0.06, 0.27 + random() * 0.12),
-      // Scattered all round the shore: one shape, so each ground chunk
-      // keeps one draw for them. The boulder fields below get all three.
-      variant: 0,
+      position: new THREE.Vector3(x, terrainHeight(x, z) + sy * (0.1 + random() * 0.35), z),
+      scale: new THREE.Vector3(size, sy, size * (0.75 + random() * 0.3)),
+      rotation: new THREE.Euler((random() - 0.5) * 0.7, random() * Math.PI * 2, (random() - 0.5) * 0.7),
+      color: new THREE.Color().setHSL(0.08 + random() * 0.02, 0.06, 0.27 + random() * 0.12),
+      ground: terrainHeight(x, z),
+      variant: scatterVariant(x, z),
     });
   }
-  // Granite boulder fields, as on the Cape Peninsula's shores: a few clusters
-  // of big rounded corestones straddling the waterline, stacked and leaning.
+  // Granite boulder fields, as on the Cape Peninsula's shores: outcrops of
+  // corestones straddling the waterline. Each outcrop weathered out of one
+  // jointed block, so its stones share a joint direction and a mineral
+  // colour; they grow outward from the biggest, touching, leaning on one
+  // another, some stacked on top.
   const clusters = 5 + Math.floor(random() * 3);
   for (let c = 0; c < clusters; c++) {
     const theta = random() * Math.PI * 2;
-    const count = 5 + Math.floor(random() * 8);
+    const count = 6 + Math.floor(random() * 8);
+    const jointYaw = random() * Math.PI * 2;
+    const mineralGrey = 0.27 + random() * 0.1;
+    const mineralHue = 0.065 + random() * 0.025;
+    const centre = islandPoint(theta, random() * 5 - 2.5);
+    // Along the shore, where the outcrop strings out.
+    const alongX = -Math.sin(theta);
+    const alongZ = Math.cos(theta);
+    const sizes = Array.from({ length: count }, () => 0.85 + random() ** 1.6 * 3.5).sort((a, b) => b - a);
+    const members = [];
     for (let i = 0; i < count; i++) {
-      const { x, z } = islandPoint(
-        theta + (random() - 0.5) * 0.12,
-        random() * 9 - 4,
-      );
-      const size = 0.9 + random() ** 1.5 * 3.2;
-      const grey = 0.3 + random() * 0.12;
-      rocks.push({
-        position: new THREE.Vector3(
-          x,
-          Math.max(terrainHeight(x, z), -0.6) + size * (0.2 + random() * 0.3),
-          z,
-        ),
-        scale: new THREE.Vector3(size, size * (0.65 + random() * 0.3), size * (0.8 + random() * 0.3)),
-        rotation: new THREE.Euler(random() * 0.6, random() * 6, random() * 0.6),
-        // Cape granite weathers from pale grey to a warm, iron-stained buff.
-        color: new THREE.Color().setHSL(0.07 + random() * 0.04, 0.07 + random() * 0.05, grey * 0.8),
-        variant: (c + i) % ROCK_VARIANTS,
-      });
+      const size = sizes[i];
+      const sy = size * (0.55 + random() * 0.35);
+      const sz = size * (0.72 + random() * 0.4);
+      const reach = (size + sz) * 0.5 * 0.86;
+      let x = centre.x;
+      let z = centre.z;
+      let base = null;
+      let tiltX = (random() - 0.5) * 0.12;
+      let tiltZ = (random() - 0.5) * 0.12;
+      const parent = members.length ? members[Math.floor(random() ** 1.5 * members.length)] : null;
+      const stack = parent && i > 2 && size < parent.reach * 0.75 && random() < 0.3;
+      if (parent && stack) {
+        // Perched on a bigger stone, off its crown, leaning away.
+        const a = random() * Math.PI * 2;
+        const off = parent.reach * (0.2 + random() * 0.3);
+        x = parent.x + Math.cos(a) * off;
+        z = parent.z + Math.sin(a) * off;
+        base = parent.top - parent.sy * (0.12 + random() * 0.1);
+        tiltX = Math.sin(a) * 0.25;
+        tiltZ = -Math.cos(a) * 0.25;
+      } else if (parent) {
+        // Shouldered against its neighbour, mostly along the shore.
+        const a = Math.atan2(alongZ, alongX) + (random() < 0.5 ? Math.PI : 0) + (random() - 0.5) * 1.8;
+        const gap = (parent.reach + reach) * (0.72 + random() * 0.18);
+        x = parent.x + Math.cos(a) * gap;
+        z = parent.z + Math.sin(a) * gap;
+        // Leaning into it, as the smaller stones of a field do.
+        const lean = random() < 0.5 ? 0.12 + random() * 0.25 : 0;
+        tiltX = -Math.sin(a) * lean + (random() - 0.5) * 0.08;
+        tiltZ = Math.cos(a) * lean + (random() - 0.5) * 0.08;
+      }
+      const ground = Math.max(terrainHeight(x, z), -0.6);
+      // Sunk up to half its height in sand or the seabed; stacked ones
+      // sit in the saddle of the stone below.
+      const y = base !== null
+        ? Math.max(base, ground) + sy * 0.52
+        : ground + sy * (0.18 + random() * 0.32);
+      const grey = mineralGrey + (random() - 0.5) * 0.035;
+      const member = {
+        position: new THREE.Vector3(x, y, z),
+        scale: new THREE.Vector3(size, sy, sz),
+        rotation: new THREE.Euler(tiltX, jointYaw + (random() - 0.5) * 0.22, tiltZ),
+        cluster: c,
+        jointYaw,
+        ground: base !== null ? Math.max(base, ground) : ground,
+        // Weathered mineral colour belongs to the parent block.
+        color: new THREE.Color().setHSL(mineralHue, 0.05 + random() * 0.035, grey),
+        variant: (c * 2 + i) % ROCK_VARIANTS,
+      };
+      rocks.push(member);
+      members.push({ x, z, reach, sy, top: y + sy * 0.8 });
     }
+  }
+  // Loose stones near an outcrop are its fragments: its mineral colour.
+  const parents = rocks.filter((rock) => rock.cluster !== undefined);
+  for (const fragment of rocks.slice(0, 230)) {
+    let nearest = null;
+    let distance = 12;
+    for (const parent of parents) {
+      const d = Math.hypot(fragment.position.x - parent.position.x, fragment.position.z - parent.position.z);
+      if (d < distance) { distance = d; nearest = parent; }
+    }
+    if (nearest) fragment.color.lerp(nearest.color, 0.65);
   }
   return rocks;
 }
 
-// Joint planes per variant: [normal x, y, z, distance]. Granite splits along
-// near-orthogonal joint sets; corestones are what weathering rounds out of
-// the blocks between them.
-const JOINTS = [
-  [[0, 1, 0, 0.92, -0.15], [0.8, 0, 0.6, 0.95, 0]],
-  [[0.2, 1, -0.1, 0.84, -0.05], [-0.6, 0.1, 0.8, 0.9, 0.05], [0.75, 0, 0.66, 1.02, 0]],
-  [[0, 1, 0.25, 0.97, -0.25], [0.95, 0.15, -0.3, 0.86, 0.1]],
+function scatterVariant(x, z) {
+  const i = Math.floor(x / SCATTER_CELL);
+  const j = Math.floor(z / SCATTER_CELL);
+  return Math.floor(fract(Math.sin(i * 91.7 + j * 47.3) * 9631.7) * ROCK_VARIANTS);
+}
+
+// Per variant: joint planes [normal x, y, z, distance, shift] (granite
+// splits along near-orthogonal joint sets; corestones are what weathering
+// rounds out of the blocks between them), clefts [normal x, z, offset,
+// depth, width] (open vertical joints, V-shaped, deepest on top), weathering
+// pits on the crown [x, y, z, radius, depth], and the undercut notch that
+// salt spray and sand scour cut round the foot.
+const SHAPES = [
+  // A squat, blocky corestone split by one open joint.
+  { joints: [[0, 1, 0, 0.74, -0.12], [0.8, 0, 0.6, 0.78, 0.05], [-0.6, 0.05, 0.8, 0.8, -0.06]],
+    clefts: [[0.6, -0.8, 0.18, 0.12, 0.04]], pits: [[0.15, 1, 0.1, 0.32, 0.05]], notch: 0.05, lean: [0.1, 0, -0.06] },
+  // Tall and tilted, jointed three ways, one face steep and one sloping.
+  { joints: [[0.2, 1, -0.1, 0.8, -0.1], [-0.6, 0.1, 0.8, 0.74, 0.08], [0.75, 0, 0.66, 0.78, -0.04]],
+    clefts: [[0.95, 0.3, -0.2, 0.1, 0.035]], pits: [], notch: 0.04, lean: [-0.08, 0.04, 0.1] },
+  // A tabular slab, sheeted flat on top.
+  { joints: [[0, 1, 0.1, 0.7, -0.1], [0.95, 0.15, -0.3, 0.78, 0.08], [0.3, 0, 0.95, 0.84, 0]],
+    clefts: [[0.3, 0.95, 0.05, 0.08, 0.03], [0.95, -0.3, 0.32, 0.07, 0.03]], pits: [[-0.2, 1, 0.15, 0.28, 0.035], [0.3, 1, -0.3, 0.2, 0.03]], notch: 0.06, lean: [0.12, 0, 0.04] },
+  // A dome with sheeting shells and a hollow on the crown.
+  { joints: [[0, 1, 0.25, 0.78, -0.2], [0.5, 0, -0.87, 0.76, 0.04], [0.87, 0.1, 0.5, 0.82, -0.05]],
+    clefts: [], pits: [[0.1, 1, -0.2, 0.36, 0.07]], notch: 0.07, lean: [-0.1, 0, 0.08] },
+  // A split boulder: a deep open joint through the middle.
+  { joints: [[0.1, 1, 0, 0.74, -0.12], [0.7, 0, 0.7, 0.8, 0.02], [-0.7, 0, 0.7, 0.84, 0.06]],
+    clefts: [[0.7, -0.7, 0.02, 0.2, 0.05], [0.6, 0.8, 0.35, 0.07, 0.03]], pits: [], notch: 0.04, lean: [0.06, 0, 0.12] },
 ];
 
+// Value noise in 3D (a unit lattice of hashed corners, smoothly blended):
+// the corestone's surface wants true 3D noise, not 2D noise smeared round it.
+function noise3(x, y, z) {
+  const ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z);
+  const fx = x - ix, fy = y - iy, fz = z - iz;
+  const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy), w = fz * fz * (3 - 2 * fz);
+  const h = (a, b, c) => fract(Math.sin(a * 127.1 + b * 311.7 + c * 74.7) * 43758.5453);
+  const lerp = (a, b, t) => a + (b - a) * t;
+  return lerp(
+    lerp(lerp(h(ix, iy, iz), h(ix + 1, iy, iz), u), lerp(h(ix, iy + 1, iz), h(ix + 1, iy + 1, iz), u), v),
+    lerp(lerp(h(ix, iy, iz + 1), h(ix + 1, iy, iz + 1), u), lerp(h(ix, iy + 1, iz + 1), h(ix + 1, iy + 1, iz + 1), u), v),
+    w,
+  );
+}
+
+// The radius never dips below this fraction of the bounding sphere above the
+// foot: the sea pass (rocks.wgsl rock_hides) treats a 0.7 core as solid.
+export const ROCK_CORE = 0.71;
+
 export function rockGeometry(detail = 4, variant = 0) {
-  // Weathered granite: a rounded core (corestones erode spherically) with
-  // flattened sides from jointing, sheeting shells peeling off the top and a
-  // little surface roughness. The icosahedron arrives with separate vertices
-  // per face; welding them first gives smooth normals instead of visible
-  // triangles.
+  // Weathered granite: a rounded core (corestones erode spherically) cut by
+  // joint planes into flatter faces with fairly crisp, weathered edges, open
+  // vertical joints, pits on the crown, an undercut foot, sheeting shells
+  // peeling off the top and a ridged, knobbly surface. The icosahedron
+  // arrives with separate vertices per face; welding them first gives
+  // smooth normals instead of visible triangles.
   const source = new THREE.IcosahedronGeometry(1, detail);
   source.deleteAttribute("normal");
   source.deleteAttribute("uv");
@@ -78,26 +181,62 @@ export function rockGeometry(detail = 4, variant = 0) {
   const positions = geometry.attributes.position;
   const p = new THREE.Vector3();
   const o = variant * 17.3;
+  const shape = SHAPES[variant % SHAPES.length];
+  const radii = new Float32Array(positions.count);
+  // Vertex spacing on the unit sphere. Features finer than the mesh can
+  // carry are widened (clefts) or faded (fine knobbles), so each LOD shows
+  // the same rock, softer, instead of an aliased different one.
+  const edge = 1.05 / (detail + 1);
+  const fine = smoothstepJs(0.11, 0.05, edge);
   for (let i = 0; i < positions.count; i++) {
-    p.fromBufferAttribute(positions, i);
-    let r =
-      0.8 +
-      noise2(p.x * 1.6 + p.y * 1.3 + 3 + o, p.z * 1.6 - p.y) * 0.3 +
-      noise2(p.x * 4 + 7, p.z * 4 + p.y * 3 + o) * 0.08 +
-      noise2(p.x * 11 + o, p.z * 11 + p.y * 7) * 0.025;
-    // Joint planes: clamp the radius along a few directions, with a smooth
-    // minimum so weathering rounds the edges instead of leaving creases.
-    for (const [nx, ny, nz, d, shift] of JOINTS[variant % JOINTS.length]) {
+    p.fromBufferAttribute(positions, i).normalize();
+    // Broad lobes, then a ridged knobbliness a hand or two across.
+    // Lopsided: weathered further on one side than the other.
+    const [lx, ly, lz] = shape.lean;
+    let r = 0.9 + (noise3(p.x * 1.4 + o, p.y * 1.4, p.z * 1.4 - o) - 0.5) * 0.22 + p.x * lx + p.y * ly + p.z * lz;
+    const ridge = 1 - Math.abs(noise3(p.x * 4.2 - o, p.y * 4.2 + 3, p.z * 4.2) * 2 - 1);
+    const ridgeFine = 1 - Math.abs(noise3(p.x * 9 + 5, p.y * 9 - o, p.z * 9) * 2 - 1);
+    r += (ridge * ridge - 0.35) * 0.022 * smoothstepJs(0.2, 0.09, edge) + (ridgeFine * ridgeFine - 0.35) * 0.008 * fine;
+    // Joint planes: clamp the radius along a few directions, with a tight
+    // smooth minimum: flat faces meeting at weathered but definite edges.
+    for (const [nx, ny, nz, d, shift] of shape.joints) {
       const len = Math.hypot(nx, ny, nz);
       const along = (p.x * nx + p.y * ny + p.z * nz) / len;
-      r = softMin(r, d / Math.max(0.3, Math.abs(along + shift)));
+      r = softMin(r, d / Math.max(0.3, Math.abs(along + shift)), 22);
+    }
+    // Open joints: V-shaped clefts, deepest over the crown.
+    for (const [nx, nz, offset, depth, width] of shape.clefts) {
+      const len = Math.hypot(nx, nz);
+      const across = Math.abs((p.x * nx + p.z * nz) / len - offset);
+      const w = Math.max(width, edge * 0.7);
+      r -= depth * Math.sqrt(width / w) * Math.exp(-across / w) * smoothstepJs(-0.55, 0.35, p.y);
+    }
+    // Weathering pits (gnammas): shallow bowls where rain water stands.
+    for (const [cx, cy, cz, radius, depth] of shape.pits) {
+      const l = Math.hypot(cx, cy, cz);
+      const d = Math.hypot(p.x - cx / l, p.y - cy / l, p.z - cz / l);
+      const bowl = smoothstepJs(radius, radius * 0.25, d);
+      r -= depth * bowl;
     }
     // Sheeting: onion-skin shells a few centimetres thick, stepped where one
     // has flaked away, on the upper surface only.
     const up = Math.max(0, p.y);
-    const sheet = noise2(p.x * 2.2 + o, p.z * 2.2 - o) - 0.55;
+    const sheet = noise3(p.x * 2.2 + o, p.y * 1.1, p.z * 2.2 - o) - 0.55;
     r -= up * 0.035 * smoothstepJs(-0.04, 0.04, sheet);
-    p.multiplyScalar(r);
+    // The undercut foot.
+    const notch = (p.y + 0.52) / 0.12;
+    r -= shape.notch * Math.exp(-notch * notch) * (0.6 + 0.8 * noise3(p.x * 3 + o, 0, p.z * 3));
+    radii[i] = r;
+  }
+  // Fit the unit bounding sphere the sea pass assumes (shoreRockData).
+  let max = 0;
+  for (let i = 0; i < positions.count; i++) max = Math.max(max, radii[i]);
+  for (let i = 0; i < positions.count; i++) {
+    p.fromBufferAttribute(positions, i).normalize();
+    let r = radii[i] / max;
+    // Held off the core smoothly, so no crease shows where it bites.
+    if (p.y > -0.4) r = -softMin(-r, -ROCK_CORE, 40);
+    p.multiplyScalar(Math.min(1, r));
     positions.setXYZ(i, p.x, p.y, p.z);
   }
   geometry.computeVertexNormals();
@@ -128,7 +267,7 @@ export const SHORE_ROCK_MAX = 160;
 const REACH = 3.2;
 
 export function shoreRockData(rocks) {
-  const geometries = Array.from({ length: ROCK_VARIANTS }, (_, v) => rockGeometry(3, v));
+  const geometries = Array.from({ length: ROCK_VARIANTS }, (_, v) => rockGeometry(6, v));
   const matrix = new THREE.Matrix4();
   const inverse = new THREE.Matrix4();
   const quaternion = new THREE.Quaternion();

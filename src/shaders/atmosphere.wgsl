@@ -93,15 +93,23 @@ export fn sky_radiance(view: vec3f, sun: vec3f, samples: i32) -> vec3f {
     let radius = length(position);
     let height = radius - EARTH_RADIUS;
     let density = densities(max(height, 0.0));
-    depth += density * dt;
+    // Each segment's in-scatter is integrated exactly against its own
+    // extinction, (1 - e^-τ) / τ, not weighted by the transmittance at its
+    // far end: the coarse horizon segments otherwise lose most of their blue
+    // and the horizon turns cream instead of the white-blue of a real sky.
+    let seg = density * dt;
+    let tau = RAYLEIGH * seg.x + MIE * 1.11 * seg.y + OZONE * seg.z;
+    let within = select((1.0 - exp(-tau)) / max(tau, vec3f(1e-6)), vec3f(1.0), tau < vec3f(1e-4));
+    let seen = extinction(depth) * within;
+    depth += seg;
     let sun_mu = dot(position / radius, sun);
-    let light = transmittance(height, sun_mu) * extinction(depth);
-    rayleigh += light * density.x * dt;
-    mie += light * density.y * dt;
+    let light = transmittance(height, sun_mu) * seen;
+    rayleigh += light * seg.x;
+    mie += light * seg.y;
     // Multiply scattered light arrives as if from a sun a few degrees higher:
     // it keeps the anti-solar twilight sky (Earth shadow, Belt of Venus) lit.
-    let lifted = transmittance(height, sun_mu + 0.06) * extinction(depth);
-    multiple += lifted * (density.x * RAYLEIGH + density.y * MIE) * dt;
+    let lifted = transmittance(height, sun_mu + 0.06) * seen;
+    multiple += lifted * (seg.x * RAYLEIGH + seg.y * MIE);
   }
   let single = (rayleigh * RAYLEIGH * rayleigh_phase(mu) + mie * MIE * mie_phase(mu, 0.8)) * SUN_INTENSITY;
   let fill = multiple * SUN_INTENSITY * 0.3;
@@ -113,8 +121,8 @@ export fn sky_radiance(view: vec3f, sun: vec3f, samples: i32) -> vec3f {
 // photograph), with a smooth shoulder so the sun disc and glints roll off
 // to white instead of clipping. Every blend before it happens in linear
 // light. TONE_GAIN matches the mesh layer's curve in landscape.js.
-const TONE_GAIN: f32 = 1.5;
-const VIBRANCE: f32 = 0.18;
+const TONE_GAIN: f32 = 1.35;
+const VIBRANCE: f32 = 0.04;
 // `night` 0–1 is the eye's dark adaptation: by moonlight the rods take over,
 // colour fades and what is left shifts toward blue-green (their 507 nm
 // peak; the Purkinje shift). Keep in step with landscape.js.
@@ -135,12 +143,13 @@ export fn tonemap(hdr: vec3f, night: f32) -> vec3f {
   // saturated ones be. Off by moonlight. VIBRANCE matches landscape.js.
   let luma = dot(color, vec3f(0.2126, 0.7152, 0.0722));
   let top = max(color.r, max(color.g, color.b));
-  let chroma = select(0.0, (top - min(color.r, min(color.g, color.b))) / top, top > 1e-4);
+  let chroma = select(0.0, (top - min(color.r, min(color.g, color.b))) / max(top, 1e-4), top > 1e-4);
   color = max(vec3f(luma) + (color - luma) * (1.0 + VIBRANCE * (1.0 - chroma) * (1.0 - night)), vec3f(0.0));
   let mapped = clamp(color, vec3f(0.0), vec3f(1.0));
   return select(1.055 * pow(mapped, vec3f(1.0 / 2.4)) - 0.055, mapped * 12.92, mapped <= vec3f(0.0031308));
 }
 
 export fn to_linear(srgb: vec3f) -> vec3f {
-  return pow(max(srgb, vec3f(0.0)), vec3f(2.2));
+  let color = max(srgb, vec3f(0.0));
+  return select(pow((color + 0.055) / 1.055, vec3f(2.4)), color / 12.92, color <= vec3f(0.04045));
 }

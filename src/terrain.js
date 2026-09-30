@@ -38,7 +38,14 @@ export function terrainHeight(x, z) {
   const rise = smoothstep(4, 28, inland);
   const hills =
     4 + noise2(x * 0.033, z * 0.026) * 9 + noise2(x * 0.08, z * 0.07) * 1.2;
-  return beach + rise * hills;
+  // Broad hummocks and shallow scours have real silhouette and paw contact.
+  // Keep the swash/beach slope unchanged; the 0.5 m mesh resolves these
+  // metre-scale features, and groundHeight samples the same triangles.
+  const relief = smoothstep(5, 10, inland) * (
+    (noise2(x * 0.48, z * 0.43) - 0.5) * 0.25 +
+    (noise2(x * 0.21 + 17, z * 0.3 - 4) - 0.5) * 0.16
+  );
+  return beach + rise * hills + relief;
 }
 
 export function noise2(x, y) {

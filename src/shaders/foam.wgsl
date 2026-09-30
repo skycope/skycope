@@ -7,7 +7,7 @@ import { band_variance, SEA_TILE } from "./spectrum.wgsl";
 // born; each frame it decays, drifts downwind and diffuses, so a breaking
 // crest leaves a patch that thins and opens into lace behind it. r: surface
 // foam, g: the bubble cloud under it, which lingers longer and makes the water
-// milky. Coverage follows Monahan's whitecap law (≈ U^3.4), exaggerated a
+// milky. b: advected age of surface froth in seconds. Coverage follows Monahan's whitecap law (≈ U^3.4), exaggerated a
 // little because a 6 m camera sees less sea than a ship.
 @group(0) @binding(0) var<uniform> atmosphere: Atmosphere;
 @group(0) @binding(1) var waves0: texture_2d<f32>;
@@ -19,7 +19,7 @@ import { band_variance, SEA_TILE } from "./spectrum.wgsl";
 @fragment
 fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   let wind = length(atmosphere.wind);
-  let dt = atmosphere.ocean.x;
+  let dt = clamp(atmosphere.ocean.x, 0.0, 0.1);
   // Crest compression summed over every breaking-scale band at this point;
   // the finer tiles repeat exactly 4 and 16 times across this one.
   let compression = textureSampleLevel(waves0, filtering, uv, 0.0).w
@@ -34,13 +34,16 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   let texel = 1.0 / 512.0;
   let drift = atmosphere.wind * 0.03 * dt / SEA_TILE;
   let back = uv - drift;
-  var previous = textureSampleLevel(foamHistory, filtering, back, 0.0).rg * 0.6
-    + (textureSampleLevel(foamHistory, filtering, back + vec2f(texel, 0.0), 0.0).rg
-      + textureSampleLevel(foamHistory, filtering, back - vec2f(texel, 0.0), 0.0).rg
-      + textureSampleLevel(foamHistory, filtering, back + vec2f(0.0, texel), 0.0).rg
-      + textureSampleLevel(foamHistory, filtering, back - vec2f(0.0, texel), 0.0).rg) * 0.1;
+  var previous = textureSampleLevel(foamHistory, filtering, back, 0.0).rgb * 0.6
+    + (textureSampleLevel(foamHistory, filtering, back + vec2f(texel, 0.0), 0.0).rgb
+      + textureSampleLevel(foamHistory, filtering, back - vec2f(texel, 0.0), 0.0).rgb
+      + textureSampleLevel(foamHistory, filtering, back + vec2f(0.0, texel), 0.0).rgb
+      + textureSampleLevel(foamHistory, filtering, back - vec2f(0.0, texel), 0.0).rgb) * 0.1;
   previous *= atmosphere.ocean.y;
   let decay = exp(-dt / vec2f(1.8, 4.5));
-  let foam = max(previous * decay, vec2f(birth, birth * 0.8));
-  return vec4f(foam, 0.0, 1.0);
+  let aged = previous.xy * decay;
+  let foam = max(aged, vec2f(birth, birth * 0.8));
+  // Fresh compression resets age; the same backtrace carries density and age.
+  let age = select(min(previous.z + dt, 30.0), 0.0, birth > aged.x || foam.x < 0.001);
+  return vec4f(foam, age, 1.0);
 }

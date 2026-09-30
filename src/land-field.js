@@ -1,3 +1,4 @@
+import { MATERIAL_LINEAR } from "./material-palette.js";
 import { terrainHeight, shoreDistance, ISLAND } from "./terrain.js";
 
 // The island as the sea sees it in reflection: a 256² height field over a
@@ -12,12 +13,8 @@ import { terrainHeight, shoreDistance, ISLAND } from "./terrain.js";
 // Keep LAND_FIELD, SAND_TINT and LEAF_TINT in step with ocean.wgsl.
 export const LAND_FIELD = { size: 256, span: 200, x0: ISLAND.x - 100, z0: ISLAND.z - 100 };
 
-// Linear albedo of open ground: sand, dune, litter and moss, as forest.js's
-// ground colours (#a99c7c sand, #968a64 dune, #4a3d28 litter, #354b26 moss).
-const SAND = [0.4, 0.33, 0.2];
-const DUNE = [0.3, 0.25, 0.13];
-const LITTER = [0.068, 0.047, 0.021];
-const MOSS = [0.036, 0.07, 0.019];
+// Shared linear material reflectances; lighting is evaluated by the water pass.
+const { sand: SAND, wetSand: WET_SAND, dune: DUNE, litter: LITTER, moss: MOSS } = MATERIAL_LINEAR;
 
 // Albedo is stored as luminance and a tint between two chromaticities (each
 // normalised to unit luminance), which covers sand, litter, moss and leaves.
@@ -27,7 +24,7 @@ export const SAND_TINT = [1.24, 0.97, 0.6];
 export const LEAF_TINT = [0.56, 1.21, 0.31];
 const TINT_AXIS = SAND_TINT.map((v, i) => LEAF_TINT[i] - v);
 const TINT_NORM = TINT_AXIS.reduce((a, v) => a + v * v, 0);
-function tintOf(rgb) {
+export function tintOf(rgb) {
   const l = Math.max(luma(rgb), 1e-5);
   let t = 0;
   for (let i = 0; i < 3; i++) t += (rgb[i] / l - SAND_TINT[i]) * TINT_AXIS[i];
@@ -62,7 +59,8 @@ export function landFieldData(shoots) {
         data[k] = -1;
         continue;
       }
-      let colour = lerp3(SAND, DUNE, smooth(2.5, 6.5, inland) * 0.7);
+      let colour = lerp3(WET_SAND, SAND, smooth(-0.2, 2, inland));
+      colour = lerp3(colour, DUNE, smooth(2.5, 6.5, inland) * 0.7);
       colour = lerp3(colour, LITTER, smooth(5.5, 11, inland));
       colour = lerp3(colour, MOSS, smooth(9, 17, inland) * 0.6);
       data[k] = Math.max(terrainHeight(x, z), 0);
@@ -70,14 +68,14 @@ export function landFieldData(shoots) {
     }
   }
   // Splat each shoot as a small dome: the crown's outer surface is what a
-  // reflected ray meets. Deep shoots are darker (the crown shades itself).
+  // reflected ray meets. Store material albedo: receiver lighting and sky
+  // visibility belong to the water shader, not this reflectance field.
   for (const s of shoots) {
     const r = Math.max(cell * 0.75, Math.max(s.scale.x, s.scale.z) * 0.55);
     const top = s.position.y + s.scale.y * 0.35;
     const ci = (s.position.x - x0) / cell - 0.5;
     const cj = (s.position.z - z0) / cell - 0.5;
     const reach = Math.ceil(r / cell);
-    const shade = 1 - (s.shade ?? 0) * 0.6;
     const [tint, lum] = s.color ? tintOf([s.color.r, s.color.g, s.color.b]) : [1, 0.06];
     for (let dj = -reach; dj <= reach; dj++) {
       for (let di = -reach; di <= reach; di++) {
@@ -93,7 +91,7 @@ export function landFieldData(shoots) {
         if (h <= data[k]) continue;
         data[k] = h;
         data[k + 1] = tint;
-        data[k + 2] = lum * shade;
+        data[k + 2] = lum;
       }
     }
   }
@@ -145,11 +143,11 @@ export function landFieldLevels(data, levels = 3) {
           const k = ((j * 2 + dj) * size + i * 2 + di) * 4;
           top = Math.max(top, src[k]);
           near = Math.min(near, src[k + 3]);
-          tint += src[k + 1] / 4;
+          tint += src[k + 1] * src[k + 2] / 4;
           lum += src[k + 2] / 4;
         }
         dst[o] = top;
-        dst[o + 1] = tint;
+        dst[o + 1] = lum > 1e-8 ? tint / lum : 0;
         dst[o + 2] = lum;
         dst[o + 3] = near;
       }
