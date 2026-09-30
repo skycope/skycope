@@ -71,6 +71,9 @@ const MAX_DPR = LIGHT ? 1.25 : 1.5;
 // as often for no visible gain), 30 once the cat has settled and nothing is
 // being pressed. The small tolerance keeps vsync jitter from skipping frames.
 const ACTIVE_FPS = 60;
+// The reveal's resolution steps (fraction of full) and how long each holds.
+const REVEAL = [1 / 32, 1 / 16, 1 / 8, 1 / 4, 1 / 2, 1];
+const REVEAL_STEP_MS = 260;
 const IDLE_FPS = 30;
 
 
@@ -104,6 +107,10 @@ const state = {
   lastFrame: 0,
   weatherFrame: 0,
   firstFrame: false,
+  // The world sharpens in from coarse pixels: a fraction of full
+  // resolution that steps up to 1 after the first frame (see REVEAL).
+  reveal: matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : REVEAL[0],
+  revealTimer: 0,
   loadingRaf: 0,
   lastChirp: -10,
   // How wet the cat's paws are (from wet sand); they print on rock.
@@ -638,7 +645,7 @@ async function startAtmosphere() {
   state.walker = createWalker(state.landscape.obstacles, state.sea, state.wake);
   applyReviewFixture(state.walker, review, state.landscape.obstacles);
   state.flight = state.walker.camera;
-  state.landscape.resize(window.innerWidth, window.innerHeight);
+  state.landscape.resize(window.innerWidth, window.innerHeight, state.quality, state.reveal < 1 ? revealSize() : null);
   loading.stage("sky");
   await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   await tablePass.compile(skyTable);
@@ -752,14 +759,39 @@ async function startAtmosphere() {
     }
     if (!state.firstFrame) {
       state.firstFrame = true;
-      state.loadingRaf = requestAnimationFrame(() => loading.ready());
+      state.loadingRaf = requestAnimationFrame(() => {
+        loading.ready();
+        sharpen();
+      });
     }
   };
   document.body.dataset.renderer = "webgpu";
   syncLoop();
 }
 
+// While revealing, every layer renders at the same coarse pixel grid, so
+// sky, sea and land share their blocks as they sharpen.
+function revealSize() {
+  return [
+    Math.max(1, Math.ceil(window.innerWidth * state.reveal)),
+    Math.max(1, Math.ceil(window.innerHeight * state.reveal)),
+  ];
+}
+
+// Steps the reveal up to full resolution, one resize per step.
+function sharpen() {
+  clearTimeout(state.revealTimer);
+  if (state.reveal >= 1) document.body.classList.remove("revealing");
+  if (state.reveal >= 1 || state.disposed) return;
+  state.revealTimer = setTimeout(() => {
+    state.reveal = REVEAL[REVEAL.indexOf(state.reveal) + 1] ?? 1;
+    resizeAtmosphere();
+    sharpen();
+  }, REVEAL_STEP_MS);
+}
+
 function cloudSize() {
+  if (state.reveal < 1) return revealSize();
   // Clouds tolerate smooth upscaling. Water has a separate, sharper budget.
   const width = window.innerWidth;
   const height = window.innerHeight;
@@ -772,6 +804,7 @@ function cloudSize() {
 }
 
 function waterSize() {
+  if (state.reveal < 1) return revealSize();
   const width = window.innerWidth;
   const height = window.innerHeight;
   const scale =
@@ -991,7 +1024,7 @@ function resizeAtmosphere() {
   state.skyTarget?.write.resize(cloudSize());
   state.cloudTarget?.resize(quarterSize(cloudSize()));
   resetSkyHistory();
-  state.landscape?.resize(window.innerWidth, window.innerHeight, state.quality);
+  state.landscape?.resize(window.innerWidth, window.innerHeight, state.quality, state.reveal < 1 ? revealSize() : null);
   renderStill();
 }
 
@@ -1060,6 +1093,7 @@ function useFallback(error) {
 
 function stopAtmosphere() {
   state.disposed = true;
+  clearTimeout(state.revealTimer);
   events.abort();
   clearInterval(state.clockTimer);
   clearInterval(state.weatherTimer);

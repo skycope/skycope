@@ -652,7 +652,8 @@ float scrubFar = smoothstep( 0.0012, 0.005, px );
 // Painted cover can only ever look flat up close: within ~6–10 m of the eye
 // it thins away to the plain ground, where tufts and shrubs are geometry.
 float coverNear = smoothstep( 5.5, 11.0, length( vViewPosition ) );
-if ( scrub > 0.02 ) {
+// (Nothing to draw within ~5.5 m, where most of the screen's ground is.)
+if ( scrub > 0.02 && coverNear > 0.0 ) {
   // Individual bushes: a cellular field, one bush per 1.25 m cell (or a gap),
   // each its own size, species and tone, so a hillside reads as a mosaic of
   // rounded shrubs with dark crevices between them, not a painted blob.
@@ -732,7 +733,7 @@ if ( scrub > 0.02 ) {
 // going red-bronze where they are stressed, starred with magenta flowers.
 float figCover = 0.0;
 float figRelief = 0.0;
-if ( sourfig > 0.02 ) {
+if ( sourfig > 0.02 && coverNear > 0.0 ) {
   // Rosettes of finger leaves with dark gaps between them.
   float f1 = mix( smoothstep( 0.35, 0.65, dNoise( coast * 16.0 + 4.0 ) ), 0.5, smoothstep( 0.2, 0.5, px * 16.0 ) );
   float f2 = mix( smoothstep( 0.4, 0.6, dNoise( coast * 37.0 - 2.0 ) ), 0.5, smoothstep( 0.15, 0.4, px * 37.0 ) );
@@ -953,10 +954,13 @@ diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.6, 0.6, 0.6
 // Patina: undersides and hollows darken where rain and light don't reach.
 diffuseColor.rgb *= mix( 0.72, 1.0, smoothstep( 0.0, 0.5, up + mid * 0.3 ) );
 // Joint cracks and exfoliation seams: thin dark lines, faded with distance.
-float crackWidth = 0.0035 + footprint * 0.6;
-float seam = 1.0 - smoothstep( 0.0, crackWidth, abs( dNoise3( q * 0.8 + 11.0 ) + ( mid - 0.5 ) * 0.08 - 0.5 ) );
-// Broken into short runs, not endless arcs.
-seam *= smoothstep( 0.52, 0.68, dNoise3( q * 2.3 + 3.0 ) ) * ( 1.0 - smoothstep( 0.015, 0.04, footprint ) ) * smoothstep( 0.5, 0.62, macro * 0.7 + mid * 0.3 ) * smoothstep( 0.3, 0.6, relief + mid * 0.3 );
+float seam = 0.0;
+if ( footprint < 0.04 ) {
+  float crackWidth = 0.0035 + footprint * 0.6;
+  seam = 1.0 - smoothstep( 0.0, crackWidth, abs( dNoise3( q * 0.8 + 11.0 ) + ( mid - 0.5 ) * 0.08 - 0.5 ) );
+  // Broken into short runs, not endless arcs.
+  seam *= smoothstep( 0.5, 0.6, mid ) * ( 1.0 - smoothstep( 0.015, 0.04, footprint ) ) * smoothstep( 0.5, 0.62, macro * 0.7 + mid * 0.3 ) * smoothstep( 0.3, 0.6, relief + mid * 0.3 );
+}
 diffuseColor.rgb *= 1.0 - seam * 0.16;
 // Grain: coarse porphyritic granite, feldspar crystals a centimetre or two.
 float grainFade = 1.0 - smoothstep( 0.004, 0.012, footprint );
@@ -967,10 +971,13 @@ if ( grainFade > 0.01 ) {
   // Soft thresholds: weathered crystals blur into each other; hard ones
   // read as a printed camouflage pattern.
   // Two rotated lattices averaged: one alone leaves square crystals.
-  float f2 = 0.5 + ( dNoise3( q * 38.0 ) + dNoise3( turn3 * q * 38.0 + 1.3 ) - 1.0 ) * 0.85;
-  float b2 = 0.5 + ( dNoise3( q * 150.0 + 9.0 ) + dNoise3( turn3 * q * 131.0 + 2.1 ) - 1.0 ) * 0.85;
+  // Quartz from the same two lattices' difference: a field of its own.
+  float g1 = dNoise3( q * 38.0 );
+  float g2 = dNoise3( turn3 * q * 38.0 + 1.3 );
+  float f2 = 0.5 + ( g1 + g2 - 1.0 ) * 0.85;
+  float b2 = 0.5 + ( dNoise3( turn3 * q * 131.0 + 2.1 ) - 0.5 ) * 1.2;
   feldspar = smoothstep( 0.5, 0.8, f2 ) * grainFade;
-  quartz = smoothstep( 0.55, 0.82, dNoise3( turn3 * q * 61.0 + 4.0 ) ) * grainFade;
+  quartz = smoothstep( 0.62, 0.86, 0.5 + ( g1 - g2 ) * 1.1 ) * grainFade;
   biotite = smoothstep( 0.64, 0.82, b2 ) * grainFade * ( 1.0 - smoothstep( 0.2, 0.5, footprint * 150.0 ) );
   diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 1.09, 1.07, 1.04 ), feldspar );
   diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.86, 0.88, 0.91 ), quartz );
@@ -1028,7 +1035,7 @@ float surgeNow = surgeS < 1.0 ? pow( sin( 3.141593 * pow( surgeS, 0.65 ) ), 2.0 
 float runup = min( 0.12 + ( 0.22 + swell.w * 1.2 ) * surgeNow, 0.6 );
 float sheet = 1.0 - smoothstep( runup - 0.15, runup + 0.05, y + ( relief - 0.5 ) * 0.1 );
 float hollow = 1.0 - smoothstep( 0.32, 0.58, mid * 0.55 + relief * 0.45 );
-float streak = smoothstep( 0.5, 0.8, dNoise3( vec3( q.x * 5.6 + q.z * 4.2, q.y * 0.7, q.z * 5.6 - q.x * 4.2 ) + 4.0 ) ) * ( 1.0 - up );
+float streak = y < runup + 0.1 ? smoothstep( 0.5, 0.8, dNoise3( vec3( q.x * 5.6 + q.z * 4.2, q.y * 0.7, q.z * 5.6 - q.x * 4.2 ) + 4.0 ) ) * ( 1.0 - up ) : 0.0;
 sheet *= mix( 1.0, max( hollow, streak ), smoothstep( 0.08, 0.3, y ) );
 // Damp rock below the highest recent run-up, a ragged line.
 float damp = 1.0 - smoothstep( 0.2, min( 0.55 + swell.w * 1.2, 0.95 ), y + ( macro - 0.5 ) * 0.2 );
@@ -2094,7 +2101,10 @@ function addRocks(scene, random, shared, rocks = rockLayout(random)) {
   const material = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     roughness: 0.92,
-    transparent: true,
+    // Opaque, so stacked boulders get early depth rejection (drawn back to
+    // front in the transparent pass, every hidden face was fully shaded);
+    // the waterline fade becomes MSAA coverage instead of blending.
+    alphaToCoverage: true,
     clippingPlanes: [new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.1)],
     // Cast from the sunlit faces. three's default (back faces) stores the
     // far side of the boulder, which near its foot is only centimetres above

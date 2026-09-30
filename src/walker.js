@@ -42,6 +42,8 @@ export const CAMERA = { distance: 3.4, elevation: 0.38, min: 1.1, max: 8 };
 // lens keeps from a trunk.
 const ARM_MIN = 0.9;
 const ARM_CLEARANCE = 0.35;
+// The most the camera rises to see over a boulder before the arm shortens.
+const ARM_LIFT = 1.6;
 
 // sea (sea-surface.js) gives the water level; wake (wake.js) takes the
 // cat's trail through it.
@@ -99,9 +101,12 @@ export function createWalker(obstacles, sea = null, wake = null) {
     pointer: [0.5, 0.5],
     // The spring arm's current length as a fraction of `distance`.
     arm: 1,
+    // How far the arm tilts up to clear a rise or a boulder (metres).
+    lift: 0,
   };
   let target = null;
   let blocked = 0;
+  let armLift = 0;
   let lastDrag = -10;
   let clock = 0;
   let last = null;
@@ -490,7 +495,9 @@ export function createWalker(obstacles, sea = null, wake = null) {
     if (ease >= 1) camera.arm = reach;
     let x = tx - Math.sin(camera.yaw) * horizontal * camera.arm;
     let z = tz - Math.cos(camera.yaw) * horizontal * camera.arm;
-    let y = ty + Math.sin(camera.elevation) * camera.distance * camera.arm;
+    camera.lift += (armLift - camera.lift) * (armLift > camera.lift ? Math.min(1, ease * 2.5) : ease * 0.35);
+    if (ease >= 1) camera.lift = armLift;
+    let y = ty + Math.sin(camera.elevation) * camera.distance * camera.arm + camera.lift * camera.arm;
     // Clear the ground (and boulders), and never dip toward the sea surface.
     const clearance = shoreDistance(x, z) > -1 ? surface(x, z) + 0.45 : 0.9;
     y = Math.max(y, clearance, 0.9);
@@ -533,18 +540,27 @@ export function createWalker(obstacles, sea = null, wake = null) {
       if (ty + rise * s > crownBase) continue;
       t = s;
     }
-    // Ground and boulders: step out along the boom until it meets them.
+    // Ground and boulders: the boom tilts up over a rise or a rock (lifting
+    // the camera by `lift` raises the boom at s by lift·s) when a modest
+    // lift clears it; otherwise it shortens to just before the obstacle.
     const steps = 14;
+    let lift = 0;
+    let blocked = -1;
     for (let i = 2; i <= steps; i++) {
       const s = (i / steps) * t;
       const px = tx + bx * s;
       const pz = tz + bz * s;
       if (shoreDistance(px, pz) < -1) break;
-      if (ty + rise * s < surface(px, pz) + 0.3) {
-        t = ((i - 1) / steps) * t;
-        break;
-      }
+      const need = surface(px, pz) + 0.3 - (ty + rise * s);
+      if (need <= 0) continue;
+      if (blocked < 0) blocked = i;
+      lift = Math.max(lift, need / s);
     }
+    if (lift > ARM_LIFT) {
+      t = ((blocked - 1) / steps) * t;
+      lift = 0;
+    }
+    armLift = lift;
     return Math.max(t, Math.min(1, ARM_MIN / length));
   }
 }

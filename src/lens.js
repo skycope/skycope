@@ -1,10 +1,11 @@
 import * as THREE from "three";
 
 // The camera's lens, over everything: one full-screen triangle drawn last
-// in the land layer, blended premultiplied (rgb added, alpha darkening), so
+// in the land layer, blended premultiplied (rgb added), so
 // it acts on the land and, through the transparent canvas, on the sky and
-// sea beneath. Vignette, rain streaking across the lens, veiling glare
-// around the sun and a fine animated grain. A handful of ALU per pixel.
+// sea beneath: rain streaking across the lens and veiling glare around the
+// sun. It draws only while one of them shows (a full-screen blend over the
+// multisampled target is not free); the vignette is a CSS overlay.
 export function createLens() {
   const scene = new THREE.Scene();
   scene.matrixWorldAutoUpdate = false;
@@ -44,9 +45,6 @@ export function createLens() {
       void main() {
         vec2 pixel = vUv * resolution;
         vec3 add = vec3( 0.0 );
-        // Natural vignette: cos^4-ish falloff, kept gentle.
-        vec2 screen = vUv - 0.5;
-        float dark = dot( screen, screen ) * 0.2;
         // Rain: streaks of falling drops close to the lens, two depths.
         if ( rain > 0.01 ) {
           float total = 0.0;
@@ -73,11 +71,7 @@ export function createLens() {
           float r = length( d );
           add += glareColour * sun.z * ( exp( -r * 9.0 ) * 0.05 + exp( -r * 2.2 ) * 0.025 );
         }
-        // Film grain, a level or two, fresh each frame.
-        float grain = hash2( pixel + fract( time * 7.13 ) * 131.0 ).x - 0.5;
-        add += max( grain, 0.0 ) * 0.016;
-        dark += max( -grain, 0.0 ) * 0.016;
-        gl_FragColor = vec4( add, dark );
+        gl_FragColor = vec4( add, 0.0 );
       }`,
     transparent: true,
     depthTest: false,
@@ -112,6 +106,7 @@ export function createLens() {
       uniforms.sun.value.set(projected.x * 0.5 + 0.5, projected.y * 0.5 + 0.5, strength);
       const peak = Math.max(sunColour.r, sunColour.g, sunColour.b, 1e-6);
       uniforms.glareColour.value.setRGB(sunColour.r / peak, sunColour.g / peak, sunColour.b / peak);
+      mesh.visible = rain > 0.01 || strength > 0.001;
     },
     dispose() {
       geometry.dispose();

@@ -819,8 +819,8 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       // Fewer shells as the cat gets smaller on screen.
       if (shellGeometry && light.eye) {
         const d = light.eye.distanceTo(centre);
-        // Never fewer than three: the outer shells are the pelt's soft edge.
-        const count = this.debug.shells ?? Math.round(clamp(8.4 - d * 2, 3, maxShells));
+        // Two at play distance (each shell is a skinned, blended pass).
+        const count = this.debug.shells ?? Math.round(clamp(8.4 - d * 2, 2, maxShells));
         const body = meshes[0];
         // Beyond ~2 m the stripes span a few pixels: paint the body per vertex.
         // Beyond ~2.6 m the coarse mesh's chords are under a pixel beneath

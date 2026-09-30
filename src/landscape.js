@@ -322,7 +322,8 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     catSplashed(time, strength, level) {
       cat.splash(time, strength, level);
     },
-    resize(width, height, quality = 1) {
+    // `pixels` ([w, h]) overrides the budget: the coarse grid of the reveal.
+    resize(width, height, quality = 1, pixels = null) {
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       archipelago.camera.fov = camera.fov;
@@ -334,12 +335,9 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       const scale =
         Math.min(window.devicePixelRatio || 1, 1.5, Math.sqrt(budget / (width * height))) *
         Math.max(0.6, quality);
-      renderer.setSize(
-        Math.round(width * scale),
-        Math.round(height * scale),
-        false,
-      );
-      archipelago.uniforms.pixelAngle.value = 1 / (0.9 * Math.round(height * scale));
+      const [w, h] = pixels ?? [Math.round(width * scale), Math.round(height * scale)];
+      renderer.setSize(w, h, false);
+      archipelago.uniforms.pixelAngle.value = 1 / (0.9 * h);
     },
     dispose() {
       profiler.dispose();

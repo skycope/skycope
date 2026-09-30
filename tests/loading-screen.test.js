@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createLoadingScreen } from "../src/loading-screen.js";
 
 test("the loading veil lifts on the first frame or on failure", () => {
-  const root = { dataset: {}, hidden: false };
+  const root = { dataset: {}, hidden: false, querySelector: () => null };
   const doc = { querySelector: () => root, defaultView: { matchMedia: () => ({ matches: true }) } };
   createLoadingScreen({ document: doc }).ready();
   assert.equal(root.hidden, true);
