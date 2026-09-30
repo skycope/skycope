@@ -6,10 +6,12 @@
 //   3… the trail, newest first: x, z, birth time, strength
 //   …  four paws: x, z, depth in the water
 //   …  splash rings: x, z, birth time, strength
+//   …  the water's velocity past the cat: x, z
 // Coast metres, on the sea's clock (main.js state.time).
 export const WAKE = { width: 64, trail: 28, paws: 4, rings: 16 };
 const PAWS = 3 + WAKE.trail;
 const RINGS = PAWS + WAKE.paws;
+const FLOW = RINGS + WAKE.rings;
 // How long foam and ripples outlive their source.
 const TRAIL_LIFE = 11;
 const RING_LIFE = 3;
@@ -20,12 +22,14 @@ export function createWake() {
   const rings = [];
   const bound = new Float64Array(3);
   const paws = Array.from({ length: WAKE.paws }, () => [0, 0, 0]);
-  const body = { x: 0, z: 0, heading: 0, immersion: 0, speed: 0, half: 0.2, radius: 0.08, strength: 0 };
+  const body = { x: 0, z: 0, heading: 0, immersion: 0, speed: 0, half: 0.2, radius: 0.08, strength: 0, flow: [0, 0] };
   let now = 0;
   let idle = false;
 
   return {
     body,
+    // Where each paw stands and how deep in the water (x, z, depth).
+    paws,
     get now() {
       return now;
     },
@@ -98,12 +102,15 @@ export function createWake() {
         const age = Math.max(0, now - r[2]);
         encloseSource(bound, r[0], r[1], Math.max(0.4 * age + 3 * (0.04 + 0.1 * age), 3 * (0.05 + 0.22 * Math.sqrt(age) * (0.5 + r[3] * 0.5))));
       }
-      for (const p of paws) if (p[2] > 0.005) encloseSource(bound, p[0], p[1], 0.925);
+      // Paws in a passing wash trail froth downstream, farther the faster it runs.
+      const rush = Math.min(Math.hypot(body.flow[0], body.flow[1]), 2.5);
+      for (const p of paws) if (p[2] > 0.005) encloseSource(bound, p[0], p[1], 0.925 + 0.25 * rush);
       data.set(bound, 8);
       data[11] = rings.length;
       trail.forEach((t, i) => data.set(t, (3 + i) * 4));
       paws.forEach((p, i) => data.set([p[0], p[1], p[2], 0], (PAWS + i) * 4));
       rings.forEach((r, i) => data.set(r, (RINGS + i) * 4));
+      data.set([body.flow[0], body.flow[1], 0, 0], FLOW * 4);
       return data;
     },
   };

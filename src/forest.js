@@ -47,6 +47,10 @@ export function createForest(scene, seed, { light = false } = {}) {
     swell: { value: new THREE.Vector4(...swellUniform(seed, [0, 0])) },
     // Where the cat is (coast x, z), how far it pushes, how hard.
     catPush: { value: new THREE.Vector4(0, 0, 0.4, 0) },
+    // The cat's legs in the swash film (x, z, depth), and the water past
+    // them: downstream direction (x, z), speed, and whether any is wet.
+    catLegs: { value: Array.from({ length: 4 }, () => new THREE.Vector4()) },
+    catFlow: { value: new THREE.Vector4() },
     // Horizon haze toward and away from the sun (aerial perspective).
     hazeToward: { value: new THREE.Color(0.6, 0.7, 0.8) },
     hazeAway: { value: new THREE.Color(0.6, 0.7, 0.8) },
@@ -221,6 +225,16 @@ export function createForest(scene, seed, { light = false } = {}) {
     // The island's top surface for reflections in the sea (land-field.js).
     landField: landFieldData(clusters),
     surf,
+    // The cat's legs in the swash (wake.js), each frame.
+    updateCatWater(paws, flow) {
+      let wet = 0;
+      paws.forEach((p, i) => {
+        shared.catLegs.value[i].set(p[0], p[1], p[2], 0);
+        if (p[2] > 0.003) wet = 1;
+      });
+      const pace = Math.hypot(flow[0], flow[1]);
+      shared.catFlow.value.set(pace > 1e-3 ? flow[0] / pace : 0, pace > 1e-3 ? flow[1] / pace : 0, Math.min(pace, 2.5), wet);
+    },
     // The surf's spray off the rocks (surf.js), each frame.
     updateSurf(time, eye, pixelScale, water) {
       surf.update(time, eye, pixelScale, water);
@@ -844,6 +858,24 @@ if ( inland < 4.5 ) {
   diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.55, 0.55, 0.53 ), sw.z * ( 1.0 - wet ) * 0.9 );
   diffuseColor.rgb *= mix( vec3( 1.0 ), vec3( 0.9, 0.98, 1.0 ), swashFilm * smoothstep( 0.0, 0.8, sw.w ) );
   swashCover = max( swashCover, bubbles.x );
+  // The cat standing in the film: froth collars each wet leg and trails
+  // downstream as the water runs past (wake.wgsl draws the same in the sea,
+  // but here the sand covers it).
+  if ( catFlow.w > 0.5 && swashFilm > 0.05 && distance( coast, catLegs[ 0 ].xy ) < 1.4 ) {
+    float pace = catFlow.z;
+    for ( int j = 0; j < 4; j++ ) {
+      vec4 leg = catLegs[ j ];
+      if ( leg.z <= 0.003 ) continue;
+      vec2 q = coast - leg.xy;
+      float edge = length( q ) - 0.025;
+      float cling = exp( -max( edge, 0.0 ) / ( 0.02 + pace * 0.03 + min( pace, 0.6 ) * 0.05 ) );
+      float u = dot( q, catFlow.xy );
+      float v = dot( q, vec2( catFlow.y, -catFlow.x ) );
+      float w = 0.02 + max( u, 0.0 ) * 0.28;
+      float furrow = exp( -v * v / ( w * w ) ) * exp( -max( u, 0.0 ) / ( 0.06 + 0.2 * pace ) ) * smoothstep( -0.02, 0.03, u ) * smoothstep( 0.08, 0.6, pace );
+      swashCover = max( swashCover, swashFilm * max( cling * 0.8, furrow * 0.75 ) );
+    }
+  }
   // The crisp white roll of froth at the bore's leading edge. It rides the
   // film smoothly: no bump, or its thin edges would shade it grey.
   float lace = swashCover;
@@ -1216,7 +1248,7 @@ function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = 
           );
       shader.fragmentShader = shader.fragmentShader
         .replace("uniform float breezeTime;\n", "")
-        .replace("void main() {", (bark ? "varying vec3 vBark;\n" : "") + DETAIL_GLSL + (ground ? "varying vec4 vGroundMask;\nvarying vec2 vGroundMask2;\nvarying float vGroundGust;\n" + SWASH_GLSL : rock ? SWASH_GLSL : "") + "\nvoid main() {")
+        .replace("void main() {", (bark ? "varying vec3 vBark;\n" : "") + DETAIL_GLSL + (ground ? "varying vec4 vGroundMask;\nvarying vec2 vGroundMask2;\nvarying float vGroundGust;\nuniform vec4 catLegs[ 4 ];\nuniform vec4 catFlow;\n" + SWASH_GLSL : rock ? SWASH_GLSL : "") + "\nvoid main() {")
         .replace("#include <color_fragment>", ground ? GROUND_COLOUR_GLSL : rock ? ROCK_COLOUR_GLSL : BARK_COLOUR_GLSL)
         .replace("#include <roughnessmap_fragment>", "#include <roughnessmap_fragment>\n  roughnessFactor = detailRoughness;")
         .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>

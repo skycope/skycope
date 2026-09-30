@@ -213,6 +213,10 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
     // the water (for the water streaming off afterwards).
     bow: 0,
     drip: 0,
+    // Spray owed to the water rushing past the legs, and the wait before
+    // the next wash front can break on the cat.
+    surge: 0,
+    hitCool: 0,
     dunked: 99,
   };
   const tailP = Array.from({ length: TAIL_BONES + 1 }, () => new THREE.Vector3());
@@ -287,6 +291,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       };
       uniforms.catWater.value.set(inWater ? pose.waterY : -100, pose.waterSlope?.[0] ?? 0, -(pose.waterSlope?.[1] ?? 0), inWater ? 1 : 0);
       uniforms.catWaterAt.value.set(x, -z);
+      uniforms.catWaterDepth.value = inWater ? pose.water ?? 0 : 0;
       uniforms.catSoak.value = pose.soak ?? -1;
 
       // Postures blend: standing → sitting → lying (loaf) after a long
@@ -859,6 +864,36 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
           }
         }
       } else state.bow = 0;
+      // A wash running past the legs piles up against them and throws
+      // spray down the flow; the front of each wash breaks on the cat as it
+      // arrives. Driven by the water's own rush, not the cat's stride (the
+      // strikes and the bow spray cover that).
+      if (inWater && swim < 0.5 && pose.air === 0 && pose.flow) {
+        const [fx, fz] = pose.flow;
+        const rush = Math.hypot(fx + sin * speed, fz + cos * speed);
+        const past = Math.hypot(fx, fz);
+        const down = past > 0.01 ? [fx / past, fz / past] : fwd;
+        state.surge += g * 480 * smooth(rush, 0.06, 0.45) * smooth(depth, 0.008, 0.05) * rush * step;
+        for (; state.surge >= 1; state.surge--) {
+          const paw = rig.legs[Math.floor(Math.random() * 4)].pawWorld;
+          if (!paw) break;
+          const at = { x: paw.x - down[0] * 0.02, y: level, z: paw.z - down[1] * 0.02, dir: down, floor: level - 0.01, radius: 0.02, n: 1 };
+          splash.burst(time, Math.random() < 0.75
+            ? { ...at, spread: 1.3, speed: [0.05, 0.25 + 0.6 * rush], up: [0.3, 0.6 + 1.8 * rush], size: [0.006, 0.016] }
+            : { ...at, spread: 1, speed: [0.05, 0.2 + 0.4 * rush], up: [0.25, 0.5 + 1.2 * rush], size: [0.03, 0.07] });
+        }
+        state.hitCool -= step;
+        if (pose.rising > 0.035 && state.hitCool <= 0) {
+          state.hitCool = 1.2;
+          const s = clamp(pose.rising / 0.1, 0.4, 1.5);
+          const bx = x - down[0] * 0.05 * S;
+          const bz = z - down[1] * 0.05 * S;
+          const at = { x: bx, y: level, z: bz, dir: down, spread: 1.6, radius: 0.12 * S, floor: level - 0.01 };
+          splash.burst(time, { ...at, n: g * (25 + 90 * s), speed: [0.1, 0.4 + 0.6 * s], up: [0.4, 0.9 + 1.3 * s], size: [0.005, 0.016] });
+          splash.burst(time, { ...at, n: g * (6 + 22 * s), speed: [0.05, 0.3 + 0.4 * s], up: [0.3, 0.7 + 1 * s], size: [0.025, 0.07], delay: 0.05 });
+          if (wake) wake.ring(bx, bz, 0.6 + s);
+        }
+      } else state.surge = 0;
       // Coming out: water streams off the belly and legs, fast at first,
       // then a slow drip while the coat is soaked. Drips keep the cat's
       // speed and land on the sea or the sand below.

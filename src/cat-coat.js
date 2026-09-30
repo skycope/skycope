@@ -99,6 +99,9 @@ export function catUniforms() {
     // height the coat is wet to.
     catWater: { value: new THREE.Vector4(0, 0, 0, 0) },
     catWaterAt: { value: new THREE.Vector2() },
+    // How deep the water is under the cat: nothing higher above the bed
+    // than that is under water, whatever the tilt of the local waterline.
+    catWaterDepth: { value: 0 },
     catSoak: { value: -1 },
     catWaterColour: CAT_SEA.colour,
     catFoamLight: CAT_SEA.foam,
@@ -131,6 +134,7 @@ uniform vec3 catWind;
 uniform float catPixelAngle;
 uniform vec4 catWater;
 uniform vec2 catWaterAt;
+uniform float catWaterDepth;
 uniform float catSoak;
 varying vec3 vWaterP;
 varying float vWet;
@@ -504,8 +508,8 @@ export function coatMaterial(uniforms, { shell = false, baked = false } = {}) {
         }
         vec4 catWorld = modelMatrix * vec4( transformed, 1.0 );
         // Depth under the local surface, which wobbles with little ripples.
-        vWaterP = vec3( catWorld.xz, catWater.x + dot( catWater.yz, catWorld.xz - catWaterAt ) - catWorld.y
-          + 0.005 * sin( dot( catWorld.xz, vec2( 23.0, 17.0 ) ) - catTime * 5.1 ) + 0.004 * sin( dot( catWorld.xz, vec2( -13.0, 29.0 ) ) - catTime * 3.7 ) );
+        vWaterP = vec3( catWorld.xz, min( catWater.x + dot( catWater.yz, catWorld.xz - catWaterAt ) - catWorld.y
+          + 0.005 * sin( dot( catWorld.xz, vec2( 23.0, 17.0 ) ) - catTime * 5.1 ) + 0.004 * sin( dot( catWorld.xz, vec2( -13.0, 29.0 ) ) - catTime * 3.7 ), catWaterDepth - ( catWorld.y - catGroundY ) + 0.02 ) );
         vCatShadow = catShadowMatrix * catWorld;
         vGroundH = catWorld.y - catGroundY;
         ${shell ? `{

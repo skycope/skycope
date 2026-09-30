@@ -279,6 +279,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         wind,
         rain,
       }, wake);
+      if (wake) forest.updateCatWater(wake.paws, wake.body.flow);
       if (water) forest.updateSurf(time, [flight.x, flight.y, flight.z], renderer.domElement.height / (2 * Math.tan((camera.fov * Math.PI) / 360)), water);
       // Plants part round the cat as it walks through them.
       forest.pushAt(pose.x, pose.z, pose.air > 0.05 ? 0 : 1);

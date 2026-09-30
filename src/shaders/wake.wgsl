@@ -13,6 +13,7 @@ import { RockSea } from "./rocks.wgsl";
 const TRAIL: i32 = 28;
 const PAWS: i32 = 31;
 const RINGS: i32 = 35;
+const FLOW: i32 = 51;
 
 export fn cat_near(p: vec2f, wake: texture_2d<f32>) -> bool {
   let bound = textureLoad(wake, vec2i(2, 0), 0);
@@ -42,6 +43,10 @@ export fn cat_sea(p: vec2f, pixel: f32, time: f32, wake: texture_2d<f32>) -> Roc
   let counts = textureLoad(wake, vec2i(2, 0), 0);
   let speed = max(motion.x, 0.0);
   let radius = max(motion.z, 0.008);
+  // The water past the cat: its own motion, or a wash running by a cat
+  // standing still. Froth and furrows follow it downstream.
+  let flow = textureLoad(wake, vec2i(FLOW, 0), 0).xy;
+  let rush = length(flow);
   var foam = 0.0;
   var bubbles = 0.0;
 
@@ -89,8 +94,8 @@ export fn cat_sea(p: vec2f, pixel: f32, time: f32, wake: texture_2d<f32>) -> Roc
     let edge = length(off) - radius;
     let out_edge = max(edge, 0.0);
     // Froth clinging at the contact line, fatter with speed.
-    let cling = exp(-out_edge / (0.025 + speed * 0.05)) * smoothstep(-0.03, 0.0, edge) * body.w;
-    foam = max(foam, cling * (0.4 + 0.45 * min(speed / 0.6, 1.0)));
+    let cling = exp(-out_edge / (0.025 + rush * 0.05)) * smoothstep(-0.03, 0.0, edge) * body.w;
+    foam = max(foam, cling * (0.4 + 0.45 * min(rush / 0.6, 1.0)));
     bubbles = max(bubbles, cling * 0.75);
     // Bow wave: water heaped before the chest, drawn down along the flanks.
     let ahead = smoothstep(-0.3, 0.6, (u - half * 0.4) / (radius + 0.1)) * 1.6 - 0.6;
@@ -108,9 +113,9 @@ export fn cat_sea(p: vec2f, pixel: f32, time: f32, wake: texture_2d<f32>) -> Roc
   // Legs standing in the shallows: a collar of white water where each cuts
   // the surface, water heaped in front of it and drawn down behind, a
   // furrow of froth trailing it at speed, and a little V of ripples.
-  let heading = vec2f(sin(body.z), cos(body.z));
-  let across = vec2f(heading.y, -heading.x);
-  let pace = min(speed, 2.5);
+  let downstream = select(-vec2f(sin(body.z), cos(body.z)), flow / max(rush, 1e-4), rush > 0.02);
+  let across = vec2f(downstream.y, -downstream.x);
+  let pace = min(rush, 2.5);
   for (var j = 0; j < 4; j++) {
     let paw = textureLoad(wake, vec2i(PAWS + j, 0), 0);
     if (paw.z <= 0.005) { continue; }
@@ -118,17 +123,17 @@ export fn cat_sea(p: vec2f, pixel: f32, time: f32, wake: texture_2d<f32>) -> Roc
     let edge = length(q) - 0.025;
     if (edge > 0.9) { continue; }
     let wet = smoothstep(0.0, 0.03, paw.z);
-    let cling = exp(-max(edge, 0.0) / (0.02 + pace * 0.03)) * wet;
+    let cling = exp(-max(edge, 0.0) / (0.02 + pace * 0.03 + min(pace, 0.6) * 0.05)) * wet;
     foam = max(foam, cling * (0.55 + 0.25 * min(pace, 1.0)));
     bubbles = max(bubbles, cling * 0.7);
-    // Behind the leg (u > 0), a froth furrow widening as it goes.
-    let u = -dot(q, heading);
+    // Downstream of the leg (u > 0), a froth furrow widening as it goes.
+    let u = dot(q, downstream);
     let v = dot(q, across);
     let w = 0.02 + max(u, 0.0) * 0.28;
-    let furrow = exp(-v * v / (w * w)) * exp(-max(u, 0.0) / (0.06 + 0.2 * pace)) * smoothstep(-0.02, 0.03, u) * smoothstep(0.2, 1.0, pace) * wet;
+    let furrow = exp(-v * v / (w * w)) * exp(-max(u, 0.0) / (0.06 + 0.2 * pace)) * smoothstep(-0.02, 0.03, u) * smoothstep(0.08, 0.6, pace) * wet;
     foam = max(foam, furrow * 0.7);
     bubbles = max(bubbles, furrow * 0.8);
-    let heap = exp(-max(edge, 0.0) / 0.05) * pace * 0.008 * wet * clamp(-u / 0.04, -1.0, 1.0);
+    let heap = exp(-max(edge, 0.0) / 0.05) * (pace + min(pace, 0.6)) * 0.008 * wet * clamp(-u / 0.04, -1.0, 1.0);
     out.height += heap;
     out.slope -= q / max(length(q), 0.001) * heap / 0.05 * step(0.0, edge);
     ripple(&out, q, 0.05 + fract(time * 2.3 + f32(j) * 0.37) * 0.3, 0.05, (0.0015 + 0.003 * pace) * min(paw.z * 20.0, 1.0), 55.0, pixel);
