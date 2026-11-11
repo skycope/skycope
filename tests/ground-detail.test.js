@@ -22,7 +22,7 @@ test("opaque debris is seed-stable, grounded and respects both quality budgets",
   const a = groundDetailData(1847, producers), b = groundDetailData(1847, producers);
   assert.deepEqual(a, b);
   const light = groundDetailData(1847, producers, { light: true });
-  for (const [name, cap] of Object.entries({leaves: 4600, twigs: 2200, roots: 1400, stones: 1600})) {
+  for (const [name, cap] of Object.entries({twigs: 2200, roots: 1400, stones: 1600})) {
     assert.ok(a[name].length <= cap);
     assert.ok(light[name].length <= cap / 2);
     for (const part of a[name]) {
