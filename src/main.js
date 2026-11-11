@@ -71,11 +71,10 @@ const MAX_DPR = LIGHT ? 1.25 : 1.5;
 // as often for no visible gain), 30 once the cat has settled and nothing is
 // being pressed. The small tolerance keeps vsync jitter from skipping frames.
 const ACTIVE_FPS = 60;
+const IDLE_FPS = 30;
 // The reveal's resolution steps (fraction of full) and how long each holds.
 const REVEAL = [1 / 32, 1 / 16, 1 / 8, 1 / 4, 1 / 2, 1];
 const REVEAL_STEP_MS = 260;
-const IDLE_FPS = 30;
-
 
 const canvas = document.querySelector("#sky");
 const slider = document.querySelector("#time");
@@ -100,7 +99,6 @@ const state = {
   sound: createSound(),
   keys: new Set(),
   jump: false,
-  dragging: false,
   pointers: new Map(),
   pinch: 0,
   lastInput: 0,
@@ -123,6 +121,10 @@ const state = {
   // The renderer reads `weather`: the live forecast, or the panel's override.
   weather: null,
   liveWeather: null,
+  // "live", "delayed" or "unavailable" once the first request settles.
+  liveStatus: null,
+  // This frame's light (sunlight.js lightingAt), shared with the land layer.
+  lighting: null,
   weatherOverride: null,
   weatherPanel: null,
   weatherRequest: null,
@@ -148,8 +150,8 @@ const state = {
   calm: 0,
   atmosphere: null,
   water: null,
-  loop: null,
   raf: 0,
+  targetFps: 0,
   renderFrame: null,
   time: 24,
   frameMs: 16.7,
@@ -236,7 +238,6 @@ function connectControls() {
       state.sound.start();
       if (motionPreference.matches || !scene(event)) return;
       state.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, at: performance.now() });
-      state.dragging = true;
       state.lastInput = performance.now();
       if (state.pointers.size === 2) state.pinch = pinchDistance();
     },
@@ -270,7 +271,6 @@ function connectControls() {
       (event) => {
         const p = state.pointers.get(event.pointerId);
         state.pointers.delete(event.pointerId);
-        state.dragging = state.pointers.size > 0;
         state.pinch = 0;
         // A tap, not a drag: walk there (or pet the cat).
         if (p && end === "pointerup" && Math.hypot(event.clientX - p.startX, event.clientY - p.startY) < 8 && performance.now() - p.at < 500)
@@ -504,7 +504,6 @@ function applyWeather() {
 }
 
 async function startAtmosphere() {
-  loading.stage("graphics");
   // Low power: the sky and sea are cheap now, and a discrete GPU would spin
   // up fans for no visible gain.
   const gpu = await init({ powerPreference: "low-power" });
@@ -612,8 +611,7 @@ async function startAtmosphere() {
     },
   });
   state.water = water;
-  loading.stage("world");
-  // Let the new stage paint before synchronous seeded geometry preparation.
+  // Let the loading veil paint before synchronous seeded geometry preparation.
   await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   const { createLandscape } = await import("./landscape.js");
   if (state.disposed) return;
@@ -646,7 +644,6 @@ async function startAtmosphere() {
   applyReviewFixture(state.walker, review, state.landscape.obstacles);
   state.flight = state.walker.camera;
   state.landscape.resize(window.innerWidth, window.innerHeight, state.quality, state.reveal < 1 ? revealSize() : null);
-  loading.stage("sky");
   await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   await tablePass.compile(skyTable);
   await cloudPass.compile(cloudTarget);
@@ -938,8 +935,6 @@ function updateCat(dt) {
   const wind = state.weather?.wind ?? [0, 0];
   state.sound.update({
     sea: 1 - smooth(0, 30, inland),
-    // Afloat, the sea is all round the cat's ears.
-    underwater: cat.swim,
     seaPan: (seaX / r) * Math.cos(yaw) - (seaZ / r) * Math.sin(yaw),
     wind: Math.hypot(wind[0], wind[1]),
     rain: state.weather?.rain ?? 0,
@@ -1041,8 +1036,13 @@ function tick(timestamp) {
   const cat = state.walker?.cat;
   const settled =
     cat && cat.idle > 6 && performance.now() - state.lastInput > 6000 && !state.keys.size;
-  const interval = 1000 / (settled ? IDLE_FPS : ACTIVE_FPS);
-  canvas.dataset.targetFps = String(settled ? IDLE_FPS : ACTIVE_FPS);
+  const targetFps = settled ? IDLE_FPS : ACTIVE_FPS;
+  const interval = 1000 / targetFps;
+  // (A DOM write only when the pacing changes, not every display refresh.)
+  if (targetFps !== state.targetFps) {
+    state.targetFps = targetFps;
+    canvas.dataset.targetFps = String(targetFps);
+  }
   if (timestamp - state.lastFrame < interval - 3) return;
   state.lastFrame = timestamp;
   frame(state.gpu, state.renderFrame);
@@ -1084,6 +1084,11 @@ function useFallback(error) {
   const gpu = state.gpu;
   state.gpu = null;
   state.output = null;
+  // The targets die with the device: a later resize (the window's, or a
+  // pending reveal step) must not touch them.
+  state.skyTarget = null;
+  state.cloudTarget = null;
+  clearTimeout(state.revealTimer);
   state.renderFrame = null;
   gpu?.dispose();
   state.landscape?.dispose();

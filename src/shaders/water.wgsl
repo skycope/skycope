@@ -96,8 +96,7 @@ fn night_sky(ray: vec3f, night: f32, clear: f32, background: f32) -> vec3f {
   return light;
 }
 
-// Rain: thin slanted streaks. Each column falls at its own speed and phase,
-// so drops never line up into rows; two depths give parallax.
+// For the dither only (rain streaks moved to the lens pass, src/lens.js).
 fn hash2(p: vec2f) -> vec2f {
   var q = fract(vec3f(p.x, p.y, p.x) * vec3f(0.1031, 0.1030, 0.0973));
   q += dot(q, q.yzx + 33.33);

@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { HEAD } from "./cat-rig.js";
-import { EYE_RADIUS, LOFT } from "./cat-body.js";
+import { LOFT } from "./cat-body.js";
 
 // The coat: a brown mackerel tabby painted per pixel in the bind pose (so
 // the markings ride the skin as it moves), lit as fur rather than plastic.
@@ -167,7 +167,6 @@ const WATER_FRAGMENT = /* glsl */ `#include <opaque_fragment>
       gl_FragColor.a *= mix( 1.0, 0.22, smoothstep( 0.0, 0.06, d ) ) * exp( -d * 3.0 ) * ( 1.0 - fres * 0.8 * smoothstep( 0.0, 0.01, d ) );
     }
   }`;
-
 
 // Shared by both stages: the shell pass paints its coat per vertex.
 const PATTERN_GLSL = /* glsl */ `
@@ -536,10 +535,10 @@ export function coatMaterial(uniforms, { shell = false, baked = false } = {}) {
     shader.fragmentShader = shader.fragmentShader
       .replace(
         "#include <lights_physical_pars_fragment>",
-        `#include <lights_physical_pars_fragment>\n${baked ? "#define CAT_BAKED\nvarying vec3 vBakedColour;\n" : ""}${shell ? "#define CAT_SHELL\nvarying vec3 vShellColour;\n" : ""}${FRAGMENT_PARS}${WATER_PARS}\n#undef RE_Direct\n#define RE_Direct RE_Direct_Fur`,
+        `#include <lights_physical_pars_fragment>\n${baked ? "#define CAT_BAKED\nvarying vec3 vBakedColour;\n" : ""}${FRAGMENT_PARS}${WATER_PARS}\n#undef RE_Direct\n#define RE_Direct RE_Direct_Fur`,
       )
       .replace("#include <opaque_fragment>", WATER_FRAGMENT)
-      .replace("#include <color_fragment>", `#include <color_fragment>\n${shell ? SHELL_COLOUR : BASE_COLOUR}`)
+      .replace("#include <color_fragment>", `#include <color_fragment>\n${BASE_COLOUR}`)
       .replace(
         "#include <roughnessmap_fragment>",
         "#include <roughnessmap_fragment>\n roughnessFactor = mix( mix( roughnessFactor, 0.42, vWet * step( catPart, 0.5 ) ), eyeRough, furGloss );",
@@ -794,5 +793,3 @@ export function ghostMaterial() {
     stencilZPass: THREE.IncrementStencilOp,
   });
 }
-
-export { EYE_RADIUS };

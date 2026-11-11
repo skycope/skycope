@@ -109,7 +109,6 @@ function anatomy(rig) {
   for (const l of rig.legs) {
     const [a, b, c] = l.spec.bones;
     const n = l.spec.name;
-    const s = l.spec.side;
     const down = (bone) => {
       const top = world(bones[bone], [0, 0, 0]);
       const end = world(bones[bone], [0, -1, 0]);
@@ -141,7 +140,6 @@ function anatomy(rig) {
     ell(`${n}Paw`, [0, -0.0045, 0.006 * len], [0.0155 * w, 0.0092, 0.018 * len], { axis: true, k: 0.01, region: paw, comb: [0, -0.3, 1], fur: 0.4, fine: true });
     for (const [x, z] of [[-0.0102, 0.0185], [-0.0036, 0.0238], [0.0036, 0.0238], [0.0102, 0.0185]])
       ell(`${n}Paw`, [x * w, -0.0068, z * len], [0.0058, 0.0062, 0.0062], { axis: true, k: 0.0045, region: paw, comb: [0, -0.3, 1], fur: 0.35, fine: true });
-    void s;
   }
 
   // Head (in the head's frame): a round cranium, the brow, broad cheeks,

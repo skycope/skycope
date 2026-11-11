@@ -6,7 +6,7 @@ const BLOCKS = 32;
 
 export function createLoadingScreen({ document: doc = globalThis.document } = {}) {
   const root = doc?.querySelector("#loading-screen");
-  if (!root) return { stage() {}, ready() {}, fail() {}, dispose() {} };
+  if (!root) return { ready() {}, fail() {}, dispose() {} };
   const view = doc.defaultView;
   const reduced = view?.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   const canvas = root.querySelector("canvas");
@@ -19,6 +19,9 @@ export function createLoadingScreen({ document: doc = globalThis.document } = {}
     raf = view.requestAnimationFrame(paint);
     if (now - last < 66) return; // ~15 fps is plenty for a slow shimmer
     last = now;
+    draw(now);
+  };
+  const draw = (now) => {
     const w = BLOCKS;
     const h = Math.max(8, Math.round((BLOCKS * view.innerHeight) / Math.max(1, view.innerWidth)));
     if (canvas.width !== w || canvas.height !== h) Object.assign(canvas, { width: w, height: h });
@@ -59,8 +62,9 @@ export function createLoadingScreen({ document: doc = globalThis.document } = {}
       }
     context.putImageData(image, 0, 0);
   };
+  // Reduced motion: one still frame, no shimmer.
   if (context && !reduced) raf = view.requestAnimationFrame(paint);
-  else if (context) paint(0);
+  else if (context) draw(0);
 
   const hide = (fade) => {
     clearTimeout(timer);
@@ -73,7 +77,6 @@ export function createLoadingScreen({ document: doc = globalThis.document } = {}
     else timer = setTimeout(stop, 700);
   };
   return {
-    stage() {},
     ready: () => hide(true),
     fail: () => hide(false),
     dispose: () => hide(false),

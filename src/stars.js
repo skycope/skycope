@@ -1,8 +1,6 @@
 import catalog from "./data/stars.json";
 import { CATALOG_SIZE, starCatalogCells, halfFloats } from "./star-catalog.js";
 
-// One static equatorial atlas, sampled after the shader rotates the local sky
-// by Cape Town's latitude and local sidereal time. No per-frame star draw calls.
 // One static equatorial atlas of the constellation figures, sampled after the
 // shader rotates the local sky by Cape Town's latitude and local sidereal
 // time. Stars themselves are not painted here: see createStarCatalog.

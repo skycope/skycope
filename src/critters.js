@@ -506,7 +506,7 @@ function gullMaterial(shared) {
 
 // A kelp gull standing, facing +z, about 60 cm long: white head and body,
 // slate-black back and folded wings over a white-tipped black tail, a
-// yellow bill and olive legs. \`part\` drives head, wings and legs.
+// yellow bill and olive legs. `part` drives head, wings and legs.
 function gullGeometry() {
   const positions = [];
   const colours = [];

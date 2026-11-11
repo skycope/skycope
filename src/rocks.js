@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
-import { terrainHeight, islandPoint, noise2, ISLAND, shoreDistance } from "./terrain.js";
+import { terrainHeight, islandPoint, ISLAND, shoreDistance } from "./terrain.js";
 
 // Granite: the rock layout, its shapes, and what the sea needs to know about
 // the boulders at the waterline. No three.js scene objects here, so the

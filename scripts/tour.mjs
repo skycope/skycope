@@ -3,6 +3,7 @@
 //   node scripts/tour.mjs <outDir> [port=5311] [only=name,name]
 import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
+import { ISLAND, islandPoint } from "../src/terrain.js";
 
 const out = process.argv[2] ?? "/tmp/skycope-tour";
 const port = process.argv[3] ?? "5311";
@@ -10,12 +11,6 @@ const only = process.argv[4]?.split(",");
 const W = Number(process.env.W ?? 1440), H = Number(process.env.H ?? 900);
 await mkdir(out, { recursive: true });
 
-const ISLAND = { x: 58, z: 70 };
-const shoreRadius = (t) => 62 + 14 * Math.sin(2 * t + 0.8) + 7 * Math.sin(3 * t + 2.1) + 3.5 * Math.sin(7 * t + 4.5);
-const islandPoint = (t, inland) => {
-  const r = Math.max(0, shoreRadius(t) - inland);
-  return { x: ISLAND.x + Math.cos(t) * r, z: ISLAND.z + Math.sin(t) * r };
-};
 const HOME = Math.atan2(0 - ISLAND.z, 6 - ISLAND.x);
 // yaw that looks out to sea / inland at shore angle t
 const seaward = (t) => Math.atan2(Math.cos(t), Math.sin(t));
@@ -133,7 +128,9 @@ for (const v of V) {
   }
 }
 async function snap(name) {
-  const fps = await evaluate("document.querySelector('canvas')?.dataset?.meshMs ?? ''");
+  // The land layer's GPU time (mesh-profiler.js), or its submit time where
+  // the timer-query extension is missing.
+  const fps = await evaluate("(({ meshGpuMs, meshSubmitMs }) => meshGpuMs ? meshGpuMs + ' ms gpu' : meshSubmitMs ? meshSubmitMs + ' ms submit' : '')(document.querySelector('#landscape').dataset)");
   const r = await send("Page.captureScreenshot", { format: "jpeg", quality: 88 });
   await writeFile(`${out}/${name}.jpg`, Buffer.from(r.result.data, "base64"));
   console.log(name, fps);

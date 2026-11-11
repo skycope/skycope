@@ -1,4 +1,4 @@
-import { writeFile, mkdir } from "node:fs/promises";
+import { writeFile, mkdir, readFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import assert from "node:assert/strict";
 import { PNG } from "pngjs";
@@ -16,7 +16,7 @@ import { archipelagoUniform, ISLAND_SLOTS } from "../src/archipelago.js";
 import { createShoreTextures, createLandTexture } from "../src/shore-textures.js";
 import { landFieldData } from "../src/land-field.js";
 import { createVegetation } from "../src/vegetation.js";
-import { readFile } from "node:fs/promises";
+import { cloudTransmission } from "../src/cloud-transmission.js";
 import { CATALOG_SIZE, starCatalogCells, halfFloats } from "../src/star-catalog.js";
 
 // Offline visual fixtures. They never override the live site's weather.
@@ -168,6 +168,7 @@ const baseWater = process.env.BASE_WATER
         shoreGrid: shore.grid.createView(),
         landField: land.createView(),
         catWake: catWake.createView(),
+        islandTable: islandTable.createView(),
         skyTable: tableTarget.color,
         filtering: sampler(gpu, { minFilter: "linear", magFilter: "linear", addressModeU: "repeat", addressModeV: "repeat", addressModeW: "repeat" }),
       },
@@ -236,9 +237,19 @@ for (const [name, time, weather, rain, view, windOverride] of [
   const sky = skyAt(new Date(time));
   const light = lightingAt(sky);
   const wind = windOverride ?? [2, 1];
+  const eye = view?.[2] ?? [6, 4.5, 0];
+  // The direct beam through the cloud, as the land layer hands it to the sea
+  // (landscape.js): ocean.w. Left at 0, the sea had no sunlight or glitter.
+  const night = Math.min(1, Math.max(0, sky.scene - 1));
+  const beam = sky.sun.map((v, i) => v + (sky.moon[i] - v) * night * night * (3 - 2 * night));
+  const beamLength = Math.hypot(...beam) || 1;
+  const cloudBeam = 0.07 + 0.93 * cloudTransmission(1847, {
+    low: weather[0], mid: weather[1], high: weather[2],
+    x: eye[0], y: eye[1], z: eye[2], sun: beam.map((v) => v / beamLength), wind, time: 24,
+  });
   const atmosphere = {
     swell: swellUniform(1847, wind),
-    ocean: [0, 0, 1, 0],
+    ocean: [0, 0, 1, cloudBeam],
     light: [...light.direct, light.exposure],
     ambient: [...light.sky, light.night],
     resolution: output.size,
@@ -253,7 +264,7 @@ for (const [name, time, weather, rain, view, windOverride] of [
     weather,
     wind,
     rain,
-    flight: [...(view?.[2] ?? [6, 4.5, 0]), ((view?.[0] ?? 315) * Math.PI) / 180],
+    flight: [...eye, ((view?.[0] ?? 315) * Math.PI) / 180],
     pitch: view?.[1] ?? 0.10472,
   };
   timings.length = 0;
@@ -278,7 +289,7 @@ for (const [name, time, weather, rain, view, windOverride] of [
     const sea = {
       ...atmosphere,
       time: atmosphere.time - (63 - i) / 60,
-      ocean: [1 / 60, i > 0 ? 1 : 0, 1, 0],
+      ocean: [1 / 60, i > 0 ? 1 : 0, 1, cloudBeam],
       temporal: [0, 0, 0, 0],
       previous: [0, 0, 0, 0],
     };

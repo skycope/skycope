@@ -3,7 +3,6 @@ import {
   terrainHeight,
   shoreDistance,
   GROUND,
-  islandPoint,
   ISLAND,
   noise2,
   smoothstep,
@@ -37,8 +36,6 @@ export function createForest(scene, seed, { light = false } = {}) {
     breezeStrength: { value: 0.4 },
     breezeDir: { value: new THREE.Vector2(0.9, -0.436) },
     sunDirView: { value: new THREE.Vector3(0, 1, 0) },
-    sunTint: { value: new THREE.Color(1, 0.92, 0.75) },
-    sunGlow: { value: 1 },
     // Lambert-lit white (sun/π + sky), set from the shared lighting model.
     foamLight: { value: new THREE.Color(1, 1, 1) },
     // Night (0–1), for bioluminescence in the swash.
@@ -274,10 +271,8 @@ export function createForest(scene, seed, { light = false } = {}) {
     updateShadowCentre(x, z) {
       shared.shadowCentre.value.set(x, 0, -z);
     },
-    updateSun(directionView, tint, glow) {
+    updateSun(directionView) {
       shared.sunDirView.value.copy(directionView);
-      shared.sunTint.value.copy(tint);
-      shared.sunGlow.value = glow;
     },
   };
 }
@@ -316,11 +311,9 @@ varying float vGlint;
 // or stem is rooted wherever it stands. Zero for non-instanced meshes.
 attribute float anchorHeight;
 varying float vAbove;
-varying float vGust;
 vec3 windOffset(vec3 p) {
   float h = max(p.y - anchorHeight, 0.0);
   float gust = gustAt( p.xz );
-  vGust = gust;
   float sway = sin(breezeTime * 0.8 + p.x * 0.11 + p.z * 0.09);
   float bob = sin(breezeTime * 2.3 + p.x * 0.9 + p.z * 0.7 + h * 0.6);
   // A gust front carries real weight: crowns heel over as it arrives and
@@ -798,7 +791,6 @@ if ( nearDetail > 0.01 ) {
       clutterHeight = cover * sqrt( max( 0.0, 1.0 - d * d ) ) * size * 0.025;
       clutterGloss = cover * mix( 0.0, 0.12, shell );
     }
-    // Stranded kelp in drifts along the wrack line.
   }
   float floorMix = max( litter, smoothstep( 9.0, 15.0, inland ) * 0.35 ) * ( 1.0 - rocky ) * ( 1.0 - grassy * 0.6 ) * ( 1.0 - lowCover ) * nearDetail;
   if ( floorMix > 0.02 ) {
@@ -1097,25 +1089,6 @@ float dNoise( vec2 p ) {
   return mix( mix( dHash( i ), dHash( i + vec2( 1.0, 0.0 ) ), u.x ),
     mix( dHash( i + vec2( 0.0, 1.0 ) ), dHash( i + vec2( 1.0, 1.0 ) ), u.x ), u.y );
 }
-// dFbm with each octave faded to its mean once it is finer than ~2 pixels.
-// cycles is the first octave's cells per pixel; each octave doubles it.
-float dFbmFiltered( vec2 p, float cycles ) {
-  float v = 0.0;
-  float a = 0.5;
-  for ( int i = 0; i < 4; i++ ) {
-    v += a * mix( dNoise( p ), 0.5, smoothstep( 0.2, 0.5, cycles ) );
-    p = mat2( 1.6, 1.2, -1.2, 1.6 ) * p;
-    cycles *= 2.0;
-    a *= 0.5;
-  }
-  return v;
-}
-float dFbm( vec2 p ) {
-  float v = 0.0;
-  float a = 0.5;
-  for ( int i = 0; i < 4; i++ ) { v += a * dNoise( p ); p = mat2( 1.6, 1.2, -1.2, 1.6 ) * p; a *= 0.5; }
-  return v;
-}
 float dHash3( vec3 p ) {
   p = fract( p * 0.1031 );
   p += dot( p, p.zyx + 31.32 );
@@ -1204,7 +1177,7 @@ function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = 
       }`,
     );
     shader.fragmentShader = defines +
-      "uniform vec3 sunDirView;\nuniform vec3 sunTint;\nuniform float sunGlow;\nuniform float breezeTime;\nuniform float rainWetness;\nuniform float rainFilm;\nvarying float vGlint;\nvarying float vGust;\n" +
+      "uniform vec3 sunDirView;\nuniform float breezeTime;\nuniform float rainWetness;\nuniform float rainFilm;\nvarying float vGlint;\n" +
       "uniform vec3 hazeToward;\nuniform vec3 hazeAway;\nuniform vec3 foamLight;\nvarying float vShade;\nvarying float vShadowFar;\n" +
       shader.fragmentShader
         .replace("#include <fog_fragment>", FOG_GLSL)
@@ -1879,12 +1852,7 @@ function leafGeometry(detail = 2) {
   return finish(out.positions, out.indices, out.colours, flutter);
 }
 
-
 // ---- Flower heads. Unit size, facing +y; instances scale, orient and tint.
-
-
-
-
 
 // An aloe candle: a raceme of drooping tubular florets spiralling up a
 // stalk. Open flowers below are paler and yellower; tight buds at the tip
@@ -1977,7 +1945,6 @@ function shootShare(shoot) {
 // read as plants glitching in and out. Hysteresis stops it flickering on the
 // boundary as the cat walks back and forth.
 const CHUNK = 20;
-const CHUNK_MARGIN = CHUNK * 0.55;
 const LOD_HYSTERESIS = 0.12;
 // How much larger leafy shoots draw into the sun's shadow map (see
 // grownDepthMaterial).

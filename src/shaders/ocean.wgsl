@@ -355,7 +355,6 @@ fn ocean(
   let column_t = exp(-(ABSORPTION + SCATTERING) * column_path);
   // Single scattering in the water column: sunlight scattered back toward the
   // eye, tinted by the absorption it survived. This is the colour of deep water.
-  let sigma_t = ABSORPTION + SCATTERING;
   let ambient_light = direct * sun_up * sun_seen * (0.4 + 0.6 * max(light.y, 0.0)) * 0.3183 + settings.skylight * sky_seen;
   // Irradiance reflectance of optically deep water, Gordon's form
   // R ≈ 0.33 b_b / (a + b_b), with clear-water backscatter: ~2% in blue,
@@ -929,7 +928,7 @@ fn set_envelope(along: f32, time: f32) -> f32 {
 
 // A shoaling crest: phase warped so the front face steepens (asymmetry,
 // beta) and the crest sharpens into a trochoid (q). Returns the warped phase
-// and d(warped)/d(phase). Keep in step with swashCycle in surf.js.
+// and d(warped)/d(phase). Keep in step with breakerTheta in surf.js.
 fn breaker_warp(psi: f32, beta: f32, q: f32) -> vec2f {
   let psi1 = psi - beta * cos(psi);
   var theta = psi1 + q * sin(psi1);

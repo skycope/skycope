@@ -18,7 +18,7 @@ export function createSound() {
   let noise = null;
   let pink = null;
   let brown = null;
-  const conditions = { sea: 0.5, seaPan: 0, wind: 0, rain: 0, night: 0, trees: 0, underwater: 0 };
+  const conditions = { sea: 0.5, seaPan: 0, wind: 0, rain: 0, night: 0, trees: 0 };
 
   function start() {
     if (ctx) {

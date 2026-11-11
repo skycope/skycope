@@ -6,9 +6,10 @@ import { ISLAND } from './terrain.js';
 // forested dome, a long grey-green scrub ridge, bare granite knuckles, a
 // pale dune spit. The land layer draws them as real geometry (sharp,
 // antialiased, lit by the same sun and sky as the island, fading into the
-// horizon haze). archipelago.wgsl is this file's twin, line for line: the sea
-// traces the same height fields for their reflections and for the sun they
-// hide. Keep the two in step.
+// horizon haze). The sea never marches these height fields: archipelagoUniform
+// bakes each island's skyline for archipelago.wgsl, which reprojects it for
+// reflections, and archipelagoSunVisibility traces the sun they hide once a
+// frame on the CPU. Keep the two files in step.
 
 export const FOREST = 0, SCRUB = 1, GRANITE = 2, DUNE = 3;
 export const ARCHIPELAGO_BOUNDS = Object.freeze({ minDistance: 800, maxDistance: 6000, maxHeight: 360, maxRadius: 2200 });
@@ -198,7 +199,7 @@ export function archipelagoHorizonPossible(origin, ray) {
   return true;
 }
 
-// The sea's view of the archipelago (Atmosphere.islands in view.wgsl). The
+// The sea's view of the archipelago (the islandTable texture, main.js). The
 // sea never marches the height fields: each island is baked into its
 // silhouette as seen from `origin` at sea level — 24 elevation tangents
 // across its angular span — which archipelago.wgsl reprojects from any

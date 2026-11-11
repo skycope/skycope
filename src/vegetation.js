@@ -1,7 +1,6 @@
 import * as THREE from "three";
 import {
   terrainHeight,
-  shoreDistance,
   islandPoint,
   noise2,
   smoothstep,
@@ -843,8 +842,6 @@ function growPalm(root, plant, traits, random, wood, fronds) {
     frond(fronds, previous, azimuth, -0.6 + age * 1.5, length, 1.35, color.clone().multiplyScalar(0.8 + random() * 0.35).offsetHSL((1 - age) * 0.02, 0, 0));
   }
 }
-
-
 
 // Ferns unfurl from a crown: arching fronds, youngest standing upright in
 // the middle, the oldest splayed low (frondGeometry: lobed paired pinnae

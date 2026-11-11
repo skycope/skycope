@@ -149,11 +149,12 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   let hazeAway = [0, 0, 0];
   const prints = cat.prints;
   let interest = null;
+  // The first frame's triangle and draw counts go on the canvas for QA.
+  let counted = false;
   const perf = new URLSearchParams(window.location.search).has("perf");
   const profiler = createMeshProfiler(renderer, canvas, perf);
 
   const sunWorld = new THREE.Vector3(0, 1, 0);
-  const sunTint = new THREE.Color(1, 0.92, 0.75);
   const sunView = new THREE.Vector3();
   const lookDirection = new THREE.Vector3();
   const lookRight = new THREE.Vector3();
@@ -257,17 +258,12 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       precipitation.update({ dt: weatherDt, rain, wind, camera, reducedMotion, paused,
         brightness: Math.max(...lighting.sky) + Math.max(...lighting.direct) * cloudBeam * .2 });
       forest.updateWeather?.(precipitation.surface);
-      // Leaf translucency and glints follow the light in view space. Overcast
-      // and low light retract them so night foliage never glows.
+      // Leaf translucency and glints follow the light in view space (their
+      // strength is the shadowed sun's own, from three's light loop).
       sunView.copy(sunWorld).transformDirection(camera.matrixWorldInverse);
-      forest.updateSun(
-        sunView,
-        sunTint,
-        THREE.MathUtils.smoothstep(sunWorld.y, -0.02, 0.12) *
-          cloudBeam *
-          (1 - night * 0.9) *
-          Math.min(1, sun.intensity / 2),
-      );
+      forest.updateSun(sunView);
+      // Pixels per metre at one metre: how big things are on screen.
+      const pixelScale = renderer.domElement.height / (2 * Math.tan((camera.fov * Math.PI) / 360));
       cat.update(pose, dt, time, surface, onStep, {
         night,
         direct: THREE.MathUtils.smoothstep(sunWorld.y, 0, 0.3) * cloudBeam,
@@ -275,19 +271,18 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         sunX: sunWorld.x,
         sunZ: -sunWorld.z,
         eye: camera.position,
-        pixelScale: renderer.domElement.height / (2 * Math.tan((camera.fov * Math.PI) / 360)),
+        pixelScale,
         wind,
         rain,
       }, wake);
       if (wake) forest.updateCatWater(wake.paws, wake.body.flow);
-      if (water) forest.updateSurf(time, [flight.x, flight.y, flight.z], renderer.domElement.height / (2 * Math.tan((camera.fov * Math.PI) / 360)), water);
+      if (water) forest.updateSurf(time, [flight.x, flight.y, flight.z], pixelScale, water);
       // Plants part round the cat as it walks through them.
       forest.pushAt(pose.x, pose.z, pose.air > 0.05 ? 0 : 1);
       interest = critters.update(dt, time, pose, night);
       // Motes glow only in daylight, dimmed by cloud like the direct sun.
       moteLight.copy(sun.color).multiplyScalar(sun.intensity * THREE.MathUtils.smoothstep(sunWorld.y, 0.0, 0.1) * (1 - night));
-      motes.update(time, wind, camera.position, sunWorld, moteLight,
-        renderer.domElement.height / (2 * Math.tan((camera.fov * Math.PI) / 360)));
+      motes.update(time, wind, camera.position, sunWorld, moteLight, pixelScale);
       lens.update({
         camera, time, rain, wind, sky: lighting.sky, sunDirection: sunWorld, sunColour: sun.color,
         sunVisible: cloudBeam * THREE.MathUtils.smoothstep(sunWorld.y, -0.01, 0.06) * (1 - night),
@@ -305,7 +300,8 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         renderer.render(lens.scene, camera);
         renderer.autoClear = true;
       });
-      if (!canvas.dataset.triangles) {
+      if (!counted) {
+        counted = true;
         canvas.dataset.triangles = String(renderer.info.render.triangles);
         canvas.dataset.drawCalls = String(renderer.info.render.calls);
       }
@@ -341,6 +337,9 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     },
     dispose() {
       profiler.dispose();
+      // The cat owns render targets (its shadow map, the coat bakes) and a
+      // build worker the scene traversal below cannot reach.
+      cat.dispose();
       precipitation.dispose();
       archipelago.geometry.dispose();
       archipelago.material.dispose();
@@ -385,7 +384,6 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     const overcast = beam;
     sun.color.setRGB(r / peak, g / peak, b / peak);
     sun.intensity = peak * overcast;
-    sunTint.copy(sun.color);
     const night = THREE.MathUtils.smoothstep(celestial.scene, 1, 2);
     // At night the moon/night floor in lighting.sky is already the whole
     // story, and an overcast dome is near uniform (brighter overhead).

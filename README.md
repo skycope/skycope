@@ -24,9 +24,17 @@ npm run render:sky -- /tmp/skycope-qa
 
 In the browser, `?weather=clear|cloudy|overcast|rain|storm` opens on that weather
 preset (the same as choosing it in the weather panel); `?perf` records
-mesh-layer GPU time (`data-mesh-ms`, via a `readPixels`-synced render burst every
-90 frames), triangles and draw calls on the landscape canvas, and exposes the live
-state as `window.skycope` (for example to aim `flight` at the sun).
+mesh-layer timing on the landscape canvas (`data-mesh-gpu-ms` and its p95 from
+asynchronous timer queries, `data-mesh-submit-ms` where the extension is
+missing), with triangles and draw calls, and exposes the live state as
+`window.skycope` (for example to aim `flight` at the sun). With `?perf`,
+`&review=home-noon|inland-noon|forest-overcast|cat-close|cat-evening|rain-home|sea-noon|splash-run`
+pins the date, time, place and camera for before/after captures
+(`src/review-fixtures.js`).
+
+`node scripts/tour.mjs <outDir> [port]` drives headless Chrome through 38 views
+of a running dev server (place, camera, time, weather, motion) and saves a
+screenshot of each.
 
 `ONLY=surf,rocks` renders just those fixtures; `BENCH=1` adds per-pass throughput,
 and `BASE_WATER=<other checkout>/src/shaders/water.wgsl` benches that water shader
@@ -49,6 +57,17 @@ reduced-motion mode, background/resume, and with the weather endpoint blocked.
 | `src/astronomy.js`       | Cape Town dates, sun/moon positions, sidereal rotation                   |
 | `src/weather.js`         | Open-Meteo request and validation; no rendering code                     |
 | `src/weather-panel.js`   | Weather panel: live, presets, and cloud/wind/rain sliders                |
+| `src/loading-screen.js`  | The pixel-sky loading veil the world sharpens in from                    |
+| `src/swell.js`           | The breaking swell train shared by sea, swash and rock surf              |
+| `src/wave-modes.js`      | The wind sea's 128 modes per frame, for `waves.wgsl`                     |
+| `src/sea-surface.js`     | CPU twin of the sea where the cat is: level, flow, swash                 |
+| `src/wake.js`            | The cat's wake, paw collars and splash rings, packed for `wake.wgsl`     |
+| `src/shore-textures.js`  | Boulder and land-field textures for the water pass                       |
+| `src/archipelago.js`     | Distant islands: layout, mesh, baked skylines and sun cover for the sea  |
+| `src/shaders/waves.wgsl` | Wind-sea cascades (four 128² tiles); `spectrum.wgsl` is their shared maths |
+| `src/shaders/foam.wgsl`  | Whitecap foam history over the largest wave tile                         |
+| `src/shaders/wake.wgsl`  | The cat in the sea: collar, trail, ripples, splashes                     |
+| `src/shaders/archipelago.wgsl` | Distant islands' reflections from their baked skylines             |
 | `src/surf.js`            | Swash foam, bubbles and glow on the sand; spray off the boulders         |
 | `src/land-field.js`      | The island as the sea reflects it: height, albedo, distance to land      |
 | `src/rocks.js`           | Rock layout and corestone shapes; the waterline boulders for the sea     |
@@ -64,7 +83,16 @@ reduced-motion mode, background/resume, and with the weather endpoint blocked.
 | `src/shaders/water.wgsl` | Sharp water composite, sun disc, rain, tonemap and final colour          |
 | `src/shaders/ocean.wgsl` | Swells, ripples, reflection, seabed, caustics, kelp, glitter, foam       |
 | `src/landscape.js`       | Three.js camera, lights from `sunlight.js`, shadows, lifecycle           |
+| `src/lens.js`            | Rain on the lens and veiling glare, one full-screen pass over both layers |
+| `src/precipitation.js`   | Rain streaks and impacts, canopy shelter, surface wetness history        |
+| `src/cloud-transmission.js` | CPU ray through the visible cloud: the sun's direct beam              |
+| `src/mesh-profiler.js`   | `?perf` timing of the mesh layer                                         |
+| `src/review-fixtures.js` | `?perf&review=` permalinks for before/after captures                     |
 | `src/vegetation.js`      | Growth traits, habitat placement, trees, ferns, grass and fynbos         |
+| `src/habitat.js`         | Regional habitat descriptors, crown competition, ground producers        |
+| `src/plant-growth.js`    | Foliage demand and pipe-model branch radii                               |
+| `src/ground-detail.js`   | Fallen leaves, twigs, roots and pebbles; painted scrub and sour-fig cover |
+| `src/material-palette.js` | Authored material colours shared by the mesh and the reflection field   |
 | `src/forest.js`          | Instanced plants, wind and gusts, foliage/ground/bark shaders, LOD       |
 | `src/plant-forms.js`     | Unit plant organs: tufts, reeds, fronds, aloe leaves, heath shoots, heads |
 | `src/motes.js`           | Pollen and dust that catch the sun when you look toward it               |
@@ -82,6 +110,7 @@ reduced-motion mode, background/resume, and with the weather endpoint blocked.
 | `src/terrain.js`         | Terrain and shoreline functions                                          |
 | `src/cloud-noise.js`     | Deterministic 64³ cloud noise texture, generated once                    |
 | `src/stars.js`           | One-time star/constellation atlas from the compact catalog               |
+| `src/star-catalog.js`    | Packs the catalog into the grid the composite pass reads (no DOM)        |
 | `src/data/`              | Catalog and source/epoch documentation                                   |
 
 ## Time, weather, and astronomy
@@ -279,7 +308,7 @@ models. Smooth habitat fields form related groves; exposure lowers the coastal e
 spacing avoids intersecting trunks, and a separate patch field populates lower layers.
 Crowns grow by space colonization; stems taper continuously through every fork (pipe
 model radii, each segment narrowing to its thickest child). Leaves grow on shoots:
-a short twig with 14 small folded leaves in a golden-angle spiral, mature and wide at
+a short twig with 10 small folded leaves in a golden-angle spiral, mature and wide at
 the base, young and yellower at the tip. Sun leaves outside the crown are smaller and
 yellower, shade leaves inside larger and bluer, and each shoot's depth in its crown
 darkens it and occludes its sky sheen. Every plant organ is grown, not stamped
@@ -306,7 +335,7 @@ Open ground between groves is fynbos: king and sugarbush proteas, pincushions,
 aloes with orange flower candles, restio reed tufts, pink-belled ericas, and
 Namaqualand-style daisy drifts that share one colour over tens of metres and face
 the northern (southern-hemisphere) sun. Granite corestone fields straddle the
-waterline in a few clusters, in three corestone shapes (jointing and sheeting
+waterline in a few clusters, in five corestone shapes (jointing and sheeting
 shells). Granite is shaded in true 3D noise: weathering tone, iron stain running
 down, patina in hollows, fine cracks, feldspar/quartz/biotite grain up close,
 grey-green crusts and orange lichen rosettes above the spray, and the shore's
@@ -324,7 +353,8 @@ breathing cycles (clipped at the surface). Birds roost at night.
 
 ## Render budget and lifecycle
 
-- Four WebGPU passes. The sky: a 256 × 128 **sky-view table** of the scattering
+- Six WebGPU passes: the wind-sea cascades and (in wind) the whitecap history,
+  three for the sky, then the water. The sky: a 256 × 128 **sky-view table** of the scattering
   integral (Hillaire 2020; it was 1.6 ms of per-pixel integrals at 1 M pixels),
   then the **cloud march at a quarter of the sky's pixels**, each texel tracing
   one pixel of its 2×2 block in a rotating jitter, then a **resolve** at up to
@@ -377,7 +407,7 @@ breathing cycles (clipped at the surface). Birds roost at night.
 - A 256 KiB repeating noise volume avoids hashing many noise octaves per sample.
   The constellation atlas is uploaded once (2048 × 1024 RGBA, 8 MiB), and the
   star catalog grid once (1024 × 512 RGBA16F, 4 MiB).
-- Rendering follows the display refresh through `requestAnimationFrame`, without a second FPS cutoff that can skip near-boundary frames. Sustained slow frames reduce resolution and sample
+- Rendering follows `requestAnimationFrame`, paced to 60 fps (30 once the cat has settled) with a small tolerance so vsync jitter never skips a frame. Sustained slow frames reduce resolution and sample
   count; recovery is gradual. The water budget is fixed. No full-resolution bloom; the only history buffer is the cloud layer.
 - Hidden tabs stop rendering and skip weather fetches. Resuming refreshes stale
   weather. Reduced motion stops the animation loop and redraws only for clock,

@@ -206,7 +206,6 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
     tailSide: new Float32Array(TAIL_BONES),
     tailElevV: new Float32Array(TAIL_BONES),
     tailSideV: new Float32Array(TAIL_BONES),
-    pawWet: 0,
     // The paddle stroke's phase (0…1).
     stroke: 0,
     // Bow spray owed (particles), and seconds since the belly was last in
@@ -599,7 +598,6 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
           leg.swing = Math.sin(Math.PI * Math.min(1, t * 1.3)) * Math.min(1, amp * 2);
         }
         const gy = ground(wx, wz);
-        leg.groundGap = lift;
         // The shoulder blade rides the swing of the arm, and rises over the
         // leg that bears weight.
         if (leg.scapula) {

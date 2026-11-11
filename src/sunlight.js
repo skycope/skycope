@@ -181,29 +181,6 @@ export function lightingAt(celestial, weather = null) {
   return { exposure, direct, sky: overcastSky, night, gloom, cover };
 }
 
-// Mean skylight a level surface receives (cosine-weighted over the whole
-// dome) relative to the zenith radiance, per channel. The zenith alone
-// underestimates it; blending in the horizon toward one heading badly
-// overestimates it and tints it with that direction's haze. Exposure cancels,
-// so it only needs recomputing when the sun moves.
-export function skyIrradianceRatio(sun) {
-  const zenith = skyRadiance([0, 1, 0], sun, 5);
-  const mean = [0, 0, 0];
-  const rings = 4;
-  const around = 8;
-  for (let i = 0; i < rings; i++) {
-    // Equal-area rings in cos²: uniform samples of the cosine-weighted dome.
-    const up = Math.sqrt(1 - (i + 0.5) / rings);
-    const out = Math.sqrt(1 - up * up);
-    for (let j = 0; j < around; j++) {
-      const a = ((j + 0.5) / around) * Math.PI * 2;
-      const radiance = skyRadiance([out * Math.cos(a), up, out * Math.sin(a)], sun, 5);
-      for (let c = 0; c < 3; c++) mean[c] += radiance[c] / (rings * around);
-    }
-  }
-  return mean.map((v, c) => Math.min(4, v / Math.max(zenith[c], 1e-9)));
-}
-
 // Horizon colour toward a heading, for fog and distant haze on the land layer.
 export function horizonRadiance(celestial, direction, exposure) {
   const h = skyRadiance([direction[0], 0.02, direction[2]], celestial.sun, 8);

@@ -118,6 +118,11 @@
       body[data-scene="2"] .fallback::after {
         background: #445871;
       }
+      /* After a failure the land canvas keeps its last frame: hide it, so
+         the static sky is not left with a frozen island over it. */
+      body[data-renderer="fallback"] #landscape {
+        visibility: hidden;
+      }
       body[data-renderer="webgpu"] .fallback {
         visibility: hidden;
         transition: visibility 1s;
@@ -189,8 +194,6 @@
       }
       .conditions {
         text-align: right;
-      }
-      .conditions {
         position: relative;
       }
       .chevron {
