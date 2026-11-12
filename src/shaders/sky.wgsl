@@ -36,6 +36,12 @@ fn fs_main(@builtin(position) position: vec4f, @location(0) uv: vec2f) -> SkyOut
   // The distant archipelago is geometry in the land layer (archipelago.js),
   // drawn over this at full resolution; the sea traces it for reflections.
   var seen = clouds.rgb + sky * clouds.a;
+  // A heavy deck is not a blank sheet: the relief of its base, and at a low
+  // sun the slot of clear sky under its edge. In the sky the water reads,
+  // never in the cloud history.
+  if (atmosphere.weather.w > 0.45 && ray.y > -0.02) {
+    seen = deck_light(ray, seen, clouds.a, night);
+  }
   // sky-events: showers under broken cloud hang as grey curtains of rain
   // from the cloud base (under a full deck the whole sky is the shower).
   var curtain = 0.0;
@@ -94,6 +100,45 @@ fn sun_shafts(uv: vec2f, ray: vec3f, seen: vec3f, transmission: f32) -> vec3f {
   let shade = 1.0 - strength * (1.0 - lit) * 0.6 * transmission;
   let glow = atmosphere.light.rgb * strength * lit * lit * 0.08 * (0.4 + 0.6 * transmission);
   return seen * shade + glow;
+}
+
+// The underside of a heavy deck: rolls and thinner seams in the cloud
+// base (a plane ~1 km up, drifting with the wind), darker where it is thick
+// and brighter where it thins; and when the sun is low, the band of clear
+// sky under the deck's far edge glowing along the horizon, brightest toward
+// the sun, ragged where the cloud base dips into it. Two noise taps and
+// one table read per sky pixel, only under a heavy deck.
+fn deck_light(ray: vec3f, seen: vec3f, transmission: f32, night: f32) -> vec3f {
+  let cover = smoothstep(0.45, 0.9, atmosphere.weather.w);
+  let up = max(ray.y, 0.0);
+  let drift = atmosphere.wind * atmosphere.time * 0.0009;
+  let q = ray.xz / (up + 0.06) * 1.6 + drift;
+  let rolls = noise3(vec3f(q * vec2f(0.5, 1.1), 1.7)) * 0.6 + noise3(vec3f(q * 2.3 + 3.1, 5.3)) * 0.4;
+  // Rolls with soft but definite edges, as stratocumulus has.
+  let shaped = smoothstep(0.3, 0.7, rolls);
+  let fade = smoothstep(0.01, 0.12, up);
+  let relief = (shaped - 0.5) * 0.6 * fade * (1.0 - transmission) * cover;
+  var light = seen * (1.0 + relief);
+  // The low sun's slot under the deck (and its afterglow just after sunset).
+  let sun = atmosphere.sun;
+  let low = smoothstep(-0.12, -0.02, sun.y) * (1.0 - smoothstep(0.12, 0.3, sun.y)) * (1.0 - night);
+  if (low > 0.0) {
+    let flat = normalize(vec2f(ray.x, ray.z) + 1e-5);
+    let toward = max(dot(flat, normalize(sun.xz + 1e-5)), 0.0);
+    // The deck's ragged lower edge: the same rolls as its base, seen edge on.
+    let azimuth = atan2(ray.x, ray.z);
+    let ragged = noise3(vec3f(azimuth * 9.0, up * 12.0 + 2.3, atmosphere.time * 0.003)) * 0.6
+      + noise3(vec3f(azimuth * 17.0, up * 40.0 + 7.1, atmosphere.time * 0.005)) * 0.4;
+    let height = 0.008 + 0.03 * smoothstep(0.2, 0.8, ragged) * (0.4 + 0.6 * toward);
+    let slot = exp(-up / height) * smoothstep(-0.006, 0.003, ray.y) * (0.15 + 0.85 * pow(toward, 2.0)) * low * cover;
+    let clear = textureSampleLevel(skyTable, cloudSampler, lut_uv(vec3f(ray.x, max(ray.y, 0.004), ray.z)), 0.0).rgb * atmosphere.light.w;
+    light = mix(light, clear * (1.2 + 0.8 * toward), min(slot, 1.0) * 0.9);
+    // The deck's underside above the slot catches the low light: a warm
+    // glow on the cloud base fading up the sky, strongest over the sun.
+    let underlit = exp(-up / 0.12) * pow(toward, 3.0) * low * cover * (1.0 - transmission) * (0.6 + 0.8 * shaped * fade);
+    light += clear * underlit * 0.35;
+  }
+  return light;
 }
 
 // Rain shafts: vertical streaks drifting with the showers, densest near

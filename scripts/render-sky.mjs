@@ -279,6 +279,11 @@ for (const [name, time, weather, rain, view, windOverride, skyOptions] of [
   ["after-sunset", "2026-09-08T16:36:00Z", [0, 0, 0, 0], 0],
   // The last sliver of the sun over a clean sea horizon.
   ["green-flash", "2026-09-08T16:32:40Z", [0, 0, 0, 0.05], 0, [276.2, 0.0], null, { sunlit: 1 }],
+  // A heavy deck at dusk (18:35): toward the set sun, away from it, and
+  // looking down at the sea under it.
+  ["overcast-dusk", "2026-09-08T16:35:00Z", [1, 0.85, 0.6, 1], 0, [276, 0.1, [8.3, 2.5, 1.7]]],
+  ["overcast-dusk-away", "2026-09-08T16:35:00Z", [1, 0.85, 0.6, 1], 0, [140, 0.15, [8.3, 2.5, 1.7]]],
+  ["overcast-sea", "2026-09-08T16:35:00Z", [1, 0.85, 0.6, 1], 0, [250, -0.12, [8.3, 4, 1.7]]],
   // sea-sky-magic: the gifts awake. skyOptions.magic: { gifts, age (s since
   // they woke), pulse, call, time (the scene clock) }. MAGIC=0 renders any
   // of them asleep, for side-by-side A/B.
@@ -415,7 +420,7 @@ for (const [name, time, weather, rain, view, windOverride, skyOptions] of [
     const bench = {};
     foam.set({ foamHistory: foamTarget.read.color });
     // The cloud march too.
-    for (const [label, t, e] of [["waves", wavesTarget, waves], ["foam", foamTarget.write, foam], ["clouds", cloudTarget, clouds], ["water", output, water]]) {
+    for (const [label, t, e] of [["waves", wavesTarget, waves], ["foam", foamTarget.write, foam], ["clouds", cloudTarget, clouds], ["sky", skyTarget.write, shader], ["water", output, water]]) {
       await gpu.gpu.queue.onSubmittedWorkDone();
       const begin = performance.now();
       frame(gpu, (f) => { for (let i = 0; i < 120; i++) f.pass(t, e); });
