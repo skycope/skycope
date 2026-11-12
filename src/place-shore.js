@@ -193,7 +193,7 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
     return keelAt(s) + 0.12 * s * s * 0.4 - depth * (1 - Math.cos(a)) - 0.12 * s * s * (a / (Math.PI / 2)) + 0.02;
   })];
   return {
-    near, far, farDistance: 40,
+    near, far, farDistance: 40, cullDistance: 80,
     obstacles: { trunks, domes },
     halos: [{ x: p.x + lamp.x, y: lamp.y, z: p.z + lamp.z, size: 1.5, colour: [1.0, 0.6, 0.24], flicker: true }],
     extra: pool.mesh,
@@ -476,7 +476,7 @@ export function buildPool(p, materials, { light = false, seed = 1 } = {}) {
   })];
   let last = 0;
   return {
-    near, far, farDistance: 30,
+    near, far, farDistance: 30, cullDistance: 70,
     obstacles: { trunks: [], domes },
     update({ time, eye, pose }) {
       if (!eye || Math.hypot(eye[0] - p.x, eye[2] - p.z) > 22) return;

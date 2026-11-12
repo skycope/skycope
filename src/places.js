@@ -39,6 +39,8 @@ export function createPlaces(group, seed, { light = false, shared } = {}) {
     lod.position.set(p.x, 0, p.z);
     lod.addLevel(b.near, 0);
     if (b.far) lod.addLevel(b.far, b.farDistance ?? 45, 0.1);
+    // Small places are a few pixels across the island: gone past cullDistance.
+    if (b.cullDistance) lod.addLevel(new THREE.Object3D(), b.cullDistance, 0.1);
     lod.updateMatrix();
     lod.matrixAutoUpdate = false;
     root.add(lod);

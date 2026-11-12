@@ -146,10 +146,6 @@ export function buildLighthouse(p, materials, { light = false } = {}) {
     const u = Math.cos(a + Math.PI) * (r - 0.2), v = Math.sin(a + Math.PI) * (r - 0.2);
     const yaw = a + Math.PI;
     both(glow, () => part(new THREE.BoxGeometry(0.42, 0.82, 0.45), { matrix: frame(u, y, v, { yaw }), colour: WINDOW }));
-    nearOnly(paint, part(new THREE.BoxGeometry(0.58, 0.08, 0.5), {
-      matrix: frame(Math.cos(a + Math.PI) * (r - 0.15), y - 0.46, Math.sin(a + Math.PI) * (r - 0.15), { yaw }),
-      colour: WHITE,
-    }));
   }
 
   // The keeper's cottage, beside the tower and facing the sea: limewashed,
