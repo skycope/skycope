@@ -19,7 +19,7 @@ export function placeRocks(seed, rocks) {
   return kept;
 }
 
-const grey = (random, l = 0.33) => new THREE.Color().setHSL(0.075 + random() * 0.02, 0.05 + random() * 0.03, l + (random() - 0.5) * 0.06);
+const grey = (random, l = 0.33) => new THREE.Color().setHSL(0.075 + random() * 0.02, 0.05 + random() * 0.03, l + (random() - 0.5) * 0.09);
 
 // A dry-stone cairn: courses of flat stones laid round and inward, each
 // course stepped in, the gaps chinked with smaller ones. The beacon's mast
@@ -38,17 +38,17 @@ function cairn(p, random) {
     const offset = random() * Math.PI * 2;
     for (let i = 0; i < course.count; i++) {
       const a = offset + (i / course.count) * Math.PI * 2 + (random() - 0.5) * 0.25;
-      const size = course.size * (0.85 + random() * 0.3);
+      const size = course.size * (0.68 + random() * 0.62);
       const x = p.x + Math.cos(a) * course.r;
       const z = p.z + Math.sin(a) * course.r;
       const base = Math.max(g, groundHeight(x, z));
-      const sy = size * (0.5 + random() * 0.15);
+      const sy = size * (0.42 + random() * 0.25);
       stones.push({
         position: new THREE.Vector3(x, g + course.y + sy * 0.2, z),
         scale: new THREE.Vector3(size, sy, size * (0.75 + random() * 0.25)),
         // Laid flat, tipped slightly inward so the pile locks together.
-        rotation: new THREE.Euler(Math.sin(a) * 0.12, a + (random() - 0.5) * 0.4, -Math.cos(a) * 0.12),
-        color: grey(random, 0.31),
+        rotation: new THREE.Euler(Math.sin(a) * 0.12 + (random() - 0.5) * 0.25, a + (random() - 0.5) * 1.2, -Math.cos(a) * 0.12 + (random() - 0.5) * 0.25),
+        color: grey(random, 0.27),
         ground: c === 0 ? base : g + course.y - sy * 0.4,
         variant: (c * 3 + i) % ROCK_VARIANTS,
       });

@@ -269,8 +269,8 @@ export function createMaterials(shared) {
         float painted = smoothstep( 0.18, 0.4, ( top - min( diffuseColor.r, min( diffuseColor.g, diffuseColor.b ) ) ) / max( top, 1e-3 ) );
         diffuseColor.rgb *= 0.82 + grain * mix( 0.36, 0.12, painted ) - checks * 0.3 + ( blotch - 0.5 ) * 0.2;
         // Paint flaking off to grey wood.
-        float flake = smoothstep( 0.62, 0.7, blotch + ( grain - 0.5 ) * 0.2 ) * painted;
-        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.3, 0.28, 0.25 ) * ( 0.8 + grain * 0.4 ), flake * 0.85 );
+        float flake = smoothstep( 0.7, 0.76, blotch + ( grain - 0.5 ) * 0.2 ) * painted;
+        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.2, 0.18, 0.16 ) * ( 0.8 + grain * 0.4 ), flake * 0.8 );
         // The tide's reach: wet, weed and shell below about 0.6 m above
         // the sea, rising a little above the sand where the swash runs.
         float y = vPlace.y + ( blotch - 0.5 ) * 0.3;
@@ -390,7 +390,40 @@ export function createMaterials(shared) {
   });
   net.alphaToCoverage = true;
 
-  return { paint, wood, rough, stone, glow, foliage, lichen, net, lights };
+  // Still pool water: a dark, clear film that mirrors the sky at a glancing
+  // angle (Fresnel alpha) and shows the floor straight down; a breath of
+  // wind wrinkles it.
+  const water = new THREE.MeshStandardMaterial({ color: srgb("#0e2624"), roughness: 0.05, metalness: 0, transparent: true, depthWrite: false });
+  patchMaterial(water, shared);
+  extend(water, "water", {
+    fragment: (s) => s.replace(
+      "#include <normal_fragment_maps>",
+      `#include <normal_fragment_maps>
+      {
+        vec2 q = vPlace.xz;
+        float t = breezeTime;
+        float h = sin( dot( q, vec2( 7.1, 3.3 ) ) + t * 2.1 ) * 0.5 + sin( dot( q, vec2( -4.3, 8.7 ) ) + t * 1.7 ) * 0.5
+          + sin( dot( q, vec2( 13.0, -9.0 ) ) - t * 3.3 ) * 0.25;
+        h *= 0.0012;
+        vec3 dpx = dFdx( -vViewPosition );
+        vec3 dpy = dFdy( -vViewPosition );
+        vec3 r1 = cross( dpy, normal );
+        vec3 r2 = cross( normal, dpx );
+        float det = dot( dpx, r1 );
+        vec3 grad = sign( det ) * ( dFdx( h ) * r1 + dFdy( h ) * r2 );
+        normal = normalize( abs( det ) * normal - grad );
+      }`,
+    ).replace(
+      "#include <lights_fragment_begin>",
+      `{
+        float facing = abs( dot( normal, normalize( vViewPosition ) ) );
+        diffuseColor.a = mix( 0.38, 0.95, pow( 1.0 - facing, 3.0 ) );
+      }
+      #include <lights_fragment_begin>`,
+    ),
+  });
+
+  return { paint, wood, rough, stone, glow, foliage, lichen, net, water, lights };
 }
 
 // Additive glows: unlit, depth-tested, no depth writes, no fog (lights carry

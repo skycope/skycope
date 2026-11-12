@@ -4,6 +4,7 @@ import { createMaterials, glowMaterial, smooth01 } from "./place-kit.js";
 import { buildLighthouse } from "./place-lighthouse.js";
 import { buildWreck } from "./place-wreck.js";
 import { buildMilkwood } from "./place-milkwood.js";
+import { buildBoat, buildBeacon, buildPool, haloMesh } from "./place-shore.js";
 
 // Places worth walking to: a handful of real Cape-coast landmarks, placed
 // by the seed round the island so each can be seen from another and pulls
@@ -19,7 +20,7 @@ import { buildMilkwood } from "./place-milkwood.js";
 
 export { placesLayout, placeClearance };
 
-const BUILDERS = { lighthouse: buildLighthouse, wreck: buildWreck, milkwood: buildMilkwood };
+const BUILDERS = { lighthouse: buildLighthouse, wreck: buildWreck, milkwood: buildMilkwood, boat: buildBoat, beacon: buildBeacon, pool: buildPool };
 
 export function createPlaces(group, seed, { light = false, shared } = {}) {
   const layout = placesLayout(seed);
@@ -50,6 +51,9 @@ export function createPlaces(group, seed, { light = false, shared } = {}) {
 
   const beam = built.find((b) => b.lamp) ? lampLights(built.find((b) => b.lamp).lamp) : null;
   if (beam) root.add(beam.group);
+  const haloList = built.flatMap((b) => b.halos ?? []);
+  const halos = haloList.length ? haloMesh(haloList) : null;
+  if (halos) root.add(halos.mesh);
   paintGround(group, layout);
   const eyeWorld = new THREE.Vector3();
 
@@ -64,6 +68,7 @@ export function createPlaces(group, seed, { light = false, shared } = {}) {
       materials.lights.value = lit;
       if (eye) eyeWorld.set(eye[0], eye[1], -eye[2]);
       beam?.update(time, lit, night, eyeWorld);
+      halos?.update(time, lit);
       for (const b of built) b.update?.({ time, night, wind, eye, pose, lit });
     },
     dispose() {
@@ -72,6 +77,7 @@ export function createPlaces(group, seed, { light = false, shared } = {}) {
       });
       for (const m of Object.values(materials)) if (m?.isMaterial) m.dispose();
       beam?.dispose();
+      halos?.dispose();
       group.remove(root);
     },
   };
@@ -268,6 +274,23 @@ function stainsFor(p) {
     for (let u = -2.5; u >= -14; u -= 0.8) yard.push({ ...along(u), r: 1.3, soft: 0.4, colour: "#8e8676", amount: 0.55, grass: 0, scrub: 0 });
     yard.push({ x: p.x, z: p.z, r: 4.2, soft: 0.7, shade: 0.35 });
     return yard;
+  }
+  if (p.kind === "beacon") {
+    // The summit worn to bare granite round the cairn, a path trodden up.
+    return [
+      { x: p.x, z: p.z, r: 5, soft: 0.4, rocky: 0.85, grass: 0.15, scrub: 0, colour: "#7d756a", amount: 0.35 },
+      { x: p.x, z: p.z, r: 2.2, soft: 0.5, shade: 0.3 },
+    ];
+  }
+  if (p.kind === "boat") {
+    // Sand trodden flat and darkened round the boat; deep shade beneath it.
+    return [
+      { x: p.x, z: p.z, r: 4.5, soft: 0.4, scrub: 0, grass: 0.1 },
+      { x: p.x, z: p.z, r: 2.6, soft: 0.3, shade: 0.45, colour: "#8a7a5e", amount: 0.3 },
+    ];
+  }
+  if (p.kind === "pool") {
+    return [{ x: p.x, z: p.z, r: 4.2, soft: 0.6, scrub: 0, grass: 0, shade: 0.25 }];
   }
   if (p.kind === "milkwood") {
     // Deep shade and the tree's own leaf litter under the dome; a trodden
