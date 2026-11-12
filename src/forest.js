@@ -14,6 +14,7 @@ import { createSurf, SWASH_GLSL } from "./surf.js";
 import { swellUniform } from "./swell.js";
 import { rockLayout, rockGeometry, shoreRockData, ROCK_VARIANTS } from "./rocks.js";
 import { landFieldData } from "./land-field.js";
+import { placeRocks } from "./place-rocks.js"; // places:
 import { MATERIAL_HEX } from "./material-palette.js";
 import { groundDetailData, groundCover } from "./ground-detail.js";
 import {
@@ -66,7 +67,7 @@ export function createForest(scene, seed, { light = false } = {}) {
   scene.userData.forestShared = shared;
   const random = seededRandom(seed);
   const { wood: trunks, leaves, clusters, flowers, turf, fronds, succulents, needles, reeds, layout, habitat, producers = [] } = createVegetation(seed);
-  const rocks = addRocks(scene, random, shared);
+  const rocks = addRocks(scene, random, shared, placeRocks(seed, rockLayout(random))); // places:
   const surf = createSurf(scene, rocks, shared, { light });
   const obstacles = obstaclesFor(layout, rocks);
   const groundOccluders = occludersFor(layout, rocks);
@@ -1138,7 +1139,8 @@ float dShore( vec2 p ) {
 }
 `;
 
-function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = false, ground = false, rock = false, bark = false, bent = 0, fade = false, taper = false, pliant = false, rooted = 0, sheen = 0.6 } = {}) {
+// places: exported so the landmarks (place-kit.js) share fog, haze and light.
+export function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = false, ground = false, rock = false, bark = false, bent = 0, fade = false, taper = false, pliant = false, rooted = 0, sheen = 0.6 } = {}) {
   // three caches programs by onBeforeCompile's source text, which is the same
   // for every patched material: key them by their options, or a material
   // silently runs another's shader (blades with the clusters' flutter).

@@ -10,6 +10,7 @@ import { seededRandom } from "./random.js";
 import { createHabitat, sampleHabitat } from "./habitat.js";
 import { foliageDemand, demandRadius } from "./plant-growth.js";
 import { MATERIAL_HEX } from "./material-palette.js";
+import { plantClear } from "./place-layout.js"; // places:
 
 // Plant colours are chosen as sRGB hue/saturation/lightness, as a painter
 // would pick them. (three's setHSL defaults to the linear working space,
@@ -125,6 +126,7 @@ export function createVegetation(seed) {
     });
   }
   growTurf(seed, layout, turf);
+  { let n = 0; for (const t of turf) if (plantClear(seed, "grass", t.position.x, t.position.z)) turf[n++] = t; turf.length = n; } // places:
   return { ...parts, layout, habitat, producers: habitat.producers, plants: layout.length };
 }
 
@@ -295,6 +297,8 @@ export function vegetationLayout(seed) {
       seed: Math.max(1, Math.floor(random() * 0xffffffff)),
     });
   }
+  // places: nothing grows through a landmark (place-layout.js).
+  { let n = 0; for (const p of plants) if (plantClear(seed, p.kind, p.x, p.z, p.height)) plants[n++] = p; plants.length = n; }
   // Stable identities and a regional age; every candidate keeps its kind, so
   // the understorey stays as dense as it grows (a community filter that
   // thinned open ground to 38% left the hills bare dirt).
