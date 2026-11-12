@@ -85,7 +85,7 @@ export function createPlaces(group, seed, { light = false, shared } = {}) {
     lamps,
     // land-magic: the old milkwood's crown (coast x, z; radius; top y), the
     // fireflies' home.
-    crown: (() => { const m = built.find((b) => b.crown); return m ? { x: m.place.x, z: m.place.z, radius: m.crown.radius, top: m.crown.top } : null; })(),
+    crown: (() => { const m = built.find((b) => b.crown); return m ? { x: m.place.x, z: m.place.z, radius: m.crown.radius, top: m.crown.top, ground: m.crown.ground ?? m.crown.top - 10 } : null; })(),
     // land-magic: `lamp` is land-magic.js's lamp state ({ lit, angle,
     // strength }) and `lights` the other lamps' level: everything here is
     // dark until the lighthouse's gift wakes (without them, it stays dark).
@@ -204,7 +204,7 @@ function lampLights(lamp) {
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(attr.length), 3));
   geometry.setAttribute("beam", new THREE.Float32BufferAttribute(attr, 3));
   geometry.setIndex(index);
-  const beamMaterial = glowMaterial({ colour: [1.0, 0.8, 0.55], vertex: BEAM_VERTEX, fragment: BEAM_FRAGMENT, uniforms });
+  const beamMaterial = glowMaterial({ colour: [1.0, 0.66, 0.3], vertex: BEAM_VERTEX, fragment: BEAM_FRAGMENT, uniforms });
   beamMaterial.side = THREE.DoubleSide;
   const beams = new THREE.Mesh(geometry, beamMaterial);
   beams.frustumCulled = false;
@@ -230,6 +230,10 @@ function lampLights(lamp) {
       const a = lamp.angle;
       uniforms.angle.value = a;
       uniforms.strength.value = lamp.lit * (0.1 + 0.26 * night);
+      // Warm gold by day; deeper amber by night, where the tonemap's night
+      // vision would otherwise grey it to blue-white.
+      beamMaterial.uniforms.glowColour.value.setRGB(1.0, 0.8 - 0.24 * night, 0.55 - 0.4 * night);
+      flashMaterial.uniforms.glowColour.value.setRGB(1.0, 0.88 - 0.2 * night, 0.66 - 0.36 * night);
       // The flash: a beam swinging across the eye (either of the pair).
       toEye.subVectors(eye, lampWorld).setY(0).normalize();
       const facing = Math.abs(Math.cos(a) * toEye.x + Math.sin(a) * toEye.z);

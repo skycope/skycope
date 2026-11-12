@@ -228,7 +228,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       const gifts = landMagic.update({ magic, time, dt, night, pose, flies }); // land-magic:
       // The cat's coat and the animals take the same light (their
       // materials are built lazily: wrapped at load and once more later).
-      if (magicScan === 30 || magicScan === 600) lightWithMagic(land, land.userData.forestShared);
+      if (magicScan < 2400 && magicScan % 300 === 30) lightWithMagic(land, land.userData.forestShared);
       magicScan++;
       places.update({ time, night, wind, eye: [flight.x, flight.y, flight.z], pose, lamp: gifts.lamp, lights: gifts.lampLights }); // places:
       const sinA = Math.sin(flight.azimuth);

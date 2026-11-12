@@ -104,7 +104,8 @@ uniform float finale;
 uniform float pixelScale;
 uniform vec4 escort;   // centre (Three world), spread
 uniform vec4 trail;    // lag (world x, z, metres), scatter, unused
-uniform vec4 home;     // crown centre (Three world), radius
+uniform vec4 home;     // crown foot (Three world: x, ground y, z), radius
+uniform float homeSpan; // crown height above the ground
 uniform vec4 roam;     // eye (Three world), ground height near the cat
 uniform vec4 column;   // summit (Three world), height
 varying vec3 vColour;
@@ -130,11 +131,17 @@ void main() {
     float blink = pow( max( 0.0, sin( t * ( 0.9 + r * 0.7 ) + kind.y * 6.2832 ) ), 6.0 );
     glow = mix( 0.22 + 0.78 * blink, 0.55 + 0.25 * sin( t * 0.4 + a * 9.0 ), sleep );
   } else if ( kind.x < 1.5 ) {
-    // Home: hung through the crown on slow drifting shells, breathing.
+    // Home: hung under the milkwood's dome, where the cat walks, and over
+    // its outer leaves, on slow drifting paths, breathing.
     float th = a * 6.2832 + t * 0.025 * ( r - 0.5 );
-    float el = mix( 0.05, 1.2, h );
-    float rr = home.w * ( 0.45 + 0.55 * sqrt( r ) );
-    p = home.xyz + vec3( cos( th ) * cos( el ) * rr, sin( el ) * home.w * 0.42 - 0.8, sin( th ) * cos( el ) * rr );
+    if ( fract( a * 3.7 ) < 0.6 ) {
+      float rr = home.w * ( 0.12 + 0.72 * sqrt( r ) );
+      p = home.xyz + vec3( cos( th ) * rr, 1.0 + h * homeSpan * 0.32, sin( th ) * rr );
+    } else {
+      float el = mix( 0.0, 1.3, h * h );
+      float rr = home.w * 1.04;
+      p = home.xyz + vec3( cos( th ) * cos( el ) * rr, homeSpan * ( 0.3 + sin( el ) * 0.72 ), sin( th ) * cos( el ) * rr );
+    }
     p += vec3( sin( t * 0.31 + a * 20.0 ), sin( t * 0.23 + h * 30.0 ) * 0.5, cos( t * 0.27 + r * 25.0 ) ) * 0.35;
     glow = 0.35 + 0.65 * pow( 0.5 + 0.5 * sin( t * 0.55 + kind.y * 6.2832 ), 2.0 );
   } else {
@@ -169,14 +176,18 @@ void main() {
   gl_Position = projectionMatrix * mv;
   float depth = max( -mv.z, 0.05 );
   // A small light (a few cm) with a soft halo several times its size.
-  float px = trait.w * 0.11 * pixelScale / depth;
+  float lantern = kind.x > 0.5 && kind.x < 1.5 ? step( 0.55, trait.w ) : 0.0;
+  float px = trait.w * mix( 0.11, 0.2, lantern ) * pixelScale / depth;
   gl_PointSize = clamp( px, 2.0, 72.0 );
   // Under a pixel and a half, brightness carries what size cannot.
   float tiny = clamp( px / 2.0, 0.15, 1.0 );
   // Too close to the lens: fade rather than fill the screen.
   float near = smoothstep( 0.35, 1.1, depth );
   // Firefly gold-green by night; sun-warm seed-down by day.
-  vec3 fly = mix( vec3( 0.95, 0.85, 0.3 ), vec3( 0.6, 1.0, 0.32 ), fract( a * 5.3 + r ) );
+  // (Saturated beyond what they look: the night tonemap greys dim colour.)
+  vec3 fly = mix( vec3( 1.0, 0.74, 0.1 ), vec3( 0.6, 1.0, 0.08 ), fract( a * 5.3 + r ) );
+  // The crown's lights are amber and larger, like lanterns in the leaves.
+  fly = mix( fly, vec3( 1.0, 0.6, 0.14 ), lantern );
   vec3 down = mix( vec3( 1.0, 0.93, 0.78 ), vec3( 1.0, 0.82, 0.55 ), r );
   vColour = mix( down, fly, night );
   vGlow = glow * level * present * near * tiny * mix( 0.5, 1.0, night );
@@ -193,7 +204,7 @@ void main() {
   // A hot core, a soft halo with a long tail (the eye's own bloom).
   float core = exp( -r2 * 34.0 ) * 1.6;
   float halo = exp( -r2 * 6.0 ) * 0.32 * vSoft + exp( -r2 * 2.2 ) * 0.08 * vSoft;
-  vec3 c = vColour * ( core + halo ) * vGlow + vec3( 1.0, 0.98, 0.9 ) * core * vGlow * 0.35;
+  vec3 c = vColour * ( core + halo ) * vGlow + vec3( 1.0, 0.95, 0.75 ) * core * vGlow * 0.15;
   gl_FragColor = vec4( c * ( 1.0 - smoothstep( 0.7, 1.0, r2 ) ), 1.0 );
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -208,7 +219,7 @@ export function createFireflies(scene, seed, { light = false, crown = null, summ
   geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(count * 3), 3));
   geometry.setAttribute("trait", new THREE.BufferAttribute(traits, 4));
   geometry.setAttribute("kind", new THREE.BufferAttribute(kinds, 2));
-  const homeAt = crown ? new THREE.Vector4(crown.x, crown.top - Math.min(4.5, crown.radius * 0.45), -crown.z, crown.radius * 0.9) : new THREE.Vector4(0, -500, 0, 1);
+  const homeAt = crown ? new THREE.Vector4(crown.x, crown.ground, -crown.z, crown.radius * 0.95) : new THREE.Vector4(0, -500, 0, 1);
   const uniforms = {
     time: { value: 0 },
     level: { value: 0 },
@@ -220,6 +231,7 @@ export function createFireflies(scene, seed, { light = false, crown = null, summ
     escort: { value: new THREE.Vector4(0, -100, 0, 1.3) },
     trail: { value: new THREE.Vector4() },
     home: { value: homeAt },
+    homeSpan: { value: crown ? crown.top - crown.ground : 8 },
     roam: { value: new THREE.Vector4() },
     column: { value: summit ? new THREE.Vector4(summit.x, summit.y + 3, -summit.z, 75) : new THREE.Vector4(58, 30, -70, 75) },
   };
@@ -247,7 +259,7 @@ export function createFireflies(scene, seed, { light = false, crown = null, summ
   // What the land reads to be lit by them (land-magic.js glow slots 0, 1).
   const glow = {
     light: 0, centre: [0, -100, 0], radius: 2.6,
-    homeLight: 0, home: crown ? [crown.x, homeAt.y, crown.z] : [0, -500, 0], homeRadius: crown ? crown.radius * 0.8 : 1,
+    homeLight: 0, home: crown ? [crown.x, crown.ground + 2.2, crown.z] : [0, -500, 0], homeRadius: crown ? crown.radius * 0.7 : 1,
   };
   return {
     points,

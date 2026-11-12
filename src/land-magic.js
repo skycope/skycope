@@ -47,7 +47,7 @@ if ( magicOn > 0.0 ) {
     float r = magicGlow[ i ].w;
     float d2 = dot( d, d ) + 1e-4;
     // Inverse square with a soft core, windowed out by three radii.
-    float fall = r * r / ( d2 + r * r * 0.35 ) * ( 1.0 - smoothstep( r * 1.2, r * 3.0, sqrt( d2 ) ) );
+    float fall = r * r / ( d2 + r * r ) * ( 1.0 - smoothstep( r * 1.0, r * 4.0, sqrt( d2 ) ) );
     // Wrapped: leaves and grass are thin, light gets round them.
     float wrap = clamp( dot( mN, d ) * inversesqrt( d2 ) * 0.6 + 0.4, 0.0, 1.0 );
     mLight += magicGlowColour[ i ] * ( fall * wrap );
@@ -71,7 +71,7 @@ if ( magicOn > 0.0 ) {
   if ( magicPulse.w > 0.0 ) {
     // A ring of light running out across the land, a glow lingering inside.
     float dd = length( mWorld.xz - magicPulse.xy ) - magicPulse.z;
-    float ring = exp( -dd * dd * 0.18 ) + 0.22 * exp( min( dd, 0.0 ) * 0.1 ) * step( dd, 0.0 );
+    float ring = exp( -dd * dd * 0.3 ) + 0.18 * exp( min( dd, 0.0 ) * 0.08 ) * step( dd, 0.0 );
     mLight += magicPulseColour * ( magicPulse.w * ring );
   }
   vec3 mSheen = vec3( 0.0 );
@@ -218,13 +218,13 @@ export function createLandMagic({ shared, lamps = [], beacon = null, light = fal
       // 0: the fireflies round the cat (fireflies.js gives centre and light).
       if (flies && flies.light > 0) {
         glows[0].set(flies.centre[0], flies.centre[1], -flies.centre[2], flies.radius);
-        colours[0].setRGB(0.62, 0.85, 0.3).multiplyScalar(flies.light);
+        colours[0].setRGB(0.8, 0.95, 0.12).multiplyScalar(flies.light);
         on = 1;
       } else colours[0].setRGB(0, 0, 0);
       // 1: the milkwood's crown, home of the fireflies.
       if (flies && flies.homeLight > 0) {
         glows[1].set(flies.home[0], flies.home[1], -flies.home[2], flies.homeRadius);
-        colours[1].setRGB(0.72, 0.86, 0.36).multiplyScalar(flies.homeLight);
+        colours[1].setRGB(1.0, 0.72, 0.16).multiplyScalar(flies.homeLight);
         on = 1;
       } else colours[1].setRGB(0, 0, 0);
       // 2: the wisp, the quest's guiding light (magic.wisp, thread.js).
@@ -253,9 +253,13 @@ export function createLandMagic({ shared, lamps = [], beacon = null, light = fal
         const reach = pulse.reach ?? 150;
         if (r >= 0 && r < reach) {
           const fade = (1 - THREE.MathUtils.smoothstep(r, reach * 0.55, reach)) * THREE.MathUtils.smoothstep(r, 0, 4);
-          u.magicPulse.value.set(pulse.x, -pulse.z, r, fade * (0.35 + 0.65 * night) * 1.6);
+          u.magicPulse.value.set(pulse.x, -pulse.z, r, fade * (0.45 + 0.55 * night) * 0.9);
+          // Saturated beyond the gift's own colour: the night tonemap
+          // greys dim light toward blue, and the ring must stay its colour.
           const c = pulse.colour ?? [1, 1, 1];
-          u.magicPulseColour.value.setRGB(c[0], c[1], c[2]);
+          const luma = c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
+          const k = 1 + 1.2 * night;
+          u.magicPulseColour.value.setRGB(...c.map((v) => Math.max(0.02, luma + (v - luma) * k)));
           on = 1;
         } else u.magicPulse.value.w = 0;
       } else u.magicPulse.value.w = 0;
