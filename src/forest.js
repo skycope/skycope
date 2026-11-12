@@ -321,6 +321,8 @@ float gustAt( vec2 p ) {
 const WIND_GLSL = /* glsl */ `
 ${GUST_GLSL}
 uniform vec4 catPush;
+// land-magic: a waking's ring (Three world x, z, radius, strength).
+uniform vec4 magicPulse;
 varying float vGlint;
 // Height of the plant's base (per instance): wind bends from there, so a trunk
 // or stem is rooted wherever it stands. Zero for non-instanced meshes.
@@ -350,6 +352,17 @@ vec3 windOffset(vec3 p) {
     offset.xz += push;
     offset.y -= dot( push, push ) / max( h, 0.05 ) * 0.5;
   #endif
+  // land-magic: as a waking's ring of light passes, everything that grows
+  // bows away from the keepsake and rises again behind it.
+  if ( magicPulse.w > 0.0 ) {
+    vec2 pd = p.xz - vec2( magicPulse.x, -magicPulse.y );
+    float pl = length( pd ) + 1e-3;
+    float dd = pl - magicPulse.z;
+    float wave = exp( -dd * dd * 0.08 ) * min( magicPulse.w, 1.0 );
+    float bow = wave * h / ( 0.5 + h ) * ( 0.12 + 0.05 * min( h, 4.0 ) );
+    offset.xz += pd / pl * bow;
+    offset.y -= bow * 0.35;
+  }
   return offset;
 }
 `;

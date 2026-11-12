@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { PRINT_MAGIC } from "./cat-ground.js";
 
 // The island's gifts as light on the land. magic.js records which gifts are
 // awake; this turns the levels into a handful of uniforms every patched
@@ -132,6 +133,26 @@ export function lightWithMagic(root, shared) {
   });
 }
 
+const GIFT_LIST = ["fireflies", "tideglow", "lamp", "stars", "seafolk", "boat"];
+const STEP_COLOURS = {
+  fireflies: [0.75, 1.0, 0.2], tideglow: [0.2, 0.75, 1.0], lamp: [1.0, 0.68, 0.22],
+  stars: [0.66, 0.6, 1.0], seafolk: [0.3, 1.0, 0.7], boat: [1.0, 0.5, 0.38],
+};
+// The colour of the gifts awake, weighted by level (a warm gold-green
+// before any: the island's own hint), saturated against the night tonemap.
+export function mixGiftColour(levels, out, night = 0) {
+  let r = 0, g = 0, b = 0, w = 0;
+  for (const gift of GIFT_LIST) {
+    const k = levels[gift] ?? 0;
+    if (k <= 0) continue;
+    const c = STEP_COLOURS[gift];
+    r += c[0] * k; g += c[1] * k; b += c[2] * k; w += k;
+  }
+  if (w < 1e-3) { r = 0.9; g = 0.95; b = 0.4; w = 1; }
+  out.setRGB(r / w, g / w, b / w);
+  return out;
+}
+
 const ASLEEP = { fireflies: 0, tideglow: 0, lamp: 0, stars: 0, seafolk: 0, boat: 0, finale: 0 };
 const LAMP_PERIOD = 12;
 
@@ -263,6 +284,15 @@ export function createLandMagic({ shared, lamps = [], beacon = null, light = fal
           on = 1;
         } else u.magicPulse.value.w = 0;
       } else u.magicPulse.value.w = 0;
+
+      // The cat's steps: a hint of glow from the start, more with every
+      // gift awake, and brightest at the finale (cat-ground.js prints).
+      let awake = 0;
+      for (const g of GIFT_LIST) awake += levels[g] ?? 0;
+      PRINT_MAGIC.level.value = (0.12 * night + 0.88 * (awake / GIFT_LIST.length)) * (1 + finale * 0.5);
+      PRINT_MAGIC.night.value = night;
+      // The step glow takes on the colours of the gifts awake.
+      mixGiftColour(levels, PRINT_MAGIC.colour.value, night);
 
       // Starlight (the beacon's gift): a cool sheen on the night land.
       const stars = (levels.stars ?? 0) * THREE.MathUtils.smoothstep(night, 0.3, 0.9);
