@@ -237,7 +237,7 @@ export fn lamp_on_sea(s: SeaPoint, lamp: vec4f, level: f32, night: f32) -> vec3f
   let h = normalize(l + v);
   // The beam leaves the lamp ~15 m up and nearly level: it passes over the
   // water at the tower's foot and only its spread meets the sea farther out.
-  let falloff = smoothstep(12.0, 55.0, reach) / (1.0 + reach * reach / 6400.0);
+  let falloff = smoothstep(6.0, 40.0, reach) / (1.0 + reach * reach / 6400.0);
   // Faces turned to the lamp (the beam grazes the sea, so this is the swell
   // and chop catching it), foam lit outright.
   let facing = max(dot(s.normal, l), 0.0);
@@ -254,7 +254,7 @@ export fn lamp_on_sea(s: SeaPoint, lamp: vec4f, level: f32, night: f32) -> vec3f
   // stays gold; the crest glints on top of it are small and may flare.
   let path = falloff * strength * (beam + spill) * diffuse;
   let glints = falloff * strength * beam * spec * sparkle * s.fresnel * 4.0;
-  return LAMP_COLOUR * ((1.0 - exp(-path * 4.0)) * 0.85 + min(glints, 3.0) * 0.5);
+  return LAMP_COLOUR * ((1.0 - exp(-path * 9.0)) * 0.85 + min(glints, 3.0) * 0.5);
 }
 
 // ---- The pulse: a waking's wave of light running out across the sea. -------
