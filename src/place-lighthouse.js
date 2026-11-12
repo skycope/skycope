@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { groundHeight } from "./terrain.js";
 import { part, merge, place, lathe, smooth01, srgb, staticMesh } from "./place-kit.js";
+import { box, cylinder } from "./blockers.js";
 
 // A small whitewashed lighthouse on the point, as on the Cape's own
 // headlands: a tapering masonry tower on a dressed granite plinth, a
@@ -198,7 +199,11 @@ export function buildLighthouse(p, materials, { light = false } = {}) {
   {
     const tv = cv - width / 2 - 0.95, tu = cu - 0.6;
     const g0 = groundUV(tu, tv);
-    nearOnly(paint, part(new THREE.CylinderGeometry(0.62, 0.66, 0.9, 10), { matrix: frame(tu, g0 + 0.18, tv), colour: srgb("#7d5242"), anchor }));
+    // The brick stand goes down to the lowest ground under its rim (it hung
+    // off the slope on the downhill side).
+    const [tlo] = range(tu, tv, 0.66, 0.66);
+    const standBottom = Math.min(g0, tlo) - 0.25;
+    nearOnly(paint, part(new THREE.CylinderGeometry(0.62, 0.66, g0 + 0.63 - standBottom, 10), { matrix: frame(tu, (g0 + 0.63 + standBottom) / 2, tv), colour: srgb("#7d5242"), anchor }));
     const rings = [];
     for (let i = 0; i <= 18; i++) rings.push([0.7 + (i % 2 ? 0.025 : 0), g0 + 0.63 + (i / 18) * 1.45]);
     rings.push([0.4, g0 + 2.18], [0.06, g0 + 2.26]);
@@ -237,11 +242,38 @@ export function buildLighthouse(p, materials, { light = false } = {}) {
     const top = wall.top(u, v);
     return top;
   })];
+  // solid: what the camera keeps out of (blockers.js): plinth, tower and
+  // lantern, the cottage, the tank, and the yard wall a metre at a time.
+  const W = (u, v) => { const [x, z] = at(u, v); return { x: p.x + x, z: p.z + z }; };
+  const blockers = [
+    cylinder(p.x, p.z, TOWER.plinth, lo - 1, yP + 0.35),
+    cylinder(p.x, p.z, 2.45, yP, yC + 1.3),
+  ];
+  {
+    const c = W(cu, cv);
+    blockers.push(box(c.x, c.z, φ, depth / 2 + overhang, width / 2 + 0.25, clo - 0.3, wallTop + rise + 0.15));
+    const t = W(cu - 0.6, cv - width / 2 - 0.95);
+    const g0 = groundUV(cu - 0.6, cv - width / 2 - 0.95);
+    blockers.push(cylinder(t.x, t.z, 0.72, g0 - 0.4, g0 + 2.3));
+    // The cat walked through the tank: it stands in the way now.
+    trunks.push({ x: t.x, z: t.z, r: 0.7 });
+  }
+  for (let i = 0; i + 2 < wall.path.length; i += 2) {
+    const a = wall.path[i], b = wall.path[i + 2];
+    if (a.gap || b.gap || wall.path[i + 1].gap) continue;
+    const m = W((a.u + b.u) / 2, (a.v + b.v) / 2);
+    const ga = groundUV(a.u, a.v), gb = groundUV(b.u, b.v);
+    const du = b.u - a.u, dv = b.v - a.v;
+    // Along the wall in coast x, z.
+    const [ax, az] = at(du, dv);
+    blockers.push(box(m.x, m.z, Math.atan2(ax, az), Math.hypot(du, dv) / 2 + 0.05, 0.25, Math.min(ga, gb) - 0.4, Math.max(ga, gb) + 0.9, { body: false }));
+  }
   return {
     near: nearGroup,
     far: farGroup,
     lamp: { x: p.x, y: yLamp, z: p.z, radius: 1.24 },
     obstacles: { trunks, domes },
+    blockers,
   };
 }
 
@@ -277,8 +309,13 @@ function yardWall(groundUV, at, { u0, u1, half, cv = 0, corner }) {
     // Outer face, inner face, coping (two slopes).
     const quad = (p0, p1, p2, p3) => { positions.push(...p0, ...p1, ...p2, ...p0, ...p2, ...p3); };
     const P = (u, y, v) => { const [x, z] = at(u, v); return [x, y, z]; };
-    quad(P(a.u + nu, ga - 0.35, a.v + nv), P(b.u + nu, gb - 0.35, b.v + nv), P(b.u + nu, tb, b.v + nv), P(a.u + nu, ta, a.v + nv));
-    quad(P(b.u - nu, gb - 0.35, b.v - nv), P(a.u - nu, ga - 0.35, a.v - nv), P(a.u - nu, ta, a.v - nv), P(b.u - nu, tb, b.v - nv));
+    // solid: each face's footing from the ground under that face (not the
+    // wall's centre line), and down past the lowest ground between the
+    // ends, so on a cross-slope the downhill face never hangs in the air.
+    const foot = (u0, v0, u1, v1) => Math.min(groundUV(u0, v0), groundUV(u1, v1), groundUV((u0 + u1) / 2, (v0 + v1) / 2)) - 0.35;
+    const fo = foot(a.u + nu, a.v + nv, b.u + nu, b.v + nv), fi = foot(a.u - nu, a.v - nv, b.u - nu, b.v - nv);
+    quad(P(a.u + nu, Math.min(fo, ga - 0.35), a.v + nv), P(b.u + nu, Math.min(fo, gb - 0.35), b.v + nv), P(b.u + nu, tb, b.v + nv), P(a.u + nu, ta, a.v + nv));
+    quad(P(b.u - nu, Math.min(fi, gb - 0.35), b.v - nv), P(a.u - nu, Math.min(fi, ga - 0.35), a.v - nv), P(a.u - nu, ta, a.v - nv), P(b.u - nu, tb, b.v - nv));
     quad(P(a.u + nu, ta, a.v + nv), P(b.u + nu, tb, b.v + nv), P(b.u, tb + 0.1, b.v), P(a.u, ta + 0.1, a.v));
     quad(P(a.u, ta + 0.1, a.v), P(b.u, tb + 0.1, b.v), P(b.u - nu, tb, b.v - nv), P(a.u - nu, ta, a.v - nv));
   }
@@ -288,6 +325,7 @@ function yardWall(groundUV, at, { u0, u1, half, cv = 0, corner }) {
   geometry.computeVertexNormals();
   return {
     geometry,
+    path,
     top(u, v) {
       // Distance to the perimeter in (u, v), coarse: nearest path point.
       let best = Infinity, gap = false;

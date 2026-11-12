@@ -1,6 +1,7 @@
 import { groundHeight, shoreDistance, islandPoint, ISLAND } from "./terrain.js";
 import { CAT_SCALE, STAND_HEIGHT } from "./cat-rig.js";
 import { seabedDepth, shoreAlong } from "./sea-surface.js";
+import { createBlockers } from "./blockers.js";
 
 // The cat's movement and the camera that follows it, in coast metres (x
 // right, z toward the home horizon; heading φ points along (sin φ, cos φ)).
@@ -46,11 +47,17 @@ const ARM_MIN = 0.9;
 const ARM_CLEARANCE = 0.35;
 // The most the camera rises to see over a boulder before the arm shortens.
 const ARM_LIFT = 1.6;
+// How far the lens keeps from a wall, a tower or a timber (blockers.js),
+// and the least it may come to one before it is pulled in along the boom.
+const LENS_CLEARANCE = 0.4;
+const LENS_GUARD = 0.18;
 
 // sea (sea-surface.js) gives the water level; wake (wake.js) takes the
 // cat's trail through it.
 export function createWalker(obstacles, sea = null, wake = null) {
   const grid = spatialGrid(obstacles);
+  // solid: the landmarks' walls, towers, timbers and limbs (places.js).
+  const solids = createBlockers(obstacles.blockers ?? [], obstacles.bodies ?? []);
   const cat = {
     x: 0,
     z: 0,
@@ -129,6 +136,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
     camera,
     events,
     surface,
+    solids,
     // The water over (x, z): { level (−∞ where dry), flow }.
     water(x, z) {
       return waterAt(x, z, surface(x, z));
@@ -454,6 +462,18 @@ export function createWalker(obstacles, sea = null, wake = null) {
     const tall = next - groundHeight(nx, nz) > 0.12;
     if (cat.air > 0 ? rise > 0.02 : tall && rise > 0.003 && rise / run > 1.6) return false;
     if (!drift && !bodyClear(nx, nz, next - rise)) return false;
+    // solid: walls, the tank, the stem and the milkwood's resting limbs.
+    if (solids.touches(nx, next + 0.17, nz, CAT_RADIUS)) {
+      const h = solids.hit;
+      // Only what the step runs into: free to back away from it.
+      if ((nx - cat.x) * h.nx + (nz - cat.z) * h.nz < 0) {
+        wall.x = h.nx;
+        wall.z = h.nz;
+        wall.top = h.top;
+        wall.at = clock;
+        return false;
+      }
+    }
     cat.x = nx;
     cat.z = nz;
     return true;
@@ -549,6 +569,17 @@ export function createWalker(obstacles, sea = null, wake = null) {
     camera.x += (x - camera.x) * ease;
     camera.z += (z - camera.z) * ease;
     camera.y += (y - camera.y) * ease;
+    // solid: the eased lens never ends up in a wall or a timber. Swinging
+    // round or lifting over the ground can carry it into one between arm
+    // updates; it is pulled in along the line to the cat, at once.
+    if (solids.distance(camera.x, camera.y, camera.z, LENS_CLEARANCE) < LENS_GUARD) {
+      const f = solids.trace(tx, ty, tz, camera.x, camera.y, camera.z, LENS_GUARD);
+      if (f < 1) {
+        camera.x = tx + (camera.x - tx) * f;
+        camera.y = ty + (camera.y - ty) * f;
+        camera.z = tz + (camera.z - tz) * f;
+      }
+    }
     const dx = tx - camera.x;
     const dz = tz - camera.z;
     const heading = Math.atan2(dx, dz);
@@ -604,6 +635,25 @@ export function createWalker(obstacles, sea = null, wake = null) {
     if (lift > ARM_LIFT) {
       t = ((blocked - 1) / steps) * t;
       lift = 0;
+    }
+    // solid: the landmarks. The boom (lifted as above) is sphere-traced
+    // through their walls, towers, timbers and limbs; a low one (the yard
+    // wall, the boat, a resting limb) is cleared by lifting further when a
+    // modest lift does it, anything else stops the arm short of it.
+    const boomTo = (lift2) => solids.trace(tx, ty, tz, tx + bx * t, ty + (rise + lift2) * t, tz + bz * t, LENS_CLEARANCE);
+    let f = boomTo(lift);
+    if (f < 1) {
+      const prim = solids.hit.prim;
+      const s = Math.max(f * t, 0.05);
+      const over = prim && prim.k !== 3 ? (prim.y1 + LENS_CLEARANCE + 0.05 - (ty + rise * s)) / s : Infinity;
+      if (over > lift && over < ARM_LIFT) {
+        const f2 = boomTo(over);
+        if (f2 > f) {
+          f = f2;
+          lift = over;
+        }
+      }
+      t *= f;
     }
     armLift = lift;
     return Math.max(t, Math.min(1, ARM_MIN / length));

@@ -14,6 +14,7 @@ import { swellUniform } from "./swell.js";
 import { rockLayout, rockGeometry, shoreRockData, ROCK_VARIANTS } from "./rocks.js";
 import { landFieldData } from "./land-field.js";
 import { placeRocks } from "./place-rocks.js"; // places:
+import { markSolid, SOLID_ORDER } from "./cat-coat.js"; // solid:
 import { MATERIAL_HEX } from "./material-palette.js";
 import { groundDetailData, groundCover } from "./ground-detail.js";
 import { createNearGround } from "./near-ground.js";
@@ -2158,6 +2159,7 @@ function addRocks(scene, random, shared, rocks = rockLayout(random)) {
     shadowSide: THREE.FrontSide,
   });
   patchMaterial(material, shared, { rock: true, fade: true });
+  markSolid(material); // solid: no see-through cat through rock (cat-coat.js)
   // Sky occlusion from the neighbours: stones piled against each other see
   // less sky than a lone one on open sand (canopyShade, per instance).
   for (const rock of rocks) {
@@ -2188,5 +2190,6 @@ function addRocks(scene, random, shared, rocks = rockLayout(random)) {
       { geometry: rockGeometry(1, v), distance: 40 },
     ]);
   }
+  scene.traverse((o) => { if (o.material === material) o.renderOrder = SOLID_ORDER; }); // solid:
   return rocks;
 }

@@ -88,6 +88,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   const places = createPlaces(land, seed, { light, shared: land.userData.forestShared });
   forest.obstacles.trunks.push(...places.obstacles.trunks);
   forest.obstacles.domes.push(...places.obstacles.domes);
+  forest.obstacles.blockers = places.blockers; // solid: camera and body solids (blockers.js)
   const fauna = createFauna(land, seed);
   const cat = createCat(land, { light });
   const critters = createCritters(land, seed, forest.obstacles.flowers);

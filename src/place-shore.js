@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { groundHeight } from "./terrain.js";
+import { capsule, cylinder } from "./blockers.js";
 import { seededRandom } from "./random.js";
 import { part, merge, sweep, lathe, place, smooth01, srgb, staticMesh, glowMaterial } from "./place-kit.js";
 import { heightTile } from "./place-lighthouse.js";
@@ -32,6 +33,8 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
   const anchor = (q) => ground(q.x, q.z);
   const wood = [], woodFar = [], paint = [], net = [], glow = [];
   const trunks = [];
+  // solid: the hull and traps the camera keeps out of (blockers.js).
+  const blockers = [];
   const L = 4.6, B = 1.55, depth = 0.62;
   // The gunwale rests on two driftwood logs, so the boat lies along the
   // slope of the beach: its height at each end from the sand beneath.
@@ -150,6 +153,7 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
     paint.push(part(new THREE.TorusGeometry(0.4, 0.014, 4, 18), { matrix: m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0.42, 0)).multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2)), colour: srgb("#3b3a36") }));
     net.push(part(lathe([[0.41, 0.05], [0.41, 0.42], [0.14, 0.44], [0.1, 0.3]], 14), { matrix: m, colour: srgb("#2c3a34") }));
     trunks.push({ x: p.x + x, z: p.z + z, r: 0.42 });
+    if (lift === 0) blockers.push(cylinder(p.x + x, p.z + z, 0.44, y - 0.1, y + 0.95, { body: false }));
   };
   trap(-0.3, -2.0, 0, 0);
   trap(-0.3, -2.0, 0.47, 0.06);
@@ -181,6 +185,15 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
   near.add(staticMesh(merge(wood), materials.wood), staticMesh(merge(paint), materials.paint), staticMesh(merge(net), materials.net), staticMesh(merge(glow), materials.glow, { cast: false }));
   const far = new THREE.Group();
   far.add(staticMesh(merge(woodFar), materials.wood));
+  // The upturned hull to the camera: two capsules along the keel, as wide
+  // as the beam and topped at the keel (the cat stands on it by the tile).
+  {
+    const keelPoint = (s) => {
+      const [x, z] = at(s * L / 2, 0);
+      return { x: p.x + x, y: keelAt(s) - 0.72, z: p.z + z };
+    };
+    blockers.push(capsule(keelPoint(-0.75), keelPoint(0), 0.74, { body: false }), capsule(keelPoint(0), keelPoint(0.75), 0.72, { body: false }));
+  }
   // The hull's back to stand on; a cat will.
   const domes = [heightTile(p.x, p.z, L / 2 + 0.3, 0.08, (x, z) => {
     const lx2 = x - p.x, lz2 = z - p.z;
@@ -195,6 +208,7 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
   return {
     near, far, farDistance: 40, cullDistance: 80,
     obstacles: { trunks, domes },
+    blockers,
     halos: [{ x: p.x + lamp.x, y: lamp.y, z: p.z + lamp.z, size: 1.5, colour: [1.0, 0.6, 0.24], flicker: true }],
     extra: pool.mesh,
     update({ time, lit }) {

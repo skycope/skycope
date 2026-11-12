@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { groundHeight } from "./terrain.js";
+import { capsule } from "./blockers.js";
 import { seededRandom } from "./random.js";
 import { part, merge, sweep, place, smooth01, srgb, hash, staticMesh } from "./place-kit.js";
 import { heightTile } from "./place-lighthouse.js";
@@ -54,6 +55,15 @@ export function buildWreck(p, materials, { light = false, seed = 1 } = {}) {
   const wood = { near: [], far: [] };
   const iron = { near: [], far: [] };
   const trunks = [];
+  // solid: the timbers the camera keeps out of (blockers.js).
+  const blockers = [];
+  const C = (q) => ({ x: p.x + q.x, y: q.y, z: p.z + q.z });
+  const timberChain = (points, r, extra) => {
+    for (let k = 0; k + 1 < points.length; k += 3) {
+      const e = Math.min(points.length - 1, k + 3);
+      blockers.push(capsule(C(points[k]), C(points[e]), r, extra));
+    }
+  };
   const timberColour = (q, n, out) => {
     out.copy(TIMBER).lerp(DARK_TIMBER, hash(Math.round(q.x * 3), Math.round(q.z * 3)) * 0.5);
   };
@@ -79,6 +89,7 @@ export function buildWreck(p, materials, { light = false, seed = 1 } = {}) {
       const twist = (random() - 0.5) * 0.04;
       for (const q of points) { q.x += twist * rx; q.z += twist * rz; }
       wood.near.push(part(sweep(points, radii, light ? 4 : 5, { roll: Math.PI / 4 }), { colour: timberColour, shade: hullShade, anchor }));
+      timberChain(points, 0.16, { body: false });
       wood.far.push(part(sweep(points.filter((_, k) => k % 2 === 0 || k === n), radii.filter((_, k) => k % 2 === 0 || k === n), 3), { colour: timberColour, anchor }));
       // Where it comes out of the sand: a post for the cat to weave round.
       for (let k = 1; k <= n; k++) {
@@ -95,6 +106,7 @@ export function buildWreck(p, materials, { light = false, seed = 1 } = {}) {
   {
     const points = [];
     for (let k = 0; k <= 12; k++) points.push(hull(-0.95 + (k / 12) * 1.9, 0, 1).add(new THREE.Vector3(0, 0.12, 0)));
+    timberChain(points, 0.2, { body: false });
     wood.near.push(part(sweep(points, points.map(() => [0.2, 0.17]), 4, { roll: Math.PI / 4 }), { colour: timberColour, shade: hullShade, anchor }));
     wood.far.push(part(sweep(points.filter((_, k) => k % 3 === 0), points.filter((_, k) => k % 3 === 0).map(() => 0.2), 3), { colour: timberColour, anchor }));
   }
@@ -107,12 +119,14 @@ export function buildWreck(p, materials, { light = false, seed = 1 } = {}) {
       points.push(new THREE.Vector3(base.x + fx * Math.sin(t * 1.2) * 1.0, base.y + 0.1 + t * (D + 1.2), base.z + fz * Math.sin(t * 1.2) * 1.0));
     }
     const radii = points.map((_, k) => 0.17 - k * 0.006);
+    timberChain(points, 0.17);
     for (const list of [wood.near, wood.far]) list.push(part(sweep(points, radii, list === wood.near ? 5 : 3, { roll: Math.PI / 4 }), { colour: timberColour, anchor }));
   }
   // Sternpost, snapped off.
   {
     const base = hull(-0.95, 0, 1);
     const points = [base.clone().add(new THREE.Vector3(0, 0.1, 0)), base.clone().add(new THREE.Vector3(-fx * 0.25, 1.4, -fz * 0.25))];
+    timberChain(points, 0.17);
     wood.near.push(part(sweep(points, [0.17, 0.14], 5, { roll: Math.PI / 4 }), { colour: timberColour, anchor }));
   }
   // A few strakes of planking still fastened high on the bow, sprung and
@@ -130,6 +144,7 @@ export function buildWreck(p, materials, { light = false, seed = 1 } = {}) {
       const out = new THREE.Vector3(side * rx, 0, side * rz).multiplyScalar(0.13 + (k / n) ** 3 * 0.12);
       points.push(q.add(out));
     }
+    blockers.push(capsule(C(points[0]), C(points[points.length - 1]), 0.14, { body: false }));
     wood.near.push(part(sweep(points, points.map(() => [0.12, 0.03]), 4, { roll: 0 }), { colour: (q, nn, o) => o.copy(DARK_TIMBER).lerp(TIMBER, 0.4), shade: hullShade, anchor }));
   }
 
@@ -155,6 +170,9 @@ export function buildWreck(p, materials, { light = false, seed = 1 } = {}) {
         matrix: m.clone().multiply(new THREE.Matrix4().makeTranslation(Math.cos(a) * r, 1.06, Math.sin(a) * r + 0.05)), colour: srgb("#1c120c"),
       }));
     trunks.push({ x: p.x + centre.x, z: p.z + centre.z, r: 0.55 });
+    // Its axis: the cylinder's y turned by the roll, then the yaw.
+    const ax = -Math.cos(yaw) * 0.75, az = Math.sin(yaw) * 0.75;
+    blockers.push(capsule(C({ x: centre.x - ax, y: centre.y, z: centre.z - az }), C({ x: centre.x + ax, y: centre.y, z: centre.z + az }), 0.64, { body: false }));
   }
   // Drift bolts and an iron knee standing proud of the keel.
   for (let k = 0; k < 7; k++) {
@@ -177,5 +195,5 @@ export function buildWreck(p, materials, { light = false, seed = 1 } = {}) {
     return q.y + 0.12 + 0.17;
   };
   const domes = [heightTile(p.x, p.z, L / 2 + 0.5, 0.12, (x, z) => keelTop(x - p.x, z - p.z))];
-  return { near: nearGroup, far: farGroup, farDistance: 40, obstacles: { trunks, domes } };
+  return { near: nearGroup, far: farGroup, farDistance: 40, obstacles: { trunks, domes }, blockers };
 }

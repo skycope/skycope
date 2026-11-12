@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { groundHeight } from "./terrain.js";
+import { capsule, roof } from "./blockers.js";
 import { seededRandom } from "./random.js";
 import { part, merge, sweep, smooth01, srgb, hsl, staticMesh } from "./place-kit.js";
 
@@ -207,6 +208,38 @@ export function buildMilkwood(p, materials, { light = false, seed = 1 } = {}) {
   }
   const beardMesh = instanced(beardGeometry(), materials.lichen, strands.slice(0, light ? 500 : 1100), false);
 
+  // solid: the camera keeps out of the limbs (capsules, a couple of metres
+  // each; the cat ducks under them or meets them where they rest low) and
+  // out of the leafy crown (a coarse roof: per metre cell, solid between
+  // the lowest and highest leaf clump over it), so it stays under the dome
+  // with the cat or outside it, never in the leaves.
+  const blockers = [];
+  const at = (q) => ({ x: p.x + q.x, y: q.y, z: p.z + q.z });
+  for (const limb of limbs) {
+    if (limb.depth > 1) continue;
+    const every = limb.depth === 0 ? 4 : 6;
+    for (let k = 0; k + 1 < limb.points.length; k += every) {
+      const e = Math.min(limb.points.length - 1, k + every);
+      blockers.push(capsule(at(limb.points[k]), at(limb.points[e]), Math.max(0.08, (limb.radii[k] + limb.radii[e]) / 2), { body: limb.depth === 0 }));
+    }
+  }
+  blockers.push(capsule(at(new THREE.Vector3(0, g0 - 0.5, 0)), at(new THREE.Vector3(0, boleTop, 0)), 1.0, { body: false }));
+  {
+    const cell = 1;
+    const n = Math.ceil((maxReach + 1.5) * 2 / cell);
+    const x0 = -n * cell / 2, z0 = -n * cell / 2;
+    const under = new Float32Array(n * n).fill(Infinity);
+    const over = new Float32Array(n * n).fill(-Infinity);
+    for (const q of clumps)
+      for (let i = Math.floor((q.x - 0.6 - x0) / cell); i <= Math.floor((q.x + 0.6 - x0) / cell); i++)
+        for (let j = Math.floor((q.z - 0.6 - z0) / cell); j <= Math.floor((q.z + 0.6 - z0) / cell); j++) {
+          if (i < 0 || j < 0 || i >= n || j >= n) continue;
+          under[j * n + i] = Math.min(under[j * n + i], q.y - 0.7);
+          over[j * n + i] = Math.max(over[j * n + i], q.y + 0.7);
+        }
+    blockers.push(roof(p.x + x0, p.z + z0, cell, n, under, over));
+  }
+
   const nearGroup = new THREE.Group();
   nearGroup.add(staticMesh(merge(woodNear), materials.rough), leafNear, beardMesh);
   const farGroup = new THREE.Group();
@@ -216,6 +249,7 @@ export function buildMilkwood(p, materials, { light = false, seed = 1 } = {}) {
     far: farGroup,
     farDistance: 34,
     obstacles: { trunks, domes: [] },
+    blockers,
     crown: { radius: maxReach, top },
   };
 }

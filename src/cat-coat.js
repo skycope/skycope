@@ -777,7 +777,24 @@ float cHash( vec3 p ) {
 `;
 
 // Silhouette through whatever hides the cat (drawn only where it fails the
-// depth test and isn't already drawn).
+// depth test and isn't already drawn), but only through foliage and the
+// ground: never through rock, walls or timber. Those solids draw after the
+// other opaques (SOLID_ORDER) and set stencil bit 2 where they are the
+// nearest surface so far (markSolid), so a boulder or a wall in front of
+// the cat suppresses it while a bush in front of a boulder behind the cat
+// does not. The cat sets the stencil to 1 where it is seen; the silhouette
+// draws only where neither bit is set, and its first fragment sets bit 1
+// so overlapping faces do not stack.
+export const SOLID_ORDER = 1;
+export function markSolid(material) {
+  return Object.assign(material, {
+    stencilWrite: true,
+    stencilRef: 2,
+    stencilWriteMask: 2,
+    stencilFunc: THREE.AlwaysStencilFunc,
+    stencilZPass: THREE.ReplaceStencilOp,
+  });
+}
 export function ghostMaterial() {
   return new THREE.MeshBasicMaterial({
     color: new THREE.Color(0.95, 0.85, 0.7),
@@ -788,8 +805,10 @@ export function ghostMaterial() {
     fog: false,
     toneMapped: false,
     stencilWrite: true,
-    stencilRef: 1,
-    stencilFunc: THREE.NotEqualStencilFunc,
+    stencilRef: 0,
+    stencilFuncMask: 3,
+    stencilWriteMask: 1,
+    stencilFunc: THREE.EqualStencilFunc,
     stencilZPass: THREE.IncrementStencilOp,
   });
 }

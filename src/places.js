@@ -5,6 +5,7 @@ import { buildLighthouse } from "./place-lighthouse.js";
 import { buildWreck } from "./place-wreck.js";
 import { buildMilkwood } from "./place-milkwood.js";
 import { buildBoat, buildBeacon, buildPool, haloMesh } from "./place-shore.js";
+import { markSolid, SOLID_ORDER } from "./cat-coat.js";
 
 // Places worth walking to: a handful of real Cape-coast landmarks, placed
 // by the seed round the island so each can be seen from another and pulls
@@ -16,6 +17,7 @@ import { buildBoat, buildBeacon, buildPool, haloMesh } from "./place-shore.js";
 //   createPlaces(group, seed, { light, shared }) → {
 //     pois: [{ id, title, x, z, r }],
 //     obstacles: { trunks, domes },   // walker.js formats
+//     blockers: [...],                // camera/body solids (blockers.js)
 //     update({ time, night, wind, eye, pose }), dispose() }
 
 export { placesLayout, placeClearance };
@@ -30,6 +32,7 @@ export function createPlaces(group, seed, { light = false, shared } = {}) {
   group.add(root);
   const materials = createMaterials(shared);
   const obstacles = { trunks: [], domes: [] };
+  const blockers = [];
   const built = [];
   for (const p of layout) {
     const build = BUILDERS[p.kind];
@@ -48,8 +51,15 @@ export function createPlaces(group, seed, { light = false, shared } = {}) {
     if (b.extra) root.add(b.extra);
     obstacles.trunks.push(...(b.obstacles?.trunks ?? []));
     obstacles.domes.push(...(b.obstacles?.domes ?? []));
+    blockers.push(...(b.blockers ?? []));
     built.push({ place: p, ...b });
   }
+
+  // solid: walls, timbers and bark hide the cat outright: no see-through
+  // silhouette through them (cat-coat.js markSolid).
+  const solids = new Set([materials.paint, materials.stone, materials.wood, materials.rough]);
+  for (const m of solids) markSolid(m);
+  root.traverse((o) => { if (o.isMesh && solids.has(o.material)) o.renderOrder = SOLID_ORDER; });
 
   const beam = built.find((b) => b.lamp) ? lampLights(built.find((b) => b.lamp).lamp) : null;
   if (beam) root.add(beam.group);
@@ -64,6 +74,7 @@ export function createPlaces(group, seed, { light = false, shared } = {}) {
     layout,
     pois: layout.map(({ id, title, x, z, r }) => ({ id, title, x, z, r })),
     obstacles,
+    blockers,
     update({ time = 0, night = 0, wind = [0, 0], eye = null, pose = null } = {}) {
       // Lamps are lit from sunset; the beam reads as the sky darkens.
       const lit = smooth01(0.02, 0.3, night);
