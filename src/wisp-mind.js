@@ -125,6 +125,8 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
     },
     // The ceremony: dive into the keepsake at (x, y, z); `end()` lets it go.
     dive(x, y, z) {
+      // Not met yet: it comes down out of the sky to do it.
+      if (mode === "hidden") Object.assign(body, { x, y: y + 6, z });
       dive.x = x;
       dive.y = y;
       dive.z = z;
@@ -136,6 +138,7 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
     },
     // The finale: rise high over the summit.
     soar(x, y, z) {
+      if (mode === "hidden") Object.assign(body, { x, y: y + 1, z });
       dive.x = x;
       dive.y = y;
       dive.z = z;

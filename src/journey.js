@@ -42,6 +42,8 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
   let meteorUntil = -Infinity;
   let listening = false;
   let last = null;
+  // A breath between one ceremony and the next (stars at the summit, then the finale).
+  let restUntil = 0;
   // The wisp carries the colour of the last gift it woke.
   let carry = null;
   const ctx = { cat: null, target: null, night: 0, call: false, interest: null, meteor: false, sunset: false, gifts: 0 };
@@ -173,6 +175,7 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
   function finish() {
     const c = ceremony;
     ceremony = null;
+    restUntil = now() + 4;
     camEnd();
     scale = 1;
     mind.end();
@@ -269,7 +272,7 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
     tick() {
       const cat = state.walker?.cat;
       if (!cat || !quest) return;
-      const event = quest.update(cat, { busy: Boolean(ceremony) });
+      const event = quest.update(cat, { busy: Boolean(ceremony) || now() < restUntil });
       if (event) start(event);
     },
     // The field notes' marks: each gift, awake or not, its line and colour.
