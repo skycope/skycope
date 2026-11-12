@@ -343,6 +343,12 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
       if (name === "discover" && musicOn) score?.swell(1);
       return playCall(calls, name, options);
     },
+    // A gift waking (journey.js): the score's phrase for it (score.js
+    // CEREMONIES), on the music bus. Returns its length in seconds.
+    ceremony(gift) {
+      if (!ctx || !enabled || !musicOn || (!context && ctx.state !== "running")) return 0;
+      return score?.ceremony(gift) ?? 0;
+    },
     // Hidden tab: the whole graph sleeps.
     setHidden(hidden) {
       if (!ctx || context) return;

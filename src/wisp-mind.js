@@ -589,6 +589,8 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
   // No step up a cat could not take (a boulder's flank, a bank) on the
   // straight way from (ax, az) to (bx, bz), and no deep water past reach.
   function walkable(ax, az, bx, bz) {
+    // Room for a cat between trunks (fence posts, a thicket).
+    if (!grid.clearLine(ax, az, bx, bz, 0.3)) return false;
     const length = Math.hypot(bx - ax, bz - az);
     const steps = Math.max(1, Math.ceil(length / 0.5));
     let h = surface(ax, az);
@@ -721,7 +723,7 @@ function obstacleGrid({ trunks = [], domes = [] }) {
       return at(x, z)?.trunks ?? empty;
     },
     // Is the straight line (ax, az) → (bx, bz) clear of trunks?
-    clearLine(ax, az, bx, bz) {
+    clearLine(ax, az, bx, bz, margin = 0) {
       const dx = bx - ax;
       const dz = bz - az;
       const length = Math.hypot(dx, dz);
@@ -737,7 +739,7 @@ function obstacleGrid({ trunks = [], domes = [] }) {
           const u = length > 1e-6 ? Math.max(0, Math.min(1, ((t.x - ax) * dx + (t.z - az) * dz) / (length * length))) : 0;
           const px = ax + dx * u - t.x;
           const pz = az + dz * u - t.z;
-          if (px * px + pz * pz < t.r * t.r) return false;
+          if (px * px + pz * pz < (t.r + margin) * (t.r + margin)) return false;
         }
       }
       return true;

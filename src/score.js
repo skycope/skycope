@@ -139,6 +139,49 @@ export function inMode(midi, mood) {
 }
 
 // ---------------------------------------------------------------------------
+// The ceremonies: when a gift wakes, the score swells into a phrase of its
+// own over a held chord, all on D. Each is a few notes in the mode that
+// suits the gift (`mode`); the finale gathers them up. Pure data:
+// ceremonyEvents(gift) → { length, pads: [{ notes, at, length }],
+// plucks: [{ midi, at, velocity }] }, seconds from the start of the dive
+// (the phrase lands as the gift wakes, about two seconds in).
+export const CEREMONIES = {
+  // Lydian, high and quick: lights let go into the air.
+  fireflies: { mode: "noon", beat: 0.26, chord: [50, 57, 64, 66], phrase: [74, 76, 78, 81, 0, 83, 86, 0, 0, 90, 88, 86] },
+  // Dorian, rising and falling like a wave coming in.
+  tideglow: { mode: "grey", beat: 0.38, chord: [50, 57, 65], phrase: [69, 72, 74, 77, 0, 76, 74, 0, 72, 74, 0, 0, 69] },
+  // Mixolydian, warm and steady: a lamp brought up to full.
+  lamp: { mode: "golden", beat: 0.44, chord: [50, 57, 66, 72], phrase: [62, 66, 69, 0, 72, 0, 74, 0, 0, 78, 74] },
+  // Lydian, wide and slow: the sky leaning close.
+  stars: { mode: "noon", beat: 0.62, chord: [50, 57, 64, 68], phrase: [86, 0, 81, 0, 88, 0, 93, 0, 0, 92, 88] },
+  // Aeolian, low: a call and its answer from the water.
+  seafolk: { mode: "night", beat: 0.42, chord: [38, 50, 57, 65], phrase: [62, 65, 69, 0, 67, 65, 0, 0, 62, 65, 62] },
+  // Ionian, lilting: a boat on a swell.
+  boat: { mode: "dawn", beat: 0.34, chord: [50, 57, 66], phrase: [66, 69, 71, 74, 0, 71, 69, 0, 66, 69, 0, 74] },
+  // Everything at once, then home.
+  finale: { mode: "noon", beat: 0.4, chord: [38, 50, 57, 64, 66, 69], phrase: [74, 78, 81, 86, 0, 88, 93, 0, 90, 88, 86, 0, 81, 0, 78, 81, 0, 74, 0, 0, 76, 74] },
+};
+
+export function ceremonyEvents(gift) {
+  const motif = CEREMONIES[gift];
+  if (!motif) return null;
+  const lead = gift === "finale" ? 2.8 : 1.8;
+  const plucks = [];
+  motif.phrase.forEach((midi, i) => {
+    if (!midi) return;
+    // A little rubato: the first notes lean in, the last are let go.
+    const at = lead + i * motif.beat + (i === motif.phrase.length - 1 ? motif.beat * 0.4 : 0);
+    plucks.push({ midi, at, velocity: 0.75 + 0.25 * Math.sin((i / motif.phrase.length) * Math.PI) });
+    // The finale's echoes, an octave down.
+    if (gift === "finale" && i % 3 === 0) plucks.push({ midi: midi - 12, at: at + motif.beat * 0.5, velocity: 0.5 });
+  });
+  const end = lead + motif.phrase.length * motif.beat;
+  const pads = [{ notes: motif.chord, at: 0.2, length: end + 1.5 }];
+  if (gift === "finale") pads.push({ notes: [45, 52, 61, 64], at: end + 0.5, length: 5 }, { notes: [38, 50, 57, 66], at: end + 4.5, length: 7 });
+  return { length: (gift === "finale" ? end + 12 : end + 4), pads, plucks };
+}
+
+// ---------------------------------------------------------------------------
 // Audio. A small feedback-delay network reverb (eight lines through a
 // Householder mix, damped in the loop): all the space the score needs.
 export function createReverb(ctx, { seconds = 4.5, damping = 3200, predelay = 0.025 } = {}) {
@@ -276,6 +319,7 @@ export function createScore(ctx, { out, send, seed = 1 } = {}) {
   let pendingSince = 0;
   let swell = 0;
   let swellAt = -Infinity;
+  let hushUntil = -Infinity;
   const level = ctx.createGain();
   level.gain.value = 0;
   level.connect(out);
@@ -294,6 +338,19 @@ export function createScore(ctx, { out, send, seed = 1 } = {}) {
     swell(amount = 1, now = ctx.currentTime) {
       swell = Math.max(swell, amount);
       swellAt = now;
+    },
+    // A gift waking: its own phrase over a held chord (CEREMONIES), the
+    // wandering line hushed while it plays, then a swell.
+    ceremony(gift, now = ctx.currentTime) {
+      const events = ceremonyEvents(gift);
+      if (!events) return 0;
+      const t = now + 0.05;
+      for (const p of events.pads) pad(ctx, level, null, p.notes, t + p.at, p.length, PAD_LEVEL * 1.6);
+      for (const p of events.plucks) pluck(ctx, level, null, p.midi, t + p.at, PLUCK_LEVEL * 1.5 * p.velocity, { decay: 2.2, bright: 1.1 });
+      hushUntil = t + events.length;
+      swell = Math.max(swell, 1);
+      swellAt = t + events.length * 0.5;
+      return events.length;
     },
     // Called often (each frame is fine): schedules up to `ahead` seconds.
     update(next, now = ctx.currentTime, ahead = 0.5) {
@@ -317,6 +374,8 @@ export function createScore(ctx, { out, send, seed = 1 } = {}) {
       while (nextBeat < now + ahead) {
         const { beat, events } = composer.step(mood, lift);
         for (const e of events) {
+          // A ceremony's phrase has the stage to itself.
+          if (nextBeat < hushUntil) continue;
           if (e.type === "pad") pad(ctx, level, null, e.notes, nextBeat, e.beats * beat, PAD_LEVEL);
           else pluck(ctx, level, null, e.midi, nextBeat + e.offset * beat, PLUCK_LEVEL * e.velocity, { bright: mood === "night" ? 0.6 : 1 });
         }
