@@ -206,7 +206,8 @@
         transition: transform 0.2s ease;
       }
       .weather-panel,
-      .time-panel {
+      .time-panel,
+      .notes-panel {
         position: absolute;
         right: 0;
         top: calc(100% + 0.6rem);
@@ -224,7 +225,8 @@
         line-height: 1.4;
       }
       .weather-panel[hidden],
-      .time-panel[hidden] {
+      .time-panel[hidden],
+      .notes-panel[hidden] {
         display: none;
       }
       .presets {
@@ -421,8 +423,10 @@
         z-index: 2;
         right: 1.6rem;
         bottom: max(1.4rem, env(safe-area-inset-bottom));
+        display: flex;
+        gap: 0.5rem;
       }
-      #sound {
+      .round {
         display: grid;
         place-items: center;
         width: 36px;
@@ -436,15 +440,274 @@
         color: inherit;
         cursor: pointer;
       }
-      #sound svg {
+      .round svg {
         width: 16px;
         height: 16px;
+      }
+      .round:disabled {
+        opacity: 0.4;
+        cursor: default;
       }
       #sound[aria-pressed="false"] .waves {
         display: none;
       }
-      #sound[aria-pressed="true"] .mute {
+      .round[aria-pressed="true"] .mute {
         display: none;
+      }
+      #music[aria-pressed="false"] svg > path:not(.mute) {
+        opacity: 0.55;
+      }
+      /* Field notes (moments.js): found by name, the rest as dashes. */
+      .place-wrap {
+        display: flex;
+        align-items: start;
+        gap: 0.9rem;
+      }
+      .place {
+        padding: 0.2rem 0;
+      }
+      .notes-panel {
+        left: 0;
+        right: auto;
+      }
+      .notes-heading {
+        margin: 0 0 0.6rem;
+        font-size: 0.58rem;
+        opacity: 0.72;
+      }
+      .notes-panel ol {
+        display: grid;
+        gap: 0.3rem;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        font-size: 0.58rem;
+      }
+      .notes-panel li {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+      .notes-panel li time {
+        opacity: 0.5;
+        font-variant-numeric: tabular-nums;
+      }
+      .notes-panel li.unfound {
+        display: block;
+        margin-top: 0.3rem;
+        opacity: 0.42;
+        letter-spacing: 0.2em;
+        line-height: 1.6;
+        white-space: normal;
+      }
+      .notes-empty[hidden] {
+        display: none;
+      }
+      #notes-toggle[data-fresh="true"] > span:first-child::after {
+        content: "";
+        display: inline-block;
+        width: 3px;
+        height: 3px;
+        margin: 0 0 0.15rem 0.35rem;
+        background: currentColor;
+        vertical-align: middle;
+      }
+      /* A discovery's line of type, low in the view. */
+      .find-line {
+        position: fixed;
+        z-index: 2;
+        left: 50%;
+        bottom: calc(max(1.8rem, env(safe-area-inset-bottom)) + 3.4rem);
+        transform: translateX(-50%);
+        margin: 0;
+        font-size: 0.68rem;
+        letter-spacing: 0.06em;
+        white-space: nowrap;
+        /* Light type, lifted off land, sea or sky by a soft dark halo. */
+        color: #f6f3ea;
+        text-shadow:
+          0 1px 3px rgba(10, 24, 32, 0.55),
+          0 0 16px rgba(10, 24, 32, 0.4);
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 2s ease;
+      }
+      .find-line[data-state="in"] {
+        opacity: 0.94;
+        transition-duration: 1.4s;
+      }
+      /* The arrival: the name in the middle of the view, then the header. */
+      .arrival {
+        position: fixed;
+        inset: 0;
+        z-index: 3;
+        display: grid;
+        place-content: start center;
+        /* In the sky, above the cat. */
+        padding-top: 26vh;
+        text-align: center;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 1.4s ease;
+      }
+      .arrival[hidden] {
+        display: none;
+      }
+      .arrival[data-state="in"] {
+        opacity: 1;
+      }
+      .arrival[data-state="out"] {
+        opacity: 0;
+        transition-duration: 2.6s;
+      }
+      .arrival p {
+        margin: 0;
+        color: #f6f3ea;
+        text-shadow:
+          0 1px 4px rgba(10, 24, 32, 0.45),
+          0 0 24px rgba(10, 24, 32, 0.35);
+      }
+      .arrival-place {
+        margin-bottom: 0.7rem !important;
+        font-size: 0.62rem;
+        letter-spacing: 0.32em;
+        opacity: 0.8;
+      }
+      .arrival-name {
+        font-size: clamp(1.7rem, 1.1rem + 2.2vw, 2.9rem);
+        line-height: 1;
+        letter-spacing: -0.06em;
+      }
+      .sky-meta,
+      .corner {
+        transition: opacity 1.8s ease;
+      }
+      body[data-arrival="pending"] .sky-meta,
+      body[data-arrival="pending"] .corner,
+      body[data-arrival="pending"] #hint {
+        opacity: 0;
+        transition: none;
+      }
+      /* Sitting to watch: the camera drifts to the sky; the UI steps back. */
+      body[data-watching="true"] .sky-meta,
+      body[data-watching="true"] .corner,
+      body[data-watching="true"] #hint {
+        opacity: 0.12;
+        transition: opacity 5s ease 1s;
+      }
+      /* Photo mode: nothing between the visitor and the view. */
+      body[data-photo="true"] .sky-meta,
+      body[data-photo="true"] .corner,
+      body[data-photo="true"] #hint,
+      body[data-photo="true"] .find-line {
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.4s ease, visibility 0s 0.4s;
+      }
+      .photo-bar {
+        position: fixed;
+        z-index: 4;
+        left: 50%;
+        bottom: max(1.4rem, env(safe-area-inset-bottom));
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        padding: 0.3rem 0.9rem 0.3rem 0.3rem;
+        border-radius: 999px;
+        background: rgba(20, 35, 45, 0.24);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        color: #f3f1e8;
+        font-size: 0.55rem;
+        white-space: nowrap;
+        transition: opacity 0.8s ease;
+      }
+      .photo-bar[hidden] {
+        display: none;
+      }
+      .photo-bar[data-idle="true"] {
+        opacity: 0;
+      }
+      .shutter {
+        width: 34px;
+        height: 34px;
+        padding: 0;
+        border: 1px solid rgba(255, 255, 255, 0.7);
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(250, 248, 240, 0.9) 0 52%, transparent 55%);
+        cursor: pointer;
+      }
+      .shutter:active {
+        background: radial-gradient(circle, rgba(250, 248, 240, 0.6) 0 46%, transparent 49%);
+      }
+      .photo-bar .opt {
+        min-height: 28px;
+        padding: 0.2rem 0;
+        border: 0;
+        background: none;
+        color: inherit;
+        font: inherit;
+        opacity: 0.6;
+        cursor: pointer;
+      }
+      .photo-bar .opt:hover {
+        opacity: 0.9;
+      }
+      .photo-bar .opt[aria-pressed="true"] {
+        opacity: 1;
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+      .photo-keys {
+        opacity: 0.42;
+      }
+      .photo-status {
+        position: absolute;
+        left: 50%;
+        bottom: calc(100% + 0.6rem);
+        transform: translateX(-50%);
+        margin: 0;
+        color: #f3f1e8;
+        text-shadow: 0 1px 10px rgba(20, 40, 55, 0.5);
+      }
+      .photo-guide {
+        position: fixed;
+        z-index: 1;
+        top: 50%;
+        left: 50%;
+        width: min(100vw, 239vh);
+        aspect-ratio: 2.39 / 1;
+        transform: translate(-50%, -50%);
+        box-shadow: 0 0 0 100vmax rgba(8, 14, 20, 0.42);
+        pointer-events: none;
+        display: none;
+      }
+      .photo-guide[data-wide="true"] {
+        display: block;
+      }
+      .photo-flash {
+        position: fixed;
+        inset: 0;
+        z-index: 5;
+        background: #fff;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.6s ease-out;
+      }
+      .photo-flash[data-on="true"] {
+        opacity: 0.3;
+        transition: none;
+      }
+      @media (pointer: coarse) {
+        .photo-keys {
+          display: none;
+        }
+      }
+      @media (orientation: portrait) {
+        .wide-option {
+          display: none;
+        }
       }
       #hint {
         position: fixed;
@@ -504,8 +767,31 @@
         .sky-meta > .conditions {
           gap: 0.5rem;
         }
+        /* Notes under the place name, so the weather keeps its line; the
+           panel opens from the header's left edge. */
+        .place-wrap {
+          position: relative;
+          flex-direction: column;
+          gap: 0;
+        }
+        .place-wrap > .panel-anchor {
+          position: static;
+        }
+        #notes-toggle {
+          padding-left: 0;
+        }
+        .toggle .long {
+          display: none;
+        }
         .corner {
           right: 1rem;
+        }
+        /* Above the corner buttons, not beside them. */
+        #hint {
+          bottom: calc(max(1.4rem, env(safe-area-inset-bottom)) + 48px);
+        }
+        .find-line {
+          bottom: calc(max(1.4rem, env(safe-area-inset-bottom)) + 48px + 3.2rem);
         }
       }
       @media (max-height: 480px) {
@@ -546,7 +832,7 @@
       }
     </style>
   </head>
-  <body data-scene="0" class="revealing">
+  <body data-scene="0" data-arrival="pending" class="revealing">
     <div id="loading-screen" class="loading-screen" role="status" aria-live="polite"><canvas aria-hidden="true"></canvas><p>loading<span class="cursor">_</span></p></div>
 
     <div class="fallback" aria-hidden="true"></div>
@@ -563,6 +849,23 @@
             />
             <path d="M7 5h2v3H7z" fill="currentColor" /></svg
           ><span>cape town</span>
+        </div>
+        <div class="panel-anchor">
+          <button
+            id="notes-toggle"
+            class="toggle"
+            type="button"
+            aria-expanded="false"
+            aria-controls="notes-panel"
+          >
+            <span><span class="long">field </span>notes</span>
+            <span class="chevron" aria-hidden="true"></span>
+          </button>
+          <section id="notes-panel" class="notes-panel" aria-label="Field notes" hidden>
+            <p class="notes-heading">field notes</p>
+            <ol></ol>
+            <p class="source notes-empty">nothing yet · go and look</p>
+          </section>
         </div>
       </div>
       <h1>sky cope<span class="cursor">_</span></h1>
@@ -648,18 +951,46 @@
         </div>
       </div>
     </header>
-    <p id="hint">
-      <span class="mouse">click to walk · drag to look · wasd · shift run · space jump · m meow</span
-      ><span class="touch">tap to walk · drag to look · pinch to zoom · tap the cat</span>
-    </p>
+    <!-- The hint teaches one thing at a time (moments.js lessons). -->
+    <p id="hint" data-hidden="true"><span class="mouse"></span><span class="touch"></span></p>
+    <div id="arrival" class="arrival" aria-hidden="true" hidden>
+      <p class="arrival-place">cape town</p>
+      <p class="arrival-name">sky cope</p>
+    </div>
+    <p id="find-line" class="find-line" role="status" aria-live="polite"></p>
     <div class="corner">
-      <button id="sound" type="button" aria-pressed="true" aria-label="Sound">
+      <button id="photo" class="round" type="button" aria-label="Photo mode (p)" title="photo · p">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true">
+          <path d="M2.5 5.5h2l1-2h5l1 2h2v7h-11z" />
+          <path d="M6.5 7.5h3v3h-3z" />
+        </svg>
+      </button>
+      <button id="music" class="round" type="button" aria-pressed="true" aria-label="Music" title="music">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true">
+          <path d="M6.5 11.5v-8l6-1.5v8" />
+          <path d="M3.5 10.5h3v3h-3zM9.5 9h3v3h-3z" fill="currentColor" stroke="none" />
+          <path class="mute" d="M2.5 2.5l11 11" />
+        </svg>
+      </button>
+      <button id="sound" class="round" type="button" aria-pressed="true" aria-label="Sound" title="sound">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true">
           <path d="M2 6h3l4-3v10l-4-3H2z" fill="currentColor" stroke="none" />
           <path class="waves" d="M11 5.5c1 1.4 1 3.6 0 5M13 3.5c2 2.5 2 6.5 0 9" />
           <path class="mute" d="M11 6l4 4M15 6l-4 4" />
         </svg>
       </button>
+    </div>
+    <!-- Photo mode (photo-mode.js): never part of the saved picture. -->
+    <div id="photo-guide" class="photo-guide" aria-hidden="true"></div>
+    <div id="photo-flash" class="photo-flash" aria-hidden="true"></div>
+    <div id="photo-bar" class="photo-bar" role="toolbar" aria-label="Photo" hidden>
+      <button class="shutter" type="button" aria-label="Save photo (s)"></button>
+      <button class="opt wide-option" type="button" data-photo="frame" aria-pressed="false">wide</button>
+      <button class="opt" type="button" data-photo="caption" aria-pressed="false">caption</button>
+      <button class="opt" type="button" data-photo="pause" aria-pressed="false">pause time</button>
+      <button class="opt" type="button" data-photo="exit">done</button>
+      <span class="photo-keys" aria-hidden="true">s save · space pause · esc</span>
+      <p class="photo-status" role="status" aria-live="polite"></p>
     </div>
     <script type="module" src="/src/main.js"></script>
   </body>

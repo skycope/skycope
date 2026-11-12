@@ -1,0 +1,271 @@
+// The thread, the score and the keepsake, joined up for main.js: discoveries
+// and their field notes, the score's inputs, photo mode, the arrival title,
+// sit-and-watch, sleeping through to dawn and the hint that teaches by doing.
+// main.js calls it from a few marked hooks; it reads main's `state` but only
+// writes the few things it owns (the preview minutes, through `preview`).
+//
+// For other modules (via state.thread):
+//   discoveries.add(pois)        { id, title, x, z, r, kind?, scope?, when?, hold?, above? }
+//   hear(name, { x, z, y? }, options?)  sound.play with distance and pan from the cat
+//   setSpectacles(fn)            fn() → [{ id, title?, visible 0…1, direction? [e,u,n] }]
+import { createDiscoveries, islandDiscoveries } from "./discoveries.js";
+import { createPhotoMode } from "./photo-mode.js";
+import { createArrival, createDawnLapse, createFindLine, createLessons, createNotesPanel, createWatch } from "./moments.js";
+import { capeTime, capeMinutes } from "./astronomy.js";
+import { SWIM_LIMIT } from "./walker.js";
+
+const TICK = 0.25;
+
+export function createThread({ state, signal, reduced, capture, preview, light = false }) {
+  const $ = (selector) => document.querySelector(selector);
+  const touch = matchMedia("(pointer: coarse)").matches;
+  const isReduced = () => reduced.matches;
+  const body = document.body;
+  let tick = 0;
+  let clock = 0;
+  const seconds = () => performance.now() / 1000;
+  let lastInput = performance.now();
+  let spectacles = () => [];
+  let gaze = null;
+  let nextGaze = 12;
+  let attached = false;
+  let walkFrom = null;
+
+  const findLine = createFindLine($("#find-line"), { reduced: isReduced });
+  const discoveries = createDiscoveries({
+    seed: state.seed,
+    signal,
+    onFind(found) {
+      state.sound.play("discover");
+      findLine.show(`found · ${found.title}`);
+      notes.changed();
+    },
+  });
+  const notes = createNotesPanel({
+    toggle: $("#notes-toggle"),
+    panel: $("#notes-panel"),
+    list: () => discoveries.list(),
+    signal,
+    time: (at) => capeTime(new Date(at)),
+  });
+  const lessons = createLessons({ el: $("#hint"), touch, reduced: isReduced });
+  const arrival = createArrival($("#arrival"), { reduced: isReduced });
+  // No WebGPU, or reduced motion: the header is simply there.
+  if (!navigator.gpu || isReduced()) arrival.skip();
+  else findLine.pause(true);
+
+  const photo = createPhotoMode({
+    bar: $("#photo-bar"),
+    button: $("#photo"),
+    guide: $("#photo-guide"),
+    flash: $("#photo-flash"),
+    signal,
+    reduced: isReduced,
+    touch,
+    capture,
+    caption() {
+      const weather = state.weather?.description;
+      return ["cape town", `${capeTime(state.date)} sast`, weather].filter(Boolean).join(" · ");
+    },
+    onChange({ active }) {
+      state.walker?.freeCamera(active);
+      findLine.pause(active || body.dataset.arrival !== "done");
+      if (active) {
+        watch?.stop();
+        lapse?.stop("photo");
+        lessons.did("photo");
+      }
+    },
+  });
+
+  // Built once the walker exists.
+  let watch = null;
+  let lapse = null;
+
+  const music = $("#music");
+  const sync = () => {
+    $("#sound")?.setAttribute("aria-pressed", String(state.sound.enabled));
+    music?.setAttribute("aria-pressed", String(state.sound.music));
+    if (music) music.disabled = !state.sound.enabled;
+  };
+  sync();
+  $("#sound")?.addEventListener("click", () => queueMicrotask(sync), { signal });
+  music?.addEventListener(
+    "click",
+    () => {
+      state.sound.start();
+      state.sound.setMusic(!state.sound.music);
+      sync();
+    },
+    { signal },
+  );
+
+  return {
+    discoveries,
+    photo,
+    // The world is built: seed the island's own discoveries and the
+    // walker-driven moments.
+    attach() {
+      if (attached || !state.walker) return;
+      attached = true;
+      discoveries.add(islandDiscoveries({ obstacles: state.landscape?.obstacles, swimLimit: SWIM_LIMIT }));
+      watch = createWatch({ walker: state.walker });
+      lapse = createDawnLapse({
+        preview,
+        onStart: () => {
+          watch.stop();
+          findLine.show("dreaming of dawn · a preview");
+        },
+      });
+    },
+    // The loading veil has lifted.
+    arrive() {
+      arrival.play(() => {
+        findLine.pause(photo.active);
+        lessons.begin(seconds());
+      });
+      if (body.dataset.arrival === "done") lessons.begin(seconds());
+    },
+    fallback() {
+      arrival.skip();
+      findLine.pause(false);
+      $("#photo")?.setAttribute("hidden", "");
+    },
+    // Time stands still while a photo is paused (the camera does not).
+    get timeScale() {
+      return photo.paused ? 0 : 1;
+    },
+    // The cat ignores walking input in photo mode.
+    get holdsCat() {
+      return photo.active;
+    },
+    // What the cat's head follows: a critter if there is one, or now and
+    // then, while it sits, the direction of the nearest place not yet found.
+    interest(critter) {
+      return critter ?? gaze;
+    },
+    // Keys first come here; true means taken.
+    key(event) {
+      const key = event.key.toLowerCase();
+      if (photo.key(key)) return true;
+      if (photo.active && (key === "+" || key === "=" || key === "-")) {
+        state.walker?.zoom(key === "-" ? 1.15 : 1 / 1.15);
+        return true;
+      }
+      return false;
+    },
+    // Any input: hand the view back, wake from the dream.
+    input(kind) {
+      lastInput = performance.now();
+      watch?.stop();
+      if (lapse?.active) lapse.stop("woke");
+      if (kind) lessons.did(kind, seconds());
+    },
+    did(kind) {
+      lessons.did(kind, seconds());
+    },
+    // From main's updateCat, after the walker. dt is scene time (0 while a
+    // photo is paused), realDt the wall clock.
+    update(dt, realDt) {
+      const cat = state.walker?.cat;
+      if (!cat) return;
+      // Wall-clock seconds: holds and lessons should not slow with the frame rate.
+      clock = seconds();
+      if (photo.active) orbitWithKeys(realDt);
+      // The lapse runs smoothly (its sky is per frame; labels throttled).
+      lapse?.update(
+        {
+          asleep: cat.sit > 0.95 && cat.sleepy > 0.3,
+          sunAltitude: state.celestial.sunAltitude,
+          nowMinutes: nowMinutes(),
+          date: new Date(),
+          blocked: photo.active || isReduced(),
+        },
+        realDt,
+      );
+      tick += realDt;
+      if (tick < TICK) return;
+      const step = tick;
+      tick = 0;
+      const visible = spectacles() ?? [];
+      const context = { celestial: state.celestial, weather: state.weather, interest: state.landscape?.interest, spectacles: visible };
+      discoveries.update(cat, clock, context);
+      const idleInput = (performance.now() - lastInput) / 1000;
+      watch?.update({ cat, idleInput, celestial: state.celestial, spectacles: visible, blocked: photo.active || lapse?.active || isReduced() });
+      updateGaze(cat, step);
+      walkFrom ??= { x: cat.x, z: cat.z };
+      if (Math.hypot(cat.x - walkFrom.x, cat.z - walkFrom.z) > 1.5) lessons.did("walk", clock);
+      if (cat.running) lessons.did("run", clock);
+      const scene = state.celestial.scene;
+      lessons.update({
+        now: clock,
+        moving: Math.abs(cat.speed) > 0.3,
+        sitting: cat.sit > 0.9,
+        found: discoveries.counts.found,
+        golden: scene > 0.4 && scene < 1.4,
+        hidden: photo.active || watch?.watching || lapse?.active || body.dataset.arrival !== "done",
+      });
+      state.sound.setScore({
+        sunAltitude: state.celestial.sunAltitude,
+        sunAzimuth: state.celestial.sunAzimuth,
+        cover: state.weather?.cover ?? 0,
+        rain: state.weather?.rain ?? 0,
+        asleep: cat.sit > 0.95 && cat.sleepy > 0.3,
+        spectacle: visible.reduce((m, s) => Math.max(m, s?.visible ?? 0), 0),
+      });
+    },
+    // A sound from somewhere on (or off) the island, heard from the cat.
+    hear(name, at = {}, options = {}) {
+      const cat = state.walker?.cat;
+      if (!cat || !Number.isFinite(at.x) || !Number.isFinite(at.z)) return state.sound.play(name, options);
+      const dx = at.x - cat.x;
+      const dz = at.z - cat.z;
+      const flat = Math.hypot(dx, dz);
+      const yaw = state.walker.camera.yaw;
+      const pan = flat > 0.01 ? (dx * Math.cos(yaw) - dz * Math.sin(yaw)) / flat : 0;
+      return state.sound.play(name, { distance: Math.hypot(flat, (at.y ?? cat.y) - cat.y), pan: pan * 0.8, ...options });
+    },
+    setSpectacles(fn) {
+      spectacles = typeof fn === "function" ? fn : () => [];
+    },
+    dispose() {
+      findLine.dispose();
+    },
+  };
+
+  function nowMinutes() {
+    if (state.debugMinutes !== null) return state.debugMinutes;
+    const now = new Date();
+    return capeMinutes(now) + now.getSeconds() / 60;
+  }
+
+  // Photo mode: arrow keys orbit and tilt.
+  function orbitWithKeys(dt) {
+    const keys = state.keys;
+    const x = (keys.has("arrowright") ? 1 : 0) - (keys.has("arrowleft") ? 1 : 0);
+    const y = (keys.has("arrowup") ? 1 : 0) - (keys.has("arrowdown") ? 1 : 0);
+    if (x || y) state.walker.orbit(-x * dt * 1.1, y * dt * 0.6);
+  }
+
+  // Now and then, while it sits, the cat's head turns toward the nearest
+  // place it has not found yet, as if it had heard something there.
+  function updateGaze(cat, step) {
+    nextGaze -= step;
+    const near = discoveries.nearest();
+    const settled = cat.sit > 0.8 && cat.idle > 6 && cat.sleepy < 0.2 && !photo.active;
+    if (!settled || !near || near.distance > 140) {
+      gaze = null;
+      nextGaze = Math.max(nextGaze, 6);
+      return;
+    }
+    if (gaze && nextGaze < -3.5) {
+      gaze = null;
+      nextGaze = 18 + Math.random() * 14;
+    } else if (!gaze && nextGaze <= 0) {
+      const dx = near.x - cat.x;
+      const dz = near.z - cat.z;
+      const d = Math.hypot(dx, dz) || 1;
+      gaze = { x: cat.x + (dx / d) * 3, y: cat.y + 0.55, z: cat.z + (dz / d) * 3, near: false, kind: "" };
+    }
+  }
+}

@@ -38,6 +38,8 @@ const SWIM_SPRINT = 0.78;
 export const SWIM_LIMIT = 24;
 
 export const CAMERA = { distance: 3.4, elevation: 0.38, min: 1.1, max: 8 };
+// Photo mode frees the camera further round, lower, higher and wider.
+const FREE = { min: 0.7, max: 14, low: 0.02, high: 1.4 };
 // How close the spring arm may pull the camera to the cat, and how far the
 // lens keeps from a trunk.
 const ARM_MIN = 0.9;
@@ -109,6 +111,11 @@ export function createWalker(obstacles, sea = null, wake = null) {
   let armLift = 0;
   let lastDrag = -10;
   let clock = 0;
+  // Where the camera is easing to when it is not simply following: the
+  // viewer's own framing in photo mode (`free`), or the slow drift of
+  // sitting to watch the sky. { yaw, elevation, distance, rate }
+  let goal = null;
+  let free = false;
   let last = null;
   // The last rock face the body met: outward normal, when, which way round
   // the cat is going, and how long it has pushed straight at it.
@@ -136,15 +143,46 @@ export function createWalker(obstacles, sea = null, wake = null) {
       cat.idle = Math.min(cat.idle, 2);
     },
     orbit(dx, dy) {
+      if (free) {
+        goal.yaw += dx;
+        goal.elevation = clamp(goal.elevation + dy, FREE.low, FREE.high);
+        return;
+      }
       camera.yaw += dx;
       camera.elevation = clamp(camera.elevation + dy, 0.06, 1.2);
       lastDrag = clock;
     },
     zoom(factor) {
+      if (free) {
+        goal.distance = clamp(goal.distance * factor, FREE.min, FREE.max);
+        return;
+      }
       camera.distance = clamp(camera.distance * factor, CAMERA.min, CAMERA.max);
     },
+    // Photo mode: orbit and zoom ease toward where the viewer puts them,
+    // over a wider range; off again, the follow camera takes over from
+    // wherever the photo left it.
+    freeCamera(on) {
+      free = Boolean(on);
+      if (free) goal = { yaw: camera.yaw, elevation: camera.elevation, distance: camera.distance, rate: 3.5 };
+      else {
+        goal = null;
+        camera.elevation = clamp(camera.elevation, 0.06, 1.2);
+        camera.distance = clamp(camera.distance, CAMERA.min, CAMERA.max);
+        lastDrag = clock;
+      }
+    },
+    // Sitting to watch: drift slowly to frame `view` ({ yaw, elevation,
+    // distance }), or null to stop wherever it has got to.
+    watch(view) {
+      if (free) return;
+      goal = view ? { ...view, yaw: camera.yaw + wrap(view.yaw - camera.yaw), rate: 0.11 } : null;
+      if (!view) lastDrag = clock;
+    },
     // input: move [right, forward] in camera terms (−1…1), run, jump (edge).
-    update(dt, input, interest) {
+    // cameraDt is the camera's own clock: it keeps easing while time is
+    // paused for a photo.
+    update(dt, input, interest, cameraDt = dt) {
       clock += dt;
       let mx = input.move[0];
       let mz = input.move[1];
@@ -371,7 +409,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
       cat.tilt += ((cat.sit > 0.8 ? Math.sin(clock * 0.21) * 0.25 : 0) - cat.tilt) * Math.min(1, dt * 2);
       cat.swish += ((interest && interest.near ? 1 : input.rain ? 0.6 : 0) - cat.swish) * Math.min(1, dt * 1.5);
 
-      updateCamera(dt, want > 0.01);
+      updateCamera(cameraDt, want > 0.01);
       return cat;
     },
   };
@@ -398,6 +436,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
     camera.elevation = CAMERA.elevation;
     camera.distance = CAMERA.distance;
     camera.targetY = cat.y;
+    goal = free ? { yaw: camera.yaw, elevation: camera.elevation, distance: camera.distance, rate: 3.5 } : null;
     placeCamera(1);
   }
 
@@ -471,9 +510,15 @@ export function createWalker(obstacles, sea = null, wake = null) {
   }
 
   function updateCamera(dt, moving) {
+    if (goal) {
+      const k = 1 - Math.exp(-dt * goal.rate);
+      camera.yaw += wrap(goal.yaw - camera.yaw) * k;
+      camera.elevation += (goal.elevation - camera.elevation) * k;
+      camera.distance += (goal.distance - camera.distance) * k;
+    }
     // Swing round behind the cat while it walks, unless the viewer is
     // steering the camera themselves.
-    if (moving && clock - lastDrag > 1.2) {
+    else if (moving && clock - lastDrag > 1.2) {
       const rate = 1.4 * Math.min(1, Math.abs(cat.speed) / WALK_SPEED);
       camera.yaw += wrap(cat.heading - camera.yaw) * Math.min(1, dt * rate);
     }

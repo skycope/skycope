@@ -45,6 +45,9 @@ import { createSound } from "./sound.js";
 import { CAT_SCALE } from "./cat-rig.js";
 import { reviewFixture, applyReviewFixture } from "./review-fixtures.js";
 import { createLoadingScreen } from "./loading-screen.js";
+// thread: discoveries, score inputs, photo mode, small moments (thread.js).
+import { createThread } from "./thread.js";
+import { previewDate } from "./moments.js";
 
 const review = reviewFixture(window.location.search);
 const PERF = new URLSearchParams(window.location.search).has("perf");
@@ -95,10 +98,13 @@ const state = {
   debugMinutes: review?.minutes ?? null,
   celestial: null,
   pointer: [0.5, 0.5],
+  // thread: see thread.js. photoPixels: the render size while a photo is taken.
+  thread: null,
+  photoPixels: null,
   // The camera the WebGPU passes and Three.js share (walker.camera).
   flight: null,
   walker: null,
-  sound: createSound(),
+  sound: null,
   keys: new Set(),
   jump: false,
   pointers: new Map(),
@@ -163,12 +169,17 @@ const state = {
   disposed: false,
 };
 
+// The score is seeded by the world's seed, so a permalink plays the same.
+state.sound = createSound({ seed: state.seed });
+
 // `?perf` QA exposes live state, e.g. to aim the camera at the sun.
 if (PERF) window.skycope = state;
 
 start();
 
 async function start() {
+  // thread: before the controls, so its keys come first.
+  state.thread = createThread({ state, signal: events.signal, reduced: motionPreference, capture: capturePhoto, preview: previewAt, light: LIGHT });
   connectControls();
   // `?weather=clear|cloudy|overcast|rain|storm` opens on that preset.
   state.weatherPanel = createWeatherPanel({
@@ -233,11 +244,12 @@ function connectControls() {
     },
     options,
   );
-  const scene = (event) => !event.target.closest("button, input, a, .weather-panel, .time-panel");
+  const scene = (event) => !event.target.closest("button, input, a, .weather-panel, .time-panel, .notes-panel, .photo-bar");
   window.addEventListener(
     "pointerdown",
     (event) => {
       state.sound.start();
+      state.thread?.input(); // thread: any touch hands the view back
       if (motionPreference.matches || !scene(event)) return;
       state.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, at: performance.now() });
       state.lastInput = performance.now();
@@ -259,11 +271,14 @@ function connectControls() {
         const d = pinchDistance();
         if (state.pinch > 0 && d > 0) state.walker.zoom(state.pinch / d);
         state.pinch = d;
+        state.thread?.did("look");
         return;
       }
       // Drag the world: orbit the cat.
-      if (Math.hypot(event.clientX - p.startX, event.clientY - p.startY) > 6)
+      if (Math.hypot(event.clientX - p.startX, event.clientY - p.startY) > 6) {
         state.walker.orbit(-dx * 0.006, dy * 0.004);
+        state.thread?.did("look");
+      }
     },
     { ...options, passive: true },
   );
@@ -285,6 +300,7 @@ function connectControls() {
     (event) => {
       if (!state.walker || !scene(event)) return;
       state.walker.zoom(Math.exp(event.deltaY * 0.0012));
+      state.thread?.input("look");
       state.lastInput = performance.now();
       event.preventDefault();
     },
@@ -298,6 +314,12 @@ function connectControls() {
       state.sound.start();
       // Sliders keep their arrow keys; a focused button gives up space.
       if (event.target.closest?.("input, select, textarea")) return;
+      // thread: photo mode's keys (p, s, space, c, f, +/-, esc) come first.
+      state.thread?.input();
+      if (state.thread?.key(event)) {
+        event.preventDefault();
+        return;
+      }
       if (key === " " && event.target.closest?.("button")) event.target.blur();
       if (key === "h") {
         state.walker?.home();
@@ -325,6 +347,7 @@ function connectControls() {
     "visibilitychange",
     () => {
       state.weatherFrame = performance.now();
+      state.sound.setHidden(document.hidden);
       updateTime();
       syncLoop();
       if (
@@ -356,12 +379,13 @@ function pinchDistance() {
 function meow() {
   state.walker?.meow();
   state.sound.meow();
+  state.thread?.did("meow");
 }
 
 // Tap the cat to hear it; tap the ground to walk there. The ray is marched
 // against the walkable surface (ground mesh and boulder tops).
 function tap(clientX, clientY) {
-  if (!state.landscape || !state.walker) return;
+  if (!state.landscape || !state.walker || state.thread?.holdsCat) return;
   const { origin, direction } = state.landscape.pick(
     (clientX / window.innerWidth) * 2 - 1,
     1 - (clientY / window.innerHeight) * 2,
@@ -420,19 +444,19 @@ function pullInland(x, z, offshore = -0.6) {
   return [x + (dx / r) * pull, z + (dz / r) * pull];
 }
 
+// The hint teaches by doing now (thread.js lessons): walking is one lesson.
 function dismissHint() {
-  if (!state.hintShown) return;
-  state.hintShown = false;
-  hint.dataset.hidden = "true";
+  state.thread?.did("walk");
 }
 
 function updateTime() {
   const live = state.debugMinutes === null;
-  state.date = live ? new Date() : dateAtCapeMinutes(state.debugMinutes, review?.date ?? new Date());
+  // Preview minutes may be fractional and run past midnight (the dawn lapse).
+  state.date = live ? new Date() : previewDate(state.debugMinutes, review?.date ?? new Date());
   state.celestial = skyAt(state.date);
   timeLabel.textContent = capeTime(state.date);
   timeToggle.querySelector("span").textContent = `${capeTime(state.date)}${live ? "" : " · preview"}`;
-  slider.value = String(live ? capeMinutes(state.date) : state.debugMinutes);
+  slider.value = String(live ? capeMinutes(state.date) : Math.round(state.debugMinutes) % 1440);
   slider.setAttribute(
     "aria-valuetext",
     `${capeTime(state.date)} Cape Town time${live ? ", live" : ", preview"}`,
@@ -645,6 +669,7 @@ async function startAtmosphere() {
   state.walker = createWalker(state.landscape.obstacles, state.sea, state.wake);
   applyReviewFixture(state.walker, review, state.landscape.obstacles);
   state.flight = state.walker.camera;
+  state.thread.attach(); // thread: the island's discoveries, watch and dawn lapse
   state.landscape.resize(window.innerWidth, window.innerHeight, state.quality, state.reveal < 1 ? revealSize() : null);
   await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   await tablePass.compile(skyTable);
@@ -661,15 +686,17 @@ async function startAtmosphere() {
   const gpuClock = clock(gpu);
   state.renderFrame = (currentFrame) => {
     const cpuStarted = performance.now();
-    const dt = Math.min(gpuClock.deltaTime, 0.05);
-    const weatherDt = state.weatherFrame ? Math.max(0, Math.min(2, (cpuStarted - state.weatherFrame) / 1000)) : dt;
+    // thread: a paused photo stops scene time (the camera keeps its own clock).
+    const realDt = Math.min(gpuClock.deltaTime, 0.05);
+    const dt = realDt * state.thread.timeScale;
+    const weatherDt = (state.weatherFrame ? Math.max(0, Math.min(2, (cpuStarted - state.weatherFrame) / 1000)) : dt) * state.thread.timeScale;
     state.weatherFrame = cpuStarted;
     if (!motionPreference.matches) {
       state.time += dt;
       const weather = state.weather;
       state.sea.set(state.time, swellUniform(state.seed, weather?.wind ?? [0, 0]), weather?.wind ?? [0, 0]);
       state.wake.tick(state.time);
-      updateCat(dt);
+      updateCat(dt, realDt);
       adaptQuality(gpuClock.deltaTime);
     }
     const uniforms = createUniforms();
@@ -762,6 +789,7 @@ async function startAtmosphere() {
       state.firstFrame = true;
       state.loadingRaf = requestAnimationFrame(() => {
         loading.ready();
+        state.thread.arrive(); // thread: the name, as the world sharpens
         sharpen();
       });
     }
@@ -793,6 +821,7 @@ function sharpen() {
 
 function cloudSize() {
   if (state.reveal < 1) return revealSize();
+  if (state.photoPixels) return photoSize(SKY_PIXELS * 2);
   // Clouds tolerate smooth upscaling. Water has a separate, sharper budget.
   const width = window.innerWidth;
   const height = window.innerHeight;
@@ -806,6 +835,7 @@ function cloudSize() {
 
 function waterSize() {
   if (state.reveal < 1) return revealSize();
+  if (state.photoPixels) return state.photoPixels;
   const width = window.innerWidth;
   const height = window.innerHeight;
   const scale =
@@ -903,9 +933,11 @@ function updateIslandTable(texture, view, sky) {
 }
 
 // The cat walks; the camera follows. Keys are camera-relative.
-function updateCat(dt) {
+function updateCat(dt, realDt = dt) {
   const keys = state.keys;
-  const held = (...names) => names.some((name) => keys.has(name));
+  // thread: in photo mode the cat holds still and the keys move the camera.
+  const hold = state.thread.holdsCat;
+  const held = (...names) => !hold && names.some((name) => keys.has(name));
   const move = [
     (held("d", "arrowright") ? 1 : 0) - (held("a", "arrowleft") ? 1 : 0),
     (held("w", "arrowup") ? 1 : 0) - (held("s", "arrowdown") ? 1 : 0),
@@ -915,10 +947,13 @@ function updateCat(dt) {
   const walker = state.walker;
   const cat = walker.update(
     dt,
-    { move, run: held("shift") || Boolean(review?.run && state.time < 27), jump: state.jump, rain: (state.weather?.rain ?? 0) > 0.5 },
-    state.landscape.interest,
+    { move, run: held("shift") || Boolean(review?.run && state.time < 27), jump: state.jump && !hold, rain: (state.weather?.rain ?? 0) > 0.5 },
+    state.thread.interest(state.landscape.interest),
+    realDt,
   );
   state.jump = false;
+  if (cat.air > 0 && !hold) state.thread.did("run");
+  state.thread.update(dt, realDt);
   for (const event of walker.events.splice(0)) {
     if (event.type === "jump") state.sound.jump();
     if (event.type === "shake") state.sound.shake();
@@ -1044,8 +1079,51 @@ function resizeAtmosphere() {
   state.skyTarget?.write.resize(cloudSize());
   state.cloudTarget?.resize(quarterSize(cloudSize()));
   resetSkyHistory();
-  state.landscape?.resize(window.innerWidth, window.innerHeight, state.quality, state.reveal < 1 ? revealSize() : null);
+  state.landscape?.resize(window.innerWidth, window.innerHeight, state.quality, state.reveal < 1 ? revealSize() : state.photoPixels);
   renderStill();
+}
+
+// photo-mode: a larger render of the frame, and both canvases handed back
+// in the same task (a canvas stays readable until the task that drew it
+// ends, so neither needs preserveDrawingBuffer). restore() puts the live
+// view back before anything is shown.
+const PHOTO_PIXELS = LIGHT ? 1200000 : 3600000;
+function capturePhoto() {
+  if (!state.gpu || !state.renderFrame || state.reveal < 1) return null;
+  const pixels = photoSize(PHOTO_PIXELS, 2);
+  state.photoPixels = pixels;
+  resizeAtmosphere();
+  // Four frames: one per cloud jitter, so the clouds are whole.
+  resetSkyHistory();
+  for (let i = 0; i < 4; i++) frame(state.gpu, state.renderFrame);
+  return {
+    layers: [canvas, document.querySelector("#landscape")],
+    width: pixels[0],
+    height: pixels[1],
+    restore() {
+      state.photoPixels = null;
+      resizeAtmosphere();
+      for (let i = 0; i < 2; i++) frame(state.gpu, state.renderFrame);
+    },
+  };
+}
+
+function photoSize(budget, most = 1) {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  const scale = Math.min(most, Math.sqrt(budget / (width * height)));
+  return [Math.max(1, Math.round(width * scale)), Math.max(1, Math.round(height * scale))];
+}
+
+// dawn-lapse: preview a (fractional, unwrapped) minute; the labels are
+// written only when asked (a few times a second), the sky every frame.
+function previewAt(minutes, labels = true) {
+  state.debugMinutes = minutes;
+  if (labels) updateTime();
+  else {
+    state.date = previewDate(minutes, review?.date ?? new Date());
+    state.celestial = skyAt(state.date);
+  }
 }
 
 function syncLoop() {
@@ -1104,6 +1182,7 @@ function resetSkyHistory() {
 function useFallback(error) {
   cancelAnimationFrame(state.loadingRaf);
   loading.fail(error);
+  state.thread?.fallback();
   document.body.dataset.renderer = "fallback";
   cancelAnimationFrame(state.raf);
   const gpu = state.gpu;
@@ -1131,6 +1210,7 @@ function stopAtmosphere() {
   cancelAnimationFrame(state.raf);
   cancelAnimationFrame(state.loadingRaf);
   loading.dispose();
+  state.thread?.dispose();
   state.sound.dispose();
   state.gpu?.dispose();
   state.landscape?.dispose();
