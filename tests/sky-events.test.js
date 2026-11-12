@@ -137,7 +137,8 @@ test("the Atmosphere struct carries the sky-event fields at its end", () => {
   const view = readFileSync(new URL("../src/shaders/view.wgsl", import.meta.url), "utf8");
   const struct = view.match(/struct Atmosphere \{([^]*?)\n\};/)[1];
   const fields = [...struct.matchAll(/^\s*(\w+):/gm)].map((m) => m[1]);
-  assert.deepEqual(fields.slice(-7), Object.keys(quietSkyUniforms()));
+  // sea-sky-magic's fields follow them (tests/sea-sky-magic.test.js).
+  assert.deepEqual(fields.slice(-14, -7), Object.keys(quietSkyUniforms()));
   const render = readFileSync(new URL("../scripts/render-sky.mjs", import.meta.url), "utf8");
   assert.match(render, /skyEventFrame/);
 });

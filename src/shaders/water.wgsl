@@ -39,7 +39,9 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
     atmosphere.weather.w, atmosphere.resolution, atmosphere.seed,
     atmosphere.flight.xyz, atmosphere.flight.w, atmosphere.pitch,
     atmosphere.light.rgb, atmosphere.ambient.rgb, atmosphere.swell, atmosphere.light.w, atmosphere.rain,
-    atmosphere.ocean.z, atmosphere.ocean.w, atmosphere.pointer);
+    atmosphere.ocean.z, atmosphere.ocean.w, atmosphere.pointer,
+    // sea-sky-magic: the awakened gifts (view.wgsl).
+    atmosphere.magic, atmosphere.pulse, atmosphere.pulseColour, atmosphere.lamp, atmosphere.wisp, atmosphere.wispColour);
   var color = ocean_view(ray, light, sky, settings, cloudNoise, filtering, skyTexture,
     waves0, waves1, waves2, waves3, foamLayer, shoreRocks, shoreGrid, skyTable, landField, catWake, islandTable);
   // The direct disc is composited through cloud transmission. Water uses its
@@ -70,6 +72,14 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   color += atmosphere.light.rgb * exp(-sun_distance * 90.0) * 0.12 * above_sea * sky_sample.a * (1.0 - night);
   if (ray.y > -0.001) {
     color += night_sky(ray, night, sky_sample.a * above_sea, dot(sky, vec3f(0.2126, 0.7152, 0.0722)));
+    // sea-sky-magic: the finale's storm of falling stars.
+    if (MAGIC_AWAKE && atmosphere.magic.w > 0.0 && night > 0.01 && ray.y > 0.0) {
+      color += meteor_storm(ray) * night * sky_sample.a * above_sea * atmosphere.magic.w;
+    }
+  } else if (MAGIC_AWAKE && atmosphere.magic.y > 0.0 && night > 0.01) {
+    // sea-sky-magic: the stars gift on a calm night: bright stars mirrored
+    // in the sea as a broken path, each row of swell tilting them aside.
+    color += star_path(ray, night, sky_sample.a);
   }
   // sky-events: sharp transient lights, each skipped unless it is happening.
   if (atmosphere.bolt.w > 0.0 || atmosphere.meteor.w > 0.0 || atmosphere.trail.w > 0.0 || atmosphere.satellite.w > 0.0) {
@@ -97,7 +107,8 @@ fn night_sky(ray: vec3f, night: f32, clear: f32, background: f32) -> vec3f {
   var light = vec3f(0.0);
   var moon_cover = 0.0;
   if (length(ray - atmosphere.moon) < 0.019 + pixel * 2.0) {
-    let moonlight = sun_radiance(atmosphere.moon) * min(atmosphere.light.w, 0.95);
+    // sea-sky-magic: the stars gift makes the day moon a little more present.
+    let moonlight = sun_radiance(atmosphere.moon) * min(atmosphere.light.w, 0.95) * (1.0 + select(0.0, atmosphere.magic.y * 0.6 * (1.0 - night), MAGIC_AWAKE));
     let moon = moon_disc(ray, atmosphere.moon, atmosphere.sun, sidereal, latitude, pixel, 0.019, moonlight);
     light = moon.rgb * moon.a * clear;
     moon_cover = moon.a;
@@ -106,11 +117,100 @@ fn night_sky(ray: vec3f, night: f32, clear: f32, background: f32) -> vec3f {
     let eq = equatorial_from_local(ray, sidereal, latitude);
     let airmass = 1.0 / max(ray.y, 0.02);
     let extinction = exp(-0.28 * (airmass - 1.0)) * smoothstep(0.0, 0.05, ray.y);
-    let stars = catalog_stars(eq, starCatalog, pixel, atmosphere.time, airmass, background)
-      + faint_stars(eq, pixel, background);
+    let lean = select(0.0, atmosphere.magic.y + atmosphere.magic.w * 0.5, MAGIC_AWAKE);
+    var axis_u = vec3f(0.0);
+    var axis_v = vec3f(0.0);
+    if (lean > 0.0) {
+      let heading = vec3f(sin(atmosphere.flight.w), 0.0, cos(atmosphere.flight.w));
+      let right = vec3f(heading.z, 0.0, -heading.x);
+      let forward = heading * cos(atmosphere.pitch) + vec3f(0.0, sin(atmosphere.pitch), 0.0);
+      axis_u = equatorial_from_local(right, sidereal, latitude);
+      axis_v = equatorial_from_local(cross(forward, right), sidereal, latitude);
+    }
+    let stars = catalog_stars(eq, starCatalog, pixel, atmosphere.time, airmass, background, lean, axis_u, axis_v)
+      + faint_stars(eq, pixel, background) * (1.0 + lean * 0.5);
     light += stars * extinction * night * clear * (1.0 - moon_cover);
   }
   return light;
+}
+
+// sea-sky-magic: the finale. A storm of falling stars from one radiant
+// almost overhead, each streaking away from it along its great circle
+// (short near it, long far from it): a bright head, a fading green-white
+// trail. The sky round the radiant is cut into STORM_SECTORS wedges, each
+// dealing three meteors on their own clocks, each kept inside its wedge
+// with a margin wider than the line, so a pixel tests only its own wedge
+// (three line tests), and only while the finale is awake: ~180 meteors
+// round the sky, a dozen or more in any view.
+const STORM_SECTORS: f32 = 60.0;
+const STORM_RADIANT: vec3f = vec3f(0.17, 0.97, 0.17);
+fn meteor_storm(ray: vec3f) -> vec3f {
+  let pixel = 1.0 / (0.9 * min(atmosphere.resolution.y, 1300.0));
+  let radiant = normalize(STORM_RADIANT);
+  let east = normalize(cross(vec3f(0.0, 0.0, 1.0), radiant));
+  let north = cross(radiant, east);
+  let rho = acos(clamp(dot(ray, radiant), -1.0, 1.0));
+  let az = atan2(dot(ray, north), dot(ray, east));
+  let airmass = 1.0 / max(ray.y, 0.02);
+  let extinction = exp(-0.28 * (airmass - 1.0)) * smoothstep(0.0, 0.06, ray.y);
+  let wedge = 6.283185 / STORM_SECTORS;
+  let sector = floor(az / wedge);
+  let width = pixel * 0.9;
+  var light = vec3f(0.0);
+  let index = sector;
+  {
+    for (var layer = 0; layer < 3; layer++) {
+      let lane = index * 3.0 + f32(layer) + 200.0;
+      let period = 2.2 + fract(lane * 0.618) * 2.4;
+      let t = atmosphere.time / period + fract(lane * 0.377);
+      let slot = floor(t);
+      let age = fract(t);
+      let h = hash2(vec2f(slot * 1.7 + lane * 13.1, lane * 3.3));
+      let g = hash2(vec2f(slot * 2.9 - lane * 7.7, 41.0 + lane));
+      // Not every wedge has one burning at once.
+      if (g.y < 0.2) { continue; }
+      let phi = (index + 0.2 + 0.6 * h.x) * wedge;
+      // Mostly where an eye on the horizon sees them: 20-75° from the radiant.
+      let start = 0.35 + h.y * 0.95;
+      let span = (0.1 + g.x * 0.28) * sin(min(start + 0.3, 1.5));
+      let flight = smoothstep(0.0, 0.3, age);
+      let head = start + span * flight;
+      let tail = start + span * max(flight - 0.5, 0.0);
+      var d_az = az - phi;
+      d_az = d_az - 6.283185 * round(d_az / 6.283185);
+      let perp = abs(sin(rho) * d_az);
+      if (perp > width * 6.0 || rho > head + width * 3.0 || rho < tail - width * 3.0) { continue; }
+      let along = clamp((rho - tail) / max(head - tail, 1e-4), 0.0, 1.0);
+      let line = exp(-perp * perp / (width * width)) * smoothstep(tail - width, tail + width * 2.0, rho) * (1.0 - smoothstep(head, head + width * 2.0, rho));
+      // Burns for ~a third of its period, the train glowing on a little.
+      let brightness = (0.4 + 3.0 * (g.y - 0.2) * (g.y - 0.2)) * (1.0 - smoothstep(0.3, 0.6, age)) * smoothstep(0.0, 0.03, age);
+      let head_glow = exp(-(perp * perp + (rho - head) * (rho - head)) / (width * width * 2.5)) * 3.0 * (1.0 - smoothstep(0.28, 0.34, age));
+      let colour = mix(vec3f(0.75, 1.0, 0.85), vec3f(1.0, 0.95, 0.85), along);
+      light += colour * (line * along * along + head_glow) * brightness;
+    }
+  }
+  return light * extinction * 0.9;
+}
+
+// sea-sky-magic: the star path. A calm sea mirrors the brightest stars,
+// broken by the swell into short wavering dashes, row by row.
+fn star_path(ray: vec3f, night: f32, clear: f32) -> vec3f {
+  let calm = 1.0 - smoothstep(3.0, 9.0, length(atmosphere.wind));
+  if (calm <= 0.0) { return vec3f(0.0); }
+  let pixel = 1.0 / (0.9 * min(atmosphere.resolution.y, 1300.0));
+  let rows = floor(-ray.y * atmosphere.resolution.y * 0.45);
+  let h = hash2(vec2f(rows, floor(atmosphere.time * 3.0 + rows * 0.13)));
+  // Each row of swell tilts the mirror a little sideways.
+  let tilt = (h.x - 0.5) * (0.004 + 0.06 * -ray.y);
+  let c = cos(tilt);
+  let s = sin(tilt);
+  let mirror = normalize(vec3f(ray.x * c - ray.z * s, -ray.y, ray.x * s + ray.z * c));
+  let eq = equatorial_from_local(mirror, atmosphere.celestial.x, atmosphere.celestial.y);
+  let airmass = 1.0 / max(mirror.y, 0.02);
+  let extinction = exp(-0.28 * (airmass - 1.0)) * smoothstep(0.0, 0.05, mirror.y);
+  let stars = catalog_stars(eq, starCatalog, pixel * 2.0, atmosphere.time, airmass, 0.0, 0.0, vec3f(0.0), vec3f(0.0));
+  let fresnel = 0.02 + 0.98 * pow(1.0 - min(-ray.y * 1.2, 1.0), 5.0);
+  return stars * extinction * fresnel * (0.4 + 2.2 * h.y * h.y) * night * calm * atmosphere.magic.y * 3.0;
 }
 
 // sky-events: a lightning bolt (and its smeared reflection in the sea),

@@ -17,8 +17,12 @@ import { createShoreTextures, createLandTexture } from "../src/shore-textures.js
 import { landFieldData } from "../src/land-field.js";
 import { createVegetation } from "../src/vegetation.js";
 import { cloudTransmission } from "../src/cloud-transmission.js";
-import { CATALOG_SIZE, starCatalogCells, halfFloats } from "../src/star-catalog.js";
+import { CATALOG_SIZE, starCatalogCells, halfFloats, constellationAtlas } from "../src/star-catalog.js";
 import { skyEventFrame, quietSkyUniforms } from "../src/sky-events.js";
+// sea-sky-magic: the awakened gifts' sea and sky (src/sea-sky-magic.js).
+import { magicUniforms, magicFixture, quietMagicUniforms, magicVariant, magicActive } from "../src/sea-sky-magic.js";
+import { placesLayout } from "../src/place-layout.js";
+import { groundHeight } from "../src/terrain.js";
 
 // Offline visual fixtures. They never override the live site's weather.
 const outputDirectory = process.argv[2] ?? "/tmp/skycope-qa";
@@ -27,14 +31,15 @@ const gpu = await init({ requiredFeatures: ["timestamp-query"] });
 const errors = [];
 gpu.onError((error) => errors.push(error));
 const noise = createCloudNoise(gpu.gpu);
-const stars = gpu.gpu.createTexture({
-  size: [1, 1],
-  format: "rgba8unorm",
-  usage: GPUTextureUsage.TEXTURE_BINDING,
-});
-// The real star catalog, so night fixtures show true stars. The constellation
-// figure atlas stays black.
+// The real star catalog, so night fixtures show true stars, and the
+// constellation figure atlas exactly as the site builds it.
 const catalog = JSON.parse(await readFile(new URL("../src/data/stars.json", import.meta.url), "utf8"));
+const stars = gpu.gpu.createTexture({
+  size: [2048, 1024],
+  format: "rgba8unorm",
+  usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+});
+gpu.gpu.queue.writeTexture({ texture: stars }, constellationAtlas(catalog.constellations), { bytesPerRow: 2048 * 4 }, [2048, 1024]);
 const starCatalog = gpu.gpu.createTexture({
   size: CATALOG_SIZE,
   format: "rgba16float",
@@ -47,6 +52,9 @@ gpu.gpu.queue.writeTexture(
   CATALOG_SIZE,
 );
 const output = target(gpu, { size: [1000, 700], format: "rgba8unorm" });
+// sea-sky-magic: the seed's lighthouse lamp, as main.js lampPosition puts it.
+const tower = placesLayout(1847).find((p) => p.id === "lighthouse");
+const LAMP = { x: tower.x, y: groundHeight(tower.x, tower.z) + 15.2, z: tower.z };
 // The site's sky passes (see src/main.js): scattering table, quarter-
 // resolution cloud march, and the resolve with its cloud history.
 const wgsl = async (name) =>
@@ -71,7 +79,10 @@ const table = effect(gpu, await wgsl("sky-table.wgsl"), { set: {} });
 const clouds = effect(gpu, await wgsl("clouds.wgsl"), {
   set: { cloudNoise: noise.createView(), cloudSampler: skySampler, skyTable: tableTarget.color },
 });
-const shader = effect(gpu, await wgsl("sky.wgsl"), {
+// sea-sky-magic: each pass in two pipelines, the gifts compiled in or out
+// (magicVariant); a fixture uses the awake ones only when it wakes a gift.
+const skySource = await wgsl("sky.wgsl");
+const skyEffect = (awake) => effect(gpu, magicVariant(skySource, awake), {
   set: {
     cloudNoise: noise.createView(),
     starAtlas: stars.createView(),
@@ -81,6 +92,9 @@ const shader = effect(gpu, await wgsl("sky.wgsl"), {
     cloudHistory: skyTarget.read.colors[1],
   },
 });
+const skyAsleep = skyEffect(false);
+const skyAwake = skyEffect(true);
+let shader = skyAsleep;
 const JITTER = [[0, 0], [1, 1], [1, 0], [0, 1]];
 let benchSea = null;
 // The wind-sea cascades and the whitecap history (see src/main.js).
@@ -116,16 +130,15 @@ const catWake = gpu.gpu.createTexture({
   format: "rgba32float",
   usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
 });
-const water = effect(
+const waterSource = (
+  await resolveShader({
+    entry: fileURLToPath(new URL("../src/shaders/water.wgsl", import.meta.url)),
+    validate: "off",
+  })
+).wgsl;
+const waterEffect = (awake) => effect(
   gpu,
-  (
-    await resolveShader({
-      entry: fileURLToPath(
-        new URL("../src/shaders/water.wgsl", import.meta.url),
-      ),
-      validate: "off",
-    })
-  ).wgsl,
+  magicVariant(waterSource, awake),
   {
     set: {
       cloudNoise: noise.createView(),
@@ -152,9 +165,16 @@ const water = effect(
     },
   },
 );
+const waterAsleep = waterEffect(false);
+const waterAwake = waterEffect(true);
+let water = waterAsleep;
 // BASE_WATER=path/to/water.wgsl: a second water shader (an older checkout's)
 // benched against this one, interleaved in the same process (BENCH=1).
-const baseWater = process.env.BASE_WATER
+// AB_MAGIC=1 (sea-sky-magic): the base is this water shader as the site
+// runs it with every gift asleep, so a fixture's awake cost is benched.
+const baseWater = process.env.AB_MAGIC
+  ? waterAsleep
+  : process.env.BASE_WATER
   ? effect(gpu, (await resolveShader({ entry: process.env.BASE_WATER, validate: "off" })).wgsl, {
       set: {
         cloudNoise: noise.createView(),
@@ -186,11 +206,13 @@ gpuTimer.onResults((spans) => {
 });
 await table.compile(tableTarget);
 await clouds.compile(cloudTarget);
-await shader.compile(skyTarget.write);
+await skyAsleep.compile(skyTarget.write);
+await skyAwake.compile(skyTarget.write);
 await waves.compile(wavesTarget);
 await foam.compile(foamTarget.write);
-await water.compile(output);
-if (baseWater) await baseWater.compile(output);
+await waterAsleep.compile(output);
+await waterAwake.compile(output);
+if (baseWater && baseWater !== waterAsleep) await baseWater.compile(output);
 // Optional view: [heading in degrees, pitch in radians, optional [x, y, z]
 // coast metres]; default is home.
 for (const [name, time, weather, rain, view, windOverride, skyOptions] of [
@@ -253,6 +275,25 @@ for (const [name, time, weather, rain, view, windOverride, skyOptions] of [
   ["after-sunset", "2026-09-08T16:36:00Z", [0, 0, 0, 0], 0],
   // The last sliver of the sun over a clean sea horizon.
   ["green-flash", "2026-09-08T16:32:40Z", [0, 0, 0, 0.05], 0, [276.2, 0.0], null, { sunlit: 1 }],
+  // sea-sky-magic: the gifts awake. skyOptions.magic: { gifts, age (s since
+  // they woke), pulse, call, time (the scene clock) }. MAGIC=0 renders any
+  // of them asleep, for side-by-side A/B.
+  ["tideglow", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [44, -0.12, [8.3, 2, 1.7]], null, { magic: { gifts: ["tideglow"] } }],
+  ["tideglow-rocks", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [104.7, -0.6, [126, 5, 56]], null, { magic: { gifts: ["tideglow"] } }],
+  ["tideglow-rain", "2026-09-10T19:30:00Z", [0.7, 0.4, 0.3, 0.8], 2.5, [44, -0.25, [8.3, 3, 1.7]], null, { magic: { gifts: ["tideglow"] } }],
+  ["tideglow-day", "2026-09-08T12:00:00Z", [0, 0, 0, 0], 0, [351, -0.6, [3.6, 10, -4.8]], null, { magic: { gifts: ["tideglow"] } }],
+  ["stars-drawing", "2026-09-10T18:45:00Z", [0, 0, 0, 0], 0, [200, 0.35], null, { magic: { gifts: ["stars"], age: 5 } }],
+  ["stars-drawn", "2026-09-10T18:45:00Z", [0, 0, 0, 0], 0, [200, 0.35], null, { magic: { gifts: ["stars"], age: 40 } }],
+  ["stars-sea", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [200, 0.12, [8.3, 3, 1.7]], null, { magic: { gifts: ["stars"], age: 40 } }],
+  // A meow at 22.0: the falling star that answers it, mid-flight.
+  ["stars-call", "2026-09-10T18:45:00Z", [0, 0, 0, 0], 0, [200, 0.35], null, { magic: { gifts: ["stars"], age: 40, call: { at: 22.6, x: 0, z: 0 } } }],
+  ["stars-day", "2026-09-08T12:00:00Z", [0, 0, 0, 0], 0, [200, 0.35], null, { magic: { gifts: ["stars"], age: 40 } }],
+  ["lamp", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [123.4, -0.1, [127.8, 4, 40]], null, { magic: { gifts: ["lamp"], time: 26.6 } }],
+  ["lamp-far", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [60, -0.06, [8.3, 3, 1.7]], null, { magic: { gifts: ["lamp"], time: 28.3 } }],
+  ["pulse", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [292, -0.12, [8.3, 4, 1.7]], null, { magic: { gifts: [], pulse: { x: -9.4, z: 43.8, at: 22.2, gift: "tideglow", speed: 18, reach: 150 } } }],
+  ["pulse-day", "2026-09-08T15:00:00Z", [0, 0, 0, 0], 0, [292, -0.12, [8.3, 4, 1.7]], null, { magic: { gifts: [], pulse: { x: -9.4, z: 43.8, at: 22.2, gift: "lamp", speed: 18, reach: 150 } } }],
+  ["finale", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [200, 0.3, [8.3, 3, 1.7]], null, { magic: { gifts: ["fireflies", "tideglow", "lamp", "stars", "seafolk", "boat", "finale"], age: 40 } }],
+  ["finale-sea", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [44, -0.15, [8.3, 6, 1.7]], null, { magic: { gifts: ["fireflies", "tideglow", "lamp", "stars", "seafolk", "boat", "finale"], age: 40 } }],
 ]) {
   // ONLY=name,name: render just those fixtures (quick A/B runs).
   if (process.env.ONLY && !process.env.ONLY.split(",").includes(name)) continue;
@@ -306,11 +347,22 @@ for (const [name, time, weather, rain, view, windOverride, skyOptions] of [
     lighting: light,
     force: skyOptions?.force ?? null,
     view: { azimuth: atmosphere.flight[3], pitch: atmosphere.pitch },
+    // sea-sky-magic: the stars gift's meteors and a meow's answer.
+    magic: skyOptions?.magic && process.env.MAGIC !== "0" ? { stars: skyOptions.magic.gifts?.includes("stars") ? 1 : 0, finale: skyOptions.magic.gifts?.includes("finale") ? 1 : 0, callAt: skyOptions.magic.call?.at } : null,
   });
   // NO_EVENTS=1: the same fixture with every sky event off, to cost them.
   if (!process.env.NO_EVENTS) Object.assign(atmosphere, events.uniforms);
   else Object.assign(atmosphere, quietSkyUniforms());
   if (process.env.EVENTS) console.log(name, JSON.stringify(events.uniforms));
+  // sea-sky-magic: asleep unless the fixture wakes gifts (MAGIC=0: asleep).
+  const magicOptions = process.env.MAGIC === "0" ? null : skyOptions?.magic;
+  if (magicOptions?.time) atmosphere.time = magicOptions.time;
+  const magicRecord = magicFixture({ ...magicOptions, clock: atmosphere.time });
+  Object.assign(atmosphere, magicUniforms(magicRecord, { time: atmosphere.time, lamp: LAMP }));
+  const awake = magicActive(atmosphere);
+  shader = awake ? skyAwake : skyAsleep;
+  water = awake ? waterAwake : waterAsleep;
+  if (process.env.EVENTS && magicOptions) console.log(name, JSON.stringify(magicUniforms(magicRecord, { time: atmosphere.time, lamp: LAMP })));
   timings.length = 0;
   waterTimings.length = 0;
   seaTimings.length = 0;
@@ -368,7 +420,7 @@ for (const [name, time, weather, rain, view, windOverride, skyOptions] of [
     }
     console.log(`${name} bench ms/frame:`, JSON.stringify(bench));
     if (baseWater) {
-      baseWater.set({ atmosphere: benchSea, skyTexture: skyTarget.write.color, foamLayer: foamTarget.write.color });
+      baseWater.set({ atmosphere: process.env.AB_MAGIC ? { ...benchSea, ...quietMagicUniforms() } : benchSea, skyTexture: skyTarget.write.color, foamLayer: foamTarget.write.color });
       const best = { base: Infinity, water: Infinity };
       // Each round's ratio too: other work on a shared GPU slows neighbouring
       // runs alike, so their median holds where the minima drift.

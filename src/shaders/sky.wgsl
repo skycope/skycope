@@ -202,6 +202,11 @@ fn noise3(p: vec3f) -> f32 {
 fn atmosphere_color(ray: vec3f, sun: vec3f, moon: vec3f, night: f32, exposure: f32) -> vec3f {
   // Sun and scotopic moon scattering, from the sky-view table.
   var color = textureSampleLevel(skyTable, cloudSampler, lut_uv(ray), 0.0).rgb * exposure;
+  // sea-sky-magic: by day the stars gift deepens the zenith a little.
+  if (MAGIC_AWAKE && atmosphere.magic.y > 0.0) {
+    let up = smoothstep(0.15, 0.9, ray.y) * atmosphere.magic.y * (1.0 - night);
+    color *= mix(vec3f(1.0), vec3f(0.74, 0.84, 1.0), up);
+  }
   // Airglow and scattered starlight: the darkest sky is never pure black.
   color += vec3f(0.004, 0.007, 0.014) * night * (1.0 + (1.0 - clamp(ray.y, 0.0, 1.0)) * 1.5);
 
@@ -234,8 +239,29 @@ fn atmosphere_color(ray: vec3f, sun: vec3f, moon: vec3f, night: f32, exposure: f
         + noise3(gal * 8.9 + 7.0) * 0.1;
       let fine = noise3(gal * 17.0 + 5.0) * 0.6 + noise3(gal * 37.0 + 1.0) * 0.4;
       let extinction = exp(-0.3 / max(ray.y, 0.02)) * smoothstep(0.0, 0.08, ray.y);
-      color += milky_way(eq, clump, fine) * extinction * night;
-      color += to_linear(constellation_lines(ray)) * night * 0.8;
+      var galaxy = milky_way(eq, clump, fine);
+      // sea-sky-magic: the stars gift deepens the Milky Way: brighter star
+      // clouds, darker lanes between them, a warmer core; the finale more.
+      let lean = atmosphere.magic.y + atmosphere.magic.w;
+      if (MAGIC_AWAKE && lean > 0.0) {
+        let lum = dot(galaxy, vec3f(0.2126, 0.7152, 0.0722));
+        let depth = mix(0.7, 1.6, smoothstep(0.35, 0.75, clump * 0.7 + fine * 0.3));
+        let warm = mix(vec3f(0.85, 0.9, 1.15), vec3f(1.2, 1.0, 0.8), smoothstep(0.004, 0.02, lum));
+        galaxy = mix(galaxy, galaxy * depth * warm * 1.5, min(lean, 1.5) * 0.66);
+      }
+      color += galaxy * extinction * night;
+      // sea-sky-magic: the sky leans close: the airglow shows, a faint green
+      // band of oxygen light ~100 km up, brightest a few degrees above the
+      // horizon (seen edge-on), rippled by gravity waves, with the red
+      // 630 nm layer above it.
+      if (MAGIC_AWAKE && lean > 0.0) {
+        let waves = 0.65 + 0.35 * noise3(vec3f(ray.xz / max(ray.y + 0.25, 0.1) * 1.3, atmosphere.time * 0.01));
+        let green = exp(-pow((ray.y - 0.09) / 0.07, 2.0)) * waves;
+        let red = exp(-pow((ray.y - 0.2) / 0.12, 2.0)) * (1.2 - waves * 0.5);
+        let haze = smoothstep(-0.01, 0.03, ray.y);
+        color += (vec3f(0.12, 0.42, 0.16) * green + vec3f(0.3, 0.04, 0.06) * red * 0.35) * 0.02 * min(lean, 1.5) * night * haze;
+      }
+      color += constellation_lines(ray) * night;
       // sky-events: the zodiacal light, on moonless nights far from twilight.
       if (atmosphere.optics.y > 0.0) {
         color += vec3f(1.0, 0.94, 0.84) * zodiacal_light(ray, eq, sun) * extinction * night * atmosphere.optics.y * 0.2;
@@ -245,12 +271,44 @@ fn atmosphere_color(ray: vec3f, sun: vec3f, moon: vec3f, night: f32, exposure: f
   return overcast_sky(color, atmosphere.weather.w, atmosphere.rain);
 }
 
+// The constellation figures (atlas channels: see constellationAtlas in
+// src/star-catalog.js). Asleep: a faint blue-grey line, as they always were.
+// sea-sky-magic, the stars gift: each figure draws itself, a pen of light
+// running star to star over a few seconds (figures in turn), the lines
+// holding softly after with a shimmer running along them; strongest where
+// the camera looks. The finale lights every figure fully.
+const FIGURE_LINE: vec3f = vec3f(0.0324, 0.047, 0.0559);
+const FIGURE_LIGHT: vec3f = vec3f(0.74, 0.8, 1.0);
+const PEN_LIGHT: vec3f = vec3f(1.0, 0.86, 0.62);
 fn constellation_lines(ray: vec3f) -> vec3f {
   let latitude = atmosphere.celestial.y;
   let declination = asin(clamp(ray.z * cos(latitude) + ray.y * sin(latitude), -1.0, 1.0));
   let hour_angle = atan2(-ray.x, ray.y * cos(latitude) - ray.z * sin(latitude));
   let ra = atmosphere.celestial.x - hour_angle;
   let coordinates = vec2f(fract(ra / 6.283185), 0.5 - declination / 3.141593);
-  let stars = textureSampleLevel(starAtlas, cloudSampler, coordinates, 0.0).rgb;
-  return stars * smoothstep(0.0, 0.10, ray.y);
+  let atlas = textureSampleLevel(starAtlas, cloudSampler, coordinates, 0.0);
+  let horizon = smoothstep(0.0, 0.10, ray.y);
+  var light = to_linear(atlas.r * FIGURE_LINE) * 0.8;
+  let gift = max(atmosphere.magic.y, atmosphere.magic.w);
+  if (MAGIC_AWAKE && gift > 0.0 && (atlas.r > 0.0 || atlas.a > 0.0)) {
+    // Each figure starts in turn over the first seconds, and takes ~4 s.
+    let start = 0.6 + atlas.b * 8.0;
+    let progress = clamp((atmosphere.magic2.x - start) / 4.0, 0.0, 1.2);
+    let ahead = progress - atlas.g;
+    let drawn = clamp(ahead * 60.0, 0.0, 1.0);
+    // The pen's head: a bright bead with a short glowing wake.
+    let pen = exp(-ahead * ahead * 900.0) * select(0.0, 1.0, progress < 1.01) + exp(-max(ahead, 0.0) * 30.0) * drawn * 0.6 * select(0.0, 1.0, progress < 1.1);
+    let shimmer = 0.75 + 0.25 * sin(atlas.g * 70.0 - atmosphere.time * 2.2 + atlas.b * 40.0);
+    let forward = vec3f(sin(atmosphere.flight.w) * cos(atmosphere.pitch), sin(atmosphere.pitch), cos(atmosphere.flight.w) * cos(atmosphere.pitch));
+    let look = 0.45 + 0.55 * smoothstep(0.55, 0.97, dot(ray, forward));
+    let hold = (0.05 + 0.07 * atmosphere.magic.w) * shimmer * mix(look, 1.0, atmosphere.magic.w * 0.6);
+    // A fine luminous thread: the filtered ridge's crest, sharpened, in a
+    // faint wide glow of its own.
+    let thread = smoothstep(0.42, 0.95, atlas.r) + atlas.r * 0.22;
+    let lines = thread * drawn * hold;
+    let nodes = atlas.a * drawn * (0.05 + pen * 1.2) * look;
+    // The pen burns warm, the lines it leaves cool.
+    light = mix(light, FIGURE_LIGHT * (lines + nodes) + PEN_LIGHT * thread * pen * 0.9, gift);
+  }
+  return light * horizon;
 }

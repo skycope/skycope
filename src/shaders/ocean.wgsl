@@ -3,6 +3,8 @@ import { lut_uv, overcast_sky } from "./skyview.wgsl";
 import { rock_slots, rock_sea, rock_traces, rock_hides, RockSea, RockHit, RockHits } from "./rocks.wgsl";
 import { cat_near, cat_sea } from "./wake.wgsl";
 import { archipelago_hit, archipelago_sun, archipelago_radiance } from "./archipelago.wgsl";
+import { SeaPoint, tideglow, lamp_on_sea, pulse_on_sea, wisp_on_sea } from "./sea-magic.wgsl";
+
 
 // Camera-relative metres: x right, y up, z toward the coast. Everything here is
 // linear light in the sky pass's exposed units; water.wgsl tonemaps once.
@@ -30,6 +32,13 @@ export struct OceanSettings {
   cloud_transmission: f32,
   // Camera lean, matching view_uv so sampled reflected silhouettes align.
   pointer: vec2f,
+  // sea-sky-magic: the Atmosphere fields of the same names (view.wgsl).
+  magic: vec4f,
+  pulse: vec4f,
+  pulse_colour: vec4f,
+  lamp: vec4f,
+  wisp: vec4f,
+  wisp_colour: vec4f,
 };
 
 // Clear coastal water: pure-water absorption takes red within a metre or two
@@ -146,6 +155,8 @@ export fn ocean_view(
     }
   }
   // The cat swimming or wading: its collar, trail, ripples and splashes.
+  // sea-sky-magic: how much it stirs the water, for the tideglow.
+  var stir = 0.0;
   if (cat_near(p.xz, cat_wake)) {
     let cat = cat_sea(p.xz, near_pixel, settings.time, cat_wake);
     // A bad texel (a clock jump, a zero-width ring) must never blank the sea:
@@ -162,10 +173,11 @@ export fn ocean_view(
     }
     rock.bubbles = max(rock.bubbles, cat.bubbles);
     rock.occlusion = max(rock.occlusion, cat.occlusion);
+    if (MAGIC_AWAKE) { stir = clamp(max(cat.foam, cat.bubbles) + length(cat.slope) * 3.0, 0.0, 1.5); }
     }
   }
   return ocean(p, metrics, direction, light, sky, sea, footprint, distance, settings, noise, filtering, sky_texture,
-    waves1, waves2, waves3, foam_layer, rock, slots, shore_rocks, sky_table, land_field, island_table);
+    waves1, waves2, waves3, foam_layer, rock, slots, shore_rocks, sky_table, land_field, island_table, stir);
 }
 
 fn ocean(
@@ -174,7 +186,7 @@ fn ocean(
   noise: texture_3d<f32>, filtering: sampler, sky_texture: texture_2d<f32>,
   waves1: texture_2d<f32>, waves2: texture_2d<f32>, waves3: texture_2d<f32>, foam_layer: texture_2d<f32>,
   rock: RockSea, slots: vec4u, shore_rocks: texture_2d<f32>, sky_table: texture_2d<f32>,
-  land_field: texture_2d<f32>, island_table: texture_2d<f32>,
+  land_field: texture_2d<f32>, island_table: texture_2d<f32>, stir: f32,
 ) -> vec3f {
   // Keep most wave slope even at grazing angles: distant water must stay
   // textured so the sun path breaks into streaks instead of a smooth band.
@@ -423,7 +435,8 @@ fn ocean(
     if (pixel < 1.2) {
       glitter += glints(p.xz, ray, light, normal, sea.variance, footprint, settings.time) * fresnel_glint(nv_lobe) / 0.9;
     }
-    color += sun_disc * glitter * 0.9 * (1.0 - cover);
+    // sea-sky-magic: the finale doubles the moon's path.
+    color += sun_disc * glitter * 0.9 * (1.0 - cover) * (1.0 + select(0.0, settings.magic.w * night, MAGIC_AWAKE));
   }
 
   // ---- Foam and whitewater. -------------------------------------------------
@@ -457,6 +470,27 @@ fn ocean(
       sparks = step(0.95, h.y) * spot * (0.3 + 0.7 * fract(h.x * 37.1)) * glow * (1.0 - smoothstep(0.02, 0.06, pixel));
     }
     color += vec3f(0.05, 0.42, 0.95) * (body * 0.16 + sparks * 1.2);
+  }
+
+  // ---- sea-sky-magic: the awakened gifts on the water (sea-magic.wgsl). ----
+  // All zero while every gift sleeps: one uniform test, no work.
+  if (MAGIC_AWAKE && (any(settings.magic.xzw > vec3f(0.0)) || settings.pulse.w > 0.0 || settings.wisp.w > 0.0)) {
+    let point = SeaPoint(p, metrics, ray, normal, sea.phase, sea.breaking, sea.height, foam, rock.edge, stir,
+      pixel, depth, fresnel);
+    if (settings.magic.x > 0.0) {
+      color += tideglow(point, settings.magic.x, settings.magic.w, night, settings.time, settings.rain,
+        dot(ambient_light, vec3f(0.2126, 0.7152, 0.0722)));
+    }
+    if (settings.magic.z > 0.0 && settings.lamp.y > 0.0) {
+      color += lamp_on_sea(point, settings.lamp, settings.magic.z, night);
+    }
+    if (settings.pulse.w > 0.0) {
+      let brightness = max(0.7, dot(settings.skylight, vec3f(0.2126, 0.7152, 0.0722)) * 2.5);
+      color += pulse_on_sea(point, settings.pulse, settings.pulse_colour, settings.time, brightness);
+    }
+    if (settings.wisp.w > 0.0) {
+      color += wisp_on_sea(point, settings.wisp, settings.wisp_colour.rgb);
+    }
   }
 
   // Aerial perspective: air, not a wall of fog. The horizon stays crisp.

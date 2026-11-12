@@ -38,6 +38,8 @@ import { lightingAt } from "./sunlight.js";
 import { createSkyEvents, parseSkyForce, skySpectacles } from "./sky-events.js";
 import { spectacleSeen } from "./discoveries.js";
 import { createMagic, parseMagicForce } from "./magic.js";
+// sea-sky-magic: the gifts' sea and sky uniforms (src/sea-sky-magic.js).
+import { magicUniforms, magicVariant, magicActive } from "./sea-sky-magic.js";
 import { archipelagoUniform, archipelagoSunVisibility, ISLAND_SLOTS } from "./archipelago.js";
 import { createWeatherPanel } from "./weather-panel.js";
 import { createWalker, surfaceKind, SWIM_LIMIT } from "./walker.js";
@@ -591,17 +593,21 @@ async function startAtmosphere() {
       skyTable: skyTable.color,
     },
   });
-  const atmosphere = effect(gpu, skyShader, {
+  // sea-sky-magic: the sky and water passes compile the gifts out
+  // (magicVariant) while every gift sleeps; the awake pipelines are built
+  // the first time a magic uniform is non-zero (wakeMagicPasses).
+  const skySet = {
+    atmosphere: createUniforms(),
+    cloudNoise: noise.createView(),
+    starAtlas: stars.createView(),
+    cloudSampler: skySampler,
+    skyTable: skyTable.color,
+    cloudLayer: cloudTarget.color,
+    cloudHistory: skyTarget.read.colors[1],
+  };
+  const atmosphere = effect(gpu, magicVariant(skyShader, false), {
     label: "skycope-cape-town",
-    set: {
-      atmosphere: createUniforms(),
-      cloudNoise: noise.createView(),
-      starAtlas: stars.createView(),
-      cloudSampler: skySampler,
-      skyTable: skyTable.color,
-      cloudLayer: cloudTarget.color,
-      cloudHistory: skyTarget.read.colors[1],
-    },
+    set: skySet,
   });
   state.atmosphere = atmosphere;
   const seaSampler = sampler(gpu, {
@@ -623,24 +629,22 @@ async function startAtmosphere() {
       filtering: seaSampler,
     },
   });
-  const water = effect(gpu, waterShader, {
-    label: "skycope-water",
-    set: {
-      atmosphere: createUniforms(),
-      cloudNoise: noise.createView(),
-      skyTexture: skyTarget.write.color,
-      starCatalog: starCatalog.createView(),
-      waves0: wavesTarget.colors[0],
-      waves1: wavesTarget.colors[1],
-      waves2: wavesTarget.colors[2],
-      waves3: wavesTarget.colors[3],
-      foamLayer: foamTarget.write.color,
-      skyTable: skyTable.color,
-      // Repeat: the ocean tiles the noise volume and wave cascades across the
-      // whole sea. Sky lookups clamp their own coordinates.
-      filtering: seaSampler,
-    },
-  });
+  const waterSet = {
+    atmosphere: createUniforms(),
+    cloudNoise: noise.createView(),
+    skyTexture: skyTarget.write.color,
+    starCatalog: starCatalog.createView(),
+    waves0: wavesTarget.colors[0],
+    waves1: wavesTarget.colors[1],
+    waves2: wavesTarget.colors[2],
+    waves3: wavesTarget.colors[3],
+    foamLayer: foamTarget.write.color,
+    skyTable: skyTable.color,
+    // Repeat: the ocean tiles the noise volume and wave cascades across the
+    // whole sea. Sky lookups clamp their own coordinates.
+    filtering: seaSampler,
+  };
+  const water = effect(gpu, magicVariant(waterShader, false), { label: "skycope-water", set: waterSet });
   state.water = water;
   // Let the loading veil paint before synchronous seeded geometry preparation.
   await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -669,7 +673,8 @@ async function startAtmosphere() {
     usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
   });
   updateIslandTable(islandTable, state.flight ?? FIRST_VIEW, state.celestial);
-  water.set({ shoreRocks: shore.rocks.createView(), shoreGrid: shore.grid.createView(), landField: land.createView(), catWake: state.wakeTexture.createView(), islandTable: islandTable.createView() });
+  Object.assign(waterSet, { shoreRocks: shore.rocks.createView(), shoreGrid: shore.grid.createView(), landField: land.createView(), catWake: state.wakeTexture.createView(), islandTable: islandTable.createView() });
+  water.set(waterSet);
   state.sea = createSea(state.seed, waveModes.data);
   state.walker = createWalker(state.landscape.obstacles, state.sea, state.wake);
   applyReviewFixture(state.walker, review, state.landscape.obstacles);
@@ -689,6 +694,34 @@ async function startAtmosphere() {
   gpu.gpu.lost.then((info) => {
     if (!state.disposed && state.gpu === gpu) useFallback(info.message);
   });
+  // sea-sky-magic: build and compile the awake sky and water pipelines once,
+  // off the frame; until they are ready the asleep ones keep drawing.
+  const magicPasses = { started: false, sky: null, water: null };
+  const wakeMagicPasses = () => {
+    if (magicPasses.started) return;
+    magicPasses.started = true;
+    // The render targets may have been resized since start: bind today's.
+    let sky, sea;
+    try {
+    sky = effect(gpu, magicVariant(skyShader, true), {
+      label: "skycope-cape-town-magic",
+      set: { ...skySet, cloudLayer: cloudTarget.color, cloudHistory: skyTarget.read.colors[1] },
+    });
+    sea = effect(gpu, magicVariant(waterShader, true), {
+      label: "skycope-water-magic",
+      set: { ...waterSet, skyTexture: skyTarget.write.color, foamLayer: foamTarget.read.color },
+    });
+    } catch (error) {
+      // The gifts stay unseen rather than the sky failing.
+      console.error("sea-sky-magic: awake pipelines", error);
+      return;
+    }
+    Promise.all([sky.compile(skyTarget.write), sea.compile({ colors: [output.format] })]).then(() => {
+      if (state.gpu !== gpu || state.disposed) return;
+      magicPasses.sky = sky;
+      magicPasses.water = sea;
+    }, useFallback);
+  };
   const gpuClock = clock(gpu);
   state.renderFrame = (currentFrame) => {
     const cpuStarted = performance.now();
@@ -707,6 +740,11 @@ async function startAtmosphere() {
     }
     state.magic.update(motionPreference.matches ? 0 : dt, state.time);
     const uniforms = createUniforms();
+    // sea-sky-magic: the awake pipelines while any gift (or pulse, wisp) shows.
+    const magicOn = magicActive(uniforms);
+    if (magicOn) wakeMagicPasses();
+    const skyPass = magicOn && magicPasses.sky ? magicPasses.sky : atmosphere;
+    const waterPass = magicOn && magicPasses.water ? magicPasses.water : water;
     const wind = uniforms.wind;
     modes.write(waveModes.update(state.time, wind));
     // Whitecaps need wind; once the last foam has long decayed in a calm,
@@ -736,14 +774,14 @@ async function startAtmosphere() {
     cloudPass.set({ atmosphere: skyUniforms });
     // Textures are rebound every frame: the history alternates, and a resize
     // replaces the cloud layer's texture.
-    atmosphere.set({
+    skyPass.set({
       atmosphere: skyUniforms,
       cloudLayer: cloudTarget.color,
       cloudHistory: skyTarget.read.colors[1],
     });
     if (stepFoam) foamPass.set({ atmosphere: seaUniforms, foamHistory: foamTarget.read.color });
     // Between steps the water reads the history last written.
-    water.set({ atmosphere: seaUniforms, skyTexture: skyTarget.write.color, foamLayer: stepFoam ? foamTarget.write.color : foamTarget.read.color });
+    waterPass.set({ atmosphere: seaUniforms, skyTexture: skyTarget.write.color, foamLayer: stepFoam ? foamTarget.write.color : foamTarget.read.color });
     updateIslandTable(islandTable, state.flight, state.celestial);
     const wake = state.wake.pack();
     if (wake) gpu.gpu.queue.writeTexture({ texture: state.wakeTexture }, wake, { bytesPerRow: 64 * 16 }, [64, 1]);
@@ -751,8 +789,8 @@ async function startAtmosphere() {
     if (stepFoam) currentFrame.pass(foamTarget.write, foamPass);
     currentFrame.pass(skyTable, tablePass);
     currentFrame.pass(cloudTarget, cloudPass);
-    currentFrame.pass(skyTarget.write, atmosphere);
-    currentFrame.pass(output, water);
+    currentFrame.pass(skyTarget.write, skyPass);
+    currentFrame.pass(output, waterPass);
     skyTarget.swap();
     state.skyFrames++;
     if (stepFoam) {
@@ -895,7 +933,20 @@ function createUniforms() {
     // Filled in per frame for the sea passes.
     ocean: [0, 0, 0, state.landscape?.cloudTransmission ?? 1],
     ...skyEventUniforms(sky, weather, light, view),
+    // sea-sky-magic: the awakened gifts for the sea and sky (all zero asleep).
+    ...magicUniforms(state.magic, { time: state.time, lamp: lampPosition() }),
   };
+}
+
+// sea-sky-magic: the lighthouse lamp in coast metres (place-lighthouse.js
+// puts it ~15 m above the ground at the tower's foot), once the land exists.
+function lampPosition() {
+  if (state.lampPosition !== undefined) return state.lampPosition;
+  const pois = state.landscape?.pois;
+  if (!pois) return null;
+  const tower = pois.find((p) => p.id === "lighthouse");
+  state.lampPosition = tower ? { x: tower.x, y: groundHeight(tower.x, tower.z) + 15.2, z: tower.z } : null;
+  return state.lampPosition;
 }
 
 // sky-events: this frame's sky events. `state.skyEvents.on(fn)` publishes
@@ -914,6 +965,8 @@ function skyEventUniforms(sky, weather, light, view) {
     lighting: light,
     view,
     frameSeconds: Math.min(0.05, state.frameMs / 1000),
+    // sea-sky-magic: the stars gift's meteors and the meow's falling star.
+    magic: { stars: state.magic.levels.stars, finale: state.magic.levels.finale, callAt: state.magic.call?.at },
   });
   return state.skyFrame.uniforms;
 }
