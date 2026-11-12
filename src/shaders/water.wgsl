@@ -73,10 +73,10 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   if (ray.y > -0.001) {
     color += night_sky(ray, night, sky_sample.a * above_sea, dot(sky, vec3f(0.2126, 0.7152, 0.0722)));
     // sea-sky-magic: the finale's storm of falling stars.
-    if (atmosphere.magic.w > 0.0 && night > 0.01 && ray.y > 0.0) {
+    if (MAGIC_AWAKE && atmosphere.magic.w > 0.0 && night > 0.01 && ray.y > 0.0) {
       color += meteor_storm(ray) * night * sky_sample.a * above_sea * atmosphere.magic.w;
     }
-  } else if (atmosphere.magic.y > 0.0 && night > 0.01) {
+  } else if (MAGIC_AWAKE && atmosphere.magic.y > 0.0 && night > 0.01) {
     // sea-sky-magic: the stars gift on a calm night: bright stars mirrored
     // in the sea as a broken path, each row of swell tilting them aside.
     color += star_path(ray, night, sky_sample.a);
@@ -108,7 +108,7 @@ fn night_sky(ray: vec3f, night: f32, clear: f32, background: f32) -> vec3f {
   var moon_cover = 0.0;
   if (length(ray - atmosphere.moon) < 0.019 + pixel * 2.0) {
     // sea-sky-magic: the stars gift makes the day moon a little more present.
-    let moonlight = sun_radiance(atmosphere.moon) * min(atmosphere.light.w, 0.95) * (1.0 + atmosphere.magic.y * 0.6 * (1.0 - night));
+    let moonlight = sun_radiance(atmosphere.moon) * min(atmosphere.light.w, 0.95) * (1.0 + select(0.0, atmosphere.magic.y * 0.6 * (1.0 - night), MAGIC_AWAKE));
     let moon = moon_disc(ray, atmosphere.moon, atmosphere.sun, sidereal, latitude, pixel, 0.019, moonlight);
     light = moon.rgb * moon.a * clear;
     moon_cover = moon.a;
@@ -117,7 +117,7 @@ fn night_sky(ray: vec3f, night: f32, clear: f32, background: f32) -> vec3f {
     let eq = equatorial_from_local(ray, sidereal, latitude);
     let airmass = 1.0 / max(ray.y, 0.02);
     let extinction = exp(-0.28 * (airmass - 1.0)) * smoothstep(0.0, 0.05, ray.y);
-    let lean = atmosphere.magic.y + atmosphere.magic.w * 0.5;
+    let lean = select(0.0, atmosphere.magic.y + atmosphere.magic.w * 0.5, MAGIC_AWAKE);
     var axis_u = vec3f(0.0);
     var axis_v = vec3f(0.0);
     if (lean > 0.0) {

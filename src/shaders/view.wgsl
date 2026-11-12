@@ -70,6 +70,13 @@ export struct Atmosphere {
   wispColour: vec4f,
 };
 
+// sea-sky-magic: false compiles every gift's code out of the sky and water
+// pipelines (the default the site runs while every gift sleeps: unexecuted
+// code still costs registers). src/sea-sky-magic.js magicVariant() flips it
+// in the shader text by its @id; main.js swaps to the awake pipelines the
+// first time a magic field is non-zero.
+@id(7301) override MAGIC_AWAKE: bool = true;
+
 export fn view_ray(uv: vec2f, resolution: vec2f, pointer: vec2f, azimuth: f32, pitch: f32) -> vec3f {
   let aspect = resolution.x / resolution.y;
   let screen = (vec2f(uv.x, 1.0 - uv.y) - 0.5) * vec2f(aspect, 1.0);

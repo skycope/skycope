@@ -75,3 +75,14 @@ test("the stars gift brings meteors and answers a meow with a falling star", asy
   // Unchanged without magic.
   assert.deepEqual(skyEventFrame({ ...base, time: 120 }).uniforms, skyEventFrame({ ...base, time: 120, magic: null }).uniforms);
 });
+
+test("magicVariant compiles the gifts in or out by the MAGIC_AWAKE override", async () => {
+  const { magicVariant, magicActive, quietMagicUniforms } = await import("../src/sea-sky-magic.js");
+  const view = readFileSync(new URL("../src/shaders/view.wgsl", import.meta.url), "utf8");
+  assert.match(magicVariant(view, false), /@id\(7301\) override MAGIC_AWAKE: bool = false;/);
+  assert.match(magicVariant("@id(7301) override a:bool=true;", false), /a:bool=false;/);
+  assert.deepEqual(magicVariant({ version: 1, wgsl: "@id(7301) override a:bool=false;" }, true), { version: 1, wgsl: "@id(7301) override a:bool=true;" });
+  assert.throws(() => magicVariant("fn x() {}", false));
+  assert.equal(magicActive(quietMagicUniforms()), false);
+  assert.equal(magicActive({ ...quietMagicUniforms(), wisp: [1, 2, 3, 0.5] }), true);
+});

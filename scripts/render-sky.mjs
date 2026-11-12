@@ -20,7 +20,7 @@ import { cloudTransmission } from "../src/cloud-transmission.js";
 import { CATALOG_SIZE, starCatalogCells, halfFloats, constellationAtlas } from "../src/star-catalog.js";
 import { skyEventFrame, quietSkyUniforms } from "../src/sky-events.js";
 // sea-sky-magic: the awakened gifts' sea and sky (src/sea-sky-magic.js).
-import { magicUniforms, magicFixture } from "../src/sea-sky-magic.js";
+import { magicUniforms, magicFixture, quietMagicUniforms, magicVariant, magicActive } from "../src/sea-sky-magic.js";
 import { placesLayout } from "../src/place-layout.js";
 import { groundHeight } from "../src/terrain.js";
 
@@ -79,7 +79,10 @@ const table = effect(gpu, await wgsl("sky-table.wgsl"), { set: {} });
 const clouds = effect(gpu, await wgsl("clouds.wgsl"), {
   set: { cloudNoise: noise.createView(), cloudSampler: skySampler, skyTable: tableTarget.color },
 });
-const shader = effect(gpu, await wgsl("sky.wgsl"), {
+// sea-sky-magic: each pass in two pipelines, the gifts compiled in or out
+// (magicVariant); a fixture uses the awake ones only when it wakes a gift.
+const skySource = await wgsl("sky.wgsl");
+const skyEffect = (awake) => effect(gpu, magicVariant(skySource, awake), {
   set: {
     cloudNoise: noise.createView(),
     starAtlas: stars.createView(),
@@ -89,6 +92,9 @@ const shader = effect(gpu, await wgsl("sky.wgsl"), {
     cloudHistory: skyTarget.read.colors[1],
   },
 });
+const skyAsleep = skyEffect(false);
+const skyAwake = skyEffect(true);
+let shader = skyAsleep;
 const JITTER = [[0, 0], [1, 1], [1, 0], [0, 1]];
 let benchSea = null;
 // The wind-sea cascades and the whitecap history (see src/main.js).
@@ -124,16 +130,15 @@ const catWake = gpu.gpu.createTexture({
   format: "rgba32float",
   usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
 });
-const water = effect(
+const waterSource = (
+  await resolveShader({
+    entry: fileURLToPath(new URL("../src/shaders/water.wgsl", import.meta.url)),
+    validate: "off",
+  })
+).wgsl;
+const waterEffect = (awake) => effect(
   gpu,
-  (
-    await resolveShader({
-      entry: fileURLToPath(
-        new URL("../src/shaders/water.wgsl", import.meta.url),
-      ),
-      validate: "off",
-    })
-  ).wgsl,
+  magicVariant(waterSource, awake),
   {
     set: {
       cloudNoise: noise.createView(),
@@ -160,9 +165,16 @@ const water = effect(
     },
   },
 );
+const waterAsleep = waterEffect(false);
+const waterAwake = waterEffect(true);
+let water = waterAsleep;
 // BASE_WATER=path/to/water.wgsl: a second water shader (an older checkout's)
 // benched against this one, interleaved in the same process (BENCH=1).
-const baseWater = process.env.BASE_WATER
+// AB_MAGIC=1 (sea-sky-magic): the base is this water shader as the site
+// runs it with every gift asleep, so a fixture's awake cost is benched.
+const baseWater = process.env.AB_MAGIC
+  ? waterAsleep
+  : process.env.BASE_WATER
   ? effect(gpu, (await resolveShader({ entry: process.env.BASE_WATER, validate: "off" })).wgsl, {
       set: {
         cloudNoise: noise.createView(),
@@ -194,11 +206,13 @@ gpuTimer.onResults((spans) => {
 });
 await table.compile(tableTarget);
 await clouds.compile(cloudTarget);
-await shader.compile(skyTarget.write);
+await skyAsleep.compile(skyTarget.write);
+await skyAwake.compile(skyTarget.write);
 await waves.compile(wavesTarget);
 await foam.compile(foamTarget.write);
-await water.compile(output);
-if (baseWater) await baseWater.compile(output);
+await waterAsleep.compile(output);
+await waterAwake.compile(output);
+if (baseWater && baseWater !== waterAsleep) await baseWater.compile(output);
 // Optional view: [heading in degrees, pitch in radians, optional [x, y, z]
 // coast metres]; default is home.
 for (const [name, time, weather, rain, view, windOverride, skyOptions] of [
@@ -345,6 +359,9 @@ for (const [name, time, weather, rain, view, windOverride, skyOptions] of [
   if (magicOptions?.time) atmosphere.time = magicOptions.time;
   const magicRecord = magicFixture({ ...magicOptions, clock: atmosphere.time });
   Object.assign(atmosphere, magicUniforms(magicRecord, { time: atmosphere.time, lamp: LAMP }));
+  const awake = magicActive(atmosphere);
+  shader = awake ? skyAwake : skyAsleep;
+  water = awake ? waterAwake : waterAsleep;
   if (process.env.EVENTS && magicOptions) console.log(name, JSON.stringify(magicUniforms(magicRecord, { time: atmosphere.time, lamp: LAMP })));
   timings.length = 0;
   waterTimings.length = 0;
@@ -403,7 +420,7 @@ for (const [name, time, weather, rain, view, windOverride, skyOptions] of [
     }
     console.log(`${name} bench ms/frame:`, JSON.stringify(bench));
     if (baseWater) {
-      baseWater.set({ atmosphere: benchSea, skyTexture: skyTarget.write.color, foamLayer: foamTarget.write.color });
+      baseWater.set({ atmosphere: process.env.AB_MAGIC ? { ...benchSea, ...quietMagicUniforms() } : benchSea, skyTexture: skyTarget.write.color, foamLayer: foamTarget.write.color });
       const best = { base: Infinity, water: Infinity };
       // Each round's ratio too: other work on a shared GPU slows neighbouring
       // runs alike, so their median holds where the minima drift.

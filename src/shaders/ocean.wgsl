@@ -5,6 +5,7 @@ import { cat_near, cat_sea } from "./wake.wgsl";
 import { archipelago_hit, archipelago_sun, archipelago_radiance } from "./archipelago.wgsl";
 import { SeaPoint, tideglow, lamp_on_sea, pulse_on_sea, wisp_on_sea } from "./sea-magic.wgsl";
 
+
 // Camera-relative metres: x right, y up, z toward the coast. Everything here is
 // linear light in the sky pass's exposed units; water.wgsl tonemaps once.
 export struct OceanSettings {
@@ -172,7 +173,7 @@ export fn ocean_view(
     }
     rock.bubbles = max(rock.bubbles, cat.bubbles);
     rock.occlusion = max(rock.occlusion, cat.occlusion);
-    stir = clamp(max(cat.foam, cat.bubbles) + length(cat.slope) * 3.0, 0.0, 1.5);
+    if (MAGIC_AWAKE) { stir = clamp(max(cat.foam, cat.bubbles) + length(cat.slope) * 3.0, 0.0, 1.5); }
     }
   }
   return ocean(p, metrics, direction, light, sky, sea, footprint, distance, settings, noise, filtering, sky_texture,
@@ -435,7 +436,7 @@ fn ocean(
       glitter += glints(p.xz, ray, light, normal, sea.variance, footprint, settings.time) * fresnel_glint(nv_lobe) / 0.9;
     }
     // sea-sky-magic: the finale doubles the moon's path.
-    color += sun_disc * glitter * 0.9 * (1.0 - cover) * (1.0 + settings.magic.w * night);
+    color += sun_disc * glitter * 0.9 * (1.0 - cover) * (1.0 + select(0.0, settings.magic.w * night, MAGIC_AWAKE));
   }
 
   // ---- Foam and whitewater. -------------------------------------------------
@@ -473,7 +474,7 @@ fn ocean(
 
   // ---- sea-sky-magic: the awakened gifts on the water (sea-magic.wgsl). ----
   // All zero while every gift sleeps: one uniform test, no work.
-  if (any(settings.magic.xzw > vec3f(0.0)) || settings.pulse.w > 0.0 || settings.wisp.w > 0.0) {
+  if (MAGIC_AWAKE && (any(settings.magic.xzw > vec3f(0.0)) || settings.pulse.w > 0.0 || settings.wisp.w > 0.0)) {
     let point = SeaPoint(p, metrics, ray, normal, sea.phase, sea.breaking, sea.height, foam, rock.edge, stir,
       pixel, depth, fresnel);
     if (settings.magic.x > 0.0) {

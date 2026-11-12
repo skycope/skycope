@@ -203,7 +203,7 @@ fn atmosphere_color(ray: vec3f, sun: vec3f, moon: vec3f, night: f32, exposure: f
   // Sun and scotopic moon scattering, from the sky-view table.
   var color = textureSampleLevel(skyTable, cloudSampler, lut_uv(ray), 0.0).rgb * exposure;
   // sea-sky-magic: by day the stars gift deepens the zenith a little.
-  if (atmosphere.magic.y > 0.0) {
+  if (MAGIC_AWAKE && atmosphere.magic.y > 0.0) {
     let up = smoothstep(0.15, 0.9, ray.y) * atmosphere.magic.y * (1.0 - night);
     color *= mix(vec3f(1.0), vec3f(0.74, 0.84, 1.0), up);
   }
@@ -243,7 +243,7 @@ fn atmosphere_color(ray: vec3f, sun: vec3f, moon: vec3f, night: f32, exposure: f
       // sea-sky-magic: the stars gift deepens the Milky Way: brighter star
       // clouds, darker lanes between them, a warmer core; the finale more.
       let lean = atmosphere.magic.y + atmosphere.magic.w;
-      if (lean > 0.0) {
+      if (MAGIC_AWAKE && lean > 0.0) {
         let lum = dot(galaxy, vec3f(0.2126, 0.7152, 0.0722));
         let depth = mix(0.7, 1.6, smoothstep(0.35, 0.75, clump * 0.7 + fine * 0.3));
         let warm = mix(vec3f(0.85, 0.9, 1.15), vec3f(1.2, 1.0, 0.8), smoothstep(0.004, 0.02, lum));
@@ -278,7 +278,7 @@ fn constellation_lines(ray: vec3f) -> vec3f {
   let horizon = smoothstep(0.0, 0.10, ray.y);
   var light = to_linear(atlas.r * FIGURE_LINE) * 0.8;
   let gift = max(atmosphere.magic.y, atmosphere.magic.w);
-  if (gift > 0.0 && (atlas.r > 0.0 || atlas.a > 0.0)) {
+  if (MAGIC_AWAKE && gift > 0.0 && (atlas.r > 0.0 || atlas.a > 0.0)) {
     // Each figure starts in turn over the first seconds, and takes ~4 s.
     let start = 0.6 + atlas.b * 8.0;
     let progress = clamp((atmosphere.magic2.x - start) / 4.0, 0.0, 1.2);

@@ -47,6 +47,21 @@ export const TIDEGLOW = { colour: [0.08, 0.62, 1.0], sandSeconds: 2.5 };
 // out by this many reaches.
 export const PULSE_SEA_REACH = 3.2;
 
+// The sky and water shaders carry `@id(7301) override MAGIC_AWAKE` (view.wgsl).
+// magicVariant(source, false) compiles every gift's code out; main.js and
+// render-sky.mjs run that while magicActive() is false.
+export const MAGIC_OVERRIDE_ID = 7301;
+const OVERRIDE = /(@id\(\s*7301\s*\)\s*override\s+\w+\s*:\s*bool\s*=\s*)(true|false)/;
+export function magicVariant(source, awake) {
+  const wgsl = typeof source === "string" ? source : source.wgsl;
+  if (!OVERRIDE.test(wgsl)) throw new Error("sea-sky-magic: MAGIC_AWAKE override not found in shader");
+  const out = wgsl.replace(OVERRIDE, `$1${awake ? "true" : "false"}`);
+  return typeof source === "string" ? out : { ...source, wgsl: out };
+}
+export function magicActive(uniforms) {
+  return MAGIC_FIELDS.some((k) => uniforms[k]?.some((v) => v !== 0));
+}
+
 export function quietMagicUniforms() {
   return Object.fromEntries(MAGIC_FIELDS.map((k) => [k, [0, 0, 0, 0]]));
 }
