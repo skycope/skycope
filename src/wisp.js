@@ -86,6 +86,7 @@ export function createWisp(group, { light = false } = {}) {
     blendDst: THREE.OneFactor,
     blendSrcAlpha: THREE.ZeroFactor,
     blendDstAlpha: THREE.OneFactor,
+    toneMapped: false,
     vertexShader: /* glsl */ `
       #define TRAIL ${TRAIL}
       #define POOL ${POOL}
@@ -147,7 +148,7 @@ export function createWisp(group, { light = false } = {}) {
         float lift = 0.0;
         if ( slot < ${SLOT.halo + 0.5} ) {
           vKind = 0.0;
-          size = mix( 0.7, 1.6, night ) * clamp( core.w, 0.0, 2.0 );
+          size = mix( 0.7, 1.3, night ) * clamp( core.w, 0.0, 2.0 );
           minPx = 40.0 * clamp( core.w, 0.0, 1.0 );
           vBright = core.w;
           lift = 0.7;
@@ -204,6 +205,20 @@ export function createWisp(group, { light = false } = {}) {
       varying float vAlong;
       // Soft spectral shimmer (a dewdrop's colours), and the woken gifts'
       // colours one into the next.
+      // The land's tone curve (landscape.js) without its night shift toward
+      // blue: a light looked at directly is seen in colour, by the cones.
+      vec3 wispTone( vec3 color ) {
+        color = max( color * 1.35, vec3( 0.0 ) );
+        float low = min( color.r, min( color.g, color.b ) );
+        color -= low < 0.08 ? low - 6.25 * low * low : 0.04;
+        float peak = max( color.r, max( color.g, color.b ) );
+        if ( peak >= 0.76 ) {
+          float newPeak = 1.0 - 0.0576 / ( peak - 0.52 );
+          color *= newPeak / peak;
+          color = mix( color, vec3( newPeak ), 1.0 - 1.0 / ( 0.15 * ( peak - newPeak ) + 1.0 ) );
+        }
+        return color;
+      }
       vec3 prism( float h ) {
         return 0.55 + 0.45 * cos( 6.2831853 * ( h + vec3( 0.0, 0.33, 0.67 ) ) );
       }
@@ -222,7 +237,7 @@ export function createWisp(group, { light = false } = {}) {
           if ( r2 > 1.0 ) discard;
           float g = ( 1.0 / ( 1.0 + r2 * 22.0 ) - 1.0 / 23.0 ) * ( 1.0 - r2 );
           vec3 tint = mix( colour, gifts( time * 0.05 ), 0.35 );
-          c = tint * g * vBright * mix( 0.42, 1.4, night );
+          c = tint * g * vBright * mix( 0.42, 0.75, night );
         } else if ( vKind < 1.5 ) {
           // Core: white-hot, the colours parting faintly at its edge, and
           // four faint glints turning slowly.
@@ -249,12 +264,12 @@ export function createWisp(group, { light = false } = {}) {
           float rim = exp( -pow( ( r - 0.84 ) / 0.11, 2.0 ) );
           float fill = exp( -r2 * 2.2 ) * 0.3;
           vec3 edge = mix( burstColour, prism( r * 2.0 - vAlong ), 0.25 );
-          c = ( edge * rim * 1.3 + burstColour * fill ) * vBright * mix( 1.0, 1.8, night );
+          c = ( edge * rim * 1.3 + burstColour * fill ) * vBright * 1.0;
         } else if ( vKind < 4.5 ) {
           // The pool: its light on the ground, falling off from the middle.
           float r = sqrt( r2 );
           float g = exp( -r2 * 3.2 ) * ( 1.0 - smoothstep( 0.8, 1.0, r ) );
-          c = colour * g * vBright * 0.32;
+          c = colour * g * vBright * 0.9;
         } else {
           // Embers: tiny soft points.
           if ( r2 > 1.0 ) discard;
@@ -265,8 +280,11 @@ export function createWisp(group, { light = false } = {}) {
           if ( vKind > 2.5 && vKind < 4.5 ) discard;
           c *= 0.2;
         #endif
+        // The night scene is dim (its light is a few hundredths of the day's):
+        // the wisp is a lantern in it, not a floodlight.
+        c *= mix( 1.0, 0.09, night );
         gl_FragColor = vec4( c, 0.0 );
-        #include <tonemapping_fragment>
+        gl_FragColor.rgb = wispTone( gl_FragColor.rgb );
         #include <colorspace_fragment>
       }
     `,
@@ -294,6 +312,7 @@ export function createWisp(group, { light = false } = {}) {
     blendDst: THREE.OneFactor,
     blendSrcAlpha: THREE.ZeroFactor,
     blendDstAlpha: THREE.OneFactor,
+    toneMapped: false,
   });
   const through = new THREE.Mesh(geometry, veiled);
   through.frustumCulled = false;
