@@ -263,7 +263,8 @@ export function createWisp(group, { light = false } = {}) {
           float r = sqrt( r2 );
           float rim = exp( -pow( ( r - 0.84 ) / 0.11, 2.0 ) );
           float fill = exp( -r2 * 2.2 ) * 0.3;
-          vec3 edge = mix( burstColour, prism( r * 2.0 - vAlong ), 0.25 );
+          // Its rim carries every gift woken so far, round its circle.
+          vec3 edge = mix( mix( burstColour, gifts( atan( vUv.y, vUv.x ) * 0.159 + vAlong * 0.25 ), 0.55 ), prism( r * 2.0 - vAlong ), 0.18 );
           c = ( edge * rim * 1.3 + burstColour * fill ) * vBright * 1.0;
         } else if ( vKind < 4.5 ) {
           // The pool: its light on the ground, falling off from the middle.
