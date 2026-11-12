@@ -72,6 +72,10 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   color += atmosphere.light.rgb * exp(-sun_distance * 90.0) * 0.12 * above_sea * sky_sample.a * (1.0 - night);
   if (ray.y > -0.001) {
     color += night_sky(ray, night, sky_sample.a * above_sea, dot(sky, vec3f(0.2126, 0.7152, 0.0722)));
+    // sea-sky-magic: the finale's storm of falling stars.
+    if (atmosphere.magic.w > 0.0 && night > 0.01 && ray.y > 0.0) {
+      color += meteor_storm(ray) * night * sky_sample.a * above_sea * atmosphere.magic.w;
+    }
   } else if (atmosphere.magic.y > 0.0 && night > 0.01) {
     // sea-sky-magic: the stars gift on a calm night: bright stars mirrored
     // in the sea as a broken path, each row of swell tilting them aside.
@@ -128,6 +132,63 @@ fn night_sky(ray: vec3f, night: f32, clear: f32, background: f32) -> vec3f {
     light += stars * extinction * night * clear * (1.0 - moon_cover);
   }
   return light;
+}
+
+// sea-sky-magic: the finale. A storm of falling stars from one radiant
+// almost overhead, each streaking away from it along its great circle
+// (short near it, long far from it): a bright head, a fading green-white
+// trail. The sky round the radiant is cut into STORM_SECTORS wedges, each
+// dealing two meteors on their own clocks, so a pixel tests only its own
+// wedge and its neighbours (six line tests), and only while the finale is
+// awake: ~120 meteors round the sky, a dozen or so in any view.
+const STORM_SECTORS: f32 = 60.0;
+const STORM_RADIANT: vec3f = vec3f(0.17, 0.97, 0.17);
+fn meteor_storm(ray: vec3f) -> vec3f {
+  let pixel = 1.0 / (0.9 * min(atmosphere.resolution.y, 1300.0));
+  let radiant = normalize(STORM_RADIANT);
+  let east = normalize(cross(vec3f(0.0, 0.0, 1.0), radiant));
+  let north = cross(radiant, east);
+  let rho = acos(clamp(dot(ray, radiant), -1.0, 1.0));
+  let az = atan2(dot(ray, north), dot(ray, east));
+  let airmass = 1.0 / max(ray.y, 0.02);
+  let extinction = exp(-0.28 * (airmass - 1.0)) * smoothstep(0.0, 0.06, ray.y);
+  let wedge = 6.283185 / STORM_SECTORS;
+  let sector = floor(az / wedge);
+  let width = pixel * 0.9;
+  var light = vec3f(0.0);
+  for (var n = -1; n <= 1; n++) {
+    let index = sector + f32(n);
+    for (var layer = 0; layer < 2; layer++) {
+      let lane = index * 2.0 + f32(layer) + 200.0;
+      let period = 2.2 + fract(lane * 0.618) * 2.4;
+      let t = atmosphere.time / period + fract(lane * 0.377);
+      let slot = floor(t);
+      let age = fract(t);
+      let h = hash2(vec2f(slot * 1.7 + lane * 13.1, lane * 3.3));
+      let g = hash2(vec2f(slot * 2.9 - lane * 7.7, 41.0 + lane));
+      // Not every wedge has one burning at once.
+      if (g.y < 0.2) { continue; }
+      let phi = (index + 0.1 + 0.8 * h.x) * wedge;
+      // Mostly where an eye on the horizon sees them: 20-75° from the radiant.
+      let start = 0.35 + h.y * 0.95;
+      let span = (0.1 + g.x * 0.28) * sin(min(start + 0.3, 1.5));
+      let flight = smoothstep(0.0, 0.3, age);
+      let head = start + span * flight;
+      let tail = start + span * max(flight - 0.5, 0.0);
+      var d_az = az - phi;
+      d_az = d_az - 6.283185 * round(d_az / 6.283185);
+      let perp = abs(sin(rho) * d_az);
+      if (perp > width * 6.0 || rho > head + width * 3.0 || rho < tail - width * 3.0) { continue; }
+      let along = clamp((rho - tail) / max(head - tail, 1e-4), 0.0, 1.0);
+      let line = exp(-perp * perp / (width * width)) * smoothstep(tail - width, tail + width * 2.0, rho) * (1.0 - smoothstep(head, head + width * 2.0, rho));
+      // Burns for ~a third of its period, the train glowing on a little.
+      let brightness = (0.4 + 3.0 * (g.y - 0.2) * (g.y - 0.2)) * (1.0 - smoothstep(0.3, 0.6, age)) * smoothstep(0.0, 0.03, age);
+      let head_glow = exp(-(perp * perp + (rho - head) * (rho - head)) / (width * width * 2.5)) * 3.0 * (1.0 - smoothstep(0.28, 0.34, age));
+      let colour = mix(vec3f(0.75, 1.0, 0.85), vec3f(1.0, 0.95, 0.85), along);
+      light += colour * (line * along * along + head_glow) * brightness;
+    }
+  }
+  return light * extinction * 0.9;
 }
 
 // sea-sky-magic: the star path. A calm sea mirrors the brightest stars,

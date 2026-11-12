@@ -183,8 +183,8 @@ fn spirals(q: vec2f, time: f32) -> f32 {
   let r = max(length(d), 1.0);
   let theta = atan2(d.y, d.x);
   let arm = 0.5 + 0.5 * sin(theta * 3.0 - log(r) * 9.0 + time * 0.22);
-  let ripple = 0.5 + 0.5 * sin(theta * 13.0 - log(r) * 31.0 + time * 0.5);
-  return pow(arm, 3.0) * (0.45 + 0.55 * ripple) * smoothstep(64.0, 80.0, r) * 0.9;
+  let ripple = 0.5 + 0.5 * sin(theta * 7.0 - log(r) * 17.0 + time * 0.5);
+  return pow(arm, 6.0) * (0.4 + 0.6 * ripple) * smoothstep(64.0, 80.0, r) * 0.45;
 }
 
 // ---- The lamp (the lighthouse's gift). --------------------------------------

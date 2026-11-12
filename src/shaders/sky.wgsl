@@ -289,7 +289,7 @@ fn constellation_lines(ray: vec3f) -> vec3f {
     let shimmer = 0.75 + 0.25 * sin(atlas.g * 70.0 - atmosphere.time * 2.2 + atlas.b * 40.0);
     let forward = vec3f(sin(atmosphere.flight.w) * cos(atmosphere.pitch), sin(atmosphere.pitch), cos(atmosphere.flight.w) * cos(atmosphere.pitch));
     let look = 0.45 + 0.55 * smoothstep(0.55, 0.97, dot(ray, forward));
-    let hold = (0.05 + 0.04 * atmosphere.magic.w) * shimmer * look;
+    let hold = (0.05 + 0.07 * atmosphere.magic.w) * shimmer * mix(look, 1.0, atmosphere.magic.w * 0.6);
     let lines = atlas.r * (drawn * hold + pen * 0.9);
     let nodes = atlas.a * drawn * (0.04 + pen * 1.2) * look;
     light = mix(light, FIGURE_LIGHT * (lines + nodes), gift);
