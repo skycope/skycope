@@ -218,7 +218,9 @@ export fn lamp_on_sea(s: SeaPoint, lamp: vec4f, level: f32, night: f32) -> vec3f
   let l = normalize(to_lamp);
   let v = -s.ray;
   let h = normalize(l + v);
-  let falloff = 1.0 / (1.0 + reach * reach / 6400.0);
+  // The beam leaves the lamp ~15 m up and nearly level: it passes over the
+  // water at the tower's foot and only its spread meets the sea farther out.
+  let falloff = smoothstep(12.0, 55.0, reach) / (1.0 + reach * reach / 6400.0);
   // Faces turned to the lamp (the beam grazes the sea, so this is the swell
   // and chop catching it), foam lit outright.
   let facing = max(dot(s.normal, l), 0.0);
