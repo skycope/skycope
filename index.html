@@ -578,6 +578,61 @@
         line-height: 1;
         letter-spacing: -0.06em;
       }
+      /* A gift waking: its place, small, over what woke; high in the sky. */
+      .gift-card {
+        position: fixed;
+        inset: 0;
+        z-index: 3;
+        display: grid;
+        place-content: start center;
+        padding: 22vh 16px 0;
+        text-align: center;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 1.8s ease;
+      }
+      .gift-card[hidden] {
+        display: none;
+      }
+      .gift-card[data-state="in"] {
+        opacity: 1;
+      }
+      .gift-card[data-state="out"] {
+        opacity: 0;
+        transition-duration: 2.8s;
+      }
+      .gift-card p {
+        margin: 0;
+        color: #f6f3ea;
+        text-shadow:
+          0 1px 4px rgba(10, 24, 32, 0.5),
+          0 0 24px rgba(10, 24, 32, 0.4);
+      }
+      .gift-small {
+        margin-bottom: 0.65rem !important;
+        font-size: 0.58rem;
+        letter-spacing: 0.3em;
+        opacity: 0.78;
+      }
+      .gift-big {
+        font-size: clamp(0.95rem, 0.8rem + 0.7vw, 1.35rem);
+        letter-spacing: 0.02em;
+      }
+      .gift-card[data-grand="true"] {
+        padding-top: 26vh;
+      }
+      .gift-card[data-grand="true"] .gift-big {
+        font-size: clamp(1.7rem, 1.1rem + 2.2vw, 2.9rem);
+        line-height: 1;
+        letter-spacing: -0.06em;
+      }
+      /* While a gift wakes, the corners step back. */
+      body[data-ceremony="true"] .sky-meta,
+      body[data-ceremony="true"] .corner,
+      body[data-ceremony="true"] #hint {
+        opacity: 0.15;
+        transition: opacity 1.6s ease;
+      }
       .sky-meta,
       .corner {
         transition: opacity 1.8s ease;
@@ -958,6 +1013,11 @@
       <p class="arrival-name">sky cope</p>
     </div>
     <p id="find-line" class="find-line" role="status" aria-live="polite"></p>
+    <!-- A gift waking (journey.js): the place, and what woke. -->
+    <div id="gift-card" class="gift-card" role="status" aria-live="polite" hidden>
+      <p class="gift-small"></p>
+      <p class="gift-big"></p>
+    </div>
     <div class="corner">
       <button id="photo" class="round" type="button" aria-label="Photo mode (p)" title="photo · p">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true">

@@ -239,6 +239,38 @@ export function createArrival(el, { reduced = () => false } = {}) {
   };
 }
 
+// A gift's card: a small line (the place) over a larger one (what woke),
+// faded in high in the view, held, and gone. `grand` is the finale's title,
+// in the manner of the arrival. Written only when shown.
+export function createGiftCard(el, { reduced = () => false } = {}) {
+  const small = el?.querySelector(".gift-small");
+  const big = el?.querySelector(".gift-big");
+  let timers = [];
+  const clear = () => {
+    timers.forEach(clearTimeout);
+    timers = [];
+  };
+  return {
+    show(top, line, hold = 4.5, grand = false) {
+      if (!el) return;
+      clear();
+      if (small) small.textContent = top;
+      if (big) big.textContent = line;
+      el.dataset.grand = String(grand);
+      el.hidden = false;
+      requestAnimationFrame(() => requestAnimationFrame(() => (el.dataset.state = "in")));
+      timers.push(
+        setTimeout(() => (el.dataset.state = "out"), hold * 1000),
+        setTimeout(() => {
+          el.hidden = true;
+          delete el.dataset.state;
+        }, hold * 1000 + (reduced() ? 300 : 3000)),
+      );
+    },
+    dispose: clear,
+  };
+}
+
 // Sit and watch: once the cat has sat a while and nobody has touched
 // anything, the camera drifts round, slowly, to frame the sun, the moon or
 // the sea horizon, and the UI dims. Any input hands the view back.

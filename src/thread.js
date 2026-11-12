@@ -10,7 +10,9 @@
 //   setSpectacles(fn)            fn() → [{ id, title?, visible 0…1, direction? [e,u,n] }]
 import { createDiscoveries, islandDiscoveries } from "./discoveries.js";
 import { createPhotoMode } from "./photo-mode.js";
-import { createArrival, createDawnLapse, createFindLine, createLessons, createNotesPanel, createWatch } from "./moments.js";
+import { createArrival, createDawnLapse, createFindLine, createGiftCard, createLessons, createNotesPanel, createWatch } from "./moments.js";
+import { createJourney } from "./journey.js";
+import { KEEPSAKES } from "./magic.js";
 import { capeTime, capeMinutes } from "./astronomy.js";
 import { SWIM_LIMIT } from "./walker.js";
 
@@ -36,6 +38,11 @@ export function createThread({ state, signal, reduced, capture, preview, light =
     seed: state.seed,
     signal,
     onFind(found) {
+      // A keepsake's waking names it in its own ceremony.
+      if (KEEPSAKES[found.id] && journey.covers(found.id)) {
+        notes.changed();
+        return;
+      }
       state.sound.play("discover");
       findLine.show(`found · ${found.title}`);
       notes.changed();
@@ -48,6 +55,8 @@ export function createThread({ state, signal, reduced, capture, preview, light =
     signal,
     time: (at) => capeTime(new Date(at)),
   });
+  // The wisp, the six gifts and their ceremonies (journey.js).
+  const journey = createJourney({ state, card: createGiftCard($("#gift-card"), { reduced: isReduced }), findLine, now: () => seconds() });
   const lessons = createLessons({ el: $("#hint"), touch, reduced: isReduced });
   const arrival = createArrival($("#arrival"), { reduced: isReduced });
   // No WebGPU, or reduced motion: the header is simply there.
@@ -109,6 +118,7 @@ export function createThread({ state, signal, reduced, capture, preview, light =
       if (attached || !state.walker) return;
       attached = true;
       discoveries.add(islandDiscoveries({ obstacles: state.landscape?.obstacles, swimLimit: SWIM_LIMIT }));
+      journey.attach();
       watch = createWatch({ walker: state.walker });
       lapse = createDawnLapse({
         preview,
@@ -123,8 +133,12 @@ export function createThread({ state, signal, reduced, capture, preview, light =
       arrival.play(() => {
         findLine.pause(photo.active);
         lessons.begin(seconds());
+        journey.meet(2.5);
       });
-      if (body.dataset.arrival === "done") lessons.begin(seconds());
+      if (body.dataset.arrival === "done") {
+        lessons.begin(seconds());
+        journey.meet(4);
+      }
     },
     fallback() {
       arrival.skip();
@@ -133,12 +147,13 @@ export function createThread({ state, signal, reduced, capture, preview, light =
     },
     // Time stands still while a photo is paused (the camera does not).
     get timeScale() {
-      return photo.paused ? 0 : 1;
+      return photo.paused ? 0 : journey.timeScale;
     },
     // The cat ignores walking input in photo mode.
     get holdsCat() {
-      return photo.active;
+      return photo.active || journey.holdsCat;
     },
+    journey,
     // What the cat's head follows: a critter if there is one, or now and
     // then, while it sits, the direction of the nearest place not yet found.
     interest(critter) {
@@ -163,6 +178,7 @@ export function createThread({ state, signal, reduced, capture, preview, light =
     },
     did(kind) {
       lessons.did(kind, seconds());
+      if (kind === "meow") journey.call();
     },
     // From main's updateCat, after the walker. dt is scene time (0 while a
     // photo is paused), realDt the wall clock.
@@ -172,6 +188,7 @@ export function createThread({ state, signal, reduced, capture, preview, light =
       // Wall-clock seconds: holds and lessons should not slow with the frame rate.
       clock = seconds();
       if (photo.active) orbitWithKeys(realDt);
+      journey.update(realDt, { celestial: state.celestial, interest: state.landscape?.interest, blocked: photo.active || body.dataset.arrival !== "done" });
       // The lapse runs smoothly (its sky is per frame; labels throttled).
       lapse?.update(
         {
@@ -187,6 +204,7 @@ export function createThread({ state, signal, reduced, capture, preview, light =
       if (tick < TICK) return;
       const step = tick;
       tick = 0;
+      journey.tick();
       const visible = spectacles() ?? [];
       const context = { celestial: state.celestial, weather: state.weather, interest: state.landscape?.interest, spectacles: visible };
       discoveries.update(cat, clock, context);

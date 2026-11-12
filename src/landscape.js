@@ -13,6 +13,7 @@ import { createMeshProfiler } from "./mesh-profiler.js";
 import { createArchipelago } from "./archipelago.js";
 import { createLens } from "./lens.js";
 import { createPlaces } from "./places.js"; // places:
+import { createWisp } from "./wisp.js"; // wisp: the little light that leads the cat
 import { horizonRadiance, skyDomeRatio, skyDomeMean, skyEnvironmentKey } from "./sunlight.js";
 
 // The mesh layer tonemaps with the same curve as the WebGPU water pass
@@ -94,6 +95,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   // wildlife: encounters round the shore (see wildlife.js).
   const wildlife = createWildlife(land, seed, { obstacles: forest.obstacles, light });
   const wildEye = { x: 0, y: 0, z: 0 };
+  const wisp = createWisp(land, { light }); // wisp: drawn from magic.wisp (thread.js follows it)
   scene.add(land);
   const motes = createMotes(scene, seed);
   // The distant islands: their own scene and depth range, drawn first.
@@ -308,6 +310,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       // Motes glow only in daylight, dimmed by cloud like the direct sun.
       moteLight.copy(sun.color).multiplyScalar(sun.intensity * THREE.MathUtils.smoothstep(sunWorld.y, 0.0, 0.1) * (1 - night));
       motes.update(time, wind, camera.position, sunWorld, moteLight, pixelScale);
+      wisp.update(time, night, renderer.domElement.height); // wisp:
       lens.update({
         camera, time, rain, wind, sky: lighting.sky, sunDirection: sunWorld, sunColour: sun.color,
         sunVisible: cloudBeam * THREE.MathUtils.smoothstep(sunWorld.y, -0.01, 0.06) * (1 - night),
@@ -336,6 +339,8 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     },
     // wildlife: { pois, events (refilled each frame), modules, timing }.
     wildlife,
+    // wisp: wisp.follow(magic.wisp, walker.surface) once (thread.js).
+    wisp,
     addPrint(print) {
       prints.add(print);
     },
