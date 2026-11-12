@@ -506,9 +506,9 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
         case "soar": {
           // The finale: up and up over the summit, blazing.
           const t = clock - dive.at;
-          goal.x = dive.x + Math.sin(t * 0.6) * (1 + t * 0.2);
-          goal.z = dive.z + Math.cos(t * 0.6) * (1 + t * 0.2);
-          goal.y = dive.y + Math.min(14, 1.5 + t * 1.2);
+          goal.x = dive.x + Math.sin(t * 0.5) * Math.min(5, 1 + t * 0.4);
+          goal.z = dive.z + Math.cos(t * 0.5) * Math.min(5, 1 + t * 0.4);
+          goal.y = dive.y + Math.min(5.5, 1.5 + t * 0.5);
           speedCap = 6;
           rest = 1.6;
           break;

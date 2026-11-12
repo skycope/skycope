@@ -152,7 +152,8 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
         card?.show(FINALE.small, FINALE.big, FINALE_TIME.cardHold, true);
       }
       // A slow rise and turn over the island, then home.
-      if (t < FINALE_TIME.camHome) camAim(c.yaw + t * 0.16, 1.25, 13.5, 0.35, dt);
+      // Wide and low enough to hold the sky and the bay, turning slowly.
+      if (t < FINALE_TIME.camHome) camAim(c.yaw + Math.PI + t * 0.11, 0.18 + Math.min(0.24, t * 0.025), 13.5, 0.4, dt);
       else camAim(cam.home.yaw, cam.home.elevation, cam.home.distance, 1.4, dt);
       const held = t > FINALE_TIME.wake && t < FINALE_TIME.wake + FINALE_TIME.hold;
       scale += ((held ? 0.45 : 1) - scale) * Math.min(1, dt * (held ? 1.5 : 0.8));
