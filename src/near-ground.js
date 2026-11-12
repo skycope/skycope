@@ -16,15 +16,16 @@ import { MATERIAL_HEX } from "./material-palette.js";
 // the vertex shader grows the clump from its few numbers. No textures.
 
 export const NEAR_GROUND = {
-  // cell (m), radius (m), blades per clump, how far ahead of the cat the
-  // window sits (m); phones get fewer, coarser clumps.
+  // cell (m), radius (m) and how far ahead of the cat the window sits (m):
+  // a dense window round the cat, a coarse one out to ~9 m. Phones get
+  // coarser cells and three blades per clump instead of four.
   desktop: [
-    { cell: 0.15, radius: 3.4, ahead: 1.0, blades: 5 },
-    { cell: 0.24, radius: 7.5, ahead: 1.5, blades: 3 },
+    { cell: 0.15, radius: 3.4, ahead: 1.0 },
+    { cell: 0.25, radius: 7.5, ahead: 1.5 },
   ],
   light: [
-    { cell: 0.22, radius: 3.2, ahead: 1.0, blades: 4 },
-    { cell: 0.36, radius: 7.0, ahead: 1.5, blades: 3 },
+    { cell: 0.22, radius: 3.2, ahead: 1.0 },
+    { cell: 0.36, radius: 7.0, ahead: 1.5 },
   ],
 };
 
@@ -138,24 +139,27 @@ export function nearCell(field, ix, iz, cell, layer, out = {}) {
 // take ringPosition and ringNormal as the model-space vertex.
 const RING_VERTEX_GLSL = /* glsl */ `
 attribute vec4 ringA;   // x, y, z (coast metres, on the ground), yaw
-attribute vec4 ringB;   // kind, size, seed, canopy shade
+attribute vec4 ringB;   // kind (+ 8 in the coarse window), size, seed, canopy shade
 attribute vec3 ringTint;
 attribute vec4 blade;   // t along the blade, across (-1..1), azimuth, lean
 attribute vec2 blade2;  // length scale, root radius
-uniform vec4 ringFade;  // window centre (x, z), radius, cross-fade (+1 grow in from the inner rim, -1 fade out at the rim)
-uniform vec4 ringInner; // the dense window's centre and radius (for the coarse one)
+uniform vec3 ringInner; // the dense window's centre (x, z) and radius
+uniform vec3 ringOuter; // the coarse window's
 uniform vec3 ringEye;   // the camera, coast metres
 vec3 ringPosition;
 vec3 ringNormal;
 float ringWind;
 float bladeHash( float n ) { return fract( sin( n ) * 43758.5453 ); }
 void ringSetup() {
-  float kind = ringB.x;
+  float coarse = step( 7.5, ringB.x );
+  float kind = ringB.x - coarse * 8.0;
   vec2 base = ringA.xz;
-  // Window rims: the clump shrinks to nothing as its cell leaves.
-  float d = distance( base, ringFade.xy );
-  float grow = 1.0 - smoothstep( ringFade.z * 0.72, ringFade.z, d );
-  if ( ringFade.w > 0.0 ) grow *= smoothstep( ringInner.z * 0.55, ringInner.z * 0.9, distance( base, ringInner.xy ) );
+  // Window rims: the clump shrinks to nothing as its cell leaves; the
+  // coarse window grows in where the dense one fades out.
+  float dInner = distance( base, ringInner.xy );
+  float grow = coarse > 0.5
+    ? ( 1.0 - smoothstep( ringOuter.z * 0.72, ringOuter.z, distance( base, ringOuter.xy ) ) ) * smoothstep( ringInner.z * 0.55, ringInner.z * 0.9, dInner )
+    : 1.0 - smoothstep( ringInner.z * 0.72, ringInner.z, dInner );
   // Past ~9 m the painted cover carries it alone.
   float eyeD = distance( base, ringEye.xz );
   grow *= 1.0 - smoothstep( 6.5, 9.5, eyeD );
@@ -272,38 +276,42 @@ export function createNearGround(scene, field, patch, { light = false } = {}) {
         .replace("#include <beginnormal_vertex>", "vec3 objectNormal = ringNormal;")
         .replace("#include <begin_vertex>", "vec3 transformed = ringPosition;")
         .replace("mvPosition.xyz += windOffset( mvPosition.xyz );", "mvPosition.xyz += windOffset( mvPosition.xyz ) * ringWind;");
-      shader.uniforms.ringFade = material.userData.ringFade;
       shader.uniforms.ringInner = material.userData.ringInner;
+      shader.uniforms.ringOuter = material.userData.ringOuter;
       shader.uniforms.ringEye = material.userData.ringEye;
     };
     return material;
   };
   const eye = { value: new THREE.Vector3() };
-  const inner = { value: new THREE.Vector4() };
-  const windows = (light ? NEAR_GROUND.light : NEAR_GROUND.desktop).map((spec, layer) => {
+  const centres = [{ value: new THREE.Vector3() }, { value: new THREE.Vector3() }];
+  const specs = light ? NEAR_GROUND.light : NEAR_GROUND.desktop;
+  const windows = specs.map((spec, layer) => {
     const n = Math.ceil((2 * spec.radius) / spec.cell);
-    const geometry = clumpGeometry(spec.blades);
-    const a = new Float32Array(n * n * 4);
-    const b = new Float32Array(n * n * 4).fill(-1);
-    const tint = new Float32Array(n * n * 3);
-    const attrA = new THREE.InstancedBufferAttribute(a, 4).setUsage(THREE.DynamicDrawUsage);
-    const attrB = new THREE.InstancedBufferAttribute(b, 4).setUsage(THREE.DynamicDrawUsage);
-    const attrT = new THREE.InstancedBufferAttribute(tint, 3).setUsage(THREE.DynamicDrawUsage);
-    geometry.setAttribute("ringA", attrA);
-    geometry.setAttribute("ringB", attrB);
-    geometry.setAttribute("ringTint", attrT);
-    geometry.instanceCount = n * n;
-    const material = makeMaterial();
-    // +1: the coarse window, which grows in where the dense one fades out.
-    const fade = { value: new THREE.Vector4(0, 0, spec.radius, layer ? 1 : -1) };
-    Object.assign(material.userData, { ringFade: fade, ringInner: inner, ringEye: eye });
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.frustumCulled = false;
-    mesh.receiveShadow = true;
-    mesh.castShadow = false;
-    scene.add(mesh);
-    return { spec, layer, n, mesh, a, b, tint, attrA, attrB, attrT, fade, ox: null, oz: null };
+    centres[layer].value.z = spec.radius;
+    // Every cell of the window, by slot (CPU only).
+    return { spec, layer, n, a: new Float32Array(n * n * 4), b: new Float32Array(n * n * 4).fill(-1), tint: new Float32Array(n * n * 3), ox: null, oz: null, cx: 0, cz: 0 };
   });
+  // Both windows draw as one mesh, with only the clumps that grow packed
+  // in: open sand and rock cost nothing, and triangles follow the cover.
+  const total = windows.reduce((sum, w) => sum + w.n * w.n, 0);
+  const geometry = clumpGeometry(light ? 3 : 4);
+  const attrA = new THREE.InstancedBufferAttribute(new Float32Array(total * 4), 4).setUsage(THREE.DynamicDrawUsage);
+  const attrB = new THREE.InstancedBufferAttribute(new Float32Array(total * 4), 4).setUsage(THREE.DynamicDrawUsage);
+  const attrT = new THREE.InstancedBufferAttribute(new Float32Array(total * 3), 3).setUsage(THREE.DynamicDrawUsage);
+  geometry.setAttribute("ringA", attrA);
+  geometry.setAttribute("ringB", attrB);
+  geometry.setAttribute("ringTint", attrT);
+  // Nothing to draw until the first frame has shown where the camera is.
+  // Zero instances issue no draw, and keep onBeforeRender (which learns
+  // the camera) running.
+  geometry.instanceCount = 0;
+  const material = makeMaterial();
+  Object.assign(material.userData, { ringInner: centres[0], ringOuter: centres[1], ringEye: eye });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.frustumCulled = false;
+  mesh.receiveShadow = true;
+  mesh.castShadow = false;
+  scene.add(mesh);
   const scratch = {};
   const fill = (w, ix, iz) => {
     const slot = (((iz % w.n) + w.n) % w.n) * w.n + (((ix % w.n) + w.n) % w.n);
@@ -321,7 +329,7 @@ export function createNearGround(scene, field, patch, { light = false } = {}) {
   const place = (w, cx, cz) => {
     const ox = Math.floor(cx / w.spec.cell) - (w.n >> 1);
     const oz = Math.floor(cz / w.spec.cell) - (w.n >> 1);
-    if (ox === w.ox && oz === w.oz) return;
+    if (ox === w.ox && oz === w.oz) return false;
     if (w.ox === null || Math.abs(ox - w.ox) >= w.n || Math.abs(oz - w.oz) >= w.n) {
       for (let iz = oz; iz < oz + w.n; iz++) for (let ix = ox; ix < ox + w.n; ix++) fill(w, ix, iz);
     } else {
@@ -334,9 +342,34 @@ export function createNearGround(scene, field, patch, { light = false } = {}) {
     }
     w.ox = ox;
     w.oz = oz;
-    w.attrA.needsUpdate = true;
-    w.attrB.needsUpdate = true;
-    w.attrT.needsUpdate = true;
+    return true;
+  };
+  // Pack the live clumps inside each window's disc (plus a cell of slack:
+  // the disc's centre moves between repacks).
+  const pack = () => {
+    const pa = attrA.array, pb = attrB.array, pt = attrT.array;
+    let live = 0;
+    for (const w of windows) {
+      const reach = (w.spec.radius + w.spec.cell * 1.5) ** 2;
+      for (let slot = 0; slot < w.n * w.n; slot++) {
+        if (w.b[slot * 4] < 0) continue;
+        const dx = w.a[slot * 4] - w.cx, dz = w.a[slot * 4 + 2] - w.cz;
+        if (dx * dx + dz * dz > reach) continue;
+        for (let k = 0; k < 4; k++) {
+          pa[live * 4 + k] = w.a[slot * 4 + k];
+          pb[live * 4 + k] = w.b[slot * 4 + k];
+        }
+        pb[live * 4] += w.layer * 8;
+        for (let k = 0; k < 3; k++) pt[live * 3 + k] = w.tint[slot * 3 + k];
+        live++;
+      }
+    }
+    for (const attr of [attrA, attrB, attrT]) {
+      attr.clearUpdateRanges();
+      attr.addUpdateRange(0, live * attr.itemSize);
+      attr.needsUpdate = true;
+    }
+    geometry.instanceCount = live;
   };
   let cat = [0, 0];
   const forward = new THREE.Vector2();
@@ -347,22 +380,35 @@ export function createNearGround(scene, field, patch, { light = false } = {}) {
     forward.set(cat[0] - ex, cat[1] - ez);
     if (forward.lengthSq() < 1e-4) forward.set(0, 1);
     forward.normalize();
+    let moved = false;
     for (const w of windows) {
       const cx = cat[0] + forward.x * w.spec.ahead;
       const cz = cat[1] + forward.y * w.spec.ahead;
-      place(w, cx, cz);
-      w.fade.value.x = cx;
-      w.fade.value.y = cz;
+      if (place(w, cx, cz)) {
+        moved = true;
+        w.cx = cx;
+        w.cz = cz;
+      }
+      centres[w.layer].value.x = cx;
+      centres[w.layer].value.y = cz;
     }
-    inner.value.copy(windows[0].fade.value);
+    if (moved) pack();
   };
-  // The camera is only known at draw time; cells it uncovers are uploaded
-  // for the next frame (they enter at the faded rim, so the lag is unseen).
-  windows[0].mesh.onBeforeRender = (renderer, s, camera) => update(camera);
+  // The windows follow last frame's camera (only known at draw time), so
+  // the cells they uncover are uploaded with this frame's draw; they enter
+  // at the faded rim, so the lag is unseen.
+  const lastCamera = { position: new THREE.Vector3(), seen: false };
+  const remember = (renderer, s, camera) => {
+    lastCamera.position.copy(camera.position);
+    lastCamera.seen = true;
+  };
+  mesh.onBeforeRender = remember;
   return {
     windows,
+    mesh,
     setCat(x, z) {
       cat = [x, z];
+      if (lastCamera.seen) update(lastCamera);
     },
   };
 }

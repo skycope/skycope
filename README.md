@@ -67,6 +67,7 @@ reduced-motion mode, background/resume, and with the weather endpoint blocked.
 | `src/vegetation.js`      | Growth traits, habitat placement, trees, ferns, grass and fynbos         |
 | `src/forest.js`          | Instanced plants, wind and gusts, foliage/ground/bark shaders, LOD       |
 | `src/plant-forms.js`     | Unit plant organs: tufts, reeds, fronds, aloe leaves, heath shoots, heads |
+| `src/near-ground.js`     | Sward, sprigs, sour-fig fingers and fallen leaves round the cat (≤ 9 m)  |
 | `src/motes.js`           | Pollen and dust that catch the sun when you look toward it               |
 | `src/fauna.js`           | Gulls, cormorants and a dolphin pod                                      |
 | `src/walker.js`          | Cat movement, collisions, follow camera                                  |
@@ -299,7 +300,15 @@ height (keeping their length), and every leaf, blade and pinna flutters on its o
 stalk. The ground under the plants comes from the plants themselves: grass, moss and
 litter are splatted from the actual tufts, crowns and cushions onto the ground grid, so
 litter pools under each tree and sward (fine combed strokes, brightening as each gust
-bends it) spreads round each tuft. Pollen and dust motes glitter only when you look
+bends it) spreads round each tuft. Close to the cat the paint gets geometry
+(`src/near-ground.js`): two world-snapped windows of small instanced clumps
+follow the camera, dense round the cat and coarser out to ~9 m, where the painted
+cover takes over. Each cell grows what the ground's baked masks say grows there:
+short sward on grassy and mossy ground, fynbos sprigs under the painted scrub,
+sour-fig fingers only inside the painted mats, and fallen leaves lying flat in the
+litter; open beach sand stays bare between the tufts. Cells are filled on the CPU
+as they enter a window and only live clumps are packed for the one draw, so open
+sand and rock cost nothing. Pollen and dust motes glitter only when you look
 toward the sun.
 
 Open ground between groves is fynbos: king and sugarbush proteas, pincushions,

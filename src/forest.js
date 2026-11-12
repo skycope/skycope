@@ -171,15 +171,18 @@ export function createForest(scene, seed, { light = false } = {}) {
   });
   patchMaterial(turfMaterial, shared, { sway: true, flutter: 0.06, foliage: true, bent: 0.55, pliant: true, rooted: 0.12 });
   // Full tufts (5 mm blades, flowering culms) only round the cat; past
-  // ~17 m a blade is under a pixel wide.
-  addInstances(scene, tuftGeometry(24, 3, 2), turfMaterial, turf, false, [
+  // ~17 m a blade is under a pixel wide. The near-ground carpet thickens
+  // the sward between them, so a tuft needs fewer blades of its own.
+  addInstances(scene, tuftGeometry(20, 3, 2), turfMaterial, turf, false, [
     { geometry: tuftGeometry(10, 2), distance: 6 },
     { geometry: tuftGeometry(5, 2), keep: (t) => t.far, grow: 1.3, distance: 42 },
     { keep: () => false, distance: 70 },
   ]);
   // Restio clumps share the tufts' pliant, vertex-coloured material.
-  addInstances(scene, reedGeometry(34, 1), turfMaterial, reeds, true, [
-    { geometry: reedGeometry(14, 0), distance: 8 },
+  // (Sparse sets use 40 m chunks, so a level's reach is 22 m past its
+  // distance: full clumps to ~26 m.)
+  addInstances(scene, reedGeometry(30, 1), turfMaterial, reeds, true, [
+    { geometry: reedGeometry(14, 0), distance: 4 },
     { keep: () => false, distance: 75 },
   ], { chunk: 40 });
   // Fern and palm fronds: one organ per frond. Palms (tall anchors) stay
