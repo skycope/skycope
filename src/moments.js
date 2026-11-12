@@ -46,11 +46,80 @@ export function createFindLine(el, { reduced = () => false, hold = 3600 } = {}) 
 // The field notes: found things by name (with the Cape Town time each was
 // found), the rest as dim dashes. Rendered from discoveries.list() only, so
 // an unfound title never reaches the page.
-export function createNotesPanel({ toggle, panel, list, signal, time = (at) => "" }) {
+// Above them, the six gifts as small marks, dim until woken and lit in
+// their colour after; and once any is awake, a quiet "begin again".
+// gifts() → [{ gift, awake, line, colour: [r, g, b] }].
+const GLYPHS = {
+  fireflies: '<path d="M2 8h2v2H2zM6 3h2v2H6zM9.5 7h2v2h-2z" fill="currentColor"/>',
+  tideglow: '<path d="M1 8.5c1.5-3 3-3 4.5 0s3 3 4.5 0M3 4.5c1-1.6 2-1.6 3 0s2 1.6 3 0" stroke="currentColor" fill="none"/>',
+  lamp: '<path d="M5.5 11.5v-6h2v6M4 11.5h5M5.5 5.5l1-2 1 2M8.5 4l3-1.2M8.5 5.2l3 1" stroke="currentColor" fill="none"/>',
+  stars: '<path d="M6.5 1l1.2 4.3L12 6.5 7.7 7.7 6.5 12 5.3 7.7 1 6.5l4.3-1.2z" fill="currentColor"/>',
+  seafolk: '<path d="M1.5 6.5c2-3 6-3 8 0-2 3-6 3-8 0zM9.5 6.5l2-2v4z" stroke="currentColor" fill="none"/>',
+  boat: '<path d="M1 8h11l-2 3H3zM6.5 8V1.5l3.5 5h-3.5" stroke="currentColor" fill="none"/>',
+};
+
+export function createNotesPanel({ toggle, panel, list, signal, time = (at) => "", gifts = () => [], onBeginAgain = null }) {
   const options = { signal };
   const items = panel?.querySelector("ol");
+  const marks = panel?.querySelector(".gift-marks");
+  const again = panel?.querySelector(".begin-again");
+  const dots = toggle?.querySelector(".gift-dots");
   let dirty = true;
+  let confirmUntil = 0;
+  again?.addEventListener(
+    "click",
+    () => {
+      if (performance.now() < confirmUntil) {
+        confirmUntil = 0;
+        again.textContent = "begin again";
+        onBeginAgain?.();
+        render();
+        return;
+      }
+      confirmUntil = performance.now() + 4000;
+      again.textContent = "begin again? · yes";
+      setTimeout(() => {
+        if (performance.now() >= confirmUntil) again.textContent = "begin again";
+      }, 4100);
+    },
+    options,
+  );
+  function renderGifts() {
+    const list = gifts();
+    const awake = list.filter((g) => g.awake && g.gift !== "finale").length;
+    if (marks) {
+      marks.replaceChildren(
+        ...list
+          .filter((g) => GLYPHS[g.gift])
+          .map((g) => {
+            const span = document.createElement("span");
+            span.className = "gift-mark";
+            span.dataset.awake = String(g.awake);
+            if (g.awake) span.style.color = `rgb(${g.colour.map((c) => Math.round(c * 255)).join(" ")})`;
+            span.title = g.awake ? g.line : "asleep";
+            span.innerHTML = `<svg viewBox="0 0 13 13" aria-hidden="true">${GLYPHS[g.gift]}</svg>`;
+            return span;
+          }),
+      );
+      marks.setAttribute("aria-label", `${awake} of six gifts awake`);
+      marks.hidden = list.length === 0;
+    }
+    if (again) again.hidden = awake === 0;
+    if (dots) {
+      dots.hidden = awake === 0;
+      dots.replaceChildren(
+        ...list
+          .filter((g) => GLYPHS[g.gift])
+          .map((g) => {
+            const i = document.createElement("i");
+            if (g.awake) i.style.background = `rgb(${g.colour.map((c) => Math.round(c * 255)).join(" ")})`;
+            return i;
+          }),
+      );
+    }
+  }
   function render() {
+    renderGifts();
     if (!items) return;
     dirty = false;
     const entries = list();
@@ -108,7 +177,15 @@ export function createNotesPanel({ toggle, panel, list, signal, time = (at) => "
     changed() {
       dirty = true;
       if (panel && !panel.hidden) render();
-      else if (toggle) toggle.dataset.fresh = "true";
+      else {
+        renderGifts();
+        if (toggle) toggle.dataset.fresh = "true";
+      }
+    },
+    // The gifts changed quietly (restored on load, begun again).
+    refresh() {
+      dirty = true;
+      renderGifts();
     },
     get open() {
       return panel ? !panel.hidden : false;

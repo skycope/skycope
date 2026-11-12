@@ -30,7 +30,7 @@ const WAKE = { card: 0.7, cardHold: 4.6, hold: 2.6, release: 5, camHome: 6.2, en
 const FINALE_TIME = { wake: 2.8, card: 4.5, cardHold: 9, hold: 6, camHome: 17, end: 20.5 };
 const WHITE = [1, 0.95, 0.85];
 
-export function createJourney({ state, card, findLine, now }) {
+export function createJourney({ state, card, findLine, now, onChange = () => {} }) {
   const magic = state.magic;
   let quest = null;
   let mind = null;
@@ -114,6 +114,7 @@ export function createJourney({ state, card, findLine, now }) {
     c.woke = true;
     carry = gift;
     colourFor(gift);
+    onChange();
     magic.pulse = {
       x: c.place.x,
       y: c.y,
@@ -189,6 +190,7 @@ export function createJourney({ state, card, findLine, now }) {
       const restored = [...quest.keepsakes.map((k) => k.gift), "finale"].filter((g) => magic.isAwake(g));
       carry = restored.at(-1) ?? null;
       colourFor(carry);
+      onChange(true);
     },
     get quest() {
       return quest;
@@ -269,6 +271,11 @@ export function createJourney({ state, card, findLine, now }) {
       if (!cat || !quest) return;
       const event = quest.update(cat, { busy: Boolean(ceremony) });
       if (event) start(event);
+    },
+    // The field notes' marks: each gift, awake or not, its line and colour.
+    gifts() {
+      if (!quest) return [];
+      return quest.keepsakes.map((k) => ({ gift: k.gift, awake: magic.isAwake(k.gift), line: GIFT_LINES[k.gift], colour: GIFT_COLOURS[k.gift] }));
     },
     beginAgain() {
       if (ceremony) finish();

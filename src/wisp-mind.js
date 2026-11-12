@@ -69,6 +69,7 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
   let perchBestAt = 0;
   let reroute = 0;
   let tryingAt = -Infinity;
+  let beckon = 0;
   let previous = "lead";
   // A ceremony's dive ({ x, y, z } of the keepsake) while one plays.
   const dive = { x: 0, y: 0, z: 0, at: 0, active: false };
@@ -292,6 +293,19 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
             goal.x += fidget.x;
             goal.y += fidget.y;
             goal.z += fidget.z;
+            // "Come on": while the cat stands still, now and then a quick
+            // swoop toward it and back again.
+            beckon = Math.abs(cat.speed) < 0.15 ? beckon + dt : 0;
+            if (beckon > 3) {
+              const swoop = Math.max(0, Math.sin((beckon - 3) * 1.2)) ** 6;
+              const bx = cat.x - perch.x;
+              const bz = cat.z - perch.z;
+              const bd = Math.hypot(bx, bz) || 1;
+              goal.x += (bx / bd) * swoop * Math.min(2.2, bd * 0.4);
+              goal.z += (bz / bd) * swoop * Math.min(2.2, bd * 0.4);
+              goal.y += swoop * 0.5;
+              if (swoop > 0.5) stiff = 2.2;
+            }
             nextHide -= dt;
             if (nextHide <= 0 && shoreDistance(perch.x, perch.z) > 6 && toTarget > 9) {
               nextHide = 20 + random() * 25;

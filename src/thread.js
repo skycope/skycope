@@ -54,9 +54,11 @@ export function createThread({ state, signal, reduced, capture, preview, light =
     list: () => discoveries.list(),
     signal,
     time: (at) => capeTime(new Date(at)),
+    gifts: () => journey.gifts(),
+    onBeginAgain: () => journey.beginAgain(),
   });
   // The wisp, the six gifts and their ceremonies (journey.js).
-  const journey = createJourney({ state, card: createGiftCard($("#gift-card"), { reduced: isReduced }), findLine, now: () => seconds() });
+  const journey = createJourney({ state, card: createGiftCard($("#gift-card"), { reduced: isReduced }), findLine, now: () => seconds(), onChange: (quiet) => (quiet ? notes.refresh() : notes.changed()) });
   const lessons = createLessons({ el: $("#hint"), touch, reduced: isReduced });
   const arrival = createArrival($("#arrival"), { reduced: isReduced });
   // No WebGPU, or reduced motion: the header is simply there.
