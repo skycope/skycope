@@ -18,7 +18,7 @@ import { landFieldData } from "../src/land-field.js";
 import { createVegetation } from "../src/vegetation.js";
 import { readFile } from "node:fs/promises";
 import { CATALOG_SIZE, starCatalogCells, halfFloats } from "../src/star-catalog.js";
-import { skyEventFrame } from "../src/sky-events.js";
+import { skyEventFrame, quietSkyUniforms } from "../src/sky-events.js";
 
 // Offline visual fixtures. They never override the live site's weather.
 const outputDirectory = process.argv[2] ?? "/tmp/skycope-qa";
@@ -169,6 +169,7 @@ const baseWater = process.env.BASE_WATER
         shoreGrid: shore.grid.createView(),
         landField: land.createView(),
         catWake: catWake.createView(),
+        islandTable: islandTable.createView(),
         skyTable: tableTarget.color,
         filtering: sampler(gpu, { minFilter: "linear", magFilter: "linear", addressModeU: "repeat", addressModeV: "repeat", addressModeW: "repeat" }),
       },
@@ -181,7 +182,7 @@ const seaTimings = [];
 gpuTimer.onResults((spans) => {
   timings.push(spans.table + spans.clouds + spans.sky + spans.waves + spans.foam + spans.water);
   waterTimings.push(spans.waves + spans.foam + spans.water);
-  seaTimings.push([spans.waves, spans.foam]);
+  seaTimings.push([spans.waves, spans.foam, spans.table, spans.clouds, spans.sky, spans.water]);
 });
 await table.compile(tableTarget);
 await clouds.compile(cloudTarget);
@@ -296,7 +297,9 @@ for (const [name, time, weather, rain, view, windOverride, skyOptions] of [
     force: skyOptions?.force ?? null,
     view: { azimuth: atmosphere.flight[3], pitch: atmosphere.pitch },
   });
-  Object.assign(atmosphere, events.uniforms);
+  // NO_EVENTS=1: the same fixture with every sky event off, to cost them.
+  if (!process.env.NO_EVENTS) Object.assign(atmosphere, events.uniforms);
+  else Object.assign(atmosphere, quietSkyUniforms());
   if (process.env.EVENTS) console.log(name, JSON.stringify(events.uniforms));
   timings.length = 0;
   waterTimings.length = 0;
@@ -345,7 +348,8 @@ for (const [name, time, weather, rain, view, windOverride, skyOptions] of [
   if (process.env.BENCH) {
     const bench = {};
     foam.set({ foamHistory: foamTarget.read.color });
-    for (const [label, t, e] of [["waves", wavesTarget, waves], ["foam", foamTarget.write, foam], ["water", output, water]]) {
+    // The cloud march too.
+    for (const [label, t, e] of [["waves", wavesTarget, waves], ["foam", foamTarget.write, foam], ["clouds", cloudTarget, clouds], ["water", output, water]]) {
       await gpu.gpu.queue.onSubmittedWorkDone();
       const begin = performance.now();
       frame(gpu, (f) => { for (let i = 0; i < 120; i++) f.pass(t, e); });
@@ -392,8 +396,9 @@ for (const [name, time, weather, rain, view, windOverride, skyOptions] of [
   const median = (values) => values.sort((a, b) => a - b)[Math.floor(values.length / 2)]?.toFixed(2);
   const spectrum = median(seaTimings.slice(4).map((t) => t[0]));
   const history = median(seaTimings.slice(4).map((t) => t[1]));
+  const passes = ["table", "clouds", "sky", "water"].map((p, k) => `${p} ${median(seaTimings.slice(4).map((t) => t[k + 2]))}`).join(", ");
   console.log(
-    `${name}: GPU median ${sorted[Math.floor(sorted.length / 2)]?.toFixed(2)} ms (sea ${waterSorted[Math.floor(waterSorted.length / 2)]?.toFixed(2)} ms: waves ${spectrum}, foam ${history}), max ${Math.max(...sorted).toFixed(2)} ms; ${(performance.now() - start).toFixed(0)} ms total`,
+    `${name}: GPU median ${sorted[Math.floor(sorted.length / 2)]?.toFixed(2)} ms (sea ${waterSorted[Math.floor(waterSorted.length / 2)]?.toFixed(2)} ms: waves ${spectrum}, foam ${history}; ${passes}), max ${Math.max(...sorted).toFixed(2)} ms; ${(performance.now() - start).toFixed(0)} ms total`,
   );
 }
 gpu.dispose();

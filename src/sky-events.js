@@ -430,8 +430,11 @@ export function skyEventFrame({ seed, time, date = null, celestial, weather = nu
   if (brightest) {
     const s = brightest.strike;
     const base = Math.atan2(1.4, s.distanceKm);
-    u.events[1] = flash * FLASH_RADIANCE;
-    u.bolt = [Math.sin(s.bearing * DEG), base, Math.cos(s.bearing * DEG), s.kind === "ground" ? brightest.b * Math.exp(-s.distanceKm / 20) : 0];
+    u.events[1] = flash > 0.01 ? flash * FLASH_RADIANCE : 0;
+    // The channel glows only while current flows (strokes and continuing
+    // current); its faint exponential tail would otherwise hang in the sky.
+    const channel = brightest.b > 0.04 ? brightest.b * Math.exp(-s.distanceKm / 20) : 0;
+    u.bolt = [Math.sin(s.bearing * DEG), base, Math.cos(s.bearing * DEG), s.kind === "ground" ? channel : 0];
     u.optics[3] = s.shape;
   }
   // The land under the flash: skylight gain for landscape.js.

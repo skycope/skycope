@@ -217,9 +217,13 @@ fn bolt_path(s: f32, seed: f32) -> vec2f {
 
 // The channel's cross-section: a white core about a pixel wide and a glow
 // scattered by the rain around it (the wide glow is the sky pass's flash).
-fn bolt_profile(distance: f32, pixel: f32) -> vec2f {
-  let d = abs(distance);
-  let core = exp(-d * d / (2.0 * pixel * pixel * 0.55));
+fn bolt_profile(offset: f32, slope: f32, pixel: f32) -> vec2f {
+  let d = abs(offset);
+  // The core across the channel (a kinked, near-level step is thin
+  // vertically); the glow by plain sideways distance, so its edge does not
+  // jump from row to row with the fine kinks.
+  let c = offset / sqrt(1.0 + slope * slope);
+  let core = exp(-c * c / (2.0 * pixel * pixel * 0.55));
   let glow = exp(-d * d / (18.0 * pixel * pixel)) * 0.1 + exp(-d * d / (200.0 * pixel * pixel)) * 0.006;
   return vec2f(core, glow);
 }
@@ -238,7 +242,7 @@ export fn lightning_bolt(ray: vec3f, foot: vec3f, base: f32, shape: f32, pixel: 
   let seed = shape * 97.0;
   let px = pixel / height;
   let main = bolt_path(s, seed);
-  var profile = bolt_profile((u - main.x) / sqrt(1.0 + main.y * main.y), px);
+  var profile = bolt_profile(u - main.x, main.y, px);
   for (var b = 0; b < 3; b++) {
     let h = vec3f(bolt_hash(seed + f32(b) * 3.1), bolt_hash(seed + f32(b) * 5.7 + 1.0), bolt_hash(seed + f32(b) * 2.3 + 2.0));
     let start = 0.35 + 0.55 * h.x;
@@ -251,7 +255,7 @@ export fn lightning_bolt(ray: vec3f, foot: vec3f, base: f32, shape: f32, pixel: 
       let x = origin + drift * t + 0.4 * wander.x;
       let slope = -drift + 0.64 * wander.y;
       let fade = 1.0 - t / reach;
-      profile += bolt_profile((u - x) / sqrt(1.0 + slope * slope), px) * 0.35 * fade * fade;
+      profile += bolt_profile(u - x, slope, px) * 0.35 * fade * fade;
     }
   }
   // The top vanishes into the cloud base.
