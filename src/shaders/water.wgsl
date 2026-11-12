@@ -138,9 +138,10 @@ fn night_sky(ray: vec3f, night: f32, clear: f32, background: f32) -> vec3f {
 // almost overhead, each streaking away from it along its great circle
 // (short near it, long far from it): a bright head, a fading green-white
 // trail. The sky round the radiant is cut into STORM_SECTORS wedges, each
-// dealing two meteors on their own clocks, so a pixel tests only its own
-// wedge and its neighbours (six line tests), and only while the finale is
-// awake: ~120 meteors round the sky, a dozen or so in any view.
+// dealing three meteors on their own clocks, each kept inside its wedge
+// with a margin wider than the line, so a pixel tests only its own wedge
+// (three line tests), and only while the finale is awake: ~180 meteors
+// round the sky, a dozen or more in any view.
 const STORM_SECTORS: f32 = 60.0;
 const STORM_RADIANT: vec3f = vec3f(0.17, 0.97, 0.17);
 fn meteor_storm(ray: vec3f) -> vec3f {
@@ -156,10 +157,10 @@ fn meteor_storm(ray: vec3f) -> vec3f {
   let sector = floor(az / wedge);
   let width = pixel * 0.9;
   var light = vec3f(0.0);
-  for (var n = -1; n <= 1; n++) {
-    let index = sector + f32(n);
-    for (var layer = 0; layer < 2; layer++) {
-      let lane = index * 2.0 + f32(layer) + 200.0;
+  let index = sector;
+  {
+    for (var layer = 0; layer < 3; layer++) {
+      let lane = index * 3.0 + f32(layer) + 200.0;
       let period = 2.2 + fract(lane * 0.618) * 2.4;
       let t = atmosphere.time / period + fract(lane * 0.377);
       let slot = floor(t);
@@ -168,7 +169,7 @@ fn meteor_storm(ray: vec3f) -> vec3f {
       let g = hash2(vec2f(slot * 2.9 - lane * 7.7, 41.0 + lane));
       // Not every wedge has one burning at once.
       if (g.y < 0.2) { continue; }
-      let phi = (index + 0.1 + 0.8 * h.x) * wedge;
+      let phi = (index + 0.2 + 0.6 * h.x) * wedge;
       // Mostly where an eye on the horizon sees them: 20-75° from the radiant.
       let start = 0.35 + h.y * 0.95;
       let span = (0.1 + g.x * 0.28) * sin(min(start + 0.3, 1.5));
