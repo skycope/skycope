@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { seededRandom } from "./random.js";
 import { islandPoint, shoreRadius, ISLAND } from "./terrain.js";
 import {
-  sculpt, ellipsoid, capsule, animalMaterial, animalMesh, DEFORM_GLSL, placeInstance, formGeometry,
+  sculpt, ellipsoid, capsule, animalMaterial, animalMesh, DEFORM_GLSL, placeInstance, formGeometry, herdBounds,
   clamp, smooth,
 } from "./animal-forms.js";
 
@@ -104,6 +104,7 @@ export function createWhale(group, { seed, theta, light = false, spray = null })
   const shared = { time: { value: 0 } };
   const material = animalMaterial({ name: "whale", uniforms: shared, pars: WHALE_DEFORM, paint: WHALE_PAINT, roughness: 0.42, sheen: 0.18 });
   const { mesh, attrs } = animalMesh(group, geometry, material, 1, { pose: 4 });
+  const bounds = herdBounds(mesh);
   const viewpoint = islandPoint(theta, 1.5);
   const whale = {
     // Where along its beat it is (radians round the island) and which way.
@@ -310,10 +311,13 @@ export function createWhale(group, { seed, theta, light = false, spray = null })
       mesh.visible = visible;
       if (visible) {
         // The body pitches about its middle, so a nose-up breach rises.
+        bounds.begin();
         placeInstance(mesh, 0, w.x, w.y, w.z, w.heading, w.pitch, w.roll, 1);
+        bounds.add(w.x, w.y, w.z, 9);
         attrs.pose.setXYZW(0, w.beat, w.arch, w.flipper, 0);
         attrs.waterline.setX(0, level);
         attrs.wet.setX(0, 1);
+        bounds.end();
         mesh.instanceMatrix.needsUpdate = true;
         attrs.pose.needsUpdate = true;
         attrs.waterline.needsUpdate = true;

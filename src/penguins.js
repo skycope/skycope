@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { seededRandom } from "./random.js";
 import { groundHeight, islandPoint, shoreDistance, ISLAND } from "./terrain.js";
 import {
-  sculpt, ellipsoid, capsule, animalMaterial, animalMesh, DEFORM_GLSL, placeInstance, formGeometry,
+  sculpt, ellipsoid, capsule, animalMaterial, animalMesh, DEFORM_GLSL, placeInstance, formGeometry, herdBounds,
   surfaceOf, domeHeight, wrap, clamp, smooth, turnToward, noise3,
 } from "./animal-forms.js";
 
@@ -48,7 +48,7 @@ export function penguinGeometry({ light = false } = {}) {
   return sculpt({
     prims,
     cell: light ? 0.013 : 0.0115,
-    triangles: light ? 1300 : 2400,
+    triangles: light ? 1100 : 2000,
     blend: 0.012,
     aoRadius: 0.035,
     // Vertex colour carries only the baked occlusion; the markings are
@@ -203,6 +203,7 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
   const shared = { time: { value: 0 } };
   const material = animalMaterial({ name: "penguin", uniforms: shared, pars: PENGUIN_DEFORM, paint: PENGUIN_PAINT, roughness: 0.62, sheen: 0.25 });
   const { mesh, attrs } = animalMesh(group, geometry, material, count, { pose: 4, pose2: 4 });
+  const bounds = herdBounds(mesh);
 
   const birds = homes.map((home, i) => ({
     i,
@@ -284,6 +285,7 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
         }
         outingTimer = 60 + random() * 70;
       }
+      bounds.begin();
       for (const b of birds) {
         const dx = b.x - pose.x;
         const dz = b.z - pose.z;
@@ -577,6 +579,7 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
         const back = Math.sin(b.pitch) * 0.28 * b.size;
         const bob = b.swim < 0.5 ? Math.abs(Math.cos(b.gait)) * 0.012 * b.gaitAmp : 0;
         placeInstance(mesh, b.i, b.x - Math.sin(b.heading) * back, y + bob, b.z - Math.cos(b.heading) * back, b.heading + yawWobble, b.pitch, roll, b.size);
+        bounds.add(b.x - Math.sin(b.heading) * back, y + bob, b.z - Math.cos(b.heading) * back, 0.5);
         attrs.pose.setXYZW(b.i, b.headYaw, b.headPitch, b.flipper, b.gait);
         attrs.pose2.setXYZW(b.i, b.gaitAmp * Math.min(1, b.speed / 0.2 + 0.3), b.beat, b.jitter ?? 0, 0);
         attrs.wet.setX(b.i, b.wet);
@@ -588,6 +591,7 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
         }
       }
       if (outing && outing.party.every((b) => b.mode !== "outing")) outing = null;
+      bounds.end();
       mesh.instanceMatrix.needsUpdate = true;
       attrs.pose.needsUpdate = true;
       attrs.pose2.needsUpdate = true;

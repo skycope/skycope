@@ -445,6 +445,37 @@ export function animalMesh(parent, geometry, material, count, attributes = {}) {
   return { mesh, attrs };
 }
 
+// Frustum culling for an instanced herd: a sphere round every instance
+// placed this frame (coast metres, the land group's frame), so a colony
+// behind the camera costs no draw. Call begin(), add() per animal, end().
+export function herdBounds(mesh) {
+  mesh.frustumCulled = true;
+  mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1);
+  let x0, x1, y0, y1, z0, z1, pad;
+  return {
+    begin() {
+      x0 = y0 = z0 = Infinity;
+      x1 = y1 = z1 = -Infinity;
+      pad = 0;
+    },
+    add(x, y, z, r) {
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      if (y > y1) y1 = y;
+      if (z < z0) z0 = z;
+      if (z > z1) z1 = z;
+      if (r > pad) pad = r;
+    },
+    end() {
+      if (x0 === Infinity) return;
+      const s = mesh.boundingSphere;
+      s.center.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+      s.radius = Math.hypot(x1 - x0, y1 - y0, z1 - z0) / 2 + pad;
+    },
+  };
+}
+
 // GLSL helpers for paint hooks: antialiased steps and value noise.
 export const PAINT_GLSL = `
 float aaStep( float edge, float x ) { float w = max( fwidth( x ), 1e-5 ); return smoothstep( edge - w, edge + w, x ); }

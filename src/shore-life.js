@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { seededRandom } from "./random.js";
 import { groundHeight, islandPoint, shoreDistance, ISLAND } from "./terrain.js";
 import {
-  sculpt, ellipsoid, capsule, animalMaterial, animalMesh, DEFORM_GLSL, placeInstance, formGeometry,
+  sculpt, ellipsoid, capsule, animalMaterial, animalMesh, DEFORM_GLSL, placeInstance, formGeometry, herdBounds,
   wrap, clamp, smooth, turnToward,
 } from "./animal-forms.js";
 
@@ -134,6 +134,7 @@ export function createTortoise(group, { seed, flowers, light = false, blobs = nu
   const shared = { time: { value: 0 } };
   const material = animalMaterial({ name: "tortoise", uniforms: shared, pars: TORTOISE_DEFORM, paint: TORTOISE_PAINT, roughness: 0.55, sheen: 0.3 });
   const { mesh, attrs } = animalMesh(group, geometry, material, 1, { pose: 4, pose2: 4 });
+  const bounds = herdBounds(mesh);
   // Its range: the flowering fynbos nearest the cat's start, in from the
   // beach (so it is met early, on the way up from the sand).
   const patch = (flowers ?? [])
@@ -228,9 +229,12 @@ export function createTortoise(group, { seed, flowers, light = false, blobs = nu
       const fz = Math.cos(t.heading) * 0.12;
       const slope = Math.atan2(groundHeight(t.x - fx, t.z - fz) - groundHeight(t.x + fx, t.z + fz), 0.24);
       const sway = Math.sin(t.gait) * 0.03 * t.gaitAmp;
+      bounds.begin();
       placeInstance(mesh, 0, t.x, y - t.in * 0.012, t.z, t.heading, slope, sway, 1.25);
+      bounds.add(t.x, y - t.in * 0.012, t.z, 0.3);
       attrs.pose.setXYZW(0, t.in, t.yaw, t.pitch, t.gait);
       attrs.pose2.setXYZW(0, t.gaitAmp, t.chew, 0, 0);
+      bounds.end();
       mesh.instanceMatrix.needsUpdate = true;
       attrs.pose.needsUpdate = true;
       attrs.pose2.needsUpdate = true;
@@ -347,6 +351,7 @@ export function createOystercatchers(group, { seed, theta, light = false, blobs 
   const shared = { time: { value: 0 } };
   const material = animalMaterial({ name: "oystercatcher", uniforms: shared, pars: OYSTERCATCHER_DEFORM, paint: OYSTERCATCHER_PAINT, roughness: 0.55, sheen: 0.3 });
   const { mesh, attrs } = animalMesh(group, geometry, material, count, { pose: 4, pose2: 4 });
+  const bounds = herdBounds(mesh);
   // A beat of shore they work, and where they go when flushed.
   let beat = theta;
   const birds = Array.from({ length: count }, (_, i) => {
@@ -387,6 +392,7 @@ export function createOystercatchers(group, { seed, theta, light = false, blobs 
       if (!mesh.visible) return null;
       let best = null;
       let bestD = 6;
+      bounds.begin();
       for (const b of birds) {
         const dx = b.x - pose.x;
         const dz = b.z - pose.z;
@@ -476,6 +482,7 @@ export function createOystercatchers(group, { seed, theta, light = false, blobs 
         b.pitch += (pitch - b.pitch) * Math.min(1, dt * 8);
         b.yaw += (yaw - b.yaw) * Math.min(1, dt * 6);
         placeInstance(mesh, b.i, b.x, b.y + (b.state === "fly" ? 0 : Math.abs(Math.sin(b.gait)) * 0.005 * b.gaitAmp), b.z, b.heading, b.state === "fly" ? -0.1 : 0, 0, 1.1);
+        bounds.add(b.x, b.y + (b.state === "fly" ? 0 : Math.abs(Math.sin(b.gait)) * 0.005 * b.gaitAmp), b.z, 0.8);
         attrs.pose.setXYZW(b.i, b.pitch, b.yaw, b.gait, b.gaitAmp);
         attrs.pose2.setXYZW(b.i, b.fly, 0, 0, 0);
         if (b.state !== "fly") blobs?.add(b.x, b.y, b.z, b.heading, 0.18, 0.12, 0.8);
@@ -484,6 +491,7 @@ export function createOystercatchers(group, { seed, theta, light = false, blobs 
           best = b;
         }
       }
+      bounds.end();
       mesh.instanceMatrix.needsUpdate = true;
       attrs.pose.needsUpdate = true;
       attrs.pose2.needsUpdate = true;

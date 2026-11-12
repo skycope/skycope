@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { seededRandom } from "./random.js";
 import { islandPoint, shoreDistance, ISLAND } from "./terrain.js";
 import {
-  sculpt, ellipsoid, capsule, animalMaterial, animalMesh, DEFORM_GLSL, placeInstance, formGeometry,
+  sculpt, ellipsoid, capsule, animalMaterial, animalMesh, DEFORM_GLSL, placeInstance, formGeometry, herdBounds,
   surfaceOf, domeHeight, wrap, clamp, smooth, turnToward,
 } from "./animal-forms.js";
 
@@ -47,7 +47,7 @@ export function sealGeometry({ light = false } = {}) {
   return sculpt({
     prims,
     cell: light ? 0.034 : 0.027,
-    triangles: light ? 1300 : 2400,
+    triangles: light ? 1100 : 2000,
     blend: 0.05,
     aoRadius: 0.08,
     paint: (p, n, w) => [w.ao, w.ao, w.ao].map((v) => v ** (1 / 2.2)),
@@ -208,6 +208,7 @@ export function createSeals(group, { seed, domes, cluster, light = false, blobs 
   const shared = { time: { value: 0 } };
   const material = animalMaterial({ name: "seal", uniforms: shared, pars: SEAL_DEFORM, paint: SEAL_PAINT, roughness: 0.7, sheen: 0.22 });
   const { mesh, attrs } = animalMesh(group, geometry, material, count, { pose: 4, pose2: 4, pose3: 4 });
+  const bounds = herdBounds(mesh);
 
   const seals = Array.from({ length: count }, (_, i) => {
     const spot = spots[i] ?? null;
@@ -287,6 +288,7 @@ export function createSeals(group, { seed, domes, cluster, light = false, blobs 
       const catOnRock = pose.y > 0.35 && catD < 6;
       let best = null;
       let bestD = AWARE;
+      bounds.begin();
       for (const s of seals) {
         const dx = s.x - pose.x;
         const dz = s.z - pose.z;
@@ -571,6 +573,7 @@ export function createSeals(group, { seed, domes, cluster, light = false, blobs 
           slope = Math.atan2(surface(s.x - fx, s.z - fz) - surface(s.x + fx, s.z + fz), 1.1);
         }
         placeInstance(mesh, s.i, s.x, s.y, s.z, s.heading, clamp(s.pitch + slope, -1.3, 1.3), s.roll, s.size);
+        bounds.add(s.x, s.y, s.z, 1.2);
         attrs.pose.setXYZW(s.i, s.headYaw, s.headPitch, s.lift, s.bend);
         attrs.pose2.setXYZW(s.i, s.fore, s.scratch, s.gait, s.gaitAmp);
         attrs.pose3.setXYZW(s.i, s.scull, s.breath, 0, 0);
@@ -582,6 +585,7 @@ export function createSeals(group, { seed, domes, cluster, light = false, blobs 
           best = s;
         }
       }
+      bounds.end();
       mesh.instanceMatrix.needsUpdate = true;
       for (const a of attrList) a.needsUpdate = true;
       if (!best) return null;
