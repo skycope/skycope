@@ -158,9 +158,16 @@ export function buildLighthouse(p, materials, { light = false } = {}) {
   const floor = chi + 0.12;
   const wallTop = floor + 2.55;
   const wallShade = (q) => 0.4 * (1 - smooth01(floor - 0.2, floor + 0.7, q.y));
-  both(paint, () => part(new THREE.BoxGeometry(width, wallTop - clo + 0.3, depth), {
-    matrix: frame(cu, (wallTop + clo - 0.3) / 2, cv),
+  both(paint, () => part(new THREE.BoxGeometry(width, wallTop - floor + 0.25, depth), {
+    matrix: frame(cu, (wallTop + floor - 0.25) / 2, cv),
     colour: WHITE, shade: wallShade, anchor,
+  }));
+  // solid: on a slope the walls stood on a tall white skirt that read as
+  // hanging off the hill; a dressed stone footing, a hand proud of the
+  // walls, carries them down into the ground on the downhill side.
+  both(stone, () => part(new THREE.BoxGeometry(width + 0.12, floor - clo + 0.5, depth + 0.12), {
+    matrix: frame(cu, (floor + clo - 0.5) / 2 - 0.2, cv),
+    colour: srgb("#7a736b"), shade: 0.2, anchor,
   }));
   const pitch = 0.62, overhang = 0.35;
   const slope = (depth / 2 + overhang) / Math.cos(pitch);

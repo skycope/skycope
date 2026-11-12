@@ -12,7 +12,8 @@ import { rockLayout } from "./rocks.js";
 // - kelp gulls standing about at the swash edge, pecking and pacing, that
 //   walk off from a cat and take wing if it keeps coming.
 // `interest` is the nearest one, for the cat's head (and tail) to follow.
-export function createCritters(group, seed, flowers) {
+// `rocks`: the final rock list (forest.js, with the landmarks' stones).
+export function createCritters(group, seed, flowers, rocks = null) {
   const random = seededRandom(seed ^ 0x2c1b3c6d);
   const shared = { time: { value: 0 } };
   const spots = flowers.length ? flowers : [{ x: 58, z: 70, h: 1 }];
@@ -86,9 +87,9 @@ export function createCritters(group, seed, flowers) {
   group.add(gullMesh);
   // Along the beach from the home view, where the cat starts: in sight of
   // it, but a walk away.
-  // Clear of the boulders: the same layout forest.js draws (its random
-  // stream starts with the rocks).
-  const boulders = rockLayout(seededRandom(seed)).map((r) => ({ x: r.position.x, z: r.position.z, r: Math.max(r.scale.x, r.scale.z) + 0.6 }));
+  // Clear of the boulders: the very list forest.js draws (with the
+  // landmarks' stones; recomputing the layout here missed those).
+  const boulders = (rocks ?? rockLayout(seededRandom(seed))).map((r) => ({ x: r.position.x, z: r.position.z, r: Math.max(r.scale.x, r.scale.z) + 0.6 }));
   const clear = (x, z) => boulders.every((b) => (x - b.x) ** 2 + (z - b.z) ** 2 > b.r * b.r);
   const home = Math.atan2(-70, -52);
   const gullSpot = { theta: home + 0.15 };

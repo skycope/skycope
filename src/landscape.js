@@ -91,7 +91,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   forest.obstacles.blockers = places.blockers; // solid: camera and body solids (blockers.js)
   const fauna = createFauna(land, seed);
   const cat = createCat(land, { light });
-  const critters = createCritters(land, seed, forest.obstacles.flowers);
+  const critters = createCritters(land, seed, forest.obstacles.flowers, forest.rocks); // solid: one rock list
   // wildlife: encounters round the shore (see wildlife.js).
   const wildlife = createWildlife(land, seed, { obstacles: forest.obstacles, light });
   const wildEye = { x: 0, y: 0, z: 0 };

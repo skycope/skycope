@@ -285,7 +285,9 @@ function stainsFor(p) {
     // the cottage door to the tower's.
     for (let u = 2; u >= -10; u -= 2) yard.push({ ...along(u), r: 6.5, scrub: 0, grass: 0.35, amount: 0 });
     for (let u = -2.5; u >= -14; u -= 0.8) yard.push({ ...along(u), r: 1.3, soft: 0.4, colour: "#8e8676", amount: 0.55, grass: 0, scrub: 0 });
-    yard.push({ x: p.x, z: p.z, r: 4.2, soft: 0.7, shade: 0.35 });
+    // Contact shade at the plinth's foot only: wider, it lay on the sand
+    // beside the tower as a dark painted blob.
+    yard.push({ x: p.x, z: p.z, r: 3.9, soft: 0.8, shade: 0.3 });
     return yard;
   }
   if (p.kind === "beacon") {

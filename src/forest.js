@@ -229,6 +229,7 @@ export function createForest(scene, seed, { light = false } = {}) {
     obstacles,
     // The boulders the sea touches, for the water pass (rocks.js).
     shoreRocks: shoreRockData(rocks),
+    rocks, // solid: the one final rock list (landmark stones included), for critters.js
     // The island's top surface for reflections in the sea (land-field.js).
     landField: landFieldData(clusters),
     surf,

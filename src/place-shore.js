@@ -152,6 +152,8 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
     wood.push(part(new THREE.CylinderGeometry(0.42, 0.42, 0.06, 14, 1, false), { matrix: m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0.03, 0)), colour: DRIFTWOOD, anchor }));
     paint.push(part(new THREE.TorusGeometry(0.4, 0.014, 4, 18), { matrix: m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0.42, 0)).multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2)), colour: srgb("#3b3a36") }));
     net.push(part(lathe([[0.41, 0.05], [0.41, 0.42], [0.14, 0.44], [0.1, 0.3]], 14), { matrix: m, colour: srgb("#2c3a34") }));
+    // solid: a coarse trap in the far level too: they vanished at 40 m.
+    woodFar.push(part(lathe([[0.42, 0.0], [0.41, 0.42], [0.12, 0.44]], 6), { matrix: m, colour: srgb("#2c3a34"), anchor }));
     trunks.push({ x: p.x + x, z: p.z + z, r: 0.42 });
     if (lift === 0) blockers.push(cylinder(p.x + x, p.z + z, 0.44, y - 0.1, y + 0.95, { body: false }));
   };
@@ -206,7 +208,9 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
     return keelAt(s) + 0.12 * s * s * 0.4 - depth * (1 - Math.cos(a)) - 0.12 * s * s * (a / (Math.PI / 2)) + 0.02;
   })];
   return {
-    near, far, farDistance: 40, cullDistance: 80,
+    // solid: no cull. Gone at 80 m, the hull popped out of the cove in
+    // plain view; its far level is one draw of a few hundred triangles.
+    near, far, farDistance: 40,
     obstacles: { trunks, domes },
     blockers,
     halos: [{ x: p.x + lamp.x, y: lamp.y, z: p.z + lamp.z, size: 1.5, colour: [1.0, 0.6, 0.24], flicker: true }],
@@ -490,7 +494,8 @@ export function buildPool(p, materials, { light = false, seed = 1 } = {}) {
   })];
   let last = 0;
   return {
-    near, far, farDistance: 30, cullDistance: 70,
+    // solid: culled where the fog has the shelf (it popped at 70 m).
+    near, far, farDistance: 30, cullDistance: 115,
     obstacles: { trunks: [], domes },
     update({ time, eye, pose }) {
       if (!eye || Math.hypot(eye[0] - p.x, eye[2] - p.z) > 22) return;
