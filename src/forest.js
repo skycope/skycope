@@ -18,6 +18,7 @@ import { markSolid, SOLID_ORDER } from "./cat-coat.js"; // solid:
 import { MATERIAL_HEX } from "./material-palette.js";
 import { groundDetailData, groundCover } from "./ground-detail.js";
 import { createNearGround } from "./near-ground.js";
+import { magicUniforms, MAGIC_LIGHT_DECLARATIONS, MAGIC_LIGHT_GLSL } from "./land-magic.js"; // land-magic:
 import {
   finish,
   tuftGeometry,
@@ -61,6 +62,8 @@ export function createForest(scene, seed, { light = false } = {}) {
     skySH: { value: Array.from({ length: 9 }, () => new THREE.Vector3()) },
     rainWetness: { value: 0 },
     rainFilm: { value: 0 },
+    // land-magic: the gifts' light on the land (land-magic.js).
+    ...magicUniforms(),
   };
   // `?perf` QA: the console can read and tweak the shared lighting uniforms.
   scene.userData.forestShared = shared;
@@ -1236,7 +1239,10 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
       "uniform vec3 hazeToward;\nuniform vec3 hazeAway;\nuniform vec3 foamLight;\nvarying float vShade;\nvarying float vShadowFar;\n" +
       shader.fragmentShader
         .replace("#include <fog_fragment>", FOG_GLSL)
-        .replace("#include <lights_fragment_end>", `#include <lights_fragment_end>\n${occlusionGlsl(foliage)}`);
+        .replace("#include <lights_fragment_end>", `#include <lights_fragment_end>\n${occlusionGlsl(foliage)}`)
+        // land-magic: fireflies, the lamp's beams, a waking's ring, starlight.
+        .replace("#include <aomap_fragment>", `${MAGIC_LIGHT_GLSL}\n#include <aomap_fragment>`)
+        .replace("void main() {", `${MAGIC_LIGHT_DECLARATIONS}\nvoid main() {`);
     if (ground)
       // Plankton the uprush lights at night (the sky's reflection in the
       // swash film comes from the environment map now).

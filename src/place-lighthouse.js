@@ -280,6 +280,8 @@ export function buildLighthouse(p, materials, { light = false } = {}) {
     near: nearGroup,
     far: farGroup,
     lamp: { x: p.x, y: yLamp, z: p.z, radius: 1.24 },
+    // land-magic: the cottage's lit windows spill warm light on the yard.
+    cottage: (() => { const [x, z] = at(cu + depth / 2 + 1.2, cv); return { x: p.x + x, y: floor + 1.5, z: p.z + z, colour: [1.0, 0.62, 0.3], reach: 4.5, power: 0.9 }; })(),
     obstacles: { trunks, domes },
     blockers,
   };
