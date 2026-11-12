@@ -51,6 +51,8 @@ const ARM_LIFT = 1.6;
 // and the least it may come to one before it is pulled in along the boom.
 const LENS_CLEARANCE = 0.4;
 const LENS_GUARD = 0.18;
+// Each step the boom may tilt up to see over a solid at the cat's back.
+const SOLID_RISE = 1.1;
 
 // sea (sea-surface.js) gives the water level; wake (wake.js) takes the
 // cat's trail through it.
@@ -651,6 +653,16 @@ export function createWalker(obstacles, sea = null, wake = null) {
         if (f2 > f) {
           f = f2;
           lift = over;
+        }
+      }
+      // Still stopped close behind the cat (a hull or a wall at its back):
+      // look down over it from higher up rather than from the cat's back.
+      const base = lift;
+      for (let k = 1; f * t * length < ARM_MIN * 1.6 && k <= 3; k++) {
+        const f2 = boomTo(base + k * SOLID_RISE);
+        if (f2 > f + 0.1) {
+          f = f2;
+          lift = base + k * SOLID_RISE;
         }
       }
       t *= f;

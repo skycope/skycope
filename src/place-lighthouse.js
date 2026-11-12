@@ -247,14 +247,15 @@ export function buildLighthouse(p, materials, { light = false } = {}) {
   const W = (u, v) => { const [x, z] = at(u, v); return { x: p.x + x, z: p.z + z }; };
   const blockers = [
     cylinder(p.x, p.z, TOWER.plinth, lo - 1, yP + 0.35),
-    cylinder(p.x, p.z, 2.45, yP, yC + 1.3),
+    cylinder(p.x, p.z, 2.45, yP, yC + 1.3, { above: true }),
   ];
   {
     const c = W(cu, cv);
-    blockers.push(box(c.x, c.z, φ, depth / 2 + overhang, width / 2 + 0.25, clo - 0.3, wallTop + rise + 0.15));
+    blockers.push(box(c.x, c.z, φ, depth / 2 + overhang, width / 2 + 0.25, clo - 0.3, wallTop + rise + 0.15, { body: false }));
     const t = W(cu - 0.6, cv - width / 2 - 0.95);
     const g0 = groundUV(cu - 0.6, cv - width / 2 - 0.95);
-    blockers.push(cylinder(t.x, t.z, 0.72, g0 - 0.4, g0 + 2.3));
+    const [tlo] = range(cu - 0.6, cv - width / 2 - 0.95, 0.72, 0.72);
+    blockers.push(cylinder(t.x, t.z, 0.72, tlo - 0.3, g0 + 2.3, { body: false }));
     // The cat walked through the tank: it stands in the way now.
     trunks.push({ x: t.x, z: t.z, r: 0.7 });
   }
@@ -266,7 +267,7 @@ export function buildLighthouse(p, materials, { light = false } = {}) {
     const du = b.u - a.u, dv = b.v - a.v;
     // Along the wall in coast x, z.
     const [ax, az] = at(du, dv);
-    blockers.push(box(m.x, m.z, Math.atan2(ax, az), Math.hypot(du, dv) / 2 + 0.05, 0.25, Math.min(ga, gb) - 0.4, Math.max(ga, gb) + 0.9, { body: false }));
+    blockers.push(box(m.x, m.z, Math.atan2(ax, az), Math.hypot(du, dv) / 2 + 0.05, 0.25, Math.min(ga, gb) - 0.8, Math.max(ga, gb) + 0.9, { body: false }));
   }
   return {
     near: nearGroup,
