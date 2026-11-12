@@ -33,10 +33,10 @@ const WHITE = [1, 0.95, 0.85];
 // distance), then easing wider to take in the place (`wide`). Under the
 // milkwood's canopy it stays low; at the lighthouse it stands well back.
 const SHOTS = {
-  default: { elevation: 0.2, distance: 6.5, wide: [0.3, 9] },
-  fireflies: { elevation: 0.1, distance: 5.5, wide: [0.14, 7] },
-  lamp: { elevation: 0.06, distance: 9, wide: [0.1, 13] },
-  stars: { elevation: 0.25, distance: 7, wide: [0.42, 10] },
+  default: { elevation: 0.32, distance: 7, wide: [0.42, 9.5] },
+  fireflies: { elevation: 0.22, distance: 6, wide: [0.27, 7.5] },
+  lamp: { elevation: 0.12, distance: 10, wide: [0.16, 13] },
+  stars: { elevation: 0.3, distance: 7, wide: [0.48, 10] },
 };
 
 export function createJourney({ state, card, findLine, now, onChange = () => {} }) {

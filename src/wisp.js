@@ -222,7 +222,7 @@ export function createWisp(group, { light = false } = {}) {
           if ( r2 > 1.0 ) discard;
           float g = ( 1.0 / ( 1.0 + r2 * 22.0 ) - 1.0 / 23.0 ) * ( 1.0 - r2 );
           vec3 tint = mix( colour, gifts( time * 0.05 ), 0.35 );
-          c = tint * g * vBright * mix( 0.55, 1.4, night );
+          c = tint * g * vBright * mix( 0.42, 1.4, night );
         } else if ( vKind < 1.5 ) {
           // Core: white-hot, the colours parting faintly at its edge, and
           // four faint glints turning slowly.
@@ -246,8 +246,8 @@ export function createWisp(group, { light = false } = {}) {
           // softly, swelling out and fading.
           if ( r2 > 1.0 ) discard;
           float r = sqrt( r2 );
-          float rim = exp( -pow( ( r - 0.86 ) / 0.07, 2.0 ) );
-          float fill = exp( -r2 * 2.5 ) * 0.22;
+          float rim = exp( -pow( ( r - 0.84 ) / 0.11, 2.0 ) );
+          float fill = exp( -r2 * 2.2 ) * 0.3;
           vec3 edge = mix( burstColour, prism( r * 2.0 - vAlong ), 0.25 );
           c = ( edge * rim * 1.3 + burstColour * fill ) * vBright * mix( 1.0, 1.8, night );
         } else if ( vKind < 4.5 ) {
