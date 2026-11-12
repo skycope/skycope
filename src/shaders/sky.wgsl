@@ -246,8 +246,10 @@ fn atmosphere_color(ray: vec3f, sun: vec3f, moon: vec3f, night: f32, exposure: f
       if (MAGIC_AWAKE && lean > 0.0) {
         let lum = dot(galaxy, vec3f(0.2126, 0.7152, 0.0722));
         let depth = mix(0.7, 1.6, smoothstep(0.35, 0.75, clump * 0.7 + fine * 0.3));
-        let warm = mix(vec3f(0.85, 0.9, 1.15), vec3f(1.2, 1.0, 0.8), smoothstep(0.004, 0.02, lum));
-        galaxy = mix(galaxy, galaxy * depth * warm * 1.5, min(lean, 1.5) * 0.66);
+        // Blue-white arms, a gold core, rust at the edges of the dust lanes.
+        let warm = mix(vec3f(0.75, 0.88, 1.3), vec3f(1.35, 1.0, 0.68), smoothstep(0.004, 0.02, lum));
+        let rust = vec3f(1.15, 0.85, 0.75) * (1.0 - smoothstep(0.0, 0.25, abs(clump - 0.42)));
+        galaxy = mix(galaxy, galaxy * depth * mix(warm, rust, 0.25) * 1.6, min(lean, 1.5) * 0.8);
       }
       color += galaxy * extinction * night;
       // sea-sky-magic: the sky leans close: the airglow shows, a faint green
@@ -305,10 +307,16 @@ fn constellation_lines(ray: vec3f) -> vec3f {
     // A fine luminous thread: the filtered ridge's crest, sharpened, in a
     // faint wide glow of its own.
     let thread = smoothstep(0.42, 0.95, atlas.r) + atlas.r * 0.22;
-    let lines = thread * drawn * hold;
+    // A wide soft glow round each line from the atlas's coarse mip.
+    let glow = textureSampleLevel(starAtlas, cloudSampler, coordinates, 2.0).r * 1.4;
+    let lines = (thread + glow) * drawn * hold;
     let nodes = atlas.a * drawn * (0.05 + pen * 1.2) * look;
     // The pen burns warm, the lines it leaves cool.
-    light = mix(light, FIGURE_LIGHT * (lines + nodes) + PEN_LIGHT * thread * pen * 0.9, gift);
+    // Each figure in its own pale colour (gold, ice blue, lavender, sea
+    // green), like the stars that make it: the sky is not one grey.
+    let hue = 0.5 + 0.5 * cos(6.283185 * (atlas.b * 3.7 + vec3f(0.0, 0.33, 0.67)));
+    let figure = mix(FIGURE_LIGHT, hue * 1.1, 0.4);
+    light = mix(light, figure * (lines + nodes) + PEN_LIGHT * (thread + glow) * pen * 0.9, gift);
   }
   return light * horizon;
 }

@@ -178,6 +178,36 @@ export function constellationAtlas(constellations, width = 2048, height = 1024) 
   }
 }
 
+// The atlas's mip chain (2× box filter per level), so the stars gift can
+// read a wide soft glow round each line from a coarse level (sky.wgsl).
+// Returns levels 1…count as { data, width, height }.
+export const ATLAS_MIPS = 3;
+export function atlasMips(data, width, height, count = ATLAS_MIPS) {
+  const levels = [];
+  let src = data;
+  let w = width;
+  let h = height;
+  for (let level = 0; level < count; level++) {
+    const nw = w >> 1;
+    const nh = h >> 1;
+    const out = new Uint8Array(nw * nh * 4);
+    for (let y = 0; y < nh; y++) {
+      for (let x = 0; x < nw; x++) {
+        for (let c = 0; c < 4; c++) {
+          const a = src[((2 * y) * w + 2 * x) * 4 + c] + src[((2 * y) * w + 2 * x + 1) * 4 + c];
+          const b = src[((2 * y + 1) * w + 2 * x) * 4 + c] + src[((2 * y + 1) * w + 2 * x + 1) * 4 + c];
+          out[(y * nw + x) * 4 + c] = (a + b + 2) >> 2;
+        }
+      }
+    }
+    levels.push({ data: out, width: nw, height: nh });
+    src = out;
+    w = nw;
+    h = nh;
+  }
+  return levels;
+}
+
 function slerpRaDec([ra1, dec1], [ra2, dec2], t) {
   const r = Math.PI / 180;
   const v = (ra, dec) => [Math.cos(dec * r) * Math.cos(ra * r), Math.cos(dec * r) * Math.sin(ra * r), Math.sin(dec * r)];

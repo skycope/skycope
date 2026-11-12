@@ -17,7 +17,7 @@ import { createShoreTextures, createLandTexture } from "../src/shore-textures.js
 import { landFieldData } from "../src/land-field.js";
 import { createVegetation } from "../src/vegetation.js";
 import { cloudTransmission } from "../src/cloud-transmission.js";
-import { CATALOG_SIZE, starCatalogCells, halfFloats, constellationAtlas } from "../src/star-catalog.js";
+import { CATALOG_SIZE, starCatalogCells, halfFloats, constellationAtlas, atlasMips, ATLAS_MIPS } from "../src/star-catalog.js";
 import { skyEventFrame, quietSkyUniforms } from "../src/sky-events.js";
 // sea-sky-magic: the awakened gifts' sea and sky (src/sea-sky-magic.js).
 import { magicUniforms, magicFixture, quietMagicUniforms, magicVariant, magicActive } from "../src/sea-sky-magic.js";
@@ -37,9 +37,13 @@ const catalog = JSON.parse(await readFile(new URL("../src/data/stars.json", impo
 const stars = gpu.gpu.createTexture({
   size: [2048, 1024],
   format: "rgba8unorm",
+  mipLevelCount: ATLAS_MIPS + 1,
   usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
 });
-gpu.gpu.queue.writeTexture({ texture: stars }, constellationAtlas(catalog.constellations), { bytesPerRow: 2048 * 4 }, [2048, 1024]);
+const atlas = constellationAtlas(catalog.constellations);
+gpu.gpu.queue.writeTexture({ texture: stars }, atlas, { bytesPerRow: 2048 * 4 }, [2048, 1024]);
+atlasMips(atlas, 2048, 1024).forEach((m, i) =>
+  gpu.gpu.queue.writeTexture({ texture: stars, mipLevel: i + 1 }, m.data, { bytesPerRow: m.width * 4 }, [m.width, m.height]));
 const starCatalog = gpu.gpu.createTexture({
   size: CATALOG_SIZE,
   format: "rgba16float",
