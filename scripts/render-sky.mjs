@@ -17,7 +17,7 @@ import { createShoreTextures, createLandTexture } from "../src/shore-textures.js
 import { landFieldData } from "../src/land-field.js";
 import { createVegetation } from "../src/vegetation.js";
 import { cloudTransmission } from "../src/cloud-transmission.js";
-import { CATALOG_SIZE, starCatalogCells, halfFloats } from "../src/star-catalog.js";
+import { CATALOG_SIZE, starCatalogCells, halfFloats, constellationAtlas } from "../src/star-catalog.js";
 import { skyEventFrame, quietSkyUniforms } from "../src/sky-events.js";
 // sea-sky-magic: the awakened gifts' sea and sky (src/sea-sky-magic.js).
 import { magicUniforms, magicFixture } from "../src/sea-sky-magic.js";
@@ -31,14 +31,15 @@ const gpu = await init({ requiredFeatures: ["timestamp-query"] });
 const errors = [];
 gpu.onError((error) => errors.push(error));
 const noise = createCloudNoise(gpu.gpu);
-const stars = gpu.gpu.createTexture({
-  size: [1, 1],
-  format: "rgba8unorm",
-  usage: GPUTextureUsage.TEXTURE_BINDING,
-});
-// The real star catalog, so night fixtures show true stars. The constellation
-// figure atlas stays black.
+// The real star catalog, so night fixtures show true stars, and the
+// constellation figure atlas exactly as the site builds it.
 const catalog = JSON.parse(await readFile(new URL("../src/data/stars.json", import.meta.url), "utf8"));
+const stars = gpu.gpu.createTexture({
+  size: [2048, 1024],
+  format: "rgba8unorm",
+  usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+});
+gpu.gpu.queue.writeTexture({ texture: stars }, constellationAtlas(catalog.constellations), { bytesPerRow: 2048 * 4 }, [2048, 1024]);
 const starCatalog = gpu.gpu.createTexture({
   size: CATALOG_SIZE,
   format: "rgba16float",
