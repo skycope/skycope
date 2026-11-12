@@ -115,7 +115,8 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
     findLine.pause(true);
     if (globalThis.document) document.body.dataset.ceremony = "true";
     camStart();
-    if (event.type === "finale") mind.soar(place.x, ceremony.y, place.z);
+    // The finale: the wisp circles up round the cat itself, in frame.
+    if (event.type === "finale") mind.soar(cat.x, cat.y + 0.7, cat.z);
     else mind.dive(place.x, ceremony.y, place.z);
     state.sound.ceremony?.(event.type === "finale" ? "finale" : place.gift);
   }
