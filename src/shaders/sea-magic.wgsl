@@ -12,9 +12,12 @@ export const TIDEGLOW_COLOUR: vec3f = vec3f(0.08, 0.62, 1.0);
 // Its two tones: where the water burns brightest an electric blue-green
 // core; where it glows faintly a deep teal (saturated, so it stays teal
 // through the night tonemap's rod-vision greying).
-export const TIDEGLOW_CORE: vec3f = vec3f(0.3, 1.0, 0.92);
-export const TIDEGLOW_DEEP: vec3f = vec3f(0.0, 0.36, 0.62);
-const LAMP_COLOUR: vec3f = vec3f(1.0, 0.86, 0.62);
+export const TIDEGLOW_CORE: vec3f = vec3f(0.02, 1.0, 0.8);
+export const TIDEGLOW_DEEP: vec3f = vec3f(0.0, 0.22, 0.8);
+// Warm gold: an oil-lamp's colour (and a filament's, through old glass).
+// Oversaturated: the night tonemap greys dim light toward rod vision, and
+// what survives it should still read as gold.
+const LAMP_COLOUR: vec3f = vec3f(1.0, 0.52, 0.1);
 export const LAMP_BEAM_SIGMA: f32 = 0.07;
 const ISLAND_CENTRE: vec2f = vec2f(58.0, 70.0);
 const PI: f32 = 3.141593;
@@ -56,16 +59,21 @@ export fn tideglow(s: SeaPoint, level: f32, finale: f32, night: f32, time: f32, 
   if (night > 0.01) {
     // Churned water: the roller, the uprush, the surge round a rock, a
     // whitecap, the swash's front, glowing from within the foam.
-    var fire = s.foam.z * (0.35 + 1.1 * cover) + s.foam.y * 0.25 + cover * 0.06;
-    // The breaking crest's lip: a running line of light, brightest in knots
-    // that peel along it as the break runs down the wave.
+    var fire = s.foam.z * (0.4 + 1.1 * cover) + s.foam.y * 0.3 + cover * 0.08;
+    // The breaking crest: a running line of light, brightest in knots that
+    // peel along it as the break runs down the wave, in a wide soft halo
+    // of lit water before and behind it.
     let lip = exp(-s.phase * s.phase * 160.0) * smoothstep(0.12, 0.55, s.breaking);
-    if (lip > 0.001) {
+    let crest_halo = exp(-s.phase * s.phase * 6.0) * smoothstep(0.05, 0.5, s.breaking);
+    if (lip + crest_halo > 0.001) {
       let knots = pow(0.5 + 0.5 * sin(s.metrics.w * 0.31 - time * 2.4 + sin(s.metrics.w * 0.07) * 3.0), 6.0);
-      fire += lip * (0.8 + 3.0 * knots);
+      fire += lip * (0.9 + 2.4 * knots) + crest_halo * (0.3 + 0.3 * knots);
     }
+    // The waterline: light spilling up the wet edge of the beach and into
+    // the shallows behind each uprush.
+    fire += exp(-abs(s.metrics.x + 0.4) / 1.8) * (0.25 + s.foam.z * 0.8);
     // Rings round every boulder, sent out with each surge and fading as
-    // they go; its contact line burns.
+    // they go; its foot burns, and the water round it glows.
     // (rocks.wgsl knows a waterline only within its 3.2 m REACH.)
     if (s.rock_edge < 3.2) {
       let e = max(s.rock_edge, 0.0);
@@ -74,7 +82,7 @@ export fn tideglow(s: SeaPoint, level: f32, finale: f32, night: f32, time: f32, 
       let ring = pow(0.5 + 0.5 * cos(e * 5.2 - time * 2.6 + noise2(s.p.xz * 0.6) * 2.0), 12.0) * beads;
       let width_ok = 1.0 - smoothstep(0.08, 0.3, s.pixel);
       let fade = 1.0 - smoothstep(1.6, 3.1, e);
-      fire += (ring * (0.25 + 0.75 * width_ok) * 1.1 * exp(-e * 0.5) + exp(-e * 6.0) * 0.9) * fade * smoothstep(0.0, 0.08, e);
+      fire += (ring * (0.25 + 0.75 * width_ok) * 1.1 * exp(-e * 0.5) + exp(-e * 5.0) * 1.2 + exp(-e * 0.9) * 0.35) * fade;
     }
     // The cat: its collar, its comet of a trail, every paw a flash.
     fire += s.stir * 2.6;
@@ -82,24 +90,33 @@ export fn tideglow(s: SeaPoint, level: f32, finale: f32, night: f32, time: f32, 
     if (rain > 0.05 && s.pixel < 0.09) {
       fire += rain_rings(s.p.xz, time, s.pixel, rain) * (1.0 - smoothstep(0.045, 0.09, s.pixel));
     }
-    // The bay itself: single cells flashing as the swell lifts and drops
-    // them, a starfield on the water that thickens toward the surf.
-    let lift = smoothstep(-0.05, 0.25, s.height) + 0.3;
-    let bloom = smoothstep(0.3, 0.8, noise2(s.p.xz * 0.06 + vec2f(time * 0.004, 1.3)));
-    fire += plankton(s.p.xz, time, s.pixel) * lift * (0.3 + 1.2 * exp(-offshore / 25.0)) * (0.25 + 0.75 * bloom);
-    // Fish under the surface: darting sparks, dimmed by the water above.
-    if (s.pixel < 0.12 && offshore > 2.0) {
-      fire += fish_sparks(s.p.xz, time, s.pixel) * smoothstep(1.0, 3.0, s.depth);
-    }
-    // A faint steady glow over the shallows, as though the bay held light.
-    fire += 0.02 * exp(-offshore / 18.0) + 0.004;
+    // The bloom drifts in slow patches along the coast: brighter and dimmer
+    // stretches of shore, never one even stroke.
+    let bloom = smoothstep(0.2, 0.8, noise2(vec2f(s.metrics.w * 0.025 + time * 0.01, s.metrics.x * 0.04)));
+    fire *= 0.55 + 0.6 * bloom;
+    // The bay holds light: a deep blue body in the water, strongest in the
+    // shallows, so the night sea reads instead of falling to black.
+    fire += 0.035 + 0.08 * exp(-offshore / 22.0);
     // The finale: slow spirals of light turning round the island.
     if (finale > 0.0) {
       fire += spirals(s.p.xz, time) * finale;
     }
     // Light from under the surface leaves less at grazing angles.
-    let tint = mix(TIDEGLOW_DEEP, TIDEGLOW_CORE, smoothstep(0.12, 1.4, fire));
-    light += tint * fire * level * night * (1.0 - s.fresnel * 0.5) * 1.1;
+    let f = fire * level * night * (1.0 - s.fresnel * 0.5);
+    // Soft saturation under the tonemap's shoulder, so the brightest water
+    // keeps its colour instead of clipping white; the colour deepens with
+    // the light: deep blue body, teal, an electric blue-green core.
+    let body = 1.0 - exp(-f * 1.1);
+    let tint = mix(TIDEGLOW_DEEP, TIDEGLOW_CORE, smoothstep(0.08, 0.8, body));
+    light += tint * body * 0.62;
+    // Points of light over it (single cells, fish): sparkle that flares
+    // and fades, allowed past the ceiling because they are tiny.
+    let lift = smoothstep(-0.05, 0.25, s.height) + 0.3;
+    var sparks = plankton(s.p.xz, time, s.pixel) * lift * (0.3 + 1.2 * exp(-offshore / 25.0)) * (0.25 + 0.75 * bloom);
+    if (s.pixel < 0.12 && offshore > 2.0) {
+      sparks += fish_sparks(s.p.xz, time, s.pixel) * smoothstep(1.0, 3.0, s.depth);
+    }
+    light += mix(TIDEGLOW_CORE, vec3f(0.7, 1.0, 1.0), 0.3) * sparks * level * night * 0.5;
   }
   if (night < 0.99) {
     // By day: turquoise light from within the shallows, and fine sparkle.
@@ -233,7 +250,11 @@ export fn lamp_on_sea(s: SeaPoint, lamp: vec4f, level: f32, night: f32) -> vec3f
   let spec = pow(nh, 900.0) * 40.0 + pow(nh, 160.0) * 0.8;
   let sparkle = 0.4 + 1.6 * hash22m(floor(s.p.xz * 3.0) + floor(lamp.w * 40.0)).x;
   let strength = level * (0.25 + 0.75 * night) * 7.0;
-  return LAMP_COLOUR * falloff * strength * ((beam + spill) * diffuse + beam * spec * sparkle * s.fresnel * 4.0);
+  // The broad path saturates softly below the tonemap's shoulder, so it
+  // stays gold; the crest glints on top of it are small and may flare.
+  let path = falloff * strength * (beam + spill) * diffuse;
+  let glints = falloff * strength * beam * spec * sparkle * s.fresnel * 4.0;
+  return LAMP_COLOUR * ((1.0 - exp(-path * 4.0)) * 0.85 + min(glints, 3.0) * 0.5);
 }
 
 // ---- The pulse: a waking's wave of light running out across the sea. -------
@@ -245,19 +266,27 @@ export fn pulse_on_sea(s: SeaPoint, pulse: vec4f, colour: vec4f, time: f32, brig
   let behind = pulse.z - d;
   if (behind < -12.0 || behind > 60.0) { return vec3f(0.0); }
   let width = 1.6 + s.pixel * 2.0;
-  // A bright leading edge, a second fainter ring just behind it, and the
-  // wash of light it leaves.
-  let ring = exp(-behind * behind / (width * width));
-  let echo = exp(-pow(behind - 6.0, 2.0) / (width * width * 2.0)) * 0.35;
-  let wake = select(0.0, exp(-behind / 16.0) * 0.18, behind > 0.0);
-  // Glitter: sparks on the swell inside the ring, re-rolled many times a second.
+  // A soft leading edge rising to the crest of the wave of light, and
+  // behind it a wake that lingers a second or two (~30 m at 18 m/s).
+  let lead = select(exp(-behind * behind / (width * width * 4.0)), exp(-behind * behind / (width * width)), behind > 0.0);
+  let wake = select(0.0, exp(-behind / 14.0) * 0.35, behind > 0.0);
+  // Glitter in the wake: sparks on the swell that flare and fade at their
+  // own pace, thinning out behind the crest.
   let scale = max(0.4, s.pixel * 1.5);
   let g = s.p.xz / scale;
-  let h = hash22m(floor(g) + floor(time * 12.0) * 0.37);
+  let cell = hash22m(floor(g));
+  let pace = time * (2.0 + cell.x * 3.0) + cell.y * 9.0;
+  let h = hash22m(floor(g) + floor(pace) * 0.37);
   let spot = 1.0 - smoothstep(0.08, 0.25, length(fract(g) - 0.25 - h * 0.5));
-  let glitter = step(0.82, h.x) * spot * (ring + echo) * 6.0;
+  let flare = (1.0 - fract(pace)) * (1.0 - fract(pace));
+  let trail = select(lead, exp(-behind / 10.0), behind > 0.0);
+  let glitter = step(0.8, h.x) * spot * flare * trail * 5.0;
   let crest = smoothstep(-0.05, 0.2, s.height) * 0.6 + 0.4;
-  return colour.rgb * pulse.w * brightness * ((ring * 3.0 + echo + wake) * crest + glitter);
+  // The gift's own colour, deepened a little so it reads as colour, the
+  // body saturating softly below white.
+  let hue = mix(vec3f(dot(colour.rgb, vec3f(0.3333))), colour.rgb, 1.35);
+  let body = (lead * 1.6 + wake) * crest * pulse.w * brightness;
+  return max(hue, vec3f(0.0)) * ((1.0 - exp(-body * 1.4)) * 0.6 * brightness + glitter * pulse.w * brightness * 0.6);
 }
 
 // ---- The wisp: the guiding light's reflection and pool on the water. --------
