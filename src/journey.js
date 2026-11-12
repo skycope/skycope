@@ -29,6 +29,15 @@ const FINALE = { small: "six gifts · one island", big: "the island is awake", a
 const WAKE = { card: 0.7, cardHold: 4.6, hold: 2.6, release: 5, camHome: 6.2, end: 8 };
 const FINALE_TIME = { wake: 2.8, card: 4.5, cardHold: 9, hold: 6, camHome: 17, end: 20.5 };
 const WHITE = [1, 0.95, 0.85];
+// Each ceremony's camera: low behind the cat while the wisp dives (elevation,
+// distance), then easing wider to take in the place (`wide`). Under the
+// milkwood's canopy it stays low; at the lighthouse it stands well back.
+const SHOTS = {
+  default: { elevation: 0.2, distance: 6.5, wide: [0.3, 9] },
+  fireflies: { elevation: 0.1, distance: 5.5, wide: [0.14, 7] },
+  lamp: { elevation: 0.06, distance: 9, wide: [0.1, 13] },
+  stars: { elevation: 0.25, distance: 7, wide: [0.42, 10] },
+};
 
 export function createJourney({ state, card, findLine, now, onChange = () => {} }) {
   const magic = state.magic;
@@ -95,7 +104,9 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
       gift: place.gift,
       at: now(),
       goneAt: null,
-      y: ground + (event.type === "finale" ? 2 : 1.1),
+      // The lighthouse's gift is its lamp: the wisp goes in at the top.
+      y: ground + (event.type === "finale" ? 2 : place.gift === "lamp" ? 16.4 : 1.1),
+      shot: SHOTS[event.type === "finale" ? "finale" : place.gift] ?? SHOTS.default,
       // Look from the cat toward the place, so it stands beyond the cat.
       yaw: Math.atan2(place.x - cat.x, place.z - cat.z),
       carded: false,
@@ -162,8 +173,9 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
       c.carded = true;
       card?.show(c.place.title?.toLowerCase?.() ?? "", GIFT_LINES[c.gift] ?? "", WAKE.cardHold, false);
     }
-    // Ease back to take it in (the place beyond the cat), then home.
-    if (g < WAKE.camHome) camAim(c.yaw, g < 0 ? 0.5 : 0.62, g < 0 ? 7 : 9.5, g < 0 ? 1.6 : 0.5, dt);
+    // Ease back, low, to take it in (the place beyond the cat), then home.
+    const s = c.shot;
+    if (g < WAKE.camHome) camAim(c.yaw, g < 0 ? s.elevation : s.wide[0], g < 0 ? s.distance : s.wide[1], g < 0 ? 1.6 : 0.45, dt);
     else camAim(cam.home.yaw, cam.home.elevation, cam.home.distance, 1.8, dt);
     // Time holds its breath, then runs again.
     const held = g >= 0 && g < WAKE.hold;

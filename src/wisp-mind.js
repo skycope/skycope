@@ -32,6 +32,7 @@ export const WISP = {
 };
 
 const TAU = Math.PI * 2;
+const NONE = [];
 
 // obstacles: { trunks: [{ x, z, r }], domes: [{ x, z, r, … }] } (walker.js).
 export function createWispMind({ seed = 1, obstacles = null, surface = groundHeight, swimLimit = 24 } = {}) {
@@ -676,7 +677,8 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
   // The body never inside a trunk, below the ground or a boulder's top, or
   // past the swim limit.
   function collide() {
-    for (const t of grid.trunksAt(body.x, body.z)) {
+    // (Diving into its keepsake, it goes in.)
+    for (const t of mode === "dive" ? NONE : grid.trunksAt(body.x, body.z)) {
       const r = t.r + WISP.clear;
       const dx = body.x - t.x;
       const dz = body.z - t.z;
