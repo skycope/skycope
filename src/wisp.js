@@ -260,6 +260,11 @@ export function createWisp(group, { light = false } = {}) {
           if ( r2 > 1.0 ) discard;
           c = mix( gifts( vAlong ), vec3( 1.0 ), 0.45 ) * exp( -r2 * 5.0 ) * vBright * 2.2;
         }
+        #ifdef VEILED
+          // Seen through leaves: a fifth of the light, none of the bloom or pool.
+          if ( vKind > 2.5 && vKind < 4.5 ) discard;
+          c *= 0.2;
+        #endif
         gl_FragColor = vec4( c, 0.0 );
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -272,6 +277,30 @@ export function createWisp(group, { light = false } = {}) {
   mesh.visible = false;
   mesh.matrixAutoUpdate = false;
   group.add(mesh);
+  // A second, faint pass without the depth test: a bright light behind
+  // leaves still glows through them, so the wisp can be found in a thicket
+  // (its bloom and pool are left out). The same uniforms, shared.
+  const veiled = new THREE.ShaderMaterial({
+    uniforms: { ...uniforms },
+    vertexShader: material.vertexShader,
+    fragmentShader: material.fragmentShader,
+    defines: { VEILED: 1 },
+    transparent: true,
+    depthWrite: false,
+    depthTest: false,
+    side: THREE.DoubleSide,
+    blending: THREE.CustomBlending,
+    blendSrc: THREE.OneFactor,
+    blendDst: THREE.OneFactor,
+    blendSrcAlpha: THREE.ZeroFactor,
+    blendDstAlpha: THREE.OneFactor,
+  });
+  const through = new THREE.Mesh(geometry, veiled);
+  through.frustumCulled = false;
+  through.renderOrder = 7;
+  through.visible = false;
+  through.matrixAutoUpdate = false;
+  group.add(through);
 
   let state = null;
   let surface = null;
@@ -297,6 +326,7 @@ export function createWisp(group, { light = false } = {}) {
       const burstAge = pulse ? magic.clock - pulse.at : Infinity;
       const bursting = burstAge >= 0 && burstAge < BURST_SECONDS;
       mesh.visible = (Boolean(w?.visible) && w.glow > 0.004) || bursting;
+      through.visible = mesh.visible && w.visible;
       if (!mesh.visible) return;
       const [x, y, z] = w.position;
       uniforms.core.value.set(x, y, z, w.visible ? w.glow : 0);
@@ -356,7 +386,8 @@ export function createWisp(group, { light = false } = {}) {
     dispose() {
       geometry.dispose();
       material.dispose();
-      group.remove(mesh);
+      veiled.dispose();
+      group.remove(mesh, through);
     },
   };
 }

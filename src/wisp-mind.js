@@ -17,6 +17,7 @@ export const WISP = {
   // How high it floats above the ground (metres), and how high it waits.
   float: 0.9,
   wait: 1.25,
+  waitHigh: 1.95,
   // How far ahead it waits for a walking / running cat, how near the cat
   // comes before it flits on, and how far the cat strays before it comes back.
   hop: 7,
@@ -280,7 +281,8 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
           const waiting = Math.hypot(body.x - perch.x, body.z - perch.z) < 1.2;
           goal.x = perch.x;
           goal.z = perch.z;
-          goal.y = surface(perch.x, perch.z) + (hover === WISP.float ? WISP.wait : hover);
+          // Over the scrub and bushes inland it waits higher, where it shows.
+          goal.y = surface(perch.x, perch.z) + (hover === WISP.float ? (shoreDistance(perch.x, perch.z) > 7 ? WISP.waitHigh : WISP.wait) : hover);
           if (running) {
             // Playful: zigzag across the way and dart.
             const across = Math.sin(clock * 3.1 + phase[0]) * 1.1;
