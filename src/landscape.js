@@ -11,6 +11,7 @@ import { cloudTransmission } from "./cloud-transmission.js";
 import { createMeshProfiler } from "./mesh-profiler.js";
 import { createArchipelago } from "./archipelago.js";
 import { createLens } from "./lens.js";
+import { createPlaces } from "./places.js"; // places:
 import { horizonRadiance, skyDomeRatio, skyDomeMean, skyEnvironmentKey } from "./sunlight.js";
 
 // The mesh layer tonemaps with the same curve as the WebGPU water pass
@@ -82,6 +83,10 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   const land = new THREE.Group();
   land.scale.z = -1;
   const forest = createForest(land, seed, { light });
+  // places: landmarks, and their collision merged in before the walker reads it.
+  const places = createPlaces(land, seed, { light, shared: land.userData.forestShared });
+  forest.obstacles.trunks.push(...places.obstacles.trunks);
+  forest.obstacles.domes.push(...places.obstacles.domes);
   const fauna = createFauna(land, seed);
   const cat = createCat(land, { light });
   const critters = createCritters(land, seed, forest.obstacles.flowers);
@@ -171,6 +176,9 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     camera: perf ? camera : null,
     surf: perf ? forest.surf : null,
     obstacles: forest.obstacles,
+    // places: the landmarks the cat can find ({ id, title, x, z, r }).
+    pois: places.pois,
+    places: perf ? places : null, // places: `?perf` QA
     shoreRocks: forest.shoreRocks,
     // `?perf` QA: scales every splash the cat and the surf throw.
     splash: SPLASH,
@@ -196,6 +204,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       forest.updateWind(time, wind);
       forest.updateNight(night);
       fauna.update(time, wind, night);
+      places.update({ time, night, wind, eye: [flight.x, flight.y, flight.z], pose }); // places:
       const sinA = Math.sin(flight.azimuth);
       const cosA = Math.cos(flight.azimuth);
       const hx = (sinA + cosA) * Math.SQRT1_2;
@@ -340,6 +349,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       // The cat owns render targets (its shadow map, the coat bakes) and a
       // build worker the scene traversal below cannot reach.
       cat.dispose();
+      places.dispose(); // places:
       precipitation.dispose();
       archipelago.geometry.dispose();
       archipelago.material.dispose();
