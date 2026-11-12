@@ -99,7 +99,11 @@ export function magicUniforms(magic, { time = magic?.clock ?? 0, lamp = null } =
       u.pulseColour = [colour[0], colour[1], colour[2], reach];
     }
   }
-  if (u.magic[2] > 0 && lamp) u.lamp = [lamp.x, lamp.y, lamp.z, lampAngle(time)];
+  // land-magic: when the land's lamp state is passed (landscape.lamp: its
+  // own angle, with the slow start after waking, and `lit`, with the catch's
+  // flicker) the sea's beam is the same beam; otherwise the plain 12 s turn.
+  if (lamp && Number.isFinite(lamp.lit)) u.magic[2] = Math.min(u.magic[2], Math.max(0, lamp.lit));
+  if (u.magic[2] > 0 && lamp) u.lamp = [lamp.x, lamp.y, lamp.z, Number.isFinite(lamp.angle) ? lamp.angle : lampAngle(time)];
   const wisp = magic.wisp;
   if (wisp?.visible && wisp.glow > 0.001) {
     u.wisp = [wisp.position[0], wisp.position[1], wisp.position[2], wisp.glow];

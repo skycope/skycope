@@ -941,6 +941,9 @@ function createUniforms() {
 // sea-sky-magic: the lighthouse lamp in coast metres (place-lighthouse.js
 // puts it ~15 m above the ground at the tower's foot), once the land exists.
 function lampPosition() {
+  // land-magic: the land's own lamp (angle, lit, coast position), so the
+  // beam on the land and its path on the sea are one beam.
+  if (state.landscape?.lamp) return state.landscape.lamp;
   if (state.lampPosition !== undefined) return state.lampPosition;
   const pois = state.landscape?.pois;
   if (!pois) return null;
