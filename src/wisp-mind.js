@@ -64,6 +64,7 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
   const fidget = { x: 0, y: 0, z: 0 };
   let orbit = random() * TAU;
   let lastPeek = -Infinity;
+  let sitFor = 0;
   let previous = "lead";
   // A ceremony's dive ({ x, y, z } of the keepsake) while one plays.
   const dive = { x: 0, y: 0, z: 0, at: 0, active: false };
@@ -179,6 +180,9 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
       }
       const catY = Number.isFinite(cat.y) ? cat.y : surface(cat.x, cat.z);
       const sitting = cat.sit > 0.85;
+      sitFor = sitting ? sitFor + dt : 0;
+      // A cat that has sat a while (not one that has only just stopped).
+      const settled = sitFor > (ctx.sunset ? 3 : 10);
       let hover = WISP.float;
       let rest = 0.6 + 0.4 * (ctx.night ?? 0);
       speedCap = 6;
@@ -223,7 +227,7 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
             set("company");
             break;
           }
-          if (sitting && cat.idle > 2) {
+          if (settled) {
             set(ctx.sunset ? "sunset" : "circle");
             break;
           }
@@ -301,7 +305,7 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
           // Nothing to lead to, or the cat would rather wander: stays near,
           // a little to one side and ahead, and now and then tugs toward
           // where it wants to go.
-          if (sitting && cat.idle > 2) {
+          if (settled) {
             set(ctx.sunset ? "sunset" : "circle");
             break;
           }
@@ -356,6 +360,11 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
           goal.z = cat.z + Math.cos(orbit) * 0.85;
           goal.y = catY + 0.5 + Math.sin(orbit * 2) * 0.08;
           speedCap = 3;
+          // Now and then, a gentle "this way" while the cat sits on.
+          if (target && since() > 9 && clock - lastTug > 24) {
+            lastTug = clock;
+            set("tug");
+          }
           break;
         }
         case "sunset": {

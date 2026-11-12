@@ -174,7 +174,9 @@ test("it circles a sitting cat and comes when meowed at", () => {
   for (let i = 0; i < 30 * 8; i++) mind.update(DT, { cat, target });
   cat.sit = 1;
   cat.idle = 5;
-  for (let i = 0; i < 30 * 8; i++) mind.update(DT, { cat, target });
+  for (let i = 0; i < 30 * 5; i++) mind.update(DT, { cat, target });
+  assert.notEqual(mind.mode, "circle", "a cat that has only just sat is still being led");
+  for (let i = 0; i < 30 * 9; i++) mind.update(DT, { cat, target });
   assert.equal(mind.mode, "circle");
   assert.ok(mind.distanceTo(cat.x, cat.z) < 1.3);
   cat.sit = 0;
