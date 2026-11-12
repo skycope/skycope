@@ -37,6 +37,7 @@ import { lightingAt } from "./sunlight.js";
 // sky-events: rainbows, halos, rays, lightning, meteors (src/sky-events.js).
 import { createSkyEvents, parseSkyForce, skySpectacles } from "./sky-events.js";
 import { spectacleSeen } from "./discoveries.js";
+import { createMagic, parseMagicForce } from "./magic.js";
 import { archipelagoUniform, archipelagoSunVisibility, ISLAND_SLOTS } from "./archipelago.js";
 import { createWeatherPanel } from "./weather-panel.js";
 import { createWalker, surfaceKind, SWIM_LIMIT } from "./walker.js";
@@ -99,6 +100,9 @@ const state = {
   debugMinutes: review?.minutes ?? null,
   celestial: null,
   pointer: [0.5, 0.5],
+  // magic: which of the island's gifts are awake (magic.js); every layer reads
+  // `state.magic.levels`.
+  magic: createMagic({ force: parseMagicForce(window.location.search) }),
   // thread: see thread.js. photoPixels: the render size while a photo is taken.
   thread: null,
   photoPixels: null,
@@ -701,6 +705,7 @@ async function startAtmosphere() {
       updateCat(dt, realDt);
       adaptQuality(gpuClock.deltaTime);
     }
+    state.magic.update(motionPreference.matches ? 0 : dt, state.time);
     const uniforms = createUniforms();
     const wind = uniforms.wind;
     modes.write(waveModes.update(state.time, wind));
@@ -781,6 +786,8 @@ async function startAtmosphere() {
       onStep: footstep,
       // sky-events: a lightning flash lights the land for a few frames.
       skyFlash: state.skyFrame?.landFlash ?? 0,
+      // magic: the awakenings' levels and wake times, for the land layer.
+      magic: state.magic,
       wake: state.wake,
     });
     if (PERF) {
