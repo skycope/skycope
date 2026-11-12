@@ -751,6 +751,8 @@ function obstacleGrid({ trunks = [], domes = [] }) {
           seen.add(t);
           // Closest approach of the segment to the trunk's centre.
           const u = length > 1e-6 ? Math.max(0, Math.min(1, ((t.x - ax) * dx + (t.z - az) * dz) / (length * length))) : 0;
+          // Heading away from a trunk it starts beside is fine.
+          if (u === 0 && margin > 0) continue;
           const px = ax + dx * u - t.x;
           const pz = az + dz * u - t.z;
           if (px * px + pz * pz < (t.r + margin) * (t.r + margin)) return false;
