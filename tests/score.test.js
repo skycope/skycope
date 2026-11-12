@@ -70,3 +70,22 @@ test("moods follow the light and the weather", () => {
   assert.equal(moodFor({ sunAltitude: 40, rain: 8 }), "storm");
   assert.equal(moodFor({ sunAltitude: 40, asleep: true }), "sleep");
 });
+
+import { CEREMONIES, ceremonyEvents } from "../src/score.js";
+
+test("each gift's ceremony is its own phrase, in its mode, landing as the gift wakes", () => {
+  const seen = new Set();
+  for (const gift of Object.keys(CEREMONIES)) {
+    const e = ceremonyEvents(gift);
+    const { mode } = CEREMONIES[gift];
+    assert.ok(e.plucks.length >= 6, gift);
+    for (const p of e.plucks) assert.ok(inMode(p.midi, mode), `${gift} ${p.midi}`);
+    for (const pad of e.pads) for (const n of pad.notes) assert.ok(inMode(n, mode) && n < 76, `${gift} pad ${n}`);
+    // The phrase begins after the dive (≈1.5 s) and ends inside the ceremony.
+    assert.ok(e.plucks[0].at > 1.4 && e.plucks.at(-1).at < e.length, gift);
+    const key = e.plucks.map((p) => p.midi).join();
+    assert.ok(!seen.has(key), `${gift} repeats another`);
+    seen.add(key);
+  }
+  assert.equal(ceremonyEvents("nothing"), null);
+});

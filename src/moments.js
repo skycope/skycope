@@ -46,11 +46,81 @@ export function createFindLine(el, { reduced = () => false, hold = 3600 } = {}) 
 // The field notes: found things by name (with the Cape Town time each was
 // found), the rest as dim dashes. Rendered from discoveries.list() only, so
 // an unfound title never reaches the page.
-export function createNotesPanel({ toggle, panel, list, signal, time = (at) => "" }) {
+// Above them, the six gifts as small marks, dim until woken and lit in
+// their colour after; and once any is awake, a quiet "begin again".
+// gifts() → [{ gift, awake, line, colour: [r, g, b] }].
+// Fine line marks, drawn as with a mapping pen.
+const GLYPHS = {
+  fireflies: '<circle cx="3" cy="9.2" r="1"/><circle cx="7" cy="3.6" r="1.25"/><circle cx="10.4" cy="8" r="0.75"/><path d="M3.8 8.4C5 7 5.6 5.6 6.2 4.6M7.9 4.4c1.1.9 1.9 2 2.2 2.9" stroke-dasharray="0.4 1.1"/>',
+  tideglow: '<path d="M1 7.6c1.3-1.6 2.6-1.6 3.8 0s2.6 1.6 3.8 0 2.4-1.5 3.4-.4M2.4 10.4c1-.9 2-.9 3 0s2 .9 3 0"/><circle cx="6.5" cy="3.4" r="0.6"/>',
+  lamp: '<path d="M5.4 12V5.2h2.2V12M4.3 12h4.4M5.1 5.2h2.8M6.5 5.2V3.6M8.6 4.2l3.6-1.4M8.6 4.8l3.6 1.2"/>',
+  stars: '<path d="M6.5 1.2C6.8 4.6 7.6 5.6 11.2 6.2 7.6 6.8 6.8 7.8 6.5 11.4 6.2 7.8 5.4 6.8 1.8 6.2 5.4 5.6 6.2 4.6 6.5 1.2z"/><circle cx="11" cy="2.2" r="0.5"/>',
+  seafolk: '<path d="M2 6.8c1.8-2.6 5.4-2.8 7.4-.2-2 2.4-5.6 2.4-7.4.2zM9.4 6.6 11.6 5v3.2zM1.2 10.6c1.4-.9 2.8-.9 4.2 0s2.8.9 4.2 0"/>',
+  boat: '<path d="M1.4 8.4h10.2c-.8 1.9-2.4 2.8-5.1 2.8S2.2 10.3 1.4 8.4zM6.4 8.4V1.6M6.4 2.2c2 1.5 3.2 3.4 3.4 5.4H6.4"/>',
+};
+
+export function createNotesPanel({ toggle, panel, list, signal, time = (at) => "", gifts = () => [], onBeginAgain = null }) {
   const options = { signal };
   const items = panel?.querySelector("ol");
+  const marks = panel?.querySelector(".gift-marks");
+  const again = panel?.querySelector(".begin-again");
+  const dots = toggle?.querySelector(".gift-dots");
   let dirty = true;
+  let confirmUntil = 0;
+  again?.addEventListener(
+    "click",
+    () => {
+      if (performance.now() < confirmUntil) {
+        confirmUntil = 0;
+        again.textContent = "begin again";
+        onBeginAgain?.();
+        render();
+        return;
+      }
+      confirmUntil = performance.now() + 4000;
+      again.textContent = "begin again? · yes";
+      setTimeout(() => {
+        if (performance.now() >= confirmUntil) again.textContent = "begin again";
+      }, 4100);
+    },
+    options,
+  );
+  function renderGifts() {
+    const list = gifts();
+    const awake = list.filter((g) => g.awake && g.gift !== "finale").length;
+    if (marks) {
+      marks.replaceChildren(
+        ...list
+          .filter((g) => GLYPHS[g.gift])
+          .map((g) => {
+            const span = document.createElement("span");
+            span.className = "gift-mark";
+            span.dataset.awake = String(g.awake);
+            if (g.awake) span.style.setProperty("--glow", `rgb(${g.colour.map((c) => Math.round(c * 255)).join(" ")})`);
+            span.title = g.awake ? g.line : "asleep";
+            span.innerHTML = `<svg viewBox="0 0 13 13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round">${GLYPHS[g.gift]}</svg>`;
+            return span;
+          }),
+      );
+      marks.setAttribute("aria-label", `${awake} of six gifts awake`);
+      marks.hidden = list.length === 0;
+    }
+    if (again) again.hidden = awake === 0;
+    if (dots) {
+      dots.hidden = awake === 0;
+      dots.replaceChildren(
+        ...list
+          .filter((g) => GLYPHS[g.gift])
+          .map((g) => {
+            const i = document.createElement("i");
+            if (g.awake) i.style.background = `rgb(${g.colour.map((c) => Math.round(c * 255)).join(" ")})`;
+            return i;
+          }),
+      );
+    }
+  }
   function render() {
+    renderGifts();
     if (!items) return;
     dirty = false;
     const entries = list();
@@ -108,7 +178,15 @@ export function createNotesPanel({ toggle, panel, list, signal, time = (at) => "
     changed() {
       dirty = true;
       if (panel && !panel.hidden) render();
-      else if (toggle) toggle.dataset.fresh = "true";
+      else {
+        renderGifts();
+        if (toggle) toggle.dataset.fresh = "true";
+      }
+    },
+    // The gifts changed quietly (restored on load, begun again).
+    refresh() {
+      dirty = true;
+      renderGifts();
     },
     get open() {
       return panel ? !panel.hidden : false;
@@ -236,6 +314,38 @@ export function createArrival(el, { reduced = () => false } = {}) {
       );
     },
     skip: finish,
+  };
+}
+
+// A gift's card: a small line (the place) over a larger one (what woke),
+// faded in high in the view, held, and gone. `grand` is the finale's title,
+// in the manner of the arrival. Written only when shown.
+export function createGiftCard(el, { reduced = () => false } = {}) {
+  const small = el?.querySelector(".gift-small");
+  const big = el?.querySelector(".gift-big");
+  let timers = [];
+  const clear = () => {
+    timers.forEach(clearTimeout);
+    timers = [];
+  };
+  return {
+    show(top, line, hold = 4.5, grand = false) {
+      if (!el) return;
+      clear();
+      if (small) small.textContent = top;
+      if (big) big.textContent = line;
+      el.dataset.grand = String(grand);
+      el.hidden = false;
+      requestAnimationFrame(() => requestAnimationFrame(() => (el.dataset.state = "in")));
+      timers.push(
+        setTimeout(() => (el.dataset.state = "out"), hold * 1000),
+        setTimeout(() => {
+          el.hidden = true;
+          delete el.dataset.state;
+        }, hold * 1000 + (reduced() ? 300 : 3000)),
+      );
+    },
+    dispose: clear,
   };
 }
 

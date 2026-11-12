@@ -9,7 +9,9 @@
 const SPEED_OF_SOUND = 343;
 
 // Every call's typical distance (metres) when none is given.
-const NEAR = { discover: 0, thunder: 3000, "penguin-bray": 25, "seal-bark": 30, "whale-blow": 90, owl: 35, "splash-big": 25 };
+const NEAR = { discover: 0, thunder: 3000, "penguin-bray": 25, "seal-bark": 30, "whale-blow": 90, owl: 35, "splash-big": 25, wisp: 4, wake: 0 };
+// Calls heard the same wherever they come from (music-like, not of the place).
+const EVERYWHERE = new Set(["discover", "thunder", "wake"]);
 
 export const CALLS = Object.keys(NEAR);
 
@@ -24,10 +26,10 @@ export function playCall(io, name, options = {}) {
     t,
     pan: Math.max(-1, Math.min(1, options.pan ?? 0)),
     // Inverse distance past a reference, gentler than 1/r so far calls stay audible.
-    gain: (options.gain ?? 1) * (name === "discover" || name === "thunder" ? 1 : Math.min(1, (NEAR[name] / Math.max(1, distance)) ** 0.8)),
+    gain: (options.gain ?? 1) * (EVERYWHERE.has(name) ? 1 : Math.min(1, (NEAR[name] / Math.max(1, distance)) ** 0.8)),
     // Air takes the highs first.
-    cutoff: name === "discover" ? 18000 : Math.max(500, 16000 * Math.exp(-distance / 450)),
-    reverb: name === "discover" ? 0.6 : Math.min(0.7, 0.12 + distance / 400),
+    cutoff: name === "discover" || name === "wake" ? 18000 : Math.max(500, 16000 * Math.exp(-distance / 450)),
+    reverb: name === "discover" || name === "wisp" ? 0.6 : name === "wake" ? 0.8 : Math.min(0.7, 0.12 + distance / 400),
   });
   const length = make(io, chain.input, t, distance, options);
   chain.release(t + length + 0.3);
@@ -170,6 +172,52 @@ function tone(io, out, { t, hz, to = null, length, gain, attack = 0.01, type = "
 const rand = (a, b) => a + Math.random() * (b - a);
 
 const SYNTHS = {
+  // The wisp answering a meow: three glassy notes skipping up (D, A, D,
+  // high), quick and quiet, with a breath of air.
+  wisp(io, out, t) {
+    const notes = [86, 93, 98];
+    notes.forEach((midi, i) => {
+      const hz = 440 * 2 ** ((midi - 69) / 12);
+      const at = t + i * 0.07 + rand(0, 0.015);
+      tone(io, out, { t: at, hz, length: 0.55 - i * 0.1, gain: 0.065 * (1 - i * 0.15), attack: 0.004 });
+      tone(io, out, { t: at, hz: hz * 2.01, length: 0.18, gain: 0.008, attack: 0.003 });
+    });
+    burst(io, out, { buffer: io.noise, t, type: "highpass", frequency: 6500, q: 0.4, gain: 0.012, attack: 0.03, length: 0.3 });
+    return 0.9;
+  },
+
+  // A gift waking, the wave of light running out across the island: a low
+  // bloom that swells and fades, air rising through it, and a slow
+  // cluster of bells (D, A, E) ringing out. `gift` shifts the bells' octave.
+  wake(io, out, t, _d, { gift = "" } = {}) {
+    const high = gift === "stars" || gift === "fireflies" ? 12 : gift === "seafolk" ? -12 : 0;
+    const { ctx } = io;
+    // The bloom: D2 and A2, swelling in over a second and dying over four.
+    for (const [hz, g] of [[73.42, 0.13], [110, 0.055], [146.83, 0.03]]) {
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.value = hz;
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0, t);
+      env.gain.linearRampToValueAtTime(g, t + 1.1);
+      env.gain.setTargetAtTime(0, t + 1.3, 1.3);
+      osc.connect(env).connect(out);
+      osc.start(t);
+      osc.stop(t + 7);
+      osc.onended = () => [osc, env].forEach((n) => n.disconnect());
+    }
+    // Air rising through it, like a wave running up a beach.
+    burst(io, out, { buffer: io.pink, t, type: "bandpass", frequency: 900, to: 7000, q: 1.2, gain: 0.05, attack: 0.9, length: 2.6 });
+    // Bells, a little apart, ringing long.
+    [74, 81, 88, 86].forEach((midi, i) => {
+      const hz = 440 * 2 ** ((midi + high - 69) / 12);
+      const at = t + 0.35 + i * 0.32;
+      tone(io, out, { t: at, hz, length: 3.4 - i * 0.4, gain: 0.05 * (1 - i * 0.12), attack: 0.006 });
+      tone(io, out, { t: at, hz: hz * 2.76, length: 0.5, gain: 0.006, attack: 0.004 });
+    });
+    return 6.5;
+  },
+
   // A soft glass chime: three notes rising through the fifth, in every mode
   // the score uses (D, A, E). Returns its length in seconds.
   discover(io, out, t, _d, { notes = [74, 81, 88] } = {}) {
