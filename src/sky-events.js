@@ -261,7 +261,9 @@ export function strikeBrightness(strike, t, frame = 1 / 60) {
 const METEOR_SLOT = 3;
 const METEOR_LONGEST = 7;
 
-export function meteorInSlot(seed, slot, conditions, forced = null) {
+// `magic` (sea-sky-magic): { stars, finale, callAt } from src/magic.js. The
+// stars gift gives every meteor a long glowing train.
+export function meteorInSlot(seed, slot, conditions, forced = null, magic = null) {
   const r = (salt) => hash(seed, CHANNEL.meteor, slot, salt);
   const rate = (conditions.meteorRate * conditions.meteorVisibility * LINGER) / 3600;
   if (forced) {
@@ -301,9 +303,15 @@ export function meteorInSlot(seed, slot, conditions, forced = null) {
     bearing, elevation, shower: fromShower ? conditions.shower.id : null,
     // Fast meteors burn green (Mg, O); slow ones yellow-orange (Na, Fe).
     green: smoothstep(35, 65, speed) * (0.4 + 0.6 * r(11)),
-    train: fireball ? 2.5 + 3 * r(12) : 0,
+    train: fireball ? 2.5 + 3 * r(12) : magic?.stars > 0 ? (1.5 + 2.5 * r(12)) * magic.stars : 0,
+    // Persistent train brightness per unit flux (the gift's are brighter).
+    glow: magic?.stars > 0 ? 0.0004 + 0.004 * magic.stars : 0.0004,
   };
 }
+
+// sea-sky-magic: with the stars gift a meow is answered, a moment later,
+// by a falling star where the cat is looking.
+export const CALL_ANSWER = { delay: 1.2, magnitude: -1.5 };
 
 function slerp(a, b, f) {
   const angle = Math.acos(Math.max(-1, Math.min(1, dot(a, b))));
@@ -323,13 +331,13 @@ export function meteorState(meteor, t) {
     const curve = Math.pow(Math.sin(Math.PI * Math.min(1, f * 1.05)), 0.7) * (meteor.fireball ? 1 + 1.5 * smoothstep(0.6, 0.85, f) * (1 - smoothstep(0.85, 1, f)) : 1);
     const head = slerp(meteor.start, meteor.end, f);
     const tail = slerp(meteor.start, meteor.end, Math.max(0, f - (meteor.fireball ? 0.45 : 0.3)));
-    const train = meteor.fireball ? flux * 0.0004 * smoothstep(0.2, 0.6, f) : 0;
+    const train = meteor.train > 0 ? flux * (meteor.glow ?? 0.0004) * smoothstep(0.2, 0.6, f) : 0;
     return { head, tail, flux: flux * curve, train, green: meteor.green };
   }
   // A fireball's persistent train: ionised air glowing along the path,
   // fading over seconds.
   const fade = Math.exp(-(age - meteor.duration) / (meteor.train * 0.4));
-  return { head: meteor.end, tail: meteor.start, flux: 0, train: flux * 0.0004 * fade, green: meteor.green };
+  return { head: meteor.end, tail: meteor.start, flux: 0, train: flux * (meteor.glow ?? 0.0004) * fade, green: meteor.green };
 }
 
 // ---------------------------------------------------------------- satellites
@@ -393,8 +401,10 @@ const luminance = (c) => c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
 // moonless night's sky many times over, a stormy day's barely.
 const FLASH_RADIANCE = 0.03;
 
-export function skyEventFrame({ seed, time, date = null, celestial, weather = null, sunlit = null, lighting = null, force = null, view = null, frameSeconds = 1 / 60, conditions = null }) {
-  const c = conditions ?? skyConditions({ celestial, weather, sunlit, date });
+export function skyEventFrame({ seed, time, date = null, celestial, weather = null, sunlit = null, lighting = null, force = null, view = null, frameSeconds = 1 / 60, conditions = null, magic = null }) {
+  let c = conditions ?? skyConditions({ celestial, weather, sunlit, date });
+  // sea-sky-magic: the stars gift brings meteors six times as often.
+  if (magic?.stars > 0) c = { ...c, meteorRate: c.meteorRate * (1 + 5 * magic.stars) };
   const facing = view ? { bearing: ((view.azimuth / DEG) % 360 + 360) % 360, elevation: Math.max(15, (view.pitch / DEG) + 12) } : { bearing: 0, elevation: 35 };
   const forced = (name) => force === name || (Array.isArray(force) && force.includes(name));
   const u = quietSkyUniforms();
@@ -445,11 +455,14 @@ export function skyEventFrame({ seed, time, date = null, celestial, weather = nu
   const meteorForce = forced("meteor") || forced("fireball") ? { ...facing, fireball: forced("fireball") } : null;
   if (meteorForce || c.meteorVisibility > 0.01) {
     for (let slot = Math.floor((time - METEOR_LONGEST) / METEOR_SLOT); slot <= Math.floor(time / METEOR_SLOT); slot++) {
-      const meteor = meteorInSlot(seed, slot, c, meteorForce);
+      const meteor = meteorInSlot(seed, slot, c, meteorForce, magic);
       const state = meteor && meteorState(meteor, time);
       if (state && (!meteorNow || state.flux + state.train > meteorNow.state.flux + meteorNow.state.train)) meteorNow = { meteor, state };
     }
   }
+  // sea-sky-magic: a meow answered by a falling star (night only).
+  const answer = callAnswer(seed, time, c, facing, magic);
+  if (answer && (!meteorNow || answer.state.flux + answer.state.train > meteorNow.state.flux + meteorNow.state.train)) meteorNow = answer;
   if (meteorNow) {
     // The glowing line runs from trail.xyz to meteor.xyz: the fresh trail
     // behind the head in flight, then a fireball's whole persistent train.
@@ -482,6 +495,16 @@ export function skyEventFrame({ seed, time, date = null, celestial, weather = nu
     satellite: satelliteNow ? { ...satelliteNow.satellite, ...satelliteNow.state } : null,
     conditions: c,
   };
+}
+
+function callAnswer(seed, time, c, facing, magic) {
+  if (!(magic?.stars > 0) || !Number.isFinite(magic.callAt) || c.meteorVisibility <= 0.01) return null;
+  const at = magic.callAt + CALL_ANSWER.delay;
+  if (time < at || time > at + METEOR_LONGEST + 6) return null;
+  const slot = 2 * (100000 + Math.floor(magic.callAt * 8));
+  const meteor = { ...meteorInSlot(seed, slot, c, { ...facing, fireball: false }, magic), at, magnitude: CALL_ANSWER.magnitude };
+  const state = meteorState(meteor, time);
+  return state ? { meteor, state } : null;
 }
 
 // ---------------------------------------------------------------- live wrapper

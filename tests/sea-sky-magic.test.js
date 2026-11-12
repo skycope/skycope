@@ -49,3 +49,29 @@ test("the Atmosphere struct ends with the magic fields", () => {
   const main = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
   assert.match(main, /magicUniforms/);
 });
+
+test("the stars gift brings meteors and answers a meow with a falling star", async () => {
+  const { skyEventFrame, skyConditions, CALL_ANSWER } = await import("../src/sky-events.js");
+  const { skyAt } = await import("../src/astronomy.js");
+  const date = new Date("2026-09-10T19:30:00Z");
+  const celestial = skyAt(date);
+  const weather = { low: 0, mid: 0, high: 0, cover: 0, rain: 0, wind: [2, 1] };
+  const base = { seed: 1847, date, celestial, weather, view: { azimuth: 3.5, pitch: 0.35 } };
+  const c = skyConditions({ celestial, weather, date });
+  assert.ok(c.meteorVisibility > 0.01, "a dark night");
+  const count = (magic) => {
+    let n = 0;
+    for (let t = 0; t < 600; t += 0.5) if (skyEventFrame({ ...base, time: t, magic }).uniforms.meteor[3] > 0) n++;
+    return n;
+  };
+  assert.ok(count({ stars: 1 }) > count(null) * 2);
+  // Asleep, a meow brings nothing; awake, a star falls after the delay.
+  const callAt = 500.3;
+  const at = callAt + CALL_ANSWER.delay + 0.15;
+  const quiet = skyEventFrame({ ...base, time: at, magic: { stars: 0, callAt } });
+  const answered = skyEventFrame({ ...base, time: at, magic: { stars: 1, callAt } });
+  assert.ok(answered.uniforms.meteor[3] > 0.5);
+  assert.ok(answered.uniforms.meteor[3] > quiet.uniforms.meteor[3]);
+  // Unchanged without magic.
+  assert.deepEqual(skyEventFrame({ ...base, time: 120 }).uniforms, skyEventFrame({ ...base, time: 120, magic: null }).uniforms);
+});

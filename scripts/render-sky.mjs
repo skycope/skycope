@@ -271,6 +271,8 @@ for (const [name, time, weather, rain, view, windOverride, skyOptions] of [
   ["stars-drawing", "2026-09-10T18:45:00Z", [0, 0, 0, 0], 0, [200, 0.35], null, { magic: { gifts: ["stars"], age: 5 } }],
   ["stars-drawn", "2026-09-10T18:45:00Z", [0, 0, 0, 0], 0, [200, 0.35], null, { magic: { gifts: ["stars"], age: 40 } }],
   ["stars-sea", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [200, 0.12, [8.3, 3, 1.7]], null, { magic: { gifts: ["stars"], age: 40 } }],
+  // A meow at 22.0: the falling star that answers it, mid-flight.
+  ["stars-call", "2026-09-10T18:45:00Z", [0, 0, 0, 0], 0, [200, 0.35], null, { magic: { gifts: ["stars"], age: 40, call: { at: 22.6, x: 0, z: 0 } } }],
   ["stars-day", "2026-09-08T12:00:00Z", [0, 0, 0, 0], 0, [200, 0.35], null, { magic: { gifts: ["stars"], age: 40 } }],
   ["lamp", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [123.4, -0.1, [127.8, 4, 40]], null, { magic: { gifts: ["lamp"], time: 26.6 } }],
   ["lamp-far", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [60, -0.06, [8.3, 3, 1.7]], null, { magic: { gifts: ["lamp"], time: 28.3 } }],
@@ -331,6 +333,8 @@ for (const [name, time, weather, rain, view, windOverride, skyOptions] of [
     lighting: light,
     force: skyOptions?.force ?? null,
     view: { azimuth: atmosphere.flight[3], pitch: atmosphere.pitch },
+    // sea-sky-magic: the stars gift's meteors and a meow's answer.
+    magic: skyOptions?.magic && process.env.MAGIC !== "0" ? { stars: skyOptions.magic.gifts?.includes("stars") ? 1 : 0, finale: skyOptions.magic.gifts?.includes("finale") ? 1 : 0, callAt: skyOptions.magic.call?.at } : null,
   });
   // NO_EVENTS=1: the same fixture with every sky event off, to cost them.
   if (!process.env.NO_EVENTS) Object.assign(atmosphere, events.uniforms);
