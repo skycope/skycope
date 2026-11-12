@@ -23,6 +23,24 @@ export const KEEPSAKES = {
   boat: "boat",
 };
 
+// Each gift's colour (linear-ish display RGB, 0…1): the wisp carries the
+// colours of the gifts it has woken, and the wave of light a waking sends
+// across the island (`pulse`) is drawn in its gift's colour.
+export const GIFT_COLOURS = {
+  fireflies: [0.86, 1.0, 0.42],
+  tideglow: [0.42, 0.86, 1.0],
+  lamp: [1.0, 0.8, 0.46],
+  stars: [0.78, 0.76, 1.0],
+  seafolk: [0.46, 1.0, 0.78],
+  boat: [1.0, 0.6, 0.5],
+  finale: [1.0, 0.97, 0.9],
+};
+
+// How fast a waking's wave of light runs out across the island (m/s of
+// `clock`, which is scene time and slows while a ceremony holds its breath)
+// and how far it goes before it is spent.
+export const PULSE = { speed: 18, reach: 150 };
+
 // `force`: gifts awake from the start (`?perf&magic=all` or a comma list).
 export function createMagic({ force = [] } = {}) {
   const awake = new Set(force.filter((g) => GIFTS.includes(g) || g === "finale"));
@@ -35,6 +53,20 @@ export function createMagic({ force = [] } = {}) {
   return {
     levels,
     wakeAt,
+    // The quest (thread.js) writes these; any layer may read them. All in
+    // coast metres, times in `clock` seconds (scene time).
+    //   pulse  the latest waking's wave of light, or null:
+    //          { x, y, z, at, gift, colour, speed, reach }. Its ring's radius
+    //          is (clock − at) × speed; spent once that passes `reach`.
+    //   call   the cat's latest meow, or null: { at, x, z } (a new object
+    //          each meow, so `call !== last` means "a new one").
+    //   wisp   the little light that leads the cat (updated in place every
+    //          frame): position [x, y, z], glow (0 hidden … ~1.6 flaring;
+    //          ~0.6 at rest by day, more at night), colour [r, g, b], and
+    //          visible (false until it first appears).
+    pulse: null,
+    call: null,
+    wisp: { position: [0, -100, 0], glow: 0, colour: [1, 0.95, 0.85], visible: false },
     get clock() {
       return clock;
     },
