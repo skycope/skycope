@@ -72,6 +72,10 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   color += atmosphere.light.rgb * exp(-sun_distance * 90.0) * 0.12 * above_sea * sky_sample.a * (1.0 - night);
   if (ray.y > -0.001) {
     color += night_sky(ray, night, sky_sample.a * above_sea, dot(sky, vec3f(0.2126, 0.7152, 0.0722)));
+  } else if (atmosphere.magic.y > 0.0 && night > 0.01) {
+    // sea-sky-magic: the stars gift on a calm night: bright stars mirrored
+    // in the sea as a broken path, each row of swell tilting them aside.
+    color += star_path(ray, night, sky_sample.a);
   }
   // sky-events: sharp transient lights, each skipped unless it is happening.
   if (atmosphere.bolt.w > 0.0 || atmosphere.meteor.w > 0.0 || atmosphere.trail.w > 0.0 || atmosphere.satellite.w > 0.0) {
@@ -99,7 +103,8 @@ fn night_sky(ray: vec3f, night: f32, clear: f32, background: f32) -> vec3f {
   var light = vec3f(0.0);
   var moon_cover = 0.0;
   if (length(ray - atmosphere.moon) < 0.019 + pixel * 2.0) {
-    let moonlight = sun_radiance(atmosphere.moon) * min(atmosphere.light.w, 0.95);
+    // sea-sky-magic: the stars gift makes the day moon a little more present.
+    let moonlight = sun_radiance(atmosphere.moon) * min(atmosphere.light.w, 0.95) * (1.0 + atmosphere.magic.y * 0.6 * (1.0 - night));
     let moon = moon_disc(ray, atmosphere.moon, atmosphere.sun, sidereal, latitude, pixel, 0.019, moonlight);
     light = moon.rgb * moon.a * clear;
     moon_cover = moon.a;
@@ -108,11 +113,42 @@ fn night_sky(ray: vec3f, night: f32, clear: f32, background: f32) -> vec3f {
     let eq = equatorial_from_local(ray, sidereal, latitude);
     let airmass = 1.0 / max(ray.y, 0.02);
     let extinction = exp(-0.28 * (airmass - 1.0)) * smoothstep(0.0, 0.05, ray.y);
-    let stars = catalog_stars(eq, starCatalog, pixel, atmosphere.time, airmass, background)
-      + faint_stars(eq, pixel, background);
+    let lean = atmosphere.magic.y + atmosphere.magic.w * 0.5;
+    var axis_u = vec3f(0.0);
+    var axis_v = vec3f(0.0);
+    if (lean > 0.0) {
+      let heading = vec3f(sin(atmosphere.flight.w), 0.0, cos(atmosphere.flight.w));
+      let right = vec3f(heading.z, 0.0, -heading.x);
+      let forward = heading * cos(atmosphere.pitch) + vec3f(0.0, sin(atmosphere.pitch), 0.0);
+      axis_u = equatorial_from_local(right, sidereal, latitude);
+      axis_v = equatorial_from_local(cross(forward, right), sidereal, latitude);
+    }
+    let stars = catalog_stars(eq, starCatalog, pixel, atmosphere.time, airmass, background, lean, axis_u, axis_v)
+      + faint_stars(eq, pixel, background) * (1.0 + lean * 0.5);
     light += stars * extinction * night * clear * (1.0 - moon_cover);
   }
   return light;
+}
+
+// sea-sky-magic: the star path. A calm sea mirrors the brightest stars,
+// broken by the swell into short wavering dashes, row by row.
+fn star_path(ray: vec3f, night: f32, clear: f32) -> vec3f {
+  let calm = 1.0 - smoothstep(3.0, 9.0, length(atmosphere.wind));
+  if (calm <= 0.0) { return vec3f(0.0); }
+  let pixel = 1.0 / (0.9 * min(atmosphere.resolution.y, 1300.0));
+  let rows = floor(-ray.y * atmosphere.resolution.y * 0.45);
+  let h = hash2(vec2f(rows, floor(atmosphere.time * 3.0 + rows * 0.13)));
+  // Each row of swell tilts the mirror a little sideways.
+  let tilt = (h.x - 0.5) * (0.004 + 0.06 * -ray.y);
+  let c = cos(tilt);
+  let s = sin(tilt);
+  let mirror = normalize(vec3f(ray.x * c - ray.z * s, -ray.y, ray.x * s + ray.z * c));
+  let eq = equatorial_from_local(mirror, atmosphere.celestial.x, atmosphere.celestial.y);
+  let airmass = 1.0 / max(mirror.y, 0.02);
+  let extinction = exp(-0.28 * (airmass - 1.0)) * smoothstep(0.0, 0.05, mirror.y);
+  let stars = catalog_stars(eq, starCatalog, pixel * 2.0, atmosphere.time, airmass, 0.0, 0.0, vec3f(0.0), vec3f(0.0));
+  let fresnel = 0.02 + 0.98 * pow(1.0 - min(-ray.y * 1.2, 1.0), 5.0);
+  return stars * extinction * fresnel * (0.4 + 2.2 * h.y * h.y) * night * calm * atmosphere.magic.y * 3.0;
 }
 
 // sky-events: a lightning bolt (and its smeared reflection in the sea),

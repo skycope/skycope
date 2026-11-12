@@ -118,7 +118,11 @@ fn night_hash(p: vec2f) -> vec2f {
 // `background` is the sky luminance behind the star: a star is only seen
 // against it by contrast, so a bright moonlit or twilight sky hides the
 // faint ones first, as it does to the eye.
-export fn catalog_stars(eq: vec3f, catalog: texture_2d<f32>, pixel: f32, time: f32, airmass: f32, background: f32) -> vec3f {
+// sea-sky-magic: `lean` (the stars gift, 0 asleep) brightens the stars,
+// deepens their twinkle and gives the bright ones fine diffraction spikes
+// along the screen axes `axis_u`, `axis_v` (equatorial unit vectors).
+export fn catalog_stars(eq: vec3f, catalog: texture_2d<f32>, pixel: f32, time: f32, airmass: f32, background: f32,
+  lean: f32, axis_u: vec3f, axis_v: vec3f) -> vec3f {
   let size = vec2i(textureDimensions(catalog));
   let dims = vec2f(size);
   let ra = atan2(eq.y, eq.x);
@@ -147,12 +151,20 @@ export fn catalog_stars(eq: vec3f, catalog: texture_2d<f32>, pixel: f32, time: f
       let offset = length(eq - direction);
       // Scintillation: turbulence makes stars twinkle, far more near the horizon.
       let seed = night_hash(vec2f(f32(x), f32(y)));
-      let twinkle = 1.0 + (0.08 + 0.4 * smoothstep(1.5, 6.0, airmass))
+      let twinkle = 1.0 + (0.08 + 0.4 * smoothstep(1.5, 6.0, airmass) + lean * 0.3)
         * sin(time * (9.0 + seed.x * 11.0) + seed.y * TAU) * sin(time * (5.3 + seed.y * 7.0));
       let core = exp(-(offset * offset) / (2.0 * sigma * sigma)) / (TAU * 0.72 * 0.72);
-      let halo = exp(-offset / (pixel * 3.5)) * 0.012 * smoothstep(0.4, 4.0, star.b);
+      var halo = exp(-offset / (pixel * 3.5)) * 0.012 * smoothstep(0.4, 4.0, star.b);
+      if (lean > 0.0 && star.b > 0.25) {
+        let d = eq - direction;
+        let u = abs(dot(d, axis_u)) / pixel;
+        let v = abs(dot(d, axis_v)) / pixel;
+        let reach = 3.0 + 5.0 * min(sqrt(star.b), 2.0);
+        let spikes = exp(-v * v * 4.0) * exp(-u / reach) + exp(-u * u * 4.0) * exp(-v / reach);
+        halo += spikes * 0.035 * lean * smoothstep(0.25, 0.8, star.b);
+      }
       let seen = smoothstep(0.3, 1.5, star.b * 6.8 / (background * 3.0 + 0.002));
-      total += star_colour(star.a) * star.b * twinkle * seen * (core + halo);
+      total += star_colour(star.a) * star.b * twinkle * seen * (core + halo) * (1.0 + lean * 0.7);
     }
   }
   return total * 22.0;
