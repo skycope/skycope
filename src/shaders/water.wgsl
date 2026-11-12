@@ -39,7 +39,9 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
     atmosphere.weather.w, atmosphere.resolution, atmosphere.seed,
     atmosphere.flight.xyz, atmosphere.flight.w, atmosphere.pitch,
     atmosphere.light.rgb, atmosphere.ambient.rgb, atmosphere.swell, atmosphere.light.w, atmosphere.rain,
-    atmosphere.ocean.z, atmosphere.ocean.w, atmosphere.pointer);
+    atmosphere.ocean.z, atmosphere.ocean.w, atmosphere.pointer,
+    // sea-sky-magic: the awakened gifts (view.wgsl).
+    atmosphere.magic, atmosphere.pulse, atmosphere.pulseColour, atmosphere.lamp, atmosphere.wisp, atmosphere.wispColour);
   var color = ocean_view(ray, light, sky, settings, cloudNoise, filtering, skyTexture,
     waves0, waves1, waves2, waves3, foamLayer, shoreRocks, shoreGrid, skyTable, landField, catWake, islandTable);
   // The direct disc is composited through cloud transmission. Water uses its
