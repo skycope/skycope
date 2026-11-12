@@ -65,6 +65,10 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
   let orbit = random() * TAU;
   let lastPeek = -Infinity;
   let sitFor = 0;
+  let perchBest = Infinity;
+  let perchBestAt = 0;
+  let reroute = 0;
+  let tryingAt = -Infinity;
   let previous = "lead";
   // A ceremony's dive ({ x, y, z } of the keepsake) while one plays.
   const dive = { x: 0, y: 0, z: 0, at: 0, active: false };
@@ -181,6 +185,7 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
       const catY = Number.isFinite(cat.y) ? cat.y : surface(cat.x, cat.z);
       const sitting = cat.sit > 0.85;
       sitFor = sitting ? sitFor + dt : 0;
+      if (ctx.trying || Math.abs(cat.speed) > 0.05) tryingAt = clock;
       // A cat that has sat a while (not one that has only just stopped).
       const settled = sitFor > (ctx.sunset ? 3 : 10);
       let hover = WISP.float;
@@ -250,12 +255,21 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
             hover = WISP.wait + 0.6;
           } else if (!perch.set || toPerch < WISP.near || (running && toPerch < WISP.near + 3) || perchToTarget > toTarget + 2) {
             // The cat has caught up (or the perch is behind it): flit on.
-            choosePerch(cat, target, hopLength);
+            choosePerch(cat, target, hopLength, 0);
             flare = Math.max(flare, 0.25);
+          } else if (clock - perchBestAt > 6 && clock - tryingAt < 2 && toPerch > WISP.near) {
+            // The cat cannot get to it (a rock, a gully): another way round.
+            choosePerch(cat, target, Math.min(hopLength, 6), ++reroute);
+            flare = Math.max(flare, 0.2);
           } else if (toPerch > WISP.stray) {
             // Dawdling or wandering off: come back for the cat.
             set("fetch");
             break;
+          }
+          const nowToPerch = Math.hypot(perch.x - cat.x, perch.z - cat.z);
+          if (nowToPerch < perchBest - 0.5) {
+            perchBest = nowToPerch;
+            perchBestAt = clock;
           }
           // Waiting: bob, fidget, sometimes hide in the grass and pop out.
           const waiting = Math.hypot(body.x - perch.x, body.z - perch.z) < 1.2;
@@ -531,31 +545,62 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
   // A spot hopLength further on from the cat toward the target, clear of
   // trunks and boulders, inside the swim limit, and with nothing between it
   // and the cat (so it can be seen waiting). Tries a fan of bearings.
-  function choosePerch(cat, to, hopLength) {
+  // Bearings to try, straight on first; a reroute starts wider, on
+  // alternating sides.
+  const FANS = [
+    [0, 0.3, -0.3, 0.6, -0.6, 0.9, -0.9],
+    [0.7, -0.7, 1.1, -1.1, 1.5, -1.5, 0],
+    [-0.7, 0.7, -1.1, 1.1, -1.5, 1.5, 0],
+  ];
+  function choosePerch(cat, to, hopLength, attempt = 0) {
     const dx = to.x - cat.x;
     const dz = to.z - cat.z;
     const d = Math.hypot(dx, dz) || 1;
     const base = Math.atan2(dx, dz);
     const length = Math.min(hopLength, d);
     let chosen = false;
-    for (const turn of [0, 0.3, -0.3, 0.6, -0.6, 0.9, -0.9]) {
-      const a = base + turn;
-      let x = cat.x + Math.sin(a) * length;
-      let z = cat.z + Math.cos(a) * length;
-      ({ x, z } = keepInside(x, z));
-      ({ x, z } = clearOf(x, z, 0.6));
-      if (!grid.clearLine(cat.x, cat.z, x, z)) continue;
-      perch.x = x;
-      perch.z = z;
-      chosen = true;
-      break;
-    }
+    const fan = FANS[attempt === 0 ? 0 : 1 + (attempt % 2)];
+    for (let pass = 0; pass < 2 && !chosen; pass++)
+      for (const turn of fan) {
+        const a = base + turn;
+        let x = cat.x + Math.sin(a) * length;
+        let z = cat.z + Math.cos(a) * length;
+        ({ x, z } = keepInside(x, z));
+        ({ x, z } = clearOf(x, z, 0.6));
+        if (!grid.clearLine(cat.x, cat.z, x, z)) continue;
+        // The first pass also wants a way a cat can walk.
+        if (pass === 0 && !walkable(cat.x, cat.z, x, z)) continue;
+        perch.x = x;
+        perch.z = z;
+        chosen = true;
+        break;
+      }
     if (!chosen) {
-      const p = clearOf(...Object.values(keepInside(cat.x + (dx / d) * length * 0.5, cat.z + (dz / d) * length * 0.5)), 0.6);
-      perch.x = p.x;
-      perch.z = p.z;
+      const p = keepInside(cat.x + (dx / d) * length * 0.5, cat.z + (dz / d) * length * 0.5);
+      const q = clearOf(p.x, p.z, 0.6);
+      perch.x = q.x;
+      perch.z = q.z;
     }
     perch.set = true;
+    perchBest = Math.hypot(perch.x - cat.x, perch.z - cat.z);
+    perchBestAt = clock;
+  }
+
+  // No step up a cat could not take (a boulder's flank, a bank) on the
+  // straight way from (ax, az) to (bx, bz), and no deep water past reach.
+  function walkable(ax, az, bx, bz) {
+    const length = Math.hypot(bx - ax, bz - az);
+    const steps = Math.max(1, Math.ceil(length / 0.5));
+    let h = surface(ax, az);
+    for (let i = 1; i <= steps; i++) {
+      const x = ax + ((bx - ax) * i) / steps;
+      const z = az + ((bz - az) * i) / steps;
+      if (shoreDistance(x, z) < -reach) return false;
+      const next = surface(x, z);
+      if (next - h > 0.32) return false;
+      h = next;
+    }
+    return true;
   }
 
   function fidgetAround(dt, size) {

@@ -224,7 +224,7 @@ export function createJourney({ state, card, findLine, now }) {
       return scale;
     },
     // Every frame (wall-clock dt).
-    update(dt, { celestial, interest, blocked = false }) {
+    update(dt, { celestial, interest, blocked = false, trying = false }) {
       const cat = state.walker?.cat;
       if (!cat || !mind) return;
       if (!listening && state.skyEvents) {
@@ -244,6 +244,7 @@ export function createJourney({ state, card, findLine, now }) {
       const sun = celestial?.sunAltitude ?? 30;
       ctx.sunset = sun < 6 && sun > -4 && (celestial?.sunAzimuth ?? 0) > 180;
       ctx.gifts = quest.count;
+      ctx.trying = trying;
       mind.update(dt, ctx);
       ctx.call = false;
       // The wisp answers a meow with a little chime once it is close.

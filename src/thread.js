@@ -188,7 +188,7 @@ export function createThread({ state, signal, reduced, capture, preview, light =
       // Wall-clock seconds: holds and lessons should not slow with the frame rate.
       clock = seconds();
       if (photo.active) orbitWithKeys(realDt);
-      journey.update(realDt, { celestial: state.celestial, interest: state.landscape?.interest, blocked: photo.active || body.dataset.arrival !== "done" });
+      journey.update(realDt, { celestial: state.celestial, interest: state.landscape?.interest, blocked: photo.active || body.dataset.arrival !== "done", trying: performance.now() - lastInput < 1500 });
       // The lapse runs smoothly (its sky is per frame; labels throttled).
       lapse?.update(
         {
