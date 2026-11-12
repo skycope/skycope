@@ -581,6 +581,15 @@ export function createWalker(obstacles, sea = null, wake = null) {
         camera.y = ty + (camera.y - ty) * f;
         camera.z = tz + (camera.z - tz) * f;
       }
+      // Pulled right in to the cat's back: look down on it from above
+      // instead, as far up as is clear.
+      if (Math.hypot(camera.x - tx, camera.y - ty, camera.z - tz) < 0.7) {
+        const bx = -Math.sin(camera.yaw) * 0.4, bz = -Math.cos(camera.yaw) * 0.4;
+        const up = solids.trace(tx, ty, tz, tx + bx, ty + 1.6, tz + bz, LENS_GUARD);
+        camera.x = tx + bx * up;
+        camera.y = ty + 1.6 * up;
+        camera.z = tz + bz * up;
+      }
     }
     const dx = tx - camera.x;
     const dz = tz - camera.z;

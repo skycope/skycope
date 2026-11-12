@@ -194,7 +194,7 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
       const [x, z] = at(s * L / 2, 0);
       return { x: p.x + x, y: keelAt(s) - 0.72, z: p.z + z };
     };
-    blockers.push(capsule(keelPoint(-0.75), keelPoint(0), 0.74, { body: false }), capsule(keelPoint(0), keelPoint(0.75), 0.72, { body: false }));
+    blockers.push(capsule(keelPoint(-0.6), keelPoint(0), 0.72, { body: false }), capsule(keelPoint(0), keelPoint(0.55), 0.72, { body: false }));
   }
   // The hull's back to stand on; a cat will.
   const domes = [heightTile(p.x, p.z, L / 2 + 0.3, 0.08, (x, z) => {
