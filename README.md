@@ -416,6 +416,19 @@ compressed (`LINGER`) so a visitor who stays a few minutes sees one.
   thing at a time, the camera drifting to watch the sun, moon or sea when the cat
   has sat a while (any input returns it), and dawn as a time-lapse preview while
   the cat sleeps at night. `src/thread.js` joins these to `main.js`.
+- **The wisp and the six gifts** (`src/journey.js`, `src/quest.js`,
+  `src/wisp-mind.js`, `src/wisp.js`): a small living light meets the cat on the
+  home beach and leads it, by behaviour, to the nearest keepsake whose gift still
+  sleeps (`magic.js` KEEPSAKES): it flits ahead and waits in sight, beckons,
+  comes back for a dawdler, darts beside a runner, hides in the grass, circles a
+  sitting cat (and sits with it at sunset), answers a meow, peeks at animals and
+  looks up at a falling star. Reaching the keepsake is a ceremony: the wisp
+  dives in, time holds, the score plays that gift's phrase (`score.js`
+  CEREMONIES), a wave of light runs out (`magic.pulse`), the camera eases back,
+  and one line of type names the gift. All six awake, it leads to the summit for
+  the finale. Woken gifts persist per seed (`skycope.gifts.<seed>`); the field
+  notes show the six as marks and offer "begin again". The mind is pure and
+  tested (`tests/wisp.test.js`, `tests/quest.test.js`); the light is one draw.
 
 ## Render budget and lifecycle
 
