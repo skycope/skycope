@@ -38,6 +38,8 @@ import { lightingAt } from "./sunlight.js";
 import { createSkyEvents, parseSkyForce, skySpectacles } from "./sky-events.js";
 import { spectacleSeen } from "./discoveries.js";
 import { createMagic, parseMagicForce } from "./magic.js";
+// sea-sky-magic: the gifts' sea and sky uniforms (src/sea-sky-magic.js).
+import { magicUniforms } from "./sea-sky-magic.js";
 import { archipelagoUniform, archipelagoSunVisibility, ISLAND_SLOTS } from "./archipelago.js";
 import { createWeatherPanel } from "./weather-panel.js";
 import { createWalker, surfaceKind, SWIM_LIMIT } from "./walker.js";
@@ -895,7 +897,20 @@ function createUniforms() {
     // Filled in per frame for the sea passes.
     ocean: [0, 0, 0, state.landscape?.cloudTransmission ?? 1],
     ...skyEventUniforms(sky, weather, light, view),
+    // sea-sky-magic: the awakened gifts for the sea and sky (all zero asleep).
+    ...magicUniforms(state.magic, { time: state.time, lamp: lampPosition() }),
   };
+}
+
+// sea-sky-magic: the lighthouse lamp in coast metres (place-lighthouse.js
+// puts it ~15 m above the ground at the tower's foot), once the land exists.
+function lampPosition() {
+  if (state.lampPosition !== undefined) return state.lampPosition;
+  const pois = state.landscape?.pois;
+  if (!pois) return null;
+  const tower = pois.find((p) => p.id === "lighthouse");
+  state.lampPosition = tower ? { x: tower.x, y: groundHeight(tower.x, tower.z) + 15.2, z: tower.z } : null;
+  return state.lampPosition;
 }
 
 // sky-events: this frame's sky events. `state.skyEvents.on(fn)` publishes

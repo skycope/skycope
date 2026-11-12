@@ -19,6 +19,10 @@ import { createVegetation } from "../src/vegetation.js";
 import { cloudTransmission } from "../src/cloud-transmission.js";
 import { CATALOG_SIZE, starCatalogCells, halfFloats } from "../src/star-catalog.js";
 import { skyEventFrame, quietSkyUniforms } from "../src/sky-events.js";
+// sea-sky-magic: the awakened gifts' sea and sky (src/sea-sky-magic.js).
+import { magicUniforms, magicFixture } from "../src/sea-sky-magic.js";
+import { placesLayout } from "../src/place-layout.js";
+import { groundHeight } from "../src/terrain.js";
 
 // Offline visual fixtures. They never override the live site's weather.
 const outputDirectory = process.argv[2] ?? "/tmp/skycope-qa";
@@ -47,6 +51,9 @@ gpu.gpu.queue.writeTexture(
   CATALOG_SIZE,
 );
 const output = target(gpu, { size: [1000, 700], format: "rgba8unorm" });
+// sea-sky-magic: the seed's lighthouse lamp, as main.js lampPosition puts it.
+const tower = placesLayout(1847).find((p) => p.id === "lighthouse");
+const LAMP = { x: tower.x, y: groundHeight(tower.x, tower.z) + 15.2, z: tower.z };
 // The site's sky passes (see src/main.js): scattering table, quarter-
 // resolution cloud march, and the resolve with its cloud history.
 const wgsl = async (name) =>
@@ -253,6 +260,23 @@ for (const [name, time, weather, rain, view, windOverride, skyOptions] of [
   ["after-sunset", "2026-09-08T16:36:00Z", [0, 0, 0, 0], 0],
   // The last sliver of the sun over a clean sea horizon.
   ["green-flash", "2026-09-08T16:32:40Z", [0, 0, 0, 0.05], 0, [276.2, 0.0], null, { sunlit: 1 }],
+  // sea-sky-magic: the gifts awake. skyOptions.magic: { gifts, age (s since
+  // they woke), pulse, call, time (the scene clock) }. MAGIC=0 renders any
+  // of them asleep, for side-by-side A/B.
+  ["tideglow", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [44, -0.12, [8.3, 2, 1.7]], null, { magic: { gifts: ["tideglow"] } }],
+  ["tideglow-rocks", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [104.7, -0.6, [126, 5, 56]], null, { magic: { gifts: ["tideglow"] } }],
+  ["tideglow-rain", "2026-09-10T19:30:00Z", [0.7, 0.4, 0.3, 0.8], 2.5, [44, -0.25, [8.3, 3, 1.7]], null, { magic: { gifts: ["tideglow"] } }],
+  ["tideglow-day", "2026-09-08T12:00:00Z", [0, 0, 0, 0], 0, [351, -0.6, [3.6, 10, -4.8]], null, { magic: { gifts: ["tideglow"] } }],
+  ["stars-drawing", "2026-09-10T18:45:00Z", [0, 0, 0, 0], 0, [200, 0.35], null, { magic: { gifts: ["stars"], age: 5 } }],
+  ["stars-drawn", "2026-09-10T18:45:00Z", [0, 0, 0, 0], 0, [200, 0.35], null, { magic: { gifts: ["stars"], age: 40 } }],
+  ["stars-sea", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [200, 0.12, [8.3, 3, 1.7]], null, { magic: { gifts: ["stars"], age: 40 } }],
+  ["stars-day", "2026-09-08T12:00:00Z", [0, 0, 0, 0], 0, [200, 0.35], null, { magic: { gifts: ["stars"], age: 40 } }],
+  ["lamp", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [123.4, -0.1, [127.8, 4, 40]], null, { magic: { gifts: ["lamp"], time: 21 } }],
+  ["lamp-far", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [60, -0.06, [8.3, 3, 1.7]], null, { magic: { gifts: ["lamp"], time: 26.5 } }],
+  ["pulse", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [44, -0.2, [8.3, 6, 1.7]], null, { magic: { gifts: ["tideglow"], pulse: { x: -9.4, z: 43.8, at: 21.5, gift: "tideglow", speed: 18, reach: 150 } } }],
+  ["pulse-day", "2026-09-08T15:00:00Z", [0, 0, 0, 0], 0, [44, -0.2, [8.3, 6, 1.7]], null, { magic: { gifts: ["lamp"], pulse: { x: -9.4, z: 43.8, at: 21.5, gift: "lamp", speed: 18, reach: 150 } } }],
+  ["finale", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [200, 0.3, [8.3, 3, 1.7]], null, { magic: { gifts: ["fireflies", "tideglow", "lamp", "stars", "seafolk", "boat", "finale"], age: 40 } }],
+  ["finale-sea", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [44, -0.15, [8.3, 6, 1.7]], null, { magic: { gifts: ["fireflies", "tideglow", "lamp", "stars", "seafolk", "boat", "finale"], age: 40 } }],
 ]) {
   // ONLY=name,name: render just those fixtures (quick A/B runs).
   if (process.env.ONLY && !process.env.ONLY.split(",").includes(name)) continue;
@@ -311,6 +335,12 @@ for (const [name, time, weather, rain, view, windOverride, skyOptions] of [
   if (!process.env.NO_EVENTS) Object.assign(atmosphere, events.uniforms);
   else Object.assign(atmosphere, quietSkyUniforms());
   if (process.env.EVENTS) console.log(name, JSON.stringify(events.uniforms));
+  // sea-sky-magic: asleep unless the fixture wakes gifts (MAGIC=0: asleep).
+  const magicOptions = process.env.MAGIC === "0" ? null : skyOptions?.magic;
+  if (magicOptions?.time) atmosphere.time = magicOptions.time;
+  const magicRecord = magicFixture({ ...magicOptions, clock: atmosphere.time });
+  Object.assign(atmosphere, magicUniforms(magicRecord, { time: atmosphere.time, lamp: LAMP }));
+  if (process.env.EVENTS && magicOptions) console.log(name, JSON.stringify(magicUniforms(magicRecord, { time: atmosphere.time, lamp: LAMP })));
   timings.length = 0;
   waterTimings.length = 0;
   seaTimings.length = 0;

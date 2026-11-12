@@ -51,6 +51,23 @@ export struct Atmosphere {
   streak: vec4f,
   // A sunlit satellite: direction (xyz) and flux (w).
   satellite: vec4f,
+  // sea-sky-magic (src/sea-sky-magic.js documents every lane; filled in
+  // main.js createUniforms and scripts/render-sky.mjs). All zero = every
+  // gift asleep: the shaders skip all of it.
+  // magic: tideglow, stars, lamp, finale levels 0-1. magic2: seconds since
+  // the stars woke, seconds since the latest meow (0 = none), seafolk, boat.
+  magic: vec4f,
+  magic2: vec4f,
+  // The waking's wave of light: centre x, z (coast metres), ring radius (m),
+  // strength; its colour (rgb) and reach (w).
+  pulse: vec4f,
+  pulseColour: vec4f,
+  // The lit lamp: position (coast metres) and beam bearing (w, radians; a
+  // beam points along (cos w, -sin w) in coast x, z; the other opposite).
+  lamp: vec4f,
+  // The guiding wisp: position (coast metres), glow (w; 0 = hidden); colour.
+  wisp: vec4f,
+  wispColour: vec4f,
 };
 
 export fn view_ray(uv: vec2f, resolution: vec2f, pointer: vec2f, azimuth: f32, pitch: f32) -> vec3f {
