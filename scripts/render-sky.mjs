@@ -18,6 +18,7 @@ import { landFieldData } from "../src/land-field.js";
 import { createVegetation } from "../src/vegetation.js";
 import { readFile } from "node:fs/promises";
 import { CATALOG_SIZE, starCatalogCells, halfFloats } from "../src/star-catalog.js";
+import { skyEventFrame } from "../src/sky-events.js";
 
 // Offline visual fixtures. They never override the live site's weather.
 const outputDirectory = process.argv[2] ?? "/tmp/skycope-qa";
@@ -191,7 +192,7 @@ await water.compile(output);
 if (baseWater) await baseWater.compile(output);
 // Optional view: [heading in degrees, pitch in radians, optional [x, y, z]
 // coast metres]; default is home.
-for (const [name, time, weather, rain, view, windOverride] of [
+for (const [name, time, weather, rain, view, windOverride, skyOptions] of [
   ["clouds", "2026-09-08T12:00:00Z", [0.6, 0.08, 0.4, 0.62], 0],
   ["dusk", "2026-09-08T16:25:00Z", [0.6, 0.08, 0.3, 0.62], 0],
   ["rain", "2026-09-08T12:00:00Z", [0.95, 0.75, 0.8, 1], 3],
@@ -222,12 +223,39 @@ for (const [name, time, weather, rain, view, windOverride] of [
   // Moonless, over the surf and the rocks: bioluminescence in the breakers.
   ["glow", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [44, -0.12, [8.3, 2, 1.7]]],
   ["glow-rocks", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [104.7, -0.6, [126, 5, 56]]],
+  // sky-events (src/sky-events.js). The last element: { force, time (event
+  // clock), sunlit, preset }. Unforced fixtures must show their event from
+  // the real geometry and weather alone.
+  // Showers with the sun out, behind you: a high arch, and a low wide one.
+  ["rainbow", "2026-09-08T15:50:00Z", [0.45, 0.15, 0.2, 0.5], 1.5, [102, 0.3], null, { sunlit: 0.9 }],
+  ["rainbow-low", "2026-09-08T14:30:00Z", [0.45, 0.15, 0.2, 0.5], 0.4, [115, 0.12], null, { sunlit: 0.9 }],
+  // Thin cirrostratus: the 22° halo and sundogs round a 24° sun.
+  ["halo", "2026-09-08T14:30:00Z", [0.05, 0.05, 0.45, 0.35], 0, [295, 0.41]],
+  // Broken cloud and a low sun: crepuscular rays.
+  ["rays", "2026-09-08T15:50:00Z", [0.55, 0.2, 0.2, 0.6], 0, [282, 0.12], null, { sunlit: 0.5 }],
+  ["rays2", "2026-09-08T16:05:00Z", [0.4, 0.3, 0.1, 0.5], 0, [279, 0.15], [9, -14], { sunlit: 0.5 }],
+  ["rays3", "2026-09-08T16:05:00Z", [0.4, 0.3, 0.1, 0.5], 0, [279, 0.15], [-20, 6], { sunlit: 0.5 }],
+  // A night storm at a stroke's peak, and a stormy afternoon.
+  ["lightning", "2026-09-10T19:30:00Z", [1, 0.9, 0.9, 1], 8, [200, 0.12], null, { force: "lightning", time: 24.27, preset: "storm" }],
+  ["lightning-day", "2026-09-08T12:00:00Z", [1, 0.9, 0.9, 1], 8, [200, 0.12], null, { force: "lightning", time: 24.27, preset: "storm" }],
+  // A moonless night: a shooting star, and a fireball mid-flight.
+  ["meteor", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [200, 0.45], null, { force: "meteor", time: 24.55 }],
+  ["fireball", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [200, 0.45], null, { force: "fireball", time: 25.6 }],
+  ["satellite", "2026-09-08T17:20:00Z", [0, 0, 0, 0], 0, [200, 0.45], null, { force: "satellite", time: 24 }],
+  // Full moon: a moonbow in a night shower, and a corona in thin cloud.
+  ["moonbow", "2026-09-26T19:00:00Z", [0.4, 0.1, 0.1, 0.45], 1.5, [244, 0.2], null, { sunlit: 0.9 }],
+  ["corona", "2026-09-26T19:00:00Z", [0.15, 0.4, 0.1, 0.45], 0, [64, 0.44]],
+  // April evening, moonless: the zodiacal light up the western sky.
+  ["zodiacal", "2026-04-16T17:55:00Z", [0, 0, 0, 0], 0, [270, 0.3]],
+  // Wide views from here on (the output stays resized).
   ["horizon", "2026-09-08T16:32:00Z", [0, 0, 0, 0], 0],
   ["after-sunset", "2026-09-08T16:36:00Z", [0, 0, 0, 0], 0],
+  // The last sliver of the sun over a clean sea horizon.
+  ["green-flash", "2026-09-08T16:32:40Z", [0, 0, 0, 0.05], 0, [276.2, 0.0], null, { sunlit: 1 }],
 ]) {
   // ONLY=name,name: render just those fixtures (quick A/B runs).
   if (process.env.ONLY && !process.env.ONLY.split(",").includes(name)) continue;
-  if (name === "horizon" || name === "after-sunset") {
+  if (name === "horizon" || name === "after-sunset" || name === "green-flash") {
     output.resize([1600, 900]);
     skyTarget.read.resize([1000, 562]);
     skyTarget.write.resize([1000, 562]);
@@ -256,6 +284,20 @@ for (const [name, time, weather, rain, view, windOverride] of [
     flight: [...(view?.[2] ?? [6, 4.5, 0]), ((view?.[0] ?? 315) * Math.PI) / 180],
     pitch: view?.[1] ?? 0.10472,
   };
+  // sky-events: the same scheduler the site runs, at the fixture's moment.
+  const events = skyEventFrame({
+    seed: 1847,
+    time: skyOptions?.time ?? 24,
+    date: new Date(time),
+    celestial: sky,
+    weather: { low: weather[0], mid: weather[1], high: weather[2], cover: weather[3], rain, wind, preset: skyOptions?.preset },
+    sunlit: skyOptions?.sunlit ?? null,
+    lighting: light,
+    force: skyOptions?.force ?? null,
+    view: { azimuth: atmosphere.flight[3], pitch: atmosphere.pitch },
+  });
+  Object.assign(atmosphere, events.uniforms);
+  if (process.env.EVENTS) console.log(name, JSON.stringify(events.uniforms));
   timings.length = 0;
   waterTimings.length = 0;
   seaTimings.length = 0;

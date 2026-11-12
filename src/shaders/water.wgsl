@@ -2,6 +2,7 @@ import { Atmosphere, view_ray } from "./view.wgsl";
 import { ocean_view, OceanSettings } from "./ocean.wgsl";
 import { tonemap, sun_radiance } from "./atmosphere.wgsl";
 import { equatorial_from_local, catalog_stars, faint_stars, moon_disc } from "./night.wgsl";
+import { lightning_bolt, meteor_light, satellite_light } from "./phenomena.wgsl";
 
 @group(0) @binding(0) var<uniform> atmosphere: Atmosphere;
 @group(0) @binding(1) var cloudNoise: texture_3d<f32>;
@@ -51,12 +52,28 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   let above_sea = smoothstep(-horizon_edge * 0.5, horizon_edge * 0.5, ray.y);
   // The disc is the sun's true radiance through the air and clouds; the
   // filmic shoulder turns it white-hot at noon and deep orange at sunset.
-  let sun_colour = atmosphere.light.rgb * 60.0;
+  var sun_colour = atmosphere.light.rgb * 60.0;
+  // sky-events: the green flash. Air is a weak prism: low on the horizon
+  // it lifts the sun's green image a little above its red one, so the
+  // upper limb wears a green rim and the last sliver over a clean sea
+  // horizon turns green before it goes (scaled with the enlarged disc).
+  if (atmosphere.optics.z > 0.0 && disc > 0.0) {
+    let limb = smoothstep(0.0044, 0.0057, ray.y - atmosphere.sun.y);
+    // The last ~10 s: only the green image is left above the sea.
+    let sliver = 1.0 - smoothstep(0.0017, 0.0034, atmosphere.sun.y + 0.006);
+    // Faint beside the full disc: a green that the tonemap keeps green.
+    let green = vec3f(0.06, 1.0, 0.3) * 3.0;
+    sun_colour = mix(sun_colour, green, atmosphere.optics.z * max(limb * 0.6 * sliver, sliver * sliver));
+  }
   color = mix(color, sun_colour, disc * above_sea * sky_sample.a * (1.0 - night));
   // A soft aureole around the disc: forward scattering in hazy coastal air.
   color += atmosphere.light.rgb * exp(-sun_distance * 90.0) * 0.12 * above_sea * sky_sample.a * (1.0 - night);
   if (ray.y > -0.001) {
     color += night_sky(ray, night, sky_sample.a * above_sea, dot(sky, vec3f(0.2126, 0.7152, 0.0722)));
+  }
+  // sky-events: sharp transient lights, each skipped unless it is happening.
+  if (atmosphere.bolt.w > 0.0 || atmosphere.meteor.w > 0.0 || atmosphere.trail.w > 0.0 || atmosphere.satellite.w > 0.0) {
+    color += sky_events(ray, sky_sample.a * above_sea);
   }
   // Rain streaks, vignette and film grain are one lens pass over both
   // layers, drawn last by the land layer (landscape.js). This keeps only a
@@ -92,6 +109,40 @@ fn night_sky(ray: vec3f, night: f32, clear: f32, background: f32) -> vec3f {
     let stars = catalog_stars(eq, starCatalog, pixel, atmosphere.time, airmass, background)
       + faint_stars(eq, pixel, background);
     light += stars * extinction * night * clear * (1.0 - moon_cover);
+  }
+  return light;
+}
+
+// sky-events: a lightning bolt (and its smeared reflection in the sea),
+// meteors and satellites, at full resolution like the stars.
+fn sky_events(ray: vec3f, clear: f32) -> vec3f {
+  let pixel = 1.0 / (0.9 * min(atmosphere.resolution.y, 1300.0));
+  var light = vec3f(0.0);
+  if (atmosphere.bolt.w > 0.0) {
+    let foot = normalize(vec3f(atmosphere.bolt.x, 0.0, atmosphere.bolt.z));
+    // The channel outshines everything: far past white whatever the exposure.
+    let brightness = atmosphere.bolt.w * 60.0 * max(atmosphere.light.w, 0.6);
+    if (ray.y >= 0.0) {
+      light += lightning_bolt(ray, foot, atmosphere.bolt.y, atmosphere.optics.w, pixel) * brightness;
+    } else {
+      // The sea's slopes smear its mirror image into a broken, wavering
+      // column of glints.
+      let mirror = vec3f(ray.x, -ray.y, ray.z);
+      let rows = hash2(vec2f(floor(-ray.y * atmosphere.resolution.y * 0.6), 7.0)).x;
+      light += lightning_bolt(mirror, foot, atmosphere.bolt.y, atmosphere.optics.w, pixel * 5.0) * brightness
+        * 0.03 * (0.25 + rows * rows * 1.5);
+    }
+  }
+  if (ray.y > 0.0) {
+    let airmass = 1.0 / max(ray.y, 0.02);
+    let extinction = exp(-0.28 * (airmass - 1.0)) * smoothstep(0.0, 0.05, ray.y) * clear;
+    if (atmosphere.meteor.w > 0.0 || atmosphere.trail.w > 0.0) {
+      light += meteor_light(ray, atmosphere.meteor.xyz, atmosphere.meteor.w, atmosphere.trail.xyz, atmosphere.trail.w,
+        atmosphere.streak.x, atmosphere.streak.y, pixel) * extinction;
+    }
+    if (atmosphere.satellite.w > 0.0) {
+      light += satellite_light(ray, atmosphere.satellite.xyz, atmosphere.satellite.w, pixel) * extinction;
+    }
   }
   return light;
 }
