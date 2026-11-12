@@ -43,6 +43,7 @@ if ( magicOn > 0.0 ) {
   vec3 mWorld = cameraPosition + ( vec4( -vViewPosition, 0.0 ) * viewMatrix ).xyz;
   vec3 mN = normalize( ( vec4( normal, 0.0 ) * viewMatrix ).xyz );
   vec3 mLight = vec3( 0.0 );
+  vec3 mEdge = vec3( 0.0 );
   for ( int i = 0; i < 4; i++ ) {
     vec3 d = magicGlow[ i ].xyz - mWorld;
     float r = magicGlow[ i ].w;
@@ -74,6 +75,8 @@ if ( magicOn > 0.0 ) {
     float dd = length( mWorld.xz - magicPulse.xy ) - magicPulse.z;
     float ring = exp( -dd * dd * 0.3 ) + 0.18 * exp( min( dd, 0.0 ) * 0.08 ) * step( dd, 0.0 );
     mLight += magicPulseColour * ( magicPulse.w * ring );
+    // Its leading edge glows of itself, so it reads even under the sun.
+    mEdge = magicPulseColour * ( magicPulse.w * exp( -dd * dd * 1.2 ) * 0.22 );
   }
   vec3 mSheen = vec3( 0.0 );
   if ( magicSheen.w > 0.0 ) {
@@ -82,12 +85,19 @@ if ( magicOn > 0.0 ) {
     vec3 mView = normalize( cameraPosition - mWorld );
     float rim = pow( 1.0 - clamp( dot( mN, mView ), 0.0, 1.0 ), 3.0 );
     float skyward = clamp( mN.y * 0.5 + 0.5, 0.0, 1.0 );
-    vec3 cell = floor( mWorld * 26.0 );
-    float dew = step( 0.985, magicHash( cell ) ) * ( 0.5 + 0.5 * sin( magicHash( cell + 3.1 ) * 40.0 + magicBeam.w * 2.0 ) );
-    mSheen = magicSheen.rgb * ( skyward * ( 0.25 + rim * 0.9 ) ) + magicSheen.rgb * dew * magicSheen.w * 6.0;
+    // Dew: rare points on upturned leaves and grass, a pixel or two wide
+    // (round, and fading out where a cell is bigger than that on screen),
+    // twinkling as the eye moves.
+    vec3 dp = mWorld * 70.0;
+    vec3 cell = floor( dp );
+    float spot = 1.0 - smoothstep( 0.12, 0.3, length( fract( dp ) - 0.5 ) );
+    float small = 1.0 - smoothstep( 0.6, 2.0, 70.0 * length( fwidth( mWorld ) ) );
+    float dew = step( 0.993, magicHash( cell ) ) * spot * small * smoothstep( 0.55, 0.85, mN.y )
+      * ( 0.5 + 0.5 * sin( magicHash( cell + 3.1 ) * 40.0 + magicBeam.w * 2.0 + dot( mView, vec3( 30.0 ) ) ) );
+    mSheen = magicSheen.rgb * ( skyward * ( 0.25 + rim * 0.9 ) ) + magicSheen.rgb * dew * magicSheen.w * 5.0;
   }
   reflectedLight.directDiffuse += mLight * diffuseColor.rgb;
-  reflectedLight.directSpecular += mLight * 0.035 + mSheen;
+  reflectedLight.directSpecular += mLight * 0.035 + mSheen + mEdge;
 }
 `;
 
@@ -274,7 +284,7 @@ export function createLandMagic({ shared, lamps = [], beacon = null, light = fal
         const reach = pulse.reach ?? 150;
         if (r >= 0 && r < reach) {
           const fade = (1 - THREE.MathUtils.smoothstep(r, reach * 0.55, reach)) * THREE.MathUtils.smoothstep(r, 0, 4);
-          u.magicPulse.value.set(pulse.x, -pulse.z, r, fade * (0.45 + 0.55 * night) * 0.9);
+          u.magicPulse.value.set(pulse.x, -pulse.z, r, fade * (1.4 - 0.5 * night));
           // Saturated beyond the gift's own colour: the night tonemap
           // greys dim light toward blue, and the ring must stay its colour.
           const c = pulse.colour ?? [1, 1, 1];
@@ -297,7 +307,7 @@ export function createLandMagic({ shared, lamps = [], beacon = null, light = fal
       // Starlight (the beacon's gift): a cool sheen on the night land.
       const stars = (levels.stars ?? 0) * THREE.MathUtils.smoothstep(night, 0.3, 0.9);
       if (stars > 0) {
-        u.magicSheen.value.set(0.016 * stars, 0.022 * stars, 0.04 * stars, light ? 0 : stars);
+        u.magicSheen.value.set(0.007 * stars, 0.0105 * stars, 0.022 * stars, light ? 0 : stars);
         on = 1;
       } else u.magicSheen.value.set(0, 0, 0, 0);
 

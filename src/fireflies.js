@@ -162,11 +162,14 @@ void main() {
   glow = mix( glow, 1.4, call * ( kind.x < 0.5 ? 1.0 : 0.6 ) );
   // The finale: they rise from wherever they are into a slow turning
   // column over the summit, and spread out into the sky at its top.
+  float rise = 0.0;
   if ( finale > 0.0 ) {
-    float k = smoothstep( 0.0, 1.0, clamp( finale * 1.8 - a * 0.8, 0.0, 1.0 ) );
+    // (The cat keeps a few of its own: the escort stays with it.)
+    float k = smoothstep( 0.0, 1.0, clamp( finale * 1.8 - a * 0.8, 0.0, 1.0 ) ) * ( kind.x < 0.5 ? 0.0 : 1.0 );
+    rise = k;
     float u = fract( a * 7.31 + r * 0.37 + t * 0.011 );
     float ang = u * 26.0 + t * 0.22 + r * 6.2832;
-    float rad = 1.5 + r * 2.5 + u * u * u * 70.0;
+    float rad = 0.8 + r * 2.2 + u * 3.0 + pow( u, 4.0 ) * 30.0;
     vec3 col = column.xyz + vec3( cos( ang ) * rad, u * column.w + sin( t * 0.5 + a * 30.0 ) * 0.6, sin( ang ) * rad );
     p = mix( p, col, k );
     glow = mix( glow, 0.6 + 0.4 * sin( t * 1.3 + kind.y * 6.2832 ), k );
@@ -177,7 +180,8 @@ void main() {
   float depth = max( -mv.z, 0.05 );
   // A small light (a few cm) with a soft halo several times its size.
   float lantern = kind.x > 0.5 && kind.x < 1.5 ? step( 0.55, trait.w ) : 0.0;
-  float px = trait.w * mix( 0.11, 0.2, lantern ) * pixelScale / depth;
+  // The column's lights are seen from across the island: larger than life.
+  float px = trait.w * mix( 0.11, 0.2, lantern ) * ( 1.0 + rise * 3.0 ) * pixelScale / depth;
   gl_PointSize = clamp( px, 2.0, 72.0 );
   // Under a pixel and a half, brightness carries what size cannot.
   float tiny = clamp( px / 2.0, 0.15, 1.0 );
@@ -233,7 +237,7 @@ export function createFireflies(scene, seed, { light = false, crown = null, summ
     home: { value: homeAt },
     homeSpan: { value: crown ? crown.top - crown.ground : 8 },
     roam: { value: new THREE.Vector4() },
-    column: { value: summit ? new THREE.Vector4(summit.x, summit.y + 3, -summit.z, 75) : new THREE.Vector4(58, 30, -70, 75) },
+    column: { value: summit ? new THREE.Vector4(summit.x, summit.y + 2, -summit.z, 34) : new THREE.Vector4(58, 30, -70, 75) },
   };
   const material = new THREE.ShaderMaterial({
     uniforms,
@@ -256,6 +260,8 @@ export function createFireflies(scene, seed, { light = false, crown = null, summ
   points.matrixAutoUpdate = false;
   scene.add(points);
   const steer = createFlySteer();
+  const homeFoot = crown ? [crown.x, crown.ground + 2.2, crown.z] : [0, -500, 0];
+  const homeRadius = crown ? crown.radius * 0.7 : 1;
   // What the land reads to be lit by them (land-magic.js glow slots 0, 1).
   const glow = {
     light: 0, centre: [0, -100, 0], radius: 2.6,
@@ -288,10 +294,20 @@ export function createFireflies(scene, seed, { light = false, crown = null, summ
       uniforms.trail.value.set(s.vx * 0.55, -s.vz * 0.55, s.scatter, 0);
       uniforms.roam.value.set(eye.x, eye.y, eye.z, (pose?.y ?? 0));
       const dark = 0.12 + 0.88 * night;
-      glow.light = on * dark * (0.55 + 0.25 * Math.sin(time * 1.3) ** 2 + s.call * 1.4) * (1 - finale * 0.5);
+      glow.light = on * dark * (0.55 + 0.25 * Math.sin(time * 1.3) ** 2 + s.call * 1.4);
       glow.centre[0] = s.x; glow.centre[1] = s.y + 0.2; glow.centre[2] = s.z;
       glow.radius = 1.6 + s.spread * 0.7;
       glow.homeLight = on * dark * (0.75 + 0.25 * Math.sin(time * 0.55)) * 1.3;
+      // The finale: the crown's light moves to the column over the summit
+      // and grows to light the whole hilltop under it.
+      if (finale > 0 && summit) {
+        const f = finale;
+        glow.home[0] = homeFoot[0] + (summit.x - homeFoot[0]) * f;
+        glow.home[1] = homeFoot[1] + (summit.y + 9 - homeFoot[1]) * f;
+        glow.home[2] = homeFoot[2] + (summit.z - homeFoot[2]) * f;
+        glow.homeRadius = homeRadius + (16 - homeRadius) * f;
+        glow.homeLight = glow.homeLight * (1 - f) + f * dark * (1.6 + 0.3 * Math.sin(time * 0.4)) * 1.4;
+      }
       return glow;
     },
     dispose() {
