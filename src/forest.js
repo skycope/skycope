@@ -18,6 +18,7 @@ import { markSolid, SOLID_ORDER } from "./cat-coat.js"; // solid:
 import { MATERIAL_HEX } from "./material-palette.js";
 import { groundDetailData, groundCover } from "./ground-detail.js";
 import { createNearGround } from "./near-ground.js";
+import { magicUniforms, MAGIC_LIGHT_DECLARATIONS, MAGIC_LIGHT_GLSL } from "./land-magic.js"; // land-magic:
 import {
   finish,
   tuftGeometry,
@@ -61,6 +62,8 @@ export function createForest(scene, seed, { light = false } = {}) {
     skySH: { value: Array.from({ length: 9 }, () => new THREE.Vector3()) },
     rainWetness: { value: 0 },
     rainFilm: { value: 0 },
+    // land-magic: the gifts' light on the land (land-magic.js).
+    ...magicUniforms(),
   };
   // `?perf` QA: the console can read and tweak the shared lighting uniforms.
   scene.userData.forestShared = shared;
@@ -318,6 +321,8 @@ float gustAt( vec2 p ) {
 const WIND_GLSL = /* glsl */ `
 ${GUST_GLSL}
 uniform vec4 catPush;
+// land-magic: a waking's ring (Three world x, z, radius, strength).
+uniform vec4 magicPulse;
 varying float vGlint;
 // Height of the plant's base (per instance): wind bends from there, so a trunk
 // or stem is rooted wherever it stands. Zero for non-instanced meshes.
@@ -347,6 +352,17 @@ vec3 windOffset(vec3 p) {
     offset.xz += push;
     offset.y -= dot( push, push ) / max( h, 0.05 ) * 0.5;
   #endif
+  // land-magic: as a waking's ring of light passes, everything that grows
+  // bows away from the keepsake and rises again behind it.
+  if ( magicPulse.w > 0.0 ) {
+    vec2 pd = p.xz - vec2( magicPulse.x, -magicPulse.y );
+    float pl = length( pd ) + 1e-3;
+    float dd = pl - magicPulse.z;
+    float wave = exp( -dd * dd * 0.08 ) * min( magicPulse.w, 1.0 );
+    float bow = wave * h / ( 0.5 + h ) * ( 0.12 + 0.05 * min( h, 4.0 ) );
+    offset.xz += pd / pl * bow;
+    offset.y -= bow * 0.35;
+  }
   return offset;
 }
 `;
@@ -1172,6 +1188,7 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
   // silently runs another's shader (blades with the clusters' flutter).
   const key = JSON.stringify({ sway, flutter, foliage, ground, rock, bark, bent, fade, taper, pliant, rooted, sheen });
   material.customProgramCacheKey = () => key;
+  material.userData.magicLit = true; // land-magic: already carries the light
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, shared);
     const defines = (pliant ? "#define PLIANT\n" : "") + (rooted ? `#define ROOTED ${rooted.toFixed(3)}\n` : "") + `#define SHEEN ${sheen.toFixed(2)}\n`;
@@ -1236,7 +1253,10 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
       "uniform vec3 hazeToward;\nuniform vec3 hazeAway;\nuniform vec3 foamLight;\nvarying float vShade;\nvarying float vShadowFar;\n" +
       shader.fragmentShader
         .replace("#include <fog_fragment>", FOG_GLSL)
-        .replace("#include <lights_fragment_end>", `#include <lights_fragment_end>\n${occlusionGlsl(foliage)}`);
+        .replace("#include <lights_fragment_end>", `#include <lights_fragment_end>\n${occlusionGlsl(foliage)}`)
+        // land-magic: fireflies, the lamp's beams, a waking's ring, starlight.
+        .replace("#include <aomap_fragment>", `${MAGIC_LIGHT_GLSL}\n#include <aomap_fragment>`)
+        .replace("void main() {", `${MAGIC_LIGHT_DECLARATIONS}\nvoid main() {`);
     if (ground)
       // Plankton the uprush lights at night (the sky's reflection in the
       // swash film comes from the environment map now).

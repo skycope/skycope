@@ -250,7 +250,7 @@ export function buildMilkwood(p, materials, { light = false, seed = 1 } = {}) {
     farDistance: 34,
     obstacles: { trunks, domes: [] },
     blockers,
-    crown: { radius: maxReach, top },
+    crown: { radius: maxReach, top, ground: g0 }, // land-magic: the fireflies' home
   };
 }
 

@@ -31,6 +31,11 @@ const SUN_SHADOW = /* glsl */ `
 // landscape.js from the shared lighting model.
 export const CAT_SKY = { value: new THREE.Color(0.5, 0.5, 0.5) };
 
+// land-magic: how much the island answers the cat's steps (0 asleep … 1
+// every gift awake; land-magic.js), and the colour of the glow each paw
+// leaves on the land. Set per frame by land-magic.js.
+export const PRINT_MAGIC = { level: { value: 0 }, colour: { value: new THREE.Color(0.9, 1.0, 0.45) }, night: { value: 0 } };
+
 // A Lambert material whose output is a multiplier for whatever is behind it.
 function multiplyMaterial({ vertexPars = "", vertexMain = "", fragmentPars = "", fragmentMain, key, uniforms = {} }) {
   const material = new THREE.MeshLambertMaterial({ color: 0xffffff, fog: false });
@@ -330,7 +335,7 @@ export function createPawPrints(parent) {
   // At night, a fresh print in wet sand flashes blue: the pressure lights up
   // the bioluminescent plankton the swash left in the sand (ocean.wgsl).
   // Additive, sharing the prints' instances; it draws nothing by day.
-  const glowUniforms = { printTime: uniforms.printTime, printNight: { value: 0 } };
+  const glowUniforms = { printTime: uniforms.printTime, printNight: { value: 0 }, printMagic: PRINT_MAGIC.level, printMagicColour: PRINT_MAGIC.colour, printMagicNight: PRINT_MAGIC.night };
   const glow = new THREE.InstancedMesh(
     geometry,
     new THREE.ShaderMaterial({
@@ -343,9 +348,12 @@ export function createPawPrints(parent) {
         attribute vec4 printShape;
         uniform float printTime;
         uniform float printNight;
+        uniform float printMagic;
+        uniform float printMagicNight;
         varying vec2 vPrint;
         varying vec4 vShape;
         varying float vGlow;
+        varying float vMagic;
         varying float vSeed;
         void main() {
           vSeed = fract( printLife.x * 7.13 );
@@ -356,18 +364,37 @@ export function createPawPrints(parent) {
           // A bright flash as the paw presses, a slow blue ebb over seconds.
           vGlow = printNight * printLife.z * ( 1.0 - printLife.w ) * printLife.y
             * smoothstep( 0.0, 0.05, age ) * ( exp( -age * 1.4 ) * 0.8 + exp( -age * 0.25 ) * 0.2 );
-          gl_Position = vGlow > 0.003 ? projectionMatrix * modelViewMatrix * instanceMatrix * vec4( position, 1.0 ) : vec4( 0.0, 0.0, -2.0, 1.0 );
+          // land-magic: on any ground, each step leaves a soft glow that
+          // blooms and fades over a few seconds, brighter as gifts wake.
+          vMagic = printMagic * max( printLife.y, 0.6 ) * step( 0.01, printLife.y )
+            * smoothstep( 0.0, 0.12, age ) * ( exp( -age * 0.9 ) * 0.75 + exp( -age * 0.22 ) * 0.25 );
+          // The quad grows to hold the glow's halo (the print stays at its centre).
+          float grow = vMagic > 0.003 ? 7.0 : 1.0;
+          vPrint *= grow;
+          gl_Position = vGlow > 0.003 || vMagic > 0.003 ? projectionMatrix * modelViewMatrix * instanceMatrix * vec4( position * vec3( grow, 1.0, grow ), 1.0 ) : vec4( 0.0, 0.0, -2.0, 1.0 );
         }`,
       fragmentShader: /* glsl */ `
+        uniform vec3 printMagicColour;
+        uniform float printMagicNight;
         varying vec2 vPrint;
         varying vec4 vShape;
         varying float vGlow;
+        varying float vMagic;
         varying float vSeed;
         ${PRINT_HEIGHT}
         void main() {
           float h = clamp( -printHeight( vPrint ), 0.0, 1.0 );
           float sparks = step( 0.93, printHash( floor( vPrint * 9.0 ) + floor( vGlow * 40.0 ) ) );
-          gl_FragColor = vec4( vec3( 0.05, 0.42, 0.95 ) * vGlow * ( h * 0.25 + sparks * h * 0.8 ), 1.0 );
+          vec3 c = vec3( 0.05, 0.42, 0.95 ) * vGlow * ( h * 0.25 + sparks * h * 0.8 );
+          if ( vMagic > 0.0 ) {
+            // The paw's shape lit from within, in a soft pool of the gifts'
+            // colour, with a few motes of light lifting off it.
+            float r2 = dot( vPrint, vPrint ) / 49.0;
+            float pool = exp( -r2 * 9.0 ) * 0.35 + exp( -r2 * 30.0 ) * 0.4;
+            float motes = step( 0.965, printHash( floor( vPrint * 3.0 ) + vSeed * 17.0 ) ) * exp( -r2 * 6.0 );
+            c += printMagicColour * vMagic * ( pool + h * 1.3 + motes * 0.9 ) * mix( 0.35, 1.0, printMagicNight );
+          }
+          gl_FragColor = vec4( c, 1.0 );
         }`,
     }),
     PRINT_COUNT,
@@ -384,7 +411,7 @@ export function createPawPrints(parent) {
     update(time, night = 0) {
       uniforms.printTime.value = time;
       glowUniforms.printNight.value = night;
-      glow.visible = night > 0.01;
+      glow.visible = night > 0.01 || PRINT_MAGIC.level.value > 0.003; // land-magic:
     },
     // p: { time, x, y, z, heading, front, side (±1), normal [3], strength
     // 0–1, wet 0–1, soft 0–1, speed 0–1, rock }.

@@ -4,6 +4,7 @@ import { capsule } from "./blockers.js";
 import { seededRandom } from "./random.js";
 import { part, merge, sweep, place, smooth01, srgb, hash, staticMesh } from "./place-kit.js";
 import { heightTile } from "./place-lighthouse.js";
+import { hurricaneLantern } from "./place-shore.js"; // land-magic:
 
 // The bones of a wooden coaster, driven bow-first up the beach and half
 // swallowed by the sand: a keel, a stem post, doubled frames standing in
@@ -111,6 +112,7 @@ export function buildWreck(p, materials, { light = false, seed = 1 } = {}) {
     wood.far.push(part(sweep(points.filter((_, k) => k % 3 === 0), points.filter((_, k) => k % 3 === 0).map(() => 0.2), 3), { colour: timberColour, anchor }));
   }
   // The stem: rising and curving forward from the forefoot.
+  let stemTop = null; // land-magic: a lantern hangs from its head
   {
     const points = [];
     for (let k = 0; k <= 8; k++) {
@@ -120,6 +122,7 @@ export function buildWreck(p, materials, { light = false, seed = 1 } = {}) {
     }
     const radii = points.map((_, k) => 0.17 - k * 0.006);
     timberChain(points, 0.17);
+    stemTop = points[points.length - 1].clone();
     for (const list of [wood.near, wood.far]) list.push(part(sweep(points, radii, list === wood.near ? 5 : 3, { roll: Math.PI / 4 }), { colour: timberColour, anchor }));
   }
   // Sternpost, snapped off.
@@ -182,9 +185,15 @@ export function buildWreck(p, materials, { light = false, seed = 1 } = {}) {
     iron.near.push(part(sweep([q.clone().add(new THREE.Vector3(0, 0.1, 0)), top], [0.028, 0.022], 4), { colour: RUST, anchor }));
   }
 
+  // land-magic: a lantern someone hung from the stem head on a lanyard,
+  // lit with the lighthouse's gift: the wreck's point in the necklace.
+  const glow = [];
+  const hang = stemTop.clone().add(new THREE.Vector3(fx * 0.32, -0.12, fz * 0.32));
+  iron.near.push(part(sweep([stemTop.clone().add(new THREE.Vector3(fx * 0.12, 0.02, fz * 0.12)), hang.clone().add(new THREE.Vector3(0, 0.2, 0)), hang.clone().add(new THREE.Vector3(0, 0.0, 0))], [0.012, 0.01, 0.008], 3), { colour: srgb("#3a3128") }));
+  const lantern = hurricaneLantern(iron.near, glow, hang.x, hang.y - 0.3, hang.z, { scale: 1.1 });
   const nearGroup = new THREE.Group();
   const farGroup = new THREE.Group();
-  nearGroup.add(staticMesh(merge(wood.near), materials.wood), staticMesh(merge(iron.near), materials.rough));
+  nearGroup.add(staticMesh(merge(wood.near), materials.wood), staticMesh(merge(iron.near), materials.rough), staticMesh(merge(glow), materials.glow, { cast: false }));
   farGroup.add(staticMesh(merge(wood.far), materials.wood), staticMesh(merge(iron.far), materials.rough));
 
   // The keel and boiler tops to stand on.
@@ -195,5 +204,8 @@ export function buildWreck(p, materials, { light = false, seed = 1 } = {}) {
     return q.y + 0.12 + 0.17;
   };
   const domes = [heightTile(p.x, p.z, L / 2 + 0.5, 0.12, (x, z) => keelTop(x - p.x, z - p.z))];
-  return { near: nearGroup, far: farGroup, farDistance: 40, obstacles: { trunks, domes }, blockers };
+  return {
+    near: nearGroup, far: farGroup, farDistance: 40, obstacles: { trunks, domes }, blockers,
+    halos: [{ x: p.x + lantern.x, y: lantern.y, z: p.z + lantern.z, size: 1.5, colour: [1.0, 0.62, 0.28], flicker: true, reach: 4 }],
+  };
 }

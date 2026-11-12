@@ -307,9 +307,20 @@ export function buildBeacon(p, materials) {
   const bg = groundHeight(p.x + bx, p.z + bz);
   paint.push(part(new THREE.BoxGeometry(0.42, 0.3, 0.42), { matrix: place(bx, bg + 0.08, bz, { yaw: p.facing }), colour: srgb("#9b968c"), anchor: bg }));
   paint.push(part(new THREE.CylinderGeometry(0.07, 0.07, 0.02, 12), { matrix: place(bx, bg + 0.235, bz), colour: srgb("#6d5428") }));
+  // land-magic: a lantern hung from a short iron arm on the mast, lit with
+  // the lighthouse's gift: the summit's point in the island's necklace.
+  const glow = [];
+  const armA = p.facing + Math.PI / 2;
+  const ax = Math.sin(armA) * 0.42, az = Math.cos(armA) * 0.42;
+  paint.push(part(new THREE.CylinderGeometry(0.012, 0.012, 0.44, 4), { matrix: place(ax / 2, top + 1.35, az / 2, { yaw: armA, pitch: Math.PI / 2 }), colour: srgb("#26241f") }));
+  const lantern = hurricaneLantern(paint, glow, ax, top + 1.35 - 0.33, az);
   const near = new THREE.Group();
-  near.add(staticMesh(merge(paint), materials.paint));
-  return { near, obstacles: { trunks: [{ x: p.x, z: p.z, r: 0.25 }], domes: [] } };
+  near.add(staticMesh(merge(paint), materials.paint), staticMesh(merge(glow), materials.glow, { cast: false }));
+  return {
+    near,
+    obstacles: { trunks: [{ x: p.x, z: p.z, r: 0.25 }], domes: [] },
+    halos: [{ x: p.x + lantern.x, y: lantern.y, z: p.z + lantern.z, size: 1.4, colour: [1.0, 0.66, 0.3], flicker: true, reach: 3.6 }],
+  };
 }
 
 // ---- The rock pool ---------------------------------------------------------------
@@ -525,6 +536,23 @@ export function buildPool(p, materials, { light = false, seed = 1 } = {}) {
       fish.instanceMatrix.needsUpdate = true;
     },
   };
+}
+
+// land-magic: a hurricane lantern like the boat's (a glass globe in a wire
+// guard under a vented cap, on a tin font), hung at (x, y, z) local: parts
+// go into `metal` and `glow`; it is lit with the lighthouse's gift.
+export function hurricaneLantern(metal, glow, x, y, z, { scale = 1 } = {}) {
+  const s = scale;
+  const TIN = srgb("#26241f");
+  glow.push(part(new THREE.SphereGeometry(0.1 * s, 12, 9), { matrix: place(x, y, z, { sy: 1.25 }), colour: LANTERN }));
+  metal.push(part(new THREE.CylinderGeometry(0.035 * s, 0.1 * s, 0.08 * s, 10), { matrix: place(x, y + 0.15 * s, z), colour: TIN }));
+  metal.push(part(new THREE.CylinderGeometry(0.11 * s, 0.1 * s, 0.06 * s, 12), { matrix: place(x, y - 0.13 * s, z), colour: TIN }));
+  for (let k = 0; k < 4; k++) {
+    const a = (k / 4) * Math.PI * 2 + 0.4;
+    metal.push(part(new THREE.CylinderGeometry(0.005 * s, 0.005 * s, 0.27 * s, 3), { matrix: place(x + Math.cos(a) * 0.112 * s, y, z + Math.sin(a) * 0.112 * s), colour: TIN }));
+  }
+  metal.push(part(new THREE.TorusGeometry(0.07 * s, 0.006 * s, 3, 10), { matrix: place(x, y + 0.27 * s, z, { pitch: Math.PI / 2 }), colour: TIN }));
+  return { x, y, z };
 }
 
 // Lantern halos: a soft camera-facing glow round each lamp, flickering a

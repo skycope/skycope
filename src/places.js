@@ -64,6 +64,11 @@ export function createPlaces(group, seed, { light = false, shared } = {}) {
   const beam = built.find((b) => b.lamp) ? lampLights(built.find((b) => b.lamp).lamp) : null;
   if (beam) root.add(beam.group);
   const haloList = built.flatMap((b) => b.halos ?? []);
+  // land-magic: the island's lamps (coast metres), which light the land
+  // round them once the lighthouse's gift wakes (land-magic.js slot 3).
+  const lamps = haloList.map((h) => ({ x: h.x, y: h.y, z: h.z, colour: h.colour, reach: h.reach ?? 3.2, power: h.power ?? 0.8 }));
+  const lighthouse = built.find((b) => b.lamp);
+  if (lighthouse?.cottage) lamps.push(lighthouse.cottage);
   const halos = haloList.length ? haloMesh(haloList) : null;
   if (halos) root.add(halos.mesh);
   paintGround(group, layout);
@@ -75,12 +80,20 @@ export function createPlaces(group, seed, { light = false, shared } = {}) {
     pois: layout.map(({ id, title, x, z, r }) => ({ id, title, x, z, r })),
     obstacles,
     blockers,
-    update({ time = 0, night = 0, wind = [0, 0], eye = null, pose = null } = {}) {
-      // Lamps are lit from sunset; the beam reads as the sky darkens.
-      const lit = smooth01(0.02, 0.3, night);
+    // land-magic: the lighthouse lamp (coast metres) and the island's lamps.
+    beacon: lighthouse?.lamp ?? null,
+    lamps,
+    // land-magic: the old milkwood's crown (coast x, z; radius; top y), the
+    // fireflies' home.
+    crown: (() => { const m = built.find((b) => b.crown); return m ? { x: m.place.x, z: m.place.z, radius: m.crown.radius, top: m.crown.top, ground: m.crown.ground ?? m.crown.top - 10 } : null; })(),
+    // land-magic: `lamp` is land-magic.js's lamp state ({ lit, angle,
+    // strength }) and `lights` the other lamps' level: everything here is
+    // dark until the lighthouse's gift wakes (without them, it stays dark).
+    update({ time = 0, night = 0, wind = [0, 0], eye = null, pose = null, lamp = null, lights = 0 } = {}) {
+      const lit = lights;
       materials.lights.value = lit;
       if (eye) eyeWorld.set(eye[0], eye[1], -eye[2]);
-      beam?.update(time, lit, night, eyeWorld);
+      beam?.update(lamp, night, eyeWorld);
       halos?.update(time, lit);
       for (const b of built) b.update?.({ time, night, wind, eye, pose, lit });
     },
@@ -191,7 +204,7 @@ function lampLights(lamp) {
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(attr.length), 3));
   geometry.setAttribute("beam", new THREE.Float32BufferAttribute(attr, 3));
   geometry.setIndex(index);
-  const beamMaterial = glowMaterial({ colour: [1.0, 0.9, 0.72], vertex: BEAM_VERTEX, fragment: BEAM_FRAGMENT, uniforms });
+  const beamMaterial = glowMaterial({ colour: [1.0, 0.66, 0.3], vertex: BEAM_VERTEX, fragment: BEAM_FRAGMENT, uniforms });
   beamMaterial.side = THREE.DoubleSide;
   const beams = new THREE.Mesh(geometry, beamMaterial);
   beams.frustumCulled = false;
@@ -205,17 +218,22 @@ function lampLights(lamp) {
   group.add(beams, flash);
   group.matrixAutoUpdate = false;
   group.visible = false;
-  // One revolution in 12 s: a flash every 6 s from anywhere on the island.
-  const period = 12;
+  // One revolution in 12 s (land-magic.js): a flash every 6 s anywhere.
   const toEye = new THREE.Vector3();
   return {
     group,
-    update(time, lit, night, eye) {
-      group.visible = lit > 0.01;
+    // land-magic: dark until the lamp's gift wakes; the angle comes from
+    // land-magic.js so the light on the land and the visible beams agree.
+    update(lamp, night, eye) {
+      group.visible = !!lamp && lamp.lit > 0.01;
       if (!group.visible) return;
-      const a = ((time % period) / period) * Math.PI * 2;
+      const a = lamp.angle;
       uniforms.angle.value = a;
-      uniforms.strength.value = lit * (0.12 + 0.2 * night);
+      uniforms.strength.value = lamp.lit * (0.1 + 0.26 * night);
+      // Warm gold by day; deeper amber by night, where the tonemap's night
+      // vision would otherwise grey it to blue-white.
+      beamMaterial.uniforms.glowColour.value.setRGB(1.0, 0.8 - 0.24 * night, 0.55 - 0.4 * night);
+      flashMaterial.uniforms.glowColour.value.setRGB(1.0, 0.88 - 0.2 * night, 0.66 - 0.36 * night);
       // The flash: a beam swinging across the eye (either of the pair).
       toEye.subVectors(eye, lampWorld).setY(0).normalize();
       const facing = Math.abs(Math.cos(a) * toEye.x + Math.sin(a) * toEye.z);
