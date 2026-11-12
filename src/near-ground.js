@@ -21,7 +21,7 @@ export const NEAR_GROUND = {
   // coarser cells and three blades per clump instead of four.
   desktop: [
     { cell: 0.15, radius: 3.4, ahead: 1.0 },
-    { cell: 0.25, radius: 7.5, ahead: 1.5 },
+    { cell: 0.27, radius: 7.5, ahead: 1.5 },
   ],
   light: [
     { cell: 0.22, radius: 3.2, ahead: 1.0 },
