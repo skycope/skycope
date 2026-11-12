@@ -39,6 +39,8 @@ const SWIM_SPRINT = 0.78;
 export const SWIM_LIMIT = 24;
 
 export const CAMERA = { distance: 3.4, elevation: 0.38, min: 1.1, max: 8 };
+// boat: the follow camera's range afloat (distance m, elevation rad).
+export const BOAT_VIEW = { distance: 7.2, elevation: 0.2, min: 4.5, max: 14, low: 0.07, high: 0.7 };
 // Photo mode frees the camera further round, lower, higher and wider.
 const FREE = { min: 0.7, max: 14, low: 0.02, high: 1.4 };
 // How close the spring arm may pull the camera to the cat, and how far the
@@ -130,6 +132,10 @@ export function createWalker(obstacles, sea = null, wake = null) {
   // the cat is going, and how long it has pushed straight at it.
   const wall = { x: 0, z: 0, at: -10, side: 1, top: -Infinity, headOn: 0 };
   const events = [];
+  // boat: the fisherman's boat (boat.js), when it is afloat: its deck is
+  // walkable surface, and while the cat is aboard it moves the cat, takes
+  // the input and frames the camera.
+  let ride = null;
 
   home();
 
@@ -138,7 +144,17 @@ export function createWalker(obstacles, sea = null, wake = null) {
     camera,
     events,
     surface,
+    // boat: the surface without the boat's deck (seabed, sand, boulders).
+    bed: base,
     solids,
+    // boat: boat.js attaches itself ({ deck(x, z), carries(cat), update(dt,
+    // input, cat, interest), view }); null detaches.
+    set ride(r) {
+      ride = r;
+    },
+    get ride() {
+      return ride;
+    },
     // The water over (x, z): { level (−∞ where dry), flow }.
     water(x, z) {
       return waterAt(x, z, surface(x, z));
@@ -167,7 +183,9 @@ export function createWalker(obstacles, sea = null, wake = null) {
         goal.distance = clamp(goal.distance * factor, FREE.min, FREE.max);
         return;
       }
-      camera.distance = clamp(camera.distance * factor, CAMERA.min, CAMERA.max);
+      // boat: afloat it may draw further back.
+      const afloat = ride && ride.carries(cat);
+      camera.distance = clamp(camera.distance * factor, afloat ? BOAT_VIEW.min : CAMERA.min, afloat ? BOAT_VIEW.max : CAMERA.max);
     },
     // Photo mode: orbit and zoom ease toward where the viewer puts them,
     // over a wider range; off again, the follow camera takes over from
@@ -194,6 +212,13 @@ export function createWalker(obstacles, sea = null, wake = null) {
     // paused for a photo.
     update(dt, input, interest, cameraDt = dt) {
       clock += dt;
+      // boat: aboard, the boat carries the cat and the input steers it.
+      if (ride && ride.carries(cat)) {
+        target = null;
+        ride.update(dt, input, cat, interest);
+        updateCamera(cameraDt, false);
+        return cat;
+      }
       let mx = input.move[0];
       let mz = input.move[1];
       if (mx || mz) target = null;
@@ -521,6 +546,12 @@ export function createWalker(obstacles, sea = null, wake = null) {
   // sea the seabed the water pass draws (ocean.wgsl seabed_depth), which the
   // land mesh fades out above.
   function surface(x, z) {
+    const h = base(x, z);
+    // boat: its deck, where it floats.
+    return ride ? Math.max(h, ride.deck(x, z)) : h;
+  }
+
+  function base(x, z) {
     let h = Math.max(groundHeight(x, z), grid.domeHeight(x, z));
     const inland = shoreDistance(x, z);
     if (inland < 0) h = Math.max(h, -seabedDepth(-inland, shoreAlong(x, z)));
@@ -532,6 +563,11 @@ export function createWalker(obstacles, sea = null, wake = null) {
   }
 
   function updateCamera(dt, moving) {
+    // boat: afloat, a lower, wider, calmer follow (boatCamera below).
+    if (ride && ride.carries(cat) && !free && !goal) {
+      boatCamera(dt);
+      return;
+    }
     if (goal) {
       const k = 1 - Math.exp(-dt * goal.rate);
       camera.yaw += wrap(goal.yaw - camera.yaw) * k;
@@ -596,6 +632,38 @@ export function createWalker(obstacles, sea = null, wake = null) {
     const heading = Math.atan2(dx, dz);
     camera.azimuth = heading - Math.PI / 4;
     camera.pitch = Math.atan2(ty - camera.y, Math.hypot(dx, dz)) + LOOK_LIFT;
+  }
+
+  // boat: the camera afloat. It frames the boat and the cat in it from
+  // further back and lower, swings round behind the boat's heading slowly
+  // (the viewer's drag wins for a while), follows a heavily softened heave
+  // so the swell does not shake the view, and never dips toward the sea.
+  function boatCamera(dt) {
+    const v = ride.view;
+    const k = Math.min(1, dt * 1.2);
+    if (clock - lastDrag > 2.5) {
+      const rate = 0.45 + 0.5 * Math.min(1, Math.abs(v.speed) / 1.5);
+      camera.yaw += wrap(v.heading - camera.yaw) * Math.min(1, dt * rate);
+    }
+    camera.distance += (clamp(camera.distance, BOAT_VIEW.min, BOAT_VIEW.max) - camera.distance) * k;
+    camera.elevation += (clamp(camera.elevation, BOAT_VIEW.low, BOAT_VIEW.high) - camera.elevation) * k;
+    camera.targetY += (v.y - camera.targetY) * Math.min(1, dt * 0.8);
+    const ty = camera.targetY + 0.35;
+    const horizontal = Math.cos(camera.elevation) * camera.distance;
+    const x = v.x - Math.sin(camera.yaw) * horizontal;
+    const z = v.z - Math.cos(camera.yaw) * horizontal;
+    let y = ty + Math.sin(camera.elevation) * camera.distance;
+    y = Math.max(y, shoreDistance(x, z) > -1 ? surface(x, z) + 0.6 : 1.1);
+    const ease = Math.min(1, dt * 3);
+    camera.x += (x - camera.x) * ease;
+    camera.z += (z - camera.z) * ease;
+    camera.y += (y - camera.y) * ease;
+    camera.arm = 1;
+    camera.lift = 0;
+    const dx = v.x - camera.x;
+    const dz = v.z - camera.z;
+    camera.azimuth = Math.atan2(dx, dz) - Math.PI / 4;
+    camera.pitch = Math.atan2(ty - camera.y, Math.hypot(dx, dz)) + LOOK_LIFT * 0.6;
   }
 
   // The unobstructed fraction (0…1) of the boom from the cat's head toward
