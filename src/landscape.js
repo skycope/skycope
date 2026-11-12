@@ -202,7 +202,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         direction: [direction.x, direction.y, -direction.z],
       };
     },
-    render({ celestial, cover, weather = null, time, wind, rain = 0, view: flight, lighting, pose, dt, weatherDt = dt, reducedMotion = false, paused = false, surface, water = null, onStep, wake = null }) {
+    render({ celestial, cover, weather = null, time, wind, rain = 0, view: flight, lighting, pose, dt, weatherDt = dt, reducedMotion = false, paused = false, surface, water = null, onStep, wake = null, skyFlash = 0 }) {
       const pointer = [0.5, 0.5];
       const night = THREE.MathUtils.smoothstep(celestial.scene, 1, 2);
       forest.updateWind(time, wind);
@@ -251,6 +251,14 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       }
       rainRate = rain;
       updateLighting(celestial, cover, lighting, cloudBeam);
+      // sky-events: a lightning flash is a brief, bright sky over the land
+      // (skyFlash: skylight gain from sky-events.js). Scales the sky light
+      // only; nothing is rebuilt.
+      if (skyFlash > 0) {
+        scene.environmentIntensity *= 1 + skyFlash;
+        forest.updateSkySH(skySH.coefficients, Math.max(lighting.exposure, 1e-6) * (1 + skyFlash));
+        CAT_SKY.value.multiplyScalar(1 + skyFlash);
+      }
       // The Three scene mirrors coast z (the land group is z-flipped).
       camera.position.set(flight.x, flight.y, -flight.z);
       const cp = Math.cos(flight.pitch);

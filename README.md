@@ -360,6 +360,40 @@ Kelp gulls soar in drifting thermals with occasional flapping bursts, lines of
 Cape cormorants skim the sea, and a dolphin pod porpoises offshore on staggered
 breathing cycles (clipped at the surface). Birds roost at night.
 
+## Sky events
+
+`src/sky-events.js` decides when the sky stages something, from the seed, the
+animation clock (`state.time`), the real sun and moon and the weather; the
+shaders draw it from seven Atmosphere fields (`events`, `bolt`, `optics`,
+`meteor`, `trail`, `streak`, `satellite`) and skip all work while they are
+zero. Nothing is moved into frame; only the rates of random events are
+compressed (`LINGER`) so a visitor who stays a few minutes sees one.
+
+- **Rainbow / moonbow** (sky resolve, `phenomena.wgsl`): Airy theory over ten
+  wavelengths with water's real dispersion: primary at 40.8–42.4°, secondary
+  at 50.2–53.2° with reversed colours, Alexander's dark band, supernumeraries
+  that wash out as drops grow; only with rain, the sun (or a near-full moon)
+  below 42° and its beam getting through the cloud. Showers under broken
+  cloud hang as rain curtains, and the sea reflects the bow.
+- **22° halo and sundogs** in thin high cloud (minimum deviation through ice
+  prisms; parhelia move out as the sun climbs); **lunar corona** (droplet
+  diffraction) in thin cloud round the Moon; **zodiacal light** on dark,
+  moonless nights; **crepuscular rays** from the cloud layer's transmission
+  toward a low sun (16 taps, screen space).
+- **Lightning** in storms: the flash lights the clouds in the resolve (never
+  written to the cloud history, so it cannot ghost), the branched channel and
+  its broken reflection are drawn at full resolution, and `landFlash` brightens
+  the land's skylight. `createSkyEvents().on(fn)` publishes each strike
+  (`{ type: "lightning", at, strength, bearing, distanceKm, thunderDelay }`) and
+  meteor; main.js keeps the scheduler at `state.skyEvents`.
+- **Meteors** (sporadics and the real showers' radiants, rare fireballs with a
+  persistent train), **satellites** at dusk (lit unless in the Earth's shadow),
+  and the **green flash** on the last sliver of a clear sea sunset.
+- `skySpectacles({ date, celestial, weather, seed, sunlit })` lists what is
+  visible now or due soon, for a "look up" hint.
+- With `?perf`, `?sky=rainbow|moonbow|lightning|meteor|fireball|satellite|halo|corona|rays|green-flash|zodiacal`
+  forces one; positions stay real. `render-sky.mjs` has a fixture for each.
+
 ## Render budget and lifecycle
 
 - Six WebGPU passes: the wind-sea cascades and (in wind) the whitecap history,

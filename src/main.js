@@ -34,6 +34,8 @@ import {
 } from "./weather.js";
 import { groundHeight, shoreDistance, ISLAND } from "./terrain.js";
 import { lightingAt } from "./sunlight.js";
+// sky-events: rainbows, halos, rays, lightning, meteors (src/sky-events.js).
+import { createSkyEvents, parseSkyForce } from "./sky-events.js";
 import { archipelagoUniform, archipelagoSunVisibility, ISLAND_SLOTS } from "./archipelago.js";
 import { createWeatherPanel } from "./weather-panel.js";
 import { createWalker, surfaceKind, SWIM_LIMIT } from "./walker.js";
@@ -748,6 +750,8 @@ async function startAtmosphere() {
       surface: state.walker.surface,
       water: state.walker.water,
       onStep: footstep,
+      // sky-events: a lightning flash lights the land for a few frames.
+      skyFlash: state.skyFrame?.landFlash ?? 0,
       wake: state.wake,
     });
     if (PERF) {
@@ -851,7 +855,28 @@ function createUniforms() {
     swell: swellUniform(state.seed, weather?.wind ?? [0, 0]),
     // Filled in per frame for the sea passes.
     ocean: [0, 0, 0, state.landscape?.cloudTransmission ?? 1],
+    ...skyEventUniforms(sky, weather, light, view),
   };
+}
+
+// sky-events: this frame's sky events. `state.skyEvents.on(fn)` publishes
+// each lightning strike ({ type: "lightning", at, strength, bearing,
+// distanceKm, thunderDelay }; `at` is in state.time seconds) and meteor;
+// `state.skyFrame.landFlash` is the flash's skylight gain for the land.
+// `?perf&sky=rainbow|lightning|meteor|...` forces one (see sky-events.js).
+function skyEventUniforms(sky, weather, light, view) {
+  state.skyEvents ??= createSkyEvents({ seed: state.seed, force: parseSkyForce(window.location.search) });
+  state.skyFrame = state.skyEvents.update({
+    time: state.time,
+    date: state.date,
+    celestial: sky,
+    weather,
+    sunlit: state.landscape?.cloudTransmission ?? null,
+    lighting: light,
+    view,
+    frameSeconds: Math.min(0.05, state.frameMs / 1000),
+  });
+  return state.skyFrame.uniforms;
 }
 
 // The archipelago for the sea (archipelago.js), with the share of the sun

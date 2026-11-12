@@ -30,6 +30,27 @@ export struct Atmosphere {
   // step in seconds (x) and whether the history is usable (y).
   swell: vec4f,
   ocean: vec4f,
+  // sky-events (src/sky-events.js, filled in main.js createUniforms and
+  // scripts/render-sky.mjs). All zero = nothing happening, no work done.
+  // events: rainbow (x; sunlit rain, by the Moon at night: a moonbow),
+  // lightning flash radiance (y, before exposure), ice halo (z) and
+  // crepuscular rays (w), each 0-1.
+  events: vec4f,
+  // A lightning strike: its bearing as a horizontal unit vector (xz), the
+  // cloud base's elevation in radians (y), the channel's brightness (w; 0 =
+  // an in-cloud flash, no visible bolt).
+  bolt: vec4f,
+  // Lunar corona (x), zodiacal light (y), green flash (z), 0-1; the bolt's
+  // shape seed (w).
+  optics: vec4f,
+  // A meteor: head direction (xyz) and flux relative to magnitude 0 (w);
+  // the trail's far end (xyz) and a fireball's persistent train flux (w);
+  // green tint (x) and whether it is a fireball (y).
+  meteor: vec4f,
+  trail: vec4f,
+  streak: vec4f,
+  // A sunlit satellite: direction (xyz) and flux (w).
+  satellite: vec4f,
 };
 
 export fn view_ray(uv: vec2f, resolution: vec2f, pointer: vec2f, azimuth: f32, pitch: f32) -> vec3f {
