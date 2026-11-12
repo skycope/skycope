@@ -100,7 +100,10 @@ export function nearCell(field, ix, iz, cell, layer, out = {}) {
     Math.min(1, m.grass * 1.8 + m.moss * 1.2) * clumped * (1 - sandy * (1 - smoothstep(0.55, 0.72, patch) * smoothstep(0.3, 0.8, m.tufted))),
     m.scrub * 0.85 * clumped,
     // Sour fig only inside its painted mats, and densely there.
-    m.sourfig > 0.02 ? figMat(x, z, m.sourfig) * smoothstep(0.02, 0.2, m.sourfig) * 1.5 : 0,
+    // (Off: as separate little rosettes the fingers read as rows of stamped
+    // stars on the sand, worse than the painted mat alone. figMat stays for
+    // when they can be grown as one creeping mat.)
+    0 * figMat(x, z, m.sourfig),
     m.litter * (1 - m.grass * 0.5),
   ];
   const total = weights[0] + weights[1] + weights[2] + weights[3];

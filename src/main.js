@@ -35,7 +35,8 @@ import {
 import { groundHeight, shoreDistance, ISLAND } from "./terrain.js";
 import { lightingAt } from "./sunlight.js";
 // sky-events: rainbows, halos, rays, lightning, meteors (src/sky-events.js).
-import { createSkyEvents, parseSkyForce } from "./sky-events.js";
+import { createSkyEvents, parseSkyForce, skySpectacles } from "./sky-events.js";
+import { spectacleSeen } from "./discoveries.js";
 import { archipelagoUniform, archipelagoSunVisibility, ISLAND_SLOTS } from "./archipelago.js";
 import { createWeatherPanel } from "./weather-panel.js";
 import { createWalker, surfaceKind, SWIM_LIMIT } from "./walker.js";
@@ -670,6 +671,7 @@ async function startAtmosphere() {
   applyReviewFixture(state.walker, review, state.landscape.obstacles);
   state.flight = state.walker.camera;
   state.thread.attach(); // thread: the island's discoveries, watch and dawn lapse
+  joinWorld();
   state.landscape.resize(window.innerWidth, window.innerHeight, state.quality, state.reveal < 1 ? revealSize() : null);
   await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   await tablePass.compile(skyTable);
@@ -954,6 +956,7 @@ function updateCat(dt, realDt = dt) {
   state.jump = false;
   if (cat.air > 0 && !hold) state.thread.did("run");
   state.thread.update(dt, realDt);
+  hearWildlife();
   for (const event of walker.events.splice(0)) {
     if (event.type === "jump") state.sound.jump();
     if (event.type === "shake") state.sound.shake();
@@ -1001,6 +1004,58 @@ function updateCat(dt, realDt = dt) {
     night: smooth(1, 2, state.celestial.scene),
     trees: smooth(8, 16, inland),
   });
+}
+
+// The landmarks (places.js), the animals (wildlife.js) and the sky's events
+// (sky-events.js) join the thread: each is something to find, the animals
+// and the lightning are heard, and what the sky is staging swells the score
+// and is what a sitting cat's camera turns to watch.
+const WILD_SOUNDS = {
+  "penguins:bray": ["penguin-bray", 1], "penguins:honk": ["penguin-bray", 0.5], "penguins:threat": ["penguin-bray", 0.35],
+  "seals:bark": ["seal-bark", 1], "seals:splash": ["splash-big", 0.7], "seals:blow": ["whale-blow", 0.25],
+  "whale:blow": ["whale-blow", 1], "whale:crash": ["splash-big", 1], "whale:slap": ["splash-big", 0.6],
+};
+const SKY_FINDS = [["rainbow", "a rainbow"], ["moonbow", "a moonbow"], ["lightning", "lightning over the sea"], ["halo", "a halo round the sun"], ["green-flash", "the green flash"]];
+let spectacleList = [];
+let spectacleAt = -Infinity;
+function joinWorld() {
+  const lower = (p, kind) => ({ ...p, kind, title: p.title.charAt(0).toLowerCase() + p.title.slice(1) });
+  state.thread.discoveries.add([
+    ...(state.landscape.pois ?? []).map((p) => lower(p, "place")),
+    ...(state.landscape.wildlife?.pois ?? []).map((p) => lower(p, "creature")),
+    ...SKY_FINDS.map(([id, title]) => ({ id, title, kind: "sky", scope: "island", hold: 1.5, when: spectacleSeen(id) })),
+  ]);
+  // What the sky is staging, refreshed once a second.
+  state.thread.setSpectacles(() => {
+    const now = performance.now();
+    if (now - spectacleAt > 1000) {
+      spectacleAt = now;
+      spectacleList = skySpectacles({ date: state.date, celestial: state.celestial, weather: state.weather, seed: state.seed, sunlit: state.landscape?.cloudTransmission ?? 1 })
+        .filter((s) => s.active !== false)
+        .map((s) => {
+          const flat = s.elevation == null ? 0 : (s.elevation * Math.PI) / 180;
+          const turn = s.bearing == null ? null : (s.bearing * Math.PI) / 180;
+          return { id: s.id, title: s.title, visible: s.strength, direction: turn === null ? undefined : [Math.sin(turn) * Math.cos(flat), Math.sin(flat), Math.cos(turn) * Math.cos(flat)] };
+        });
+    }
+    return spectacleList;
+  });
+  // Thunder follows each strike by its distance (sound.js delays it).
+  state.skyEvents?.on((event) => {
+    if (event.type !== "lightning") return;
+    state.sound.play("thunder", { distance: event.distanceKm * 1000, gain: 0.5 + 0.5 * event.strength });
+    state.thread.discoveries.find?.("lightning");
+  });
+}
+
+// The animals' voices, from the events their last frame left (wildlife.js).
+function hearWildlife() {
+  const events = state.landscape.wildlife?.events;
+  if (!events?.length) return;
+  for (const event of events) {
+    const sound = WILD_SOUNDS[`${event.source}:${event.type}`];
+    if (sound) state.thread.hear(sound[0], event, { gain: (event.gain ?? 1) * sound[1] });
+  }
 }
 
 // A paw lands: a print in the ground and a step you can hear.

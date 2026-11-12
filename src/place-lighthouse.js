@@ -144,8 +144,10 @@ export function buildLighthouse(p, materials, { light = false } = {}) {
   for (const [y, a] of windows) {
     const r = radiusAt(y);
     const u = Math.cos(a + Math.PI) * (r - 0.2), v = Math.sin(a + Math.PI) * (r - 0.2);
-    const yaw = a + Math.PI;
-    both(glow, () => part(new THREE.BoxGeometry(0.42, 0.82, 0.45), { matrix: frame(u, y, v, { yaw }), colour: WINDOW }));
+    // The box's depth (its local z) lies along the shaft's radius here, so
+    // the pane sits flush in the wall instead of jutting out of it askew.
+    const yaw = Math.PI / 2 - (a + Math.PI);
+    both(glow, () => part(new THREE.BoxGeometry(0.42, 0.82, 0.3), { matrix: frame(u, y, v, { yaw }), colour: WINDOW }));
   }
 
   // The keeper's cottage, beside the tower and facing the sea: limewashed,
