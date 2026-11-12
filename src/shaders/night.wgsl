@@ -164,7 +164,13 @@ export fn catalog_stars(eq: vec3f, catalog: texture_2d<f32>, pixel: f32, time: f
         halo += spikes * 0.035 * lean * smoothstep(0.25, 0.8, star.b);
       }
       let seen = smoothstep(0.3, 1.5, star.b * 6.8 / (background * 3.0 + 0.002));
-      total += star_colour(star.a) * star.b * twinkle * seen * (core + halo) * (1.0 + lean * 0.7);
+      // The gift deepens their colours: blue-white Rigel, orange Antares.
+      var tint = star_colour(star.a);
+      if (lean > 0.0) {
+        let grey = dot(tint, vec3f(0.2126, 0.7152, 0.0722));
+        tint = max(vec3f(grey) + (tint - grey) * (1.0 + lean * 1.3), vec3f(0.0));
+      }
+      total += tint * star.b * twinkle * seen * (core + halo) * (1.0 + lean * 0.7);
     }
   }
   return total * 22.0;

@@ -250,6 +250,17 @@ fn atmosphere_color(ray: vec3f, sun: vec3f, moon: vec3f, night: f32, exposure: f
         galaxy = mix(galaxy, galaxy * depth * warm * 1.5, min(lean, 1.5) * 0.66);
       }
       color += galaxy * extinction * night;
+      // sea-sky-magic: the sky leans close: the airglow shows, a faint green
+      // band of oxygen light ~100 km up, brightest a few degrees above the
+      // horizon (seen edge-on), rippled by gravity waves, with the red
+      // 630 nm layer above it.
+      if (MAGIC_AWAKE && lean > 0.0) {
+        let waves = 0.65 + 0.35 * noise3(vec3f(ray.xz / max(ray.y + 0.25, 0.1) * 1.3, atmosphere.time * 0.01));
+        let green = exp(-pow((ray.y - 0.09) / 0.07, 2.0)) * waves;
+        let red = exp(-pow((ray.y - 0.2) / 0.12, 2.0)) * (1.2 - waves * 0.5);
+        let haze = smoothstep(-0.01, 0.03, ray.y);
+        color += (vec3f(0.12, 0.42, 0.16) * green + vec3f(0.3, 0.04, 0.06) * red * 0.35) * 0.02 * min(lean, 1.5) * night * haze;
+      }
       color += constellation_lines(ray) * night;
       // sky-events: the zodiacal light, on moonless nights far from twilight.
       if (atmosphere.optics.y > 0.0) {
@@ -267,7 +278,8 @@ fn atmosphere_color(ray: vec3f, sun: vec3f, moon: vec3f, night: f32, exposure: f
 // holding softly after with a shimmer running along them; strongest where
 // the camera looks. The finale lights every figure fully.
 const FIGURE_LINE: vec3f = vec3f(0.0324, 0.047, 0.0559);
-const FIGURE_LIGHT: vec3f = vec3f(0.78, 0.8, 1.0);
+const FIGURE_LIGHT: vec3f = vec3f(0.74, 0.8, 1.0);
+const PEN_LIGHT: vec3f = vec3f(1.0, 0.86, 0.62);
 fn constellation_lines(ray: vec3f) -> vec3f {
   let latitude = atmosphere.celestial.y;
   let declination = asin(clamp(ray.z * cos(latitude) + ray.y * sin(latitude), -1.0, 1.0));
@@ -290,9 +302,13 @@ fn constellation_lines(ray: vec3f) -> vec3f {
     let forward = vec3f(sin(atmosphere.flight.w) * cos(atmosphere.pitch), sin(atmosphere.pitch), cos(atmosphere.flight.w) * cos(atmosphere.pitch));
     let look = 0.45 + 0.55 * smoothstep(0.55, 0.97, dot(ray, forward));
     let hold = (0.05 + 0.07 * atmosphere.magic.w) * shimmer * mix(look, 1.0, atmosphere.magic.w * 0.6);
-    let lines = atlas.r * (drawn * hold + pen * 0.9);
-    let nodes = atlas.a * drawn * (0.04 + pen * 1.2) * look;
-    light = mix(light, FIGURE_LIGHT * (lines + nodes), gift);
+    // A fine luminous thread: the filtered ridge's crest, sharpened, in a
+    // faint wide glow of its own.
+    let thread = smoothstep(0.42, 0.95, atlas.r) + atlas.r * 0.22;
+    let lines = thread * drawn * hold;
+    let nodes = atlas.a * drawn * (0.05 + pen * 1.2) * look;
+    // The pen burns warm, the lines it leaves cool.
+    light = mix(light, FIGURE_LIGHT * (lines + nodes) + PEN_LIGHT * thread * pen * 0.9, gift);
   }
   return light * horizon;
 }

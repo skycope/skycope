@@ -9,6 +9,11 @@
 //   LAMP_BEAM_SIGMA  the beam's half-width on the sea, radians.
 
 export const TIDEGLOW_COLOUR: vec3f = vec3f(0.08, 0.62, 1.0);
+// Its two tones: where the water burns brightest an electric blue-green
+// core; where it glows faintly a deep teal (saturated, so it stays teal
+// through the night tonemap's rod-vision greying).
+export const TIDEGLOW_CORE: vec3f = vec3f(0.3, 1.0, 0.92);
+export const TIDEGLOW_DEEP: vec3f = vec3f(0.0, 0.36, 0.62);
 const LAMP_COLOUR: vec3f = vec3f(1.0, 0.86, 0.62);
 export const LAMP_BEAM_SIGMA: f32 = 0.07;
 const ISLAND_CENTRE: vec2f = vec2f(58.0, 70.0);
@@ -51,20 +56,22 @@ export fn tideglow(s: SeaPoint, level: f32, finale: f32, night: f32, time: f32, 
   if (night > 0.01) {
     // Churned water: the roller, the uprush, the surge round a rock, a
     // whitecap, the swash's front, glowing from within the foam.
-    var fire = s.foam.z * (0.35 + 1.1 * cover) + s.foam.y * 0.45 + cover * 0.12;
+    var fire = s.foam.z * (0.35 + 1.1 * cover) + s.foam.y * 0.25 + cover * 0.06;
     // The breaking crest's lip: a running line of light, brightest in knots
     // that peel along it as the break runs down the wave.
     let lip = exp(-s.phase * s.phase * 160.0) * smoothstep(0.12, 0.55, s.breaking);
     if (lip > 0.001) {
       let knots = pow(0.5 + 0.5 * sin(s.metrics.w * 0.31 - time * 2.4 + sin(s.metrics.w * 0.07) * 3.0), 6.0);
-      fire += lip * (0.45 + 2.2 * knots);
+      fire += lip * (0.8 + 3.0 * knots);
     }
     // Rings round every boulder, sent out with each surge and fading as
     // they go; its contact line burns.
     // (rocks.wgsl knows a waterline only within its 3.2 m REACH.)
     if (s.rock_edge < 3.2) {
       let e = max(s.rock_edge, 0.0);
-      let ring = pow(0.5 + 0.5 * cos(e * 5.2 - time * 2.6), 12.0);
+      // Broken into beads and arcs, as plankton light unevenly.
+      let beads = 0.35 + 0.65 * smoothstep(0.25, 0.75, noise2(s.p.xz * 1.7 + vec2f(time * 0.2, 0.0)));
+      let ring = pow(0.5 + 0.5 * cos(e * 5.2 - time * 2.6 + noise2(s.p.xz * 0.6) * 2.0), 12.0) * beads;
       let width_ok = 1.0 - smoothstep(0.08, 0.3, s.pixel);
       let fade = 1.0 - smoothstep(1.6, 3.1, e);
       fire += (ring * (0.25 + 0.75 * width_ok) * 1.1 * exp(-e * 0.5) + exp(-e * 6.0) * 0.9) * fade * smoothstep(0.0, 0.08, e);
@@ -91,7 +98,8 @@ export fn tideglow(s: SeaPoint, level: f32, finale: f32, night: f32, time: f32, 
       fire += spirals(s.p.xz, time) * finale;
     }
     // Light from under the surface leaves less at grazing angles.
-    light += TIDEGLOW_COLOUR * fire * level * night * (1.0 - s.fresnel * 0.5) * 0.85;
+    let tint = mix(TIDEGLOW_DEEP, TIDEGLOW_CORE, smoothstep(0.12, 1.4, fire));
+    light += tint * fire * level * night * (1.0 - s.fresnel * 0.5) * 1.1;
   }
   if (night < 0.99) {
     // By day: turquoise light from within the shallows, and fine sparkle.
@@ -214,12 +222,15 @@ export fn lamp_on_sea(s: SeaPoint, lamp: vec4f, level: f32, night: f32) -> vec3f
   // Faces turned to the lamp (the beam grazes the sea, so this is the swell
   // and chop catching it), foam lit outright.
   let facing = max(dot(s.normal, l), 0.0);
-  let diffuse = pow(facing, 2.0) * 0.25 + s.foam.x * 0.9 + 0.005;
+  // Only the faces of the swell turned to the lamp take its light, so the
+  // path is ribbed with the waves, never a flat sheet.
+  let ribs = pow(facing, 5.0);
+  let diffuse = ribs * 0.35 + s.foam.x * 0.3 + 0.0015;
   // Crests mirroring the lamp toward the eye: a tight lobe, sparkled.
   let nh = max(dot(s.normal, h), 0.0);
-  let spec = pow(nh, 900.0) * 30.0 + pow(nh, 120.0) * 1.2;
+  let spec = pow(nh, 900.0) * 40.0 + pow(nh, 160.0) * 0.8;
   let sparkle = 0.4 + 1.6 * hash22m(floor(s.p.xz * 3.0) + floor(lamp.w * 40.0)).x;
-  let strength = level * (0.25 + 0.75 * night) * 16.0;
+  let strength = level * (0.25 + 0.75 * night) * 7.0;
   return LAMP_COLOUR * falloff * strength * ((beam + spill) * diffuse + beam * spec * sparkle * s.fresnel * 4.0);
 }
 
