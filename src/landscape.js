@@ -13,7 +13,9 @@ import { createMeshProfiler } from "./mesh-profiler.js";
 import { createArchipelago } from "./archipelago.js";
 import { createLens } from "./lens.js";
 import { createPlaces } from "./places.js"; // places:
-import { createLandMagic } from "./land-magic.js"; // land-magic:
+import { createLandMagic, lightWithMagic } from "./land-magic.js"; // land-magic:
+import { createFireflies } from "./fireflies.js"; // land-magic:
+import { groundHeight } from "./terrain.js"; // land-magic:
 import { horizonRadiance, skyDomeRatio, skyDomeMean, skyEnvironmentKey } from "./sunlight.js";
 
 // The mesh layer tonemaps with the same curve as the WebGPU water pass
@@ -100,6 +102,10 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   const wildEye = { x: 0, y: 0, z: 0 };
   scene.add(land);
   const motes = createMotes(scene, seed);
+  // land-magic: the milkwood's fireflies (one draw of points, hidden asleep).
+  const summitPoi = places.pois.find((q) => q.id === "beacon");
+  const fireflies = createFireflies(scene, seed, { light, crown: places.crown, summit: summitPoi ? { x: summitPoi.x, y: groundHeight(summitPoi.x, summitPoi.z), z: summitPoi.z } : null });
+  let flyPixels = 600, magicScan = 0;
   // The distant islands: their own scene and depth range, drawn first.
   const archipelago = createArchipelago(seed, { light });
   // Vignette, rain on the lens, veiling glare and grain, over both layers.
@@ -216,7 +222,14 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       forest.updateWind(time, wind);
       forest.updateNight(night);
       fauna.update(time, wind, night);
-      const gifts = landMagic.update({ magic, time, dt, night, pose }); // land-magic:
+      // land-magic: the fireflies fly, then every gift's light is set.
+      const levels = magic?.levels;
+      const flies = fireflies.update({ dt, time, pose, night, level: levels?.fireflies ?? 0, finale: levels?.finale ?? 0, call: magic?.call ?? null, eye: camera.position, pixelScale: flyPixels });
+      const gifts = landMagic.update({ magic, time, dt, night, pose, flies }); // land-magic:
+      // The cat's coat and the animals take the same light (their
+      // materials are built lazily: wrapped at load and once more later).
+      if (magicScan === 30 || magicScan === 600) lightWithMagic(land, land.userData.forestShared);
+      magicScan++;
       places.update({ time, night, wind, eye: [flight.x, flight.y, flight.z], pose, lamp: gifts.lamp, lights: gifts.lampLights }); // places:
       const sinA = Math.sin(flight.azimuth);
       const cosA = Math.cos(flight.azimuth);
@@ -294,6 +307,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       forest.updateSun(sunView);
       // Pixels per metre at one metre: how big things are on screen.
       const pixelScale = renderer.domElement.height / (2 * Math.tan((camera.fov * Math.PI) / 360));
+      flyPixels = pixelScale; // land-magic:
       cat.update(pose, dt, time, surface, onStep, {
         night,
         direct: THREE.MathUtils.smoothstep(sunWorld.y, 0, 0.3) * cloudBeam,
@@ -377,6 +391,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       // build worker the scene traversal below cannot reach.
       cat.dispose();
       places.dispose(); // places:
+      fireflies.dispose(); // land-magic:
       wildlife.dispose();
       precipitation.dispose();
       archipelago.geometry.dispose();

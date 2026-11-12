@@ -83,6 +83,9 @@ export function createPlaces(group, seed, { light = false, shared } = {}) {
     // land-magic: the lighthouse lamp (coast metres) and the island's lamps.
     beacon: lighthouse?.lamp ?? null,
     lamps,
+    // land-magic: the old milkwood's crown (coast x, z; radius; top y), the
+    // fireflies' home.
+    crown: (() => { const m = built.find((b) => b.crown); return m ? { x: m.place.x, z: m.place.z, radius: m.crown.radius, top: m.crown.top } : null; })(),
     // land-magic: `lamp` is land-magic.js's lamp state ({ lit, angle,
     // strength }) and `lights` the other lamps' level: everything here is
     // dark until the lighthouse's gift wakes (without them, it stays dark).
@@ -201,7 +204,7 @@ function lampLights(lamp) {
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(attr.length), 3));
   geometry.setAttribute("beam", new THREE.Float32BufferAttribute(attr, 3));
   geometry.setIndex(index);
-  const beamMaterial = glowMaterial({ colour: [1.0, 0.9, 0.72], vertex: BEAM_VERTEX, fragment: BEAM_FRAGMENT, uniforms });
+  const beamMaterial = glowMaterial({ colour: [1.0, 0.8, 0.55], vertex: BEAM_VERTEX, fragment: BEAM_FRAGMENT, uniforms });
   beamMaterial.side = THREE.DoubleSide;
   const beams = new THREE.Mesh(geometry, beamMaterial);
   beams.frustumCulled = false;

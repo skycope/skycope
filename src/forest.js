@@ -1175,6 +1175,7 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
   // silently runs another's shader (blades with the clusters' flutter).
   const key = JSON.stringify({ sway, flutter, foliage, ground, rock, bark, bent, fade, taper, pliant, rooted, sheen });
   material.customProgramCacheKey = () => key;
+  material.userData.magicLit = true; // land-magic: already carries the light
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, shared);
     const defines = (pliant ? "#define PLIANT\n" : "") + (rooted ? `#define ROOTED ${rooted.toFixed(3)}\n` : "") + `#define SHEEN ${sheen.toFixed(2)}\n`;

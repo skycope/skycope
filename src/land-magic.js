@@ -66,7 +66,7 @@ if ( magicOn > 0.0 ) {
     float cone = exp( -across * across / ( width * width ) ) * mix( 0.3, 1.0, exp( -drop * drop / ( width * width * 9.0 ) ) );
     float reach = smoothstep( 4.0, 14.0, hd ) * exp( -hd / magicBeam.z );
     float face = clamp( dot( mN, -toP ) * inversesqrt( dot( toP, toP ) + 1e-4 ) * 0.7 + 0.3, 0.0, 1.0 );
-    mLight += vec3( 1.0, 0.8, 0.52 ) * ( magicLamp.w * cone * reach * face );
+    mLight += vec3( 1.0, 0.72, 0.4 ) * ( magicLamp.w * cone * reach * face );
   }
   if ( magicPulse.w > 0.0 ) {
     // A ring of light running out across the land, a glow lingering inside.
@@ -101,6 +101,35 @@ export function magicUniforms() {
     magicPulseColour: { value: new THREE.Color(1, 1, 1) },
     magicSheen: { value: new THREE.Vector4(0, 0, 0, 0) },
   };
+}
+
+// The same light on materials forest.js does not patch (the cat's coat,
+// the animals): wraps each lit material's own onBeforeCompile. Patched
+// materials (userData.magicLit) and unlit ones are left alone.
+export function lightWithMagic(root, shared) {
+  const done = new Set();
+  root.traverse((o) => {
+    const list = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+    for (const m of list) {
+      if (done.has(m) || m.userData.magicLit) continue;
+      done.add(m);
+      if (!(m.isMeshStandardMaterial || m.isMeshLambertMaterial || m.isMeshPhongMaterial)) continue;
+      m.userData.magicLit = true;
+      const before = m.onBeforeCompile;
+      const key = m.customProgramCacheKey;
+      m.onBeforeCompile = function (shader, renderer) {
+        before.call(this, shader, renderer);
+        for (const name in shared) if (name.startsWith("magic")) shader.uniforms[name] = shared[name];
+        shader.fragmentShader = shader.fragmentShader
+          .replace("void main() {", `${MAGIC_LIGHT_DECLARATIONS}\nvoid main() {`)
+          .replace("#include <aomap_fragment>", `${MAGIC_LIGHT_GLSL}\n#include <aomap_fragment>`);
+      };
+      m.customProgramCacheKey = function () {
+        return `${key.call(this)}|magic`;
+      };
+      m.needsUpdate = true;
+    }
+  });
 }
 
 const ASLEEP = { fireflies: 0, tideglow: 0, lamp: 0, stars: 0, seafolk: 0, boat: 0, finale: 0 };
