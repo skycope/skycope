@@ -700,8 +700,22 @@ async function startAtmosphere() {
   const wakeMagicPasses = () => {
     if (magicPasses.started) return;
     magicPasses.started = true;
-    const sky = effect(gpu, magicVariant(skyShader, true), { label: "skycope-cape-town-magic", set: skySet });
-    const sea = effect(gpu, magicVariant(waterShader, true), { label: "skycope-water-magic", set: waterSet });
+    // The render targets may have been resized since start: bind today's.
+    let sky, sea;
+    try {
+    sky = effect(gpu, magicVariant(skyShader, true), {
+      label: "skycope-cape-town-magic",
+      set: { ...skySet, cloudLayer: cloudTarget.color, cloudHistory: skyTarget.read.colors[1] },
+    });
+    sea = effect(gpu, magicVariant(waterShader, true), {
+      label: "skycope-water-magic",
+      set: { ...waterSet, skyTexture: skyTarget.write.color, foamLayer: foamTarget.read.color },
+    });
+    } catch (error) {
+      // The gifts stay unseen rather than the sky failing.
+      console.error("sea-sky-magic: awake pipelines", error);
+      return;
+    }
     Promise.all([sky.compile(skyTarget.write), sea.compile({ colors: [output.format] })]).then(() => {
       if (state.gpu !== gpu || state.disposed) return;
       magicPasses.sky = sky;
