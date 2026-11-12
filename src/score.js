@@ -345,8 +345,8 @@ export function createScore(ctx, { out, send, seed = 1 } = {}) {
       const events = ceremonyEvents(gift);
       if (!events) return 0;
       const t = now + 0.05;
-      for (const p of events.pads) pad(ctx, level, null, p.notes, t + p.at, p.length, PAD_LEVEL * 1.6);
-      for (const p of events.plucks) pluck(ctx, level, null, p.midi, t + p.at, PLUCK_LEVEL * 1.5 * p.velocity, { decay: 2.2, bright: 1.1 });
+      for (const p of events.pads) pad(ctx, level, null, p.notes, t + p.at, p.length, PAD_LEVEL * 2);
+      for (const p of events.plucks) pluck(ctx, level, null, p.midi, t + p.at, PLUCK_LEVEL * 2.2 * p.velocity, { decay: 2.2, bright: 1.1 });
       hushUntil = t + events.length;
       swell = Math.max(swell, 1);
       swellAt = t + events.length * 0.5;

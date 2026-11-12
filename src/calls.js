@@ -179,7 +179,7 @@ const SYNTHS = {
     notes.forEach((midi, i) => {
       const hz = 440 * 2 ** ((midi - 69) / 12);
       const at = t + i * 0.07 + rand(0, 0.015);
-      tone(io, out, { t: at, hz, length: 0.55 - i * 0.1, gain: 0.045 * (1 - i * 0.15), attack: 0.004 });
+      tone(io, out, { t: at, hz, length: 0.55 - i * 0.1, gain: 0.065 * (1 - i * 0.15), attack: 0.004 });
       tone(io, out, { t: at, hz: hz * 2.01, length: 0.18, gain: 0.008, attack: 0.003 });
     });
     burst(io, out, { buffer: io.noise, t, type: "highpass", frequency: 6500, q: 0.4, gain: 0.012, attack: 0.03, length: 0.3 });
@@ -193,7 +193,7 @@ const SYNTHS = {
     const high = gift === "stars" || gift === "fireflies" ? 12 : gift === "seafolk" ? -12 : 0;
     const { ctx } = io;
     // The bloom: D2 and A2, swelling in over a second and dying over four.
-    for (const [hz, g] of [[73.42, 0.16], [110, 0.07], [146.83, 0.04]]) {
+    for (const [hz, g] of [[73.42, 0.13], [110, 0.055], [146.83, 0.03]]) {
       const osc = ctx.createOscillator();
       osc.type = "sine";
       osc.frequency.value = hz;
