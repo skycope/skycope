@@ -81,7 +81,16 @@ export function createFauna(group, seed) {
   const quaternion = new THREE.Quaternion();
   const scale = new THREE.Vector3(1, 1, 1);
   const euler = new THREE.Euler(0, 0, 0, "YXZ");
+  // Hoisted: no allocation per bird or dolphin per frame.
+  const drift = new THREE.Vector2();
+  const forward = new THREE.Vector2();
 
+  function place(mesh, index, x, y, z, rotation) {
+    position.set(x, y, z);
+    quaternion.setFromEuler(rotation);
+    matrix.compose(position, quaternion, scale);
+    mesh.setMatrixAt(index, matrix);
+  }
   return {
     update(time, wind, night) {
       shared.time.value = time;
@@ -90,7 +99,7 @@ export function createFauna(group, seed) {
       gulls.mesh.visible = visible;
       cormorants.mesh.visible = visible;
       if (visible) {
-        const drift = new THREE.Vector2(wind[0], -wind[1]).multiplyScalar(0.6);
+        drift.set(wind[0], -wind[1]).multiplyScalar(0.6);
         for (let i = 0; i < gulls.count; i++) {
           const g = gullPaths[i];
           const a = g.phase + time * g.speed;
@@ -143,7 +152,7 @@ export function createFauna(group, seed) {
         const radius = 108 + lane * 3 + Math.sin(i * 2.1) * 2;
         const x = ISLAND.x + Math.cos(t) * radius;
         const z = ISLAND.z + Math.sin(t) * radius;
-        const forward = new THREE.Vector2(-Math.sin(t), Math.cos(t));
+        forward.set(-Math.sin(t), Math.cos(t));
         // An arc: rise, leap, dive, then a long stretch underwater.
         const leap = cycle < 0.35 ? Math.sin((cycle / 0.35) * Math.PI) : -1;
         const along = (cycle - 0.175) * 6;
@@ -154,13 +163,6 @@ export function createFauna(group, seed) {
         place(dolphins.mesh, i, x + forward.x * along, y, z + forward.y * along, euler);
       }
       dolphins.mesh.instanceMatrix.needsUpdate = true;
-
-      function place(mesh, index, x, y, z, rotation) {
-        position.set(x, y, z);
-        quaternion.setFromEuler(rotation);
-        matrix.compose(position, quaternion, scale);
-        mesh.setMatrixAt(index, matrix);
-      }
     },
     dispose() {
       for (const m of [gulls.mesh, cormorants.mesh, dolphins.mesh]) {

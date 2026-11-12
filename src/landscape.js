@@ -5,6 +5,7 @@ import { createCat, SPLASH } from "./cat.js";
 import { CAT_SKY } from "./cat-ground.js";
 import { CAT_SEA } from "./cat-coat.js";
 import { createCritters } from "./critters.js";
+import { createWildlife } from "./wildlife.js"; // wildlife: penguins, seals, whale…
 import { createMotes } from "./motes.js";
 import { createPrecipitation } from "./precipitation.js";
 import { cloudTransmission } from "./cloud-transmission.js";
@@ -85,6 +86,9 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   const fauna = createFauna(land, seed);
   const cat = createCat(land, { light });
   const critters = createCritters(land, seed, forest.obstacles.flowers);
+  // wildlife: encounters round the shore (see wildlife.js).
+  const wildlife = createWildlife(land, seed, { obstacles: forest.obstacles, light });
+  const wildEye = { x: 0, y: 0, z: 0 };
   scene.add(land);
   const motes = createMotes(scene, seed);
   // The distant islands: their own scene and depth range, drawn first.
@@ -284,6 +288,10 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       // Plants part round the cat as it walks through them.
       forest.pushAt(pose.x, pose.z, pose.air > 0.05 ? 0 : 1);
       interest = critters.update(dt, time, pose, night);
+      // wildlife: update, and the nearer of a critter and an animal holds the cat's eye.
+      wildEye.x = flight.x; wildEye.y = flight.y; wildEye.z = flight.z;
+      const wild = wildlife.update({ dt, time, night, wind, pose, water, eye: wildEye });
+      if (wild && (!interest || wild.d < Math.hypot(interest.x - pose.x, interest.z - pose.z))) interest = wild;
       // Motes glow only in daylight, dimmed by cloud like the direct sun.
       moteLight.copy(sun.color).multiplyScalar(sun.intensity * THREE.MathUtils.smoothstep(sunWorld.y, 0.0, 0.1) * (1 - night));
       motes.update(time, wind, camera.position, sunWorld, moteLight,
@@ -313,6 +321,8 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     get interest() {
       return interest;
     },
+    // wildlife: { pois, events (refilled each frame), modules, timing }.
+    wildlife,
     addPrint(print) {
       prints.add(print);
     },
@@ -341,6 +351,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     },
     dispose() {
       profiler.dispose();
+      wildlife.dispose();
       precipitation.dispose();
       archipelago.geometry.dispose();
       archipelago.material.dispose();
