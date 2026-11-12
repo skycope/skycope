@@ -96,7 +96,7 @@ export function createNotesPanel({ toggle, panel, list, signal, time = (at) => "
             const span = document.createElement("span");
             span.className = "gift-mark";
             span.dataset.awake = String(g.awake);
-            if (g.awake) span.style.color = `rgb(${g.colour.map((c) => Math.round(c * 255)).join(" ")})`;
+            if (g.awake) span.style.setProperty("--glow", `rgb(${g.colour.map((c) => Math.round(c * 255)).join(" ")})`);
             span.title = g.awake ? g.line : "asleep";
             span.innerHTML = `<svg viewBox="0 0 13 13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round">${GLYPHS[g.gift]}</svg>`;
             return span;
