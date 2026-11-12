@@ -201,7 +201,7 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
     attach() {
       quest = createQuest({ seed: state.seed, places: state.landscape?.pois ?? [], magic });
       mind = createWispMind({ seed: state.seed, obstacles: state.landscape?.obstacles, surface: state.walker.surface, swimLimit: SWIM_LIMIT });
-      state.landscape?.wisp?.follow(magic.wisp, state.walker.surface);
+      state.landscape?.wisp?.follow(magic.wisp, state.walker.surface, magic);
       const restored = [...quest.keepsakes.map((k) => k.gift), "finale"].filter((g) => magic.isAwake(g));
       carry = restored.at(-1) ?? null;
       colourFor(carry);

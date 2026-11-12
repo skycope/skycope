@@ -49,13 +49,14 @@ export function createFindLine(el, { reduced = () => false, hold = 3600 } = {}) 
 // Above them, the six gifts as small marks, dim until woken and lit in
 // their colour after; and once any is awake, a quiet "begin again".
 // gifts() → [{ gift, awake, line, colour: [r, g, b] }].
+// Fine line marks, drawn as with a mapping pen.
 const GLYPHS = {
-  fireflies: '<path d="M2 8h2v2H2zM6 3h2v2H6zM9.5 7h2v2h-2z" fill="currentColor"/>',
-  tideglow: '<path d="M1 8.5c1.5-3 3-3 4.5 0s3 3 4.5 0M3 4.5c1-1.6 2-1.6 3 0s2 1.6 3 0" stroke="currentColor" fill="none"/>',
-  lamp: '<path d="M5.5 11.5v-6h2v6M4 11.5h5M5.5 5.5l1-2 1 2M8.5 4l3-1.2M8.5 5.2l3 1" stroke="currentColor" fill="none"/>',
-  stars: '<path d="M6.5 1l1.2 4.3L12 6.5 7.7 7.7 6.5 12 5.3 7.7 1 6.5l4.3-1.2z" fill="currentColor"/>',
-  seafolk: '<path d="M1.5 6.5c2-3 6-3 8 0-2 3-6 3-8 0zM9.5 6.5l2-2v4z" stroke="currentColor" fill="none"/>',
-  boat: '<path d="M1 8h11l-2 3H3zM6.5 8V1.5l3.5 5h-3.5" stroke="currentColor" fill="none"/>',
+  fireflies: '<circle cx="3" cy="9.2" r="1"/><circle cx="7" cy="3.6" r="1.25"/><circle cx="10.4" cy="8" r="0.75"/><path d="M3.8 8.4C5 7 5.6 5.6 6.2 4.6M7.9 4.4c1.1.9 1.9 2 2.2 2.9" stroke-dasharray="0.4 1.1"/>',
+  tideglow: '<path d="M1 7.6c1.3-1.6 2.6-1.6 3.8 0s2.6 1.6 3.8 0 2.4-1.5 3.4-.4M2.4 10.4c1-.9 2-.9 3 0s2 .9 3 0"/><circle cx="6.5" cy="3.4" r="0.6"/>',
+  lamp: '<path d="M5.4 12V5.2h2.2V12M4.3 12h4.4M5.1 5.2h2.8M6.5 5.2V3.6M8.6 4.2l3.6-1.4M8.6 4.8l3.6 1.2"/>',
+  stars: '<path d="M6.5 1.2C6.8 4.6 7.6 5.6 11.2 6.2 7.6 6.8 6.8 7.8 6.5 11.4 6.2 7.8 5.4 6.8 1.8 6.2 5.4 5.6 6.2 4.6 6.5 1.2z"/><circle cx="11" cy="2.2" r="0.5"/>',
+  seafolk: '<path d="M2 6.8c1.8-2.6 5.4-2.8 7.4-.2-2 2.4-5.6 2.4-7.4.2zM9.4 6.6 11.6 5v3.2zM1.2 10.6c1.4-.9 2.8-.9 4.2 0s2.8.9 4.2 0"/>',
+  boat: '<path d="M1.4 8.4h10.2c-.8 1.9-2.4 2.8-5.1 2.8S2.2 10.3 1.4 8.4zM6.4 8.4V1.6M6.4 2.2c2 1.5 3.2 3.4 3.4 5.4H6.4"/>',
 };
 
 export function createNotesPanel({ toggle, panel, list, signal, time = (at) => "", gifts = () => [], onBeginAgain = null }) {
@@ -97,7 +98,7 @@ export function createNotesPanel({ toggle, panel, list, signal, time = (at) => "
             span.dataset.awake = String(g.awake);
             if (g.awake) span.style.color = `rgb(${g.colour.map((c) => Math.round(c * 255)).join(" ")})`;
             span.title = g.awake ? g.line : "asleep";
-            span.innerHTML = `<svg viewBox="0 0 13 13" aria-hidden="true">${GLYPHS[g.gift]}</svg>`;
+            span.innerHTML = `<svg viewBox="0 0 13 13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round">${GLYPHS[g.gift]}</svg>`;
             return span;
           }),
       );
