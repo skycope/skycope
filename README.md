@@ -322,6 +322,30 @@ Kelp gulls soar in drifting thermals with occasional flapping bursts, lines of
 Cape cormorants skim the sea, and a dolphin pod porpoises offshore on staggered
 breathing cycles (clipped at the surface). Birds roost at night.
 
+## The thread, the score and the keepsake
+
+- **Discoveries** (`src/discoveries.js`): places, creatures and moments as data
+  (`{ id, title, x, z, r, kind?, scope?, when?, hold?, above? }`), checked four
+  times a second. Found ids persist in localStorage per seed (`scope: "island"`
+  for things every seed shares). A find chimes, writes one line of type
+  ("found · the deep cove") and joins the **field notes** (header, left); the
+  unfound show only as dim dashes, never by name. While it sits, the cat now and
+  then turns its head toward the nearest place it has not found.
+- **Score** (`src/score.js`): sparse generative music on D, its mode following
+  light and weather (lydian noon, mixolydian golden hour, aeolian night, almost
+  nothing in a storm, silence while the cat sleeps), with a small FDN reverb. Music
+  has its own switch (the note button) beside sound; both are remembered.
+  `sound.play(name, { distance, pan, gain })` plays named one-shots (`src/calls.js`).
+- **Photo mode** (`src/photo-mode.js`): P or the camera button. UI hidden, cat
+  still, camera free (arrows, drag, scroll/pinch, +/−); space pauses time; F wide
+  2.39:1 crop, C caption, S or the shutter saves a PNG of both canvases and the
+  vignette (rendered and read in one task: no `preserveDrawingBuffer`). Phones
+  share, desktops download.
+- **Moments** (`src/moments.js`): the name on arrival, a hint that teaches one
+  thing at a time, the camera drifting to watch the sun, moon or sea when the cat
+  has sat a while (any input returns it), and dawn as a time-lapse preview while
+  the cat sleeps at night. `src/thread.js` joins these to `main.js`.
+
 ## Render budget and lifecycle
 
 - Four WebGPU passes. The sky: a 256 × 128 **sky-view table** of the scattering

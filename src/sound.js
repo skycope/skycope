@@ -1,12 +1,28 @@
 // Every sound is synthesized with WebAudio (no recordings), like the scene:
 // looping noise beds for sea, wind, leaves and rain, scheduled one-shots for
-// breaking waves, gulls, crickets and thunder, and the cat's own paws, meows
-// and purr. The context starts on the first user gesture (browser policy).
+// breaking waves, gulls, crickets and thunder, the cat's own paws, meows
+// and purr, a generative score (score.js) on its own switchable bus under
+// the beds, and named one-shots for other modules (calls.js, `play`). The
+// context starts on the first user gesture (browser policy). Pass
+// `context` (e.g. an OfflineAudioContext) to build the same graph off-line.
+import { createReverb, createScore, moodFor } from "./score.js";
+import { playCall } from "./calls.js";
 
-export function createSound() {
+const PREFS = { sound: "skycope.sound", music: "skycope.music" };
+
+export function createSound({ context = null, storage = defaultStorage(), seed = 1 } = {}) {
   let ctx = null;
   let master = null;
-  let enabled = true;
+  let enabled = readPref(storage, PREFS.sound, true);
+  let musicOn = readPref(storage, PREFS.music, true);
+  let music = null;
+  let musicSend = null;
+  let reverb = null;
+  let score = null;
+  let calls = null;
+  let spectacleSeen = false;
+  let externalThunder = -Infinity;
+  const scoreInput = { sunAltitude: 30, sunAzimuth: 0, cover: 0, rain: 0, asleep: false, spectacle: 0 };
   let beds = null;
   let purr = null;
   let nextWave = 0;
@@ -22,18 +38,32 @@ export function createSound() {
 
   function start() {
     if (ctx) {
-      if (ctx.state === "suspended") ctx.resume();
+      if (ctx.state === "suspended" && !context && !globalThis.document?.hidden) ctx.resume();
       return;
     }
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) return;
-    ctx = new AudioContext();
+    if (context) ctx = context;
+    else {
+      const AudioContext = globalThis.AudioContext || globalThis.webkitAudioContext;
+      if (!AudioContext) return;
+      ctx = new AudioContext();
+    }
     const compressor = ctx.createDynamicsCompressor();
     compressor.threshold.value = -18;
     compressor.ratio.value = 3;
     master = ctx.createGain();
     master.gain.value = enabled ? 0.9 : 0;
     master.connect(compressor).connect(ctx.destination);
+    // The music bus: the score, under everything, switchable on its own.
+    // Its reverb also carries the named calls' distance.
+    reverb = createReverb(ctx, { seconds: 4.8 });
+    reverb.output.connect(master);
+    music = ctx.createGain();
+    music.gain.value = musicOn ? 1 : 0;
+    music.connect(master);
+    musicSend = ctx.createGain();
+    musicSend.gain.value = musicOn ? 1 : 0;
+    musicSend.connect(reverb.input);
+    score = createScore(ctx, { out: music, send: musicSend, seed });
     noise = noiseBuffer("white");
     pink = noiseBuffer("pink");
     brown = noiseBuffer("brown");
@@ -60,6 +90,7 @@ export function createSound() {
     windLfo.connect(windDepth).connect(beds.wind.filter.frequency);
     windLfo.start();
     nextWave = ctx.currentTime + 1;
+    calls = { ctx, out: master, reverb: reverb.input, noise, pink, brown };
   }
 
   function noiseBuffer(colour) {
@@ -235,6 +266,7 @@ export function createSound() {
     },
     setEnabled(on) {
       enabled = on;
+      writePref(storage, PREFS.sound, enabled);
       if (!ctx) return;
       if (on) start();
       set(master.gain, on ? 0.9 : 0, 0.15);
@@ -242,7 +274,7 @@ export function createSound() {
     // Per frame: what the scene sounds like from where the cat stands.
     update(next) {
       Object.assign(conditions, next);
-      if (!ctx || !enabled || ctx.state !== "running") return;
+      if (!ctx || !enabled || (!context && ctx.state !== "running")) return;
       const c = conditions;
       set(beds.sea.gain.gain, 0.05 + c.sea * 0.3);
       set(beds.sea.pan.pan, c.seaPan * 0.6);
@@ -272,10 +304,57 @@ export function createSound() {
         nextDrip = now + 0.02 + Math.random() * (0.3 / c.rain);
         burst({ type: "bandpass", frequency: 2500 + Math.random() * 3000, q: 8, gain: 0.02 + Math.random() * 0.03, length: 0.03, pan: Math.random() * 2 - 1 });
       }
+      // A storm grumbles on its own unless something is sending real
+      // thunder (with its lightning) through play().
       if (c.rain > 4 && now > nextThunder) {
         nextThunder = now + 15 + Math.random() * 30;
-        burst({ buffer: brown, type: "lowpass", frequency: 400, to: 60, q: 0.5, gain: 0.35, attack: 0.08, length: 4.5, pan: Math.random() - 0.5 });
+        if (now - externalThunder > 90) playCall(calls, "thunder", { distance: 2500 + Math.random() * 7000, pan: Math.random() - 0.5 });
       }
+      // The score, beat by beat, a little ahead of the clock.
+      if (musicOn && score) {
+        const seen = scoreInput.spectacle > 0.5;
+        if (seen && !spectacleSeen) score.swell(0.7, now);
+        spectacleSeen = seen;
+        score.update(moodFor(scoreInput), now);
+      }
+    },
+    // What the score plays to (a few times a second is plenty): sun altitude
+    // (degrees) and azimuth, cloud cover, rain, whether the cat sleeps, and
+    // how plainly a sky spectacle is in view (0…1).
+    setScore(next) {
+      Object.assign(scoreInput, next);
+    },
+    get music() {
+      return musicOn;
+    },
+    setMusic(on) {
+      musicOn = Boolean(on);
+      writePref(storage, PREFS.music, musicOn);
+      if (!ctx) return;
+      set(music.gain, musicOn ? 1 : 0, 0.6);
+      set(musicSend.gain, musicOn ? 1 : 0, 0.6);
+    },
+    // A named one-shot (calls.js: "discover", "thunder", "penguin-bray",
+    // "seal-bark", "whale-blow", "owl", "splash-big"); unknown names are
+    // ignored. Options: distance (m), pan (-1..1), gain.
+    play(name, options = {}) {
+      if (!ctx || !enabled || (!context && ctx.state !== "running")) return false;
+      if (name === "thunder") externalThunder = ctx.currentTime;
+      if (name === "discover" && musicOn) score?.swell(1);
+      return playCall(calls, name, options);
+    },
+    // Hidden tab: the whole graph sleeps.
+    setHidden(hidden) {
+      if (!ctx || context) return;
+      if (hidden) ctx.suspend();
+      else if (enabled) ctx.resume();
+    },
+    // `?perf` QA: the current mood and the graph's context.
+    get mood() {
+      return score?.mood ?? null;
+    },
+    get context() {
+      return ctx;
     },
     // A paw landing. Surface: 0 rock, 1 wet sand, 2 dry sand, 3 scrub, 4 forest floor.
     step(surface, running, pan) {
@@ -387,8 +466,33 @@ export function createSound() {
       }
     },
     dispose() {
-      ctx?.close();
+      if (!context) ctx?.close();
       ctx = null;
     },
   };
+}
+
+function defaultStorage() {
+  try {
+    return globalThis.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function readPref(storage, key, fallback) {
+  try {
+    const value = storage?.getItem(key);
+    return value === null || value === undefined ? fallback : value === "1";
+  } catch {
+    return fallback;
+  }
+}
+
+function writePref(storage, key, on) {
+  try {
+    storage?.setItem(key, on ? "1" : "0");
+  } catch {
+    // Remembered for this visit only.
+  }
 }
