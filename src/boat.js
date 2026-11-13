@@ -7,6 +7,7 @@ import { buildBoatForms, HULL, LANTERN, sheer } from "./boat-forms.js";
 import { createBoatRide, RIDE } from "./boat-ride.js";
 import { BOAT } from "./boat-dynamics.js";
 import { SWIM_LIMIT } from "./walker.js";
+import { createJellies } from "./boat-jellies.js";
 
 // The fisherman's boat, drawn and joined to the world (boat-ride.js is its
 // life, boat-dynamics.js its motion, boat-forms.js its shape). Built with
@@ -30,7 +31,7 @@ import { SWIM_LIMIT } from "./walker.js";
 
 const LANTERN_COLOUR = new THREE.Color(1.0, 0.56, 0.2);
 
-export function createBoat(land, { light = false, shared, landmark, hull = null }) {
+export function createBoat(land, { light = false, shared, landmark, hull = null, seed = 1 }) {
   const forms = buildBoatForms({ light });
   const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   const lampUniforms = {
@@ -61,6 +62,9 @@ export function createBoat(land, { light = false, shared, landmark, hull = null 
 
   const glow = glowMesh();
   land.add(glow.mesh);
+  // Where only the boat goes (boat-jellies.js).
+  const jellies = createJellies(land, seed, { coveTheta: Math.atan2(landmark.z - 70, landmark.x - 58), light });
+  const eye = [0, 0, 0];
 
   // Scratch.
   const euler = new THREE.Euler(0, 0, 0, "YXZ");
@@ -114,7 +118,7 @@ export function createBoat(land, { light = false, shared, landmark, hull = null 
     group,
     events,
     lamp,
-    pois: [],
+    pois: [jellies.poi],
     // The lantern for the cat's coat (view space xyz, strength), or null.
     get catLamp() {
       return launched && ride?.afloat && lampUniforms.boatLamp.value.w > 0 ? lampUniforms.boatLamp.value : null;
@@ -213,6 +217,10 @@ export function createBoat(land, { light = false, shared, landmark, hull = null 
     // lantern and thread. camera: the Three camera (view matrix current).
     render({ time, night, camera }) {
       if (!ride) return;
+      eye[0] = camera.position.x;
+      eye[1] = camera.position.y;
+      eye[2] = -camera.position.z;
+      jellies.update({ time, night, eye, lantern: launched && ride.afloat ? lamp : null });
       if (!ride.afloat && ride.ride.state !== "launching") return;
       if (!launched) {
         launched = true;
@@ -274,6 +282,7 @@ export function createBoat(land, { light = false, shared, landmark, hull = null 
       wood.dispose();
       glassMaterial.dispose();
       glow.dispose();
+      jellies.dispose();
       land.remove(group, glow.mesh);
     },
   };

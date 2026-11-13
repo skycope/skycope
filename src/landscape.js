@@ -100,7 +100,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   const wisp = createWisp(land, { light }); // wisp: drawn from magic.wisp (thread.js follows it)
   // boat: the fisherman's boat afloat (boat.js), hidden until its gift wakes.
   const boatPlace = places.layout.find((p) => p.id === "boat");
-  const boat = boatPlace ? createBoat(land, { light, shared: land.userData.forestShared, landmark: boatPlace, hull: places.boatHull }) : null;
+  const boat = boatPlace ? createBoat(land, { light, shared: land.userData.forestShared, landmark: boatPlace, hull: places.boatHull, seed }) : null;
   scene.add(land);
   const motes = createMotes(scene, seed);
   // The distant islands: their own scene and depth range, drawn first.

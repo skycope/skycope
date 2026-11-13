@@ -1110,6 +1110,7 @@ function joinWorld() {
   const lower = (p, kind) => ({ ...p, kind, title: p.title.charAt(0).toLowerCase() + p.title.slice(1) });
   state.thread.discoveries.add([
     ...(state.landscape.pois ?? []).map((p) => lower(p, "place")),
+    ...(state.boat?.pois ?? []).map((p) => lower(p, "place")), // boat: places only the boat reaches
     ...(state.landscape.wildlife?.pois ?? []).map((p) => lower(p, "creature")),
     ...SKY_FINDS.map(([id, title]) => ({ id, title, kind: "sky", scope: "island", hold: 1.5, when: spectacleSeen(id) })),
   ]);
