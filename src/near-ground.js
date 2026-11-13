@@ -40,6 +40,7 @@ const LITTER = [new THREE.Color(MATERIAL_HEX.litter), new THREE.Color(MATERIAL_H
 const SPRIG = [new THREE.Color("#3d4a2c"), new THREE.Color("#4c5338"), new THREE.Color("#33402a"), new THREE.Color("#5a5236")];
 const FIG = [new THREE.Color("#3f5a28"), new THREE.Color("#6a4a2a")];
 const GRASS = new THREE.Color("#556b33");
+const GRASS_FRESH = new THREE.Color("#6f8a3a"); // land-look
 
 // The ground shader's value noise (forest.js dHash/dNoise), so geometry can
 // follow what the shader paints.
@@ -112,7 +113,22 @@ export function nearCell(field, ix, iz, cell, layer, out = {}) {
   let kind = 0;
   while (kind < 3 && pick > weights[kind]) pick -= weights[kind++];
   out.kind = kind;
-  out.y = groundHeight(x, z);
+  // land-look: grass grows in tussocks, not as an even sprinkle of blades.
+  // Each grass cell's clump is drawn toward the nearest tussock centre on a
+  // jittered ~0.5 m lattice, so the same instances bunch into tufts with
+  // bare ground between them; tussocks are taller at the heart, and each
+  // has its own tone (fresh green, sun-bleached, or gone to straw).
+  let heart = 0, tussock = 0;
+  if (kind === NEAR_KIND.grass) {
+    const T = 0.5;
+    const tx = Math.floor(x / T), tz = Math.floor(z / T);
+    const cx = (tx + 0.3 + hash(tx, tz, 21) * 0.4) * T, cz = (tz + 0.3 + hash(tx, tz, 22) * 0.4) * T;
+    out.x = x + (cx - x) * 0.6;
+    out.z = z + (cz - z) * 0.6;
+    heart = 1 - Math.min(1, Math.hypot(out.x - cx, out.z - cz) / (T * 0.45));
+    tussock = hash(tx, tz, 23);
+  }
+  out.y = groundHeight(out.x, out.z);
   out.yaw = hash(ix, iz, 5) * Math.PI * 2;
   out.seed = hash(ix, iz, 6 + layer);
   out.shade = m.shade;
@@ -122,7 +138,10 @@ export function nearCell(field, ix, iz, cell, layer, out = {}) {
     // The local tufts' own colour (forest.js coverFor), so the sward and
     // the tufts standing in it agree; straw on the dunes.
     c.copy(m.tint ?? GRASS).lerp(LITTER[1], dune * 0.6).multiplyScalar(v * 0.9);
-    out.size = (0.75 + hash(ix, iz, 9) * 0.6) * (0.6 + Math.min(1, m.grass + m.moss * 0.5) * 0.4) * (0.6 + clumped * 0.4);
+    // land-look: each tussock its own tone; taller at its heart.
+    if (tussock < 0.22) c.lerp(LITTER[1], 0.55);
+    else if (tussock > 0.78) c.multiplyScalar(1.18).lerp(GRASS_FRESH, 0.25);
+    out.size = (0.75 + hash(ix, iz, 9) * 0.6) * (0.6 + Math.min(1, m.grass + m.moss * 0.5) * 0.4) * (0.6 + clumped * 0.4) * (0.75 + heart * 0.6);
   } else if (kind === NEAR_KIND.sprig) {
     c.copy(SPRIG[Math.floor(hash(ix, iz, 10) * 4)]).multiplyScalar(v * 0.9);
     out.size = (0.6 + hash(ix, iz, 9) * 0.6) * (0.6 + clumped * 0.4);
