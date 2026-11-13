@@ -41,7 +41,7 @@ const SHOTS = {
   // the upper half of the frame is the sky leaning close.
   stars: { elevation: 0.16, distance: 8.5, wide: [0.1, 10.5], camHome: 6.5, end: 8 },
   // Above the scrub behind the pool, looking out to where the sea's folk come.
-  seafolk: { elevation: 0.45, distance: 7.5, wide: [0.5, 9.5] },
+  seafolk: { elevation: 0.62, distance: 8, wide: [0.75, 10] },
   // The boat rises off its logs and glides down to its cove (8 s): the
   // camera stands back and turns with the hull, and holds longer.
   boat: { elevation: 0.3, distance: 8, wide: [0.36, 12], follow: true, camHome: 8.5, end: 10 },
