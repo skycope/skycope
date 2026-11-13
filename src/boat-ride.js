@@ -266,8 +266,9 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
 
       // Waiting or adrift: held at the mooring, or making for the beach.
       if (ride.state === "adrift") {
-        const tx = ISLAND.x - s.x, tz = ISLAND.z - s.z;
-        stepBoat(dt, [tx, tz], 0.4, false, null);
+        home[0] = ISLAND.x - s.x;
+        home[1] = ISLAND.z - s.z;
+        stepBoat(dt, home, 0.4, false, null);
         if (s.offshore < 9) {
           setMoor(s.x, s.z, s.heading);
           ride.state = "waiting";
@@ -294,8 +295,16 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
     return Math.hypot(du, dv);
   }
 
+  // Reused every frame: no allocation.
+  const control = { dir: null, throttle: 0, hurry: false, moor: null, load: 0 };
+  const home = [0, 0];
   function stepBoat(dt, dir, throttle, hurry, mooring) {
-    dyn.step(dt, { dir, throttle, hurry, moor: mooring, load: ride.state === "aboard" ? 1 : 0 });
+    control.dir = dir;
+    control.throttle = throttle;
+    control.hurry = hurry;
+    control.moor = mooring;
+    control.load = ride.state === "aboard" ? 1 : 0;
+    dyn.step(dt, control);
     for (const e of dyn.events) events.push(e);
     dyn.events.length = 0;
   }

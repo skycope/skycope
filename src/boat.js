@@ -224,7 +224,8 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
       eye[0] = camera.position.x;
       eye[1] = camera.position.y;
       eye[2] = -camera.position.z;
-      jellies.update({ time, night, eye, lantern: launched && ride.afloat ? lamp : null });
+      // Only once the boat is on the water: nothing is drawn for them before.
+      if (launched) jellies.update(time, night, eye, ride.afloat ? lamp : null);
       if (!ride.afloat && ride.ride.state !== "launching") return;
       if (!launched) {
         launched = true;
@@ -233,7 +234,14 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
       }
       const s = ride.state;
       if (ride.ride.state === "launching") launchPose(ride.ride.launch, pose);
-      else Object.assign(pose, { x: s.x, y: s.y, z: s.z, heading: s.heading, pitch: s.pitch, roll: s.roll });
+      else {
+        pose.x = s.x;
+        pose.y = s.y;
+        pose.z = s.z;
+        pose.heading = s.heading;
+        pose.pitch = s.pitch;
+        pose.roll = s.roll;
+      }
       euler.set(-pose.pitch, pose.heading, -pose.roll);
       quat.setFromEuler(euler);
       pos.set(pose.x, pose.y, pose.z);
@@ -276,7 +284,7 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
       view.w = strength * (0.5 + 5.5 * smooth01(0.02, 0.35, night));
       // The thread: from the pole's head to the wisp.
       stemCoast.set(0, LANTERN.pivot[1] + 0.02, LANTERN.pivot[2] - 0.05).applyMatrix4(group.matrix);
-      glow.update({ time, lamp: flame, strength, night, stem: stemCoast, wisp: magic?.wisp, tow, pull: ride.ride.throttle });
+      glow.update(time, flame, strength, night, stemCoast, magic?.wisp, tow, ride.ride.throttle);
 
     },
     dispose() {
@@ -487,7 +495,7 @@ function glowMesh() {
     mesh,
     // lamp: Three world; stem: coast; wisp: magic.wisp (coast). The
     // shader works in Three world (the land group mirrors coast z).
-    update({ time, lamp, strength, night, stem, wisp, tow, pull }) {
+    update(time, lamp, strength, night, stem, wisp, tow, pull) {
       mesh.visible = true;
       uniforms.time.value = time;
       uniforms.lamp.value.copy(lamp);

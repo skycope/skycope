@@ -153,7 +153,8 @@ export function createBoatDynamics({ sea, bed, solids = null } = {}) {
     contact.rock = false;
     contact.bow = false;
     for (let i = 0; i < CONTACT.length; i++) {
-      const [u, v, lift] = CONTACT[i];
+      const c = CONTACT[i];
+      const u = c[0], v = c[1], lift = c[2];
       local(u, v, x, z, h);
       const px = pt.x, pz = pt.z;
       const rockerLift = BOAT.rocker * (u / HALF) * (u / HALF);

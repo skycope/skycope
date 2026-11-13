@@ -15,8 +15,8 @@ import { seededRandom } from "./random.js";
 // so they read as light seen through the water, and they fade where the
 // sea would mirror the sky instead. Hidden beyond 75 m.
 //
-//   createJellies(group, seed, { near }) → { poi, mesh, update({ time, night,
-//     eye, lantern }) }   (coast metres; lantern [x, y, z, strength] | null)
+//   createJellies(group, seed, { coveTheta }) → { poi, mesh, update(time,
+//     night, eye, lantern) }   (coast metres; lantern [x, y, z, strength] | null)
 
 export const JELLY_COUNT = 150;
 const SPREAD = 24;
@@ -189,7 +189,7 @@ export function createJellies(group, seed, { coveTheta = 0, light = false } = {}
     mesh,
     poi: { id: "jellies", title: "The lantern jellies", x: place.x, z: place.z, r: 16 },
     place,
-    update({ time, night, eye, lantern }) {
+    update(time, night, eye, lantern) {
       const d = Math.hypot(eye[0] - place.x, eye[2] - place.z);
       mesh.visible = d < SPREAD + 75;
       if (!mesh.visible) return;
