@@ -591,8 +591,10 @@ void main() {
   float flick = 0.88 + 0.08 * sin( time * 13.0 + halo.x ) + 0.05 * sin( time * 31.0 + halo.z );
   vColour = haloColour * flick;
   float d = length( cameraPosition - centre );
-  float s = halo.w * ( 1.0 + d * 0.02 );
-  gl_Position = projectionMatrix * viewMatrix * vec4( centre + toEye * 0.15 + ( right * position.x + up * position.y ) * s, 1.0 );
+  // land-magic: small and pulled toward the eye, so the glow never cuts
+  // into the post, the hull or the sand round the lamp.
+  float s = halo.w * 0.5 * ( 1.0 + d * 0.015 );
+  gl_Position = projectionMatrix * viewMatrix * vec4( centre + toEye * min( 0.6, d * 0.3 ) + ( right * position.x + up * position.y ) * s, 1.0 );
 }`;
 const HALO_FRAGMENT = /* glsl */ `
 uniform float strength;
@@ -626,7 +628,7 @@ export function haloMesh(list) {
     update(time, lit) {
       mesh.visible = lit > 0.01;
       uniforms.time.value = time;
-      uniforms.strength.value = lit;
+      uniforms.strength.value = lit * 0.75;
     },
     dispose() {
       quad.dispose();

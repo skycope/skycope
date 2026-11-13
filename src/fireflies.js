@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { seededRandom } from "./random.js";
+import { terrainHeight, ISLAND } from "./terrain.js";
 
 // The old milkwood's gift: lights that live in the island's air. Three
 // flocks in one draw call of soft points, flown entirely on the GPU from a
@@ -19,14 +20,15 @@ import { seededRandom } from "./random.js";
 export const FLY_KIND = { escort: 0, home: 1, roam: 2 };
 
 // Per-fly traits, deterministic by seed: [phase, reach, height, size] and
-// [kind, blink phase]. Shares: escort 30 %, home 28 %, roam the rest.
+// [kind, blink phase]. Shares: escort 22 %, home 40 %, roam the rest: the
+// milkwood's own colony is the densest.
 export function fireflyTraits(seed, count) {
   const random = seededRandom((seed ^ 0xf1ef1e5) >>> 0 || 1);
   const traits = new Float32Array(count * 4);
   const kinds = new Float32Array(count * 2);
   for (let i = 0; i < count; i++) {
     const share = i / count;
-    const kind = share < 0.3 ? FLY_KIND.escort : share < 0.58 ? FLY_KIND.home : FLY_KIND.roam;
+    const kind = share < 0.22 ? FLY_KIND.escort : share < 0.62 ? FLY_KIND.home : FLY_KIND.roam;
     traits[i * 4] = random();
     traits[i * 4 + 1] = random();
     traits[i * 4 + 2] = random();
@@ -45,7 +47,7 @@ export function fireflyTraits(seed, count) {
 export function createFlySteer() {
   const s = {
     x: 0, y: -100, z: 0, vx: 0, vz: 0,
-    spread: 1.3, scatter: 0, sleep: 0, call: 0,
+    spread: 1.25, scatter: 0, sleep: 0, call: 0, gather: 0, still: 0,
     lastX: NaN, lastZ: NaN, lastCall: null,
   };
   return {
@@ -86,7 +88,12 @@ export function createFlySteer() {
       }
       s.call *= Math.exp(-dt * 1.1);
       const speed = Math.hypot(s.vx, s.vz);
-      s.spread = 1.25 + Math.min(speed, 6) * 0.08 + s.scatter * 2.2;
+      // They come to a cat that has stopped (or called), and drift off
+      // again, thinning and widening, once it moves on.
+      s.still = speed < 0.25 ? s.still + dt : 0;
+      const want = Math.max(Math.min(1, Math.max(0, s.still - 1.5) / 3), s.call);
+      s.gather += (want - s.gather) * (1 - Math.exp(-dt * (want > s.gather ? 0.7 : 0.35)));
+      s.spread = (1.25 + Math.min(speed, 6) * 0.08 + s.scatter * 2.2) * (1.9 - 0.9 * s.gather);
       return s;
     },
   };
@@ -107,6 +114,13 @@ uniform vec4 trail;    // lag (world x, z, metres), scatter, unused
 uniform vec4 home;     // crown foot (Three world: x, ground y, z), radius
 uniform float homeSpan; // crown height above the ground
 uniform vec4 roam;     // eye (Three world), ground height near the cat
+uniform float gather;  // how many of the escort are close (0 few … 1 a cloud)
+uniform sampler2D ground; // terrain height over the island (fireflies stay above it)
+uniform vec4 groundBox;   // x0, z0 (coast), span, unused
+float groundAt( vec3 w ) {
+  vec2 uv = ( vec2( w.x, -w.z ) - groundBox.xy ) / groundBox.z;
+  return texture2D( ground, clamp( uv, 0.0, 1.0 ) ).r;
+}
 uniform vec4 column;   // summit (Three world), height
 varying vec3 vColour;
 varying float vGlow;
@@ -131,7 +145,10 @@ void main() {
     float blink = pow( max( 0.0, sin( t * ( 0.9 + r * 0.7 ) + kind.y * 6.2832 ) ), 6.0 );
     glow = mix( 0.22 + 0.78 * blink, 0.55 + 0.25 * sin( t * 0.4 + a * 9.0 ), sleep );
     // Only some of the escort are lit at once: the cat shows through them.
-    present = step( kind.y, 0.42 );
+    // Only some of the escort are near at once: a few while the cat goes,
+    // more as it stops; each fades in and out rather than popping.
+    float share = mix( 0.12, 0.38, gather );
+    present = 1.0 - smoothstep( share - 0.06, share, kind.y );
   } else if ( kind.x < 1.5 ) {
     // Home: hung under the milkwood's dome, where the cat walks, and over
     // its outer leaves, on slow drifting paths, breathing.
@@ -153,7 +170,7 @@ void main() {
     vec3 base = vec3( a, 0.0, r ) * size + vec3( sin( t * 0.05 + h * 9.0 ), 0.0, cos( t * 0.04 + a * 7.0 ) ) * 4.0;
     vec3 lo = roam.xyz - size * 0.5;
     p = lo + mod( base - lo, size );
-    p.y = roam.w + 0.25 + h * h * 3.2 + sin( t * 0.6 + a * 40.0 ) * 0.25;
+    p.y = 0.25 + h * h * 3.2 + sin( t * 0.6 + a * 40.0 ) * 0.25;
     // Fade at the box's edges, so wrapping never pops.
     vec2 e = abs( p.xz - roam.xz ) / ( size * 0.5 );
     present = 1.0 - smoothstep( 0.75, 1.0, max( e.x, e.y ) );
@@ -177,15 +194,22 @@ void main() {
     glow = mix( glow, 0.6 + 0.4 * sin( t * 1.3 + kind.y * 6.2832 ), k );
     present = mix( present, 1.0, k );
   }
+  // Never in the ground: lifted to at least a hand above the terrain.
+  if ( rise < 0.5 ) {
+    float g = groundAt( p );
+    if ( kind.x > 1.5 ) p.y += g;
+    p.y = max( p.y, g + 0.12 );
+  }
   vec4 mv = viewMatrix * vec4( p, 1.0 );
   gl_Position = projectionMatrix * mv;
   float depth = max( -mv.z, 0.05 );
   // A small light (a few cm) with a soft halo several times its size.
   float lantern = kind.x > 0.5 && kind.x < 1.5 ? step( 0.55, trait.w ) : 0.0;
   // The column's lights are seen from across the island: larger than life.
-  float px = trait.w * mix( 0.11, 0.2, lantern ) * ( 1.0 + rise * 3.0 ) * pixelScale / depth;
+  float px = trait.w * mix( 0.1, 0.13, lantern ) * ( 1.0 + rise * 3.0 ) * pixelScale / depth;
   // Never a large soft disc: a firefly is a point with a small halo.
-  gl_PointSize = clamp( px, 2.0, 20.0 );
+  // (The crown's lanterns may be a little larger: they hang in the leaves.)
+  gl_PointSize = clamp( px, 2.0, 12.0 );
   // Under a pixel and a half, brightness carries what size cannot.
   float tiny = clamp( px / 2.0, 0.15, 1.0 );
   // Too close to the lens: fade rather than fill the screen.
@@ -198,7 +222,9 @@ void main() {
   fly = mix( fly, vec3( 1.0, 0.66, 0.3 ), lantern );
   vec3 down = mix( vec3( 1.0, 0.93, 0.78 ), vec3( 1.0, 0.82, 0.55 ), r );
   vColour = mix( down, fly, night );
-  vGlow = glow * level * present * near * tiny * mix( 0.5, 1.35, night );
+  // The milkwood is their one dense place; the roaming ones are few and faint.
+  float colony = kind.x > 0.5 && kind.x < 1.5 ? 1.1 : kind.x > 1.5 ? 0.45 : 0.8;
+  vGlow = glow * level * present * near * tiny * mix( 0.5, 1.35, night ) * colony;
   vSoft = mix( 0.55, 1.0, night );
 }`;
 
@@ -221,14 +247,29 @@ void main() {
 // `scene`: Three world (not the mirrored land group). `crown`: the
 // milkwood's ({ x, z, radius, top }, coast metres). `summit`: { x, y, z }.
 export function createFireflies(scene, seed, { light = false, crown = null, summit = null } = {}) {
-  const count = light ? 420 : 1100;
+  // Restraint: a real night has a few hundred, not a wall of them.
+  const count = light ? 260 : 600;
   const { traits, kinds } = fireflyTraits(seed, count);
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(count * 3), 3));
   geometry.setAttribute("trait", new THREE.BufferAttribute(traits, 4));
   geometry.setAttribute("kind", new THREE.BufferAttribute(kinds, 2));
   const homeAt = crown ? new THREE.Vector4(crown.x, crown.ground, -crown.z, crown.radius * 0.95) : new THREE.Vector4(0, -500, 0, 1);
+  // The terrain under them (128² over the island, half floats) so no light
+  // ever sinks into a slope.
+  const GN = 128, span = 200, gx0 = ISLAND.x - span / 2, gz0 = ISLAND.z - span / 2;
+  const heights = new Uint16Array(GN * GN);
+  for (let j = 0; j < GN; j++)
+    for (let i = 0; i < GN; i++)
+      heights[j * GN + i] = THREE.DataUtils.toHalfFloat(Math.max(-2, terrainHeight(gx0 + ((i + 0.5) / GN) * span, gz0 + ((j + 0.5) / GN) * span)));
+  const groundTexture = new THREE.DataTexture(heights, GN, GN, THREE.RedFormat, THREE.HalfFloatType);
+  groundTexture.magFilter = THREE.LinearFilter;
+  groundTexture.minFilter = THREE.LinearFilter;
+  groundTexture.needsUpdate = true;
   const uniforms = {
+    ground: { value: groundTexture },
+    groundBox: { value: new THREE.Vector4(gx0, gz0, span, 0) },
+    gather: { value: 0 },
     time: { value: 0 },
     level: { value: 0 },
     night: { value: 0 },
@@ -265,11 +306,11 @@ export function createFireflies(scene, seed, { light = false, crown = null, summ
   scene.add(points);
   const steer = createFlySteer();
   const homeFoot = crown ? [crown.x, crown.ground + 2.2, crown.z] : [0, -500, 0];
-  const homeRadius = crown ? Math.min(4.5, crown.radius * 0.35) : 1;
+  const homeRadius = crown ? Math.min(7, crown.radius * 0.55) : 1;
   // What the land reads to be lit by them (land-magic.js glow slots 0, 1).
   const glow = {
     light: 0, centre: [0, -100, 0], radius: 2.6,
-    homeLight: 0, home: crown ? [crown.x, crown.ground + 2.2, crown.z] : [0, -500, 0], homeRadius: crown ? Math.min(4.5, crown.radius * 0.35) : 1,
+    homeLight: 0, home: crown ? [crown.x, crown.ground + 2.2, crown.z] : [0, -500, 0], homeRadius: crown ? Math.min(7, crown.radius * 0.55) : 1,
   };
   return {
     points,
@@ -294,15 +335,17 @@ export function createFireflies(scene, seed, { light = false, crown = null, summ
       uniforms.finale.value = finale;
       uniforms.pixelScale.value = pixelScale;
       uniforms.escort.value.set(s.x, s.y, -s.z, s.spread);
+      uniforms.gather.value = s.gather;
       // The trail: how far behind (metres) the slowest of them lag.
       uniforms.trail.value.set(s.vx * 0.55, -s.vz * 0.55, s.scatter, 0);
       uniforms.roam.value.set(eye.x, eye.y, eye.z, (pose?.y ?? 0));
       const dark = 0.12 + 0.88 * night;
       // A local pool round the cat, never brighter than the wisp's.
-      glow.light = Math.min(0.42, on * dark * (0.26 + 0.08 * Math.sin(time * 1.3) ** 2 + s.call * 0.5));
+      glow.light = Math.min(0.24, on * dark * (0.06 + 0.12 * s.gather + 0.04 * Math.sin(time * 1.3) ** 2 + s.call * 0.2));
       glow.centre[0] = s.x; glow.centre[1] = s.y + 0.2; glow.centre[2] = s.z;
       glow.radius = 1.0 + s.spread * 0.35;
-      glow.homeLight = Math.min(0.45, on * dark * (0.32 + 0.08 * Math.sin(time * 0.55)));
+      // The colony's pool on the grass under the dome: local, breathing.
+      glow.homeLight = Math.min(0.4, on * dark * (0.3 + 0.06 * Math.sin(time * 0.55)));
       // The finale: the crown's light moves to the column over the summit
       // and grows to light the whole hilltop under it.
       if (finale > 0 && summit) {
@@ -318,6 +361,7 @@ export function createFireflies(scene, seed, { light = false, crown = null, summ
     dispose() {
       geometry.dispose();
       material.dispose();
+      groundTexture.dispose();
       scene.remove(points);
     },
   };
