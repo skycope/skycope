@@ -12,6 +12,7 @@
 // the sea only goes where the cat can swim (inside SWIM_LIMIT).
 import { groundHeight, shoreDistance, ISLAND } from "./terrain.js";
 import { seededRandom } from "./random.js";
+import { createRoutes } from "./wisp-route.js";
 
 export const WISP = {
   // How high it floats above the ground (metres), and how high it waits.
@@ -72,6 +73,11 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
   let reroute = 0;
   let tryingAt = -Infinity;
   let beckon = 0;
+  // The way to the current target (routes.find), and how far along the cat is.
+  const routes = createRoutes({ obstacles: obstacles ?? { trunks: [], domes: [] }, surface, reach });
+  let route = null;
+  let routeFor = null;
+  let routeAt = 0;
   let previous = "lead";
   // A ceremony's dive ({ x, y, z } of the keepsake) while one plays.
   const dive = { x: 0, y: 0, z: 0, at: 0, active: false };
@@ -250,16 +256,18 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
             break;
           }
           const running = cat.running || Math.abs(cat.speed) > 2;
-          const hopLength = running ? WISP.hopRun : WISP.hop;
+          // Far from the keepsake it leads in longer hops (the way is long).
+          const hopLength = (running ? WISP.hopRun : WISP.hop) + Math.min(4, Math.max(0, toTarget - 20) / 12);
           const toPerch = perch.set ? Math.hypot(perch.x - cat.x, perch.z - cat.z) : Infinity;
-          const perchToTarget = perch.set ? Math.hypot(target.x - perch.x, target.z - perch.z) : Infinity;
+          // (With a route, the perch may stand off the straight line on purpose.)
+          const perchToTarget = perch.set && !route ? Math.hypot(target.x - perch.x, target.z - perch.z) : -Infinity;
           if (toTarget < 9) {
             // Nearly there: wait over the keepsake itself.
             perch.x = target.x;
             perch.z = target.z;
             perch.set = true;
             hover = WISP.wait + 0.6;
-          } else if (!perch.set || toPerch < WISP.near || (running && toPerch < WISP.near + 3) || perchToTarget > toTarget + 2) {
+          } else if (!perch.set || toPerch < WISP.near + (hopLength - WISP.hop) * 0.4 || (running && toPerch < WISP.near + 3) || perchToTarget > toTarget + 2) {
             // The cat has caught up (or the perch is behind it): flit on.
             choosePerch(cat, target, hopLength, 0);
             flare = Math.max(flare, 0.25);
@@ -312,6 +320,8 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
               goal.y += swoop * 0.5;
               if (swoop > 0.5) stiff = 2.2;
             }
+            // Far off, a slow brightening now and then, so it can be found.
+            if (nowToPerch > 6) flare = Math.max(flare, 0.55 * Math.max(0, Math.sin(clock * 1.7 + phase[2])) ** 10);
             nextHide -= dt;
             if (nextHide <= 0 && shoreDistance(perch.x, perch.z) > 6 && toTarget > 9) {
               nextHide = 20 + random() * 25;
@@ -573,6 +583,15 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
     [-0.7, 0.7, -1.1, 1.1, -1.5, 1.5, 0],
   ];
   function choosePerch(cat, to, hopLength, attempt = 0) {
+    // A walkable way to the target, found once per target (and again when
+    // the cat strays from it or gets stuck); the perch is hopLength along it.
+    if (attempt > 0) route = null;
+    else if (!route || routeFor !== to || offRoute(cat)) {
+      route = routes.find(cat.x, cat.z, to.x, to.z);
+      routeFor = to;
+      routeAt = 0;
+    }
+    if (route && attempt === 0 && perchAlong(cat, hopLength)) return;
     const dx = to.x - cat.x;
     const dz = to.z - cat.z;
     const d = Math.hypot(dx, dz) || 1;
@@ -604,6 +623,55 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
     perch.set = true;
     perchBest = Math.hypot(perch.x - cat.x, perch.z - cat.z);
     perchBestAt = clock;
+  }
+
+  // The route's point nearest the cat, searched forward from the last.
+  function nearestOnRoute(cat) {
+    let best = routeAt;
+    let bestD = Infinity;
+    for (let i = routeAt; i < route.length / 2 && i < routeAt + 40; i++) {
+      const d = Math.hypot(route[i * 2] - cat.x, route[i * 2 + 1] - cat.z);
+      if (d < bestD) [best, bestD] = [i, d];
+    }
+    return { index: best, distance: bestD };
+  }
+  function offRoute(cat) {
+    return nearestOnRoute(cat).distance > 6;
+  }
+  // The perch: hopLength along the route from the cat, drawn back until the
+  // cat can see it. False if there is no such point.
+  function perchAlong(cat, hopLength) {
+    const near = nearestOnRoute(cat);
+    routeAt = near.index;
+    const n = route.length / 2;
+    let left = hopLength;
+    let x = route[routeAt * 2];
+    let z = route[routeAt * 2 + 1];
+    const points = [];
+    for (let i = routeAt + 1; i < n && left > 0; i++) {
+      const nx = route[i * 2];
+      const nz = route[i * 2 + 1];
+      const seg = Math.hypot(nx - x, nz - z);
+      const t = seg > left ? left / seg : 1;
+      x += (nx - x) * t;
+      z += (nz - z) * t;
+      left -= seg * t;
+      points.push(x, z);
+    }
+    for (let k = points.length / 2 - 1; k >= 0; k--) {
+      const px = points[k * 2];
+      const pz = points[k * 2 + 1];
+      if (Math.hypot(px - cat.x, pz - cat.z) < 2.5) break;
+      if (!grid.clearLine(cat.x, cat.z, px, pz)) continue;
+      const p = clearOf(px, pz, 0.45);
+      perch.x = p.x;
+      perch.z = p.z;
+      perch.set = true;
+      perchBest = Math.hypot(perch.x - cat.x, perch.z - cat.z);
+      perchBestAt = clock;
+      return true;
+    }
+    return false;
   }
 
   // No step up a cat could not take (a boulder's flank, a bank) on the
