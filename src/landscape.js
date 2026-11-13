@@ -36,7 +36,11 @@ THREE.ShaderChunk.tonemapping_pars_fragment =
       color = max( color * 1.35, vec3( 0.0 ) );
       float rods = clamp( toneMappingExposure - 1.0, 0.0, 1.0 );
       float scotopic = dot( color, vec3( 0.06, 0.56, 0.38 ) );
-      color = mix( color, vec3( 0.72, 0.9, 1.35 ) * scotopic, rods * 0.6 * ( 1.0 - smoothstep( 0.25, 1.5, scotopic ) ) );
+      // land-look: warm light at night is lamp, lantern or firefly light,
+      // bright enough for the cones: it keeps its gold against the blue.
+      float warm = clamp( ( color.r - color.b ) / max( color.r, 1e-4 ), 0.0, 1.0 );
+      float cones = smoothstep( 0.18, 0.55, warm );
+      color = mix( color, vec3( 0.72, 0.9, 1.35 ) * scotopic, rods * 0.6 * ( 1.0 - smoothstep( 0.25, 1.5, scotopic ) ) * ( 1.0 - 0.9 * cones ) );
       float low = min( color.r, min( color.g, color.b ) );
       color -= low < 0.08 ? low - 6.25 * low * low : 0.04;
       float peak = max( color.r, max( color.g, color.b ) );
@@ -53,6 +57,12 @@ THREE.ShaderChunk.tonemapping_pars_fragment =
       return max( vec3( luma ) + ( color - luma ) * ( 1.0 + VIBRANCE * ( 1.0 - chroma ) * ( 1.0 - rods ) ), vec3( 0.0 ) );
     }`,
   );
+
+// land-look: night light on the land (see updateLighting), exposed linear
+// units: the moonless key, what a full moon adds, and the sky fill's lift.
+// `?perf`: landscape.nightLand tunes them live.
+const NIGHT_LAND = { key: 0.05, moon: 0.09, fill: 2.2 };
+const MOON_KEY = new THREE.Color(0.62, 0.74, 1.0);
 
 // Geometry shares the sky shader's 315° heading, 6° pitch, and projection.
 // WebGL handles mesh depth/shadows; WebGPU handles the sky and water behind it.
@@ -107,7 +117,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   // land-magic: the milkwood's fireflies (one draw of points, hidden asleep).
   const summitPoi = places.pois.find((q) => q.id === "beacon");
   const fireflies = createFireflies(scene, seed, { light, crown: places.crown, summit: summitPoi ? { x: summitPoi.x, y: groundHeight(summitPoi.x, summitPoi.z), z: summitPoi.z } : null });
-  let flyPixels = 600, magicScan = 0;
+  let flyPixels = 600, magicScan = 0, starLevel = 0;
   // The distant islands: their own scene and depth range, drawn first.
   const archipelago = createArchipelago(seed, { light });
   // Vignette, rain on the lens, veiling glare and grain, over both layers.
@@ -196,6 +206,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     pois: places.pois,
     places: perf ? places : null, // places: `?perf` QA
     landMagic: perf ? landMagic : null, // land-magic: `?perf` QA
+    nightLand: perf ? NIGHT_LAND : null, // land-look: `?perf` tuning
     // land-magic: the lighthouse lamp this frame (coast metres; `angle` is
     // the beams' bearing, see land-magic.js), for the sea's own beam.
     get lamp() { return landMagic.state.lamp; },
@@ -228,6 +239,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       const levels = magic?.levels;
       const flies = fireflies.update({ dt, time, pose, night, level: levels?.fireflies ?? 0, finale: levels?.finale ?? 0, call: magic?.call ?? null, eye: camera.position, pixelScale: flyPixels });
       const gifts = landMagic.update({ magic, time, dt, night, pose, flies }); // land-magic:
+      starLevel = levels?.stars ?? 0; // land-look: the stars gift lifts the night
       // The cat's coat and the animals take the same light (their
       // materials are built lazily: wrapped at load and once more later).
       if (magicScan < 2400 && magicScan % 300 === 30) lightWithMagic(land, land.userData.forestShared);
@@ -421,8 +433,14 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
 
   function updateDirection(celestial) {
     const night = THREE.MathUtils.smoothstep(celestial.scene, 1, 2);
+    // land-look: by night the key light is the moon; with the moon down or
+    // low it is the glow of the sky on the moon's side, from at least ~25°
+    // up, so the land keeps lit planes and shadowed ones instead of going
+    // flat black.
+    const moon = new THREE.Vector3(...celestial.moon);
+    if (moon.y < 0.42) moon.y = 0.42 + (moon.y - 0.42) * 0.15;
     const direction = new THREE.Vector3(...celestial.sun)
-      .lerp(new THREE.Vector3(...celestial.moon), night)
+      .lerp(moon.normalize(), night)
       .normalize();
     const localX = (direction.x + direction.z) * Math.SQRT1_2;
     const localZ = (-direction.x + direction.z) * Math.SQRT1_2;
@@ -443,6 +461,23 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     sun.color.setRGB(r / peak, g / peak, b / peak);
     sun.intensity = peak * overcast;
     const night = THREE.MathUtils.smoothstep(celestial.scene, 1, 2);
+    // land-look: night on land. The sky and sea passes give the night
+    // tone; the land, lit only by the physical moon and the airglow floor,
+    // went flat black. A dark-adapted eye sees a moonless beach as shapes
+    // in deep blue: a cool key from the sky's bright side (the moon when it
+    // is up, stronger the fuller it is), and the dome's fill lifted, more
+    // when the beacon's gift (`stars`) is awake. Still night: values stay
+    // in the rods' range, where the tonemap turns them blue.
+    const moonUp = THREE.MathUtils.smoothstep(celestial.moon[1], -0.02, 0.15);
+    const moonLit = 0.5 - 0.5 * Math.cos((celestial.moonPhase ?? 0.5) * Math.PI * 2);
+    const starLift = 1 + 0.7 * starLevel;
+    const nightKey = night * (NIGHT_LAND.key + NIGHT_LAND.moon * moonUp * moonLit) * starLift * (1 - 0.6 * cover);
+    if (nightKey > sun.intensity) {
+      const k = sun.intensity / nightKey;
+      sun.color.lerp(MOON_KEY, 1 - k);
+      sun.intensity = nightKey;
+    }
+    const nightFill = 1 + night * NIGHT_LAND.fill * starLift;
     // At night the moon/night floor in lighting.sky is already the whole
     // story, and an overcast dome is near uniform (brighter overhead).
     const uniform = Math.max(night, cover);
@@ -453,7 +488,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     // Night vision: by moonlight the eye sees with rods, colour fades to a
     // blue-grey (the tonemap reads it from the exposure uniform).
     renderer.toneMappingExposure = 1 + night;
-    scene.environmentIntensity = exposure;
+    scene.environmentIntensity = exposure * nightFill;
     const mean = skyDomeMean(domeRatio, envWidth, uniform);
     const sky = lighting.sky.map((v, i) => v * mean[i] * (1 + cover * 0.45));
     // Ground bounce: the island's mean albedo (sand, soil and leaves) under
@@ -472,8 +507,8 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       environmentTime = now;
       buildEnvironment(skyUnit, bounceUnit, uniform);
     }
-    forest.updateSkySH(skySH.coefficients, exposure);
-    CAT_SKY.value.setRGB(sky[0] * Math.PI, sky[1] * Math.PI, sky[2] * Math.PI);
+    forest.updateSkySH(skySH.coefficients, exposure * nightFill);
+    CAT_SKY.value.setRGB(sky[0] * Math.PI, sky[1] * Math.PI, sky[2] * Math.PI).multiplyScalar(nightFill);
     const foamLight = lighting.direct.map((v, i) => (v * Math.max(sunWorld.y, 0) * overcast) / Math.PI + sky[i] * 1.1);
     forest.updateFoamLight(foamLight);
     CAT_SEA.foam.value.setRGB(...foamLight);

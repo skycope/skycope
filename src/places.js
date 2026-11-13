@@ -232,8 +232,8 @@ function lampLights(lamp) {
       uniforms.strength.value = lamp.lit * (0.1 + 0.26 * night);
       // Warm gold by day; deeper amber by night, where the tonemap's night
       // vision would otherwise grey it to blue-white.
-      beamMaterial.uniforms.glowColour.value.setRGB(1.0, 0.8 - 0.24 * night, 0.55 - 0.4 * night);
-      flashMaterial.uniforms.glowColour.value.setRGB(1.0, 0.88 - 0.2 * night, 0.66 - 0.36 * night);
+      beamMaterial.uniforms.glowColour.value.setRGB(1.0, 0.8 - 0.1 * night, 0.55 - 0.22 * night);
+      flashMaterial.uniforms.glowColour.value.setRGB(1.0, 0.86 - 0.08 * night, 0.62 - 0.2 * night);
       // The flash: a beam swinging across the eye (either of the pair).
       toEye.subVectors(eye, lampWorld).setY(0).normalize();
       const facing = Math.abs(Math.cos(a) * toEye.x + Math.sin(a) * toEye.z);
