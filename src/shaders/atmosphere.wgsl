@@ -130,7 +130,11 @@ export fn tonemap(hdr: vec3f, night: f32) -> vec3f {
   var color = max(hdr * TONE_GAIN, vec3f(0.0));
   // Bright things (the Moon's disc, glints) still reach the cones.
   let scotopic = dot(color, vec3f(0.06, 0.56, 0.38));
-  color = mix(color, vec3f(0.72, 0.9, 1.35) * scotopic, night * 0.6 * (1.0 - smoothstep(0.25, 1.5, scotopic)));
+  // Warm light at night is lamp or wisp light, bright enough for the cones:
+  // it keeps its gold against the blue. Keep equal to landscape.js.
+  let warm = clamp((color.r - color.b) / max(color.r, 1e-4), 0.0, 1.0);
+  let cones = smoothstep(0.18, 0.55, warm);
+  color = mix(color, vec3f(0.72, 0.9, 1.35) * scotopic, night * 0.6 * (1.0 - smoothstep(0.25, 1.5, scotopic)) * (1.0 - 0.9 * cones));
   let low = min(color.r, min(color.g, color.b));
   color -= select(0.04, low - 6.25 * low * low, low < 0.08);
   let peak = max(color.r, max(color.g, color.b));

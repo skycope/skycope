@@ -15,9 +15,9 @@ export const TIDEGLOW_COLOUR: vec3f = vec3f(0.08, 0.62, 1.0);
 export const TIDEGLOW_CORE: vec3f = vec3f(0.02, 1.0, 0.8);
 export const TIDEGLOW_DEEP: vec3f = vec3f(0.0, 0.22, 0.8);
 // Warm gold: an oil-lamp's colour (and a filament's, through old glass).
-// Oversaturated: the night tonemap greys dim light toward rod vision, and
-// what survives it should still read as gold.
-const LAMP_COLOUR: vec3f = vec3f(1.0, 0.52, 0.1);
+// Lamp gold. The night grade (atmosphere.wgsl tonemap) leaves warm light to
+// the cones, so it stays gold against the blue sea.
+const LAMP_COLOUR: vec3f = vec3f(1.0, 0.66, 0.26);
 export const LAMP_BEAM_SIGMA: f32 = 0.07;
 const ISLAND_CENTRE: vec2f = vec2f(58.0, 70.0);
 const PI: f32 = 3.141593;
@@ -254,7 +254,7 @@ export fn lamp_on_sea(s: SeaPoint, lamp: vec4f, level: f32, night: f32) -> vec3f
   // stays gold; the crest glints on top of it are small and may flare.
   let path = falloff * strength * (beam + spill) * diffuse;
   let glints = falloff * strength * beam * spec * sparkle * s.fresnel * 4.0;
-  return LAMP_COLOUR * ((1.0 - exp(-path * 9.0)) * 0.85 + min(glints, 3.0) * 0.5);
+  return LAMP_COLOUR * ((1.0 - exp(-path * 14.0)) * 1.05 + min(glints, 3.0) * 0.6);
 }
 
 // ---- The pulse: a waking's wave of light running out across the sea. -------

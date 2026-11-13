@@ -357,9 +357,17 @@ fn ocean(
     // Lambertian: irradiance / π. Sky irradiance is roughly π × zenith radiance.
     var sun_bed = vec3f(0.0);
     if (sun_up > 0.0) {
+      // Caustics need a sharp sun: a cloud-dimmed or low sun, a hazy sky
+      // or water too thin to focus spreads them into even light, and then
+      // they are not looked up at all.
+      let sharp = clamp(settings.cloud_transmission * 1.4 - 0.4, 0.0, 1.0) * smoothstep(0.08, 0.4, light.y)
+        * (1.0 - smoothstep(0.4, 0.9, settings.overcast)) * smoothstep(0.05, 0.6, bed_depth);
+      var focus = vec3f(1.0);
+      if (sharp > 0.02) {
+        focus = mix(vec3f(1.0), caustics(bed, bed_depth, sun_down, sea, pixel, waves1, waves2, waves3, filtering), sharp);
+      }
       sun_bed = direct * sun_up * max(light.y, 0.0) * 0.3183 * exp(-ABSORPTION * bed_depth / light_down)
-        * caustics(bed, bed_depth, sun_down, sea, pixel, waves1, waves2, waves3, filtering)
-        * (1.0 - foam.y * 0.5) * sun_seen;
+        * focus * (1.0 - foam.y * 0.5) * sun_seen;
     }
     let bed_light = (sun_bed + settings.skylight * sky_seen * exp(-ABSORPTION * bed_depth * 1.2)) * seabed_shadows(bed, bed_metrics, settings, noise, filtering);
     bed_colour = mix(seabed(bed, bed_metrics, offshore, settings, noise, filtering) * bed_light * smoothstep(0.005, 0.015, bed_seen), bed_colour, sunk.cover);
@@ -715,9 +723,12 @@ fn seabed(p: vec2f, metrics: vec4f, offshore: f32, settings: OceanSettings, nois
 // the refractive index for red, green and blue, so focused lines fringe.
 fn caustics(bed: vec2f, depth: f32, sun_down: vec3f, sea: Sea, pixel: f32,
   waves1: texture_2d<f32>, waves2: texture_2d<f32>, waves3: texture_2d<f32>, filtering: sampler) -> vec3f {
-  let entry = bed - sun_down.xz / max(-sun_down.y, 0.2) * depth;
-  // The 2.5 m tile would repeat visibly on a flat bed: a second rotated,
-  // rescaled sample of it breaks the lattice without changing its statistics.
+  // The cascades tile every 2.5 m: the broad swell passing overhead (its
+  // height, already known) warps the web, so no two tiles of the bed match
+  // and the pattern breathes with each wave, at no cost.
+  let entry = bed - sun_down.xz / max(-sun_down.y, 0.2) * depth + vec2f(sea.height * 1.8, (sea.swell - sea.height) * 2.4);
+  // A second rotated, rescaled sample breaks the lattice further without
+  // changing its statistics.
   let turned = mat2x2f(vec2f(0.799, 0.602), vec2f(-0.602, 0.799)) * entry * 1.31 + vec2f(1.7, 3.1);
   let fine_x = pixel * 18.0;
   let fine = exp(-fine_x * fine_x);
@@ -725,7 +736,7 @@ fn caustics(bed: vec2f, depth: f32, sun_down: vec3f, sea: Sea, pixel: f32,
   var ripples = 0.0;
   if (fine > 0.002) {
     ripples = (textureSampleLevel(waves3, filtering, entry / cascade_size(3), 0.0).w
-      + textureSampleLevel(waves3, filtering, turned / cascade_size(3), 0.0).w) * 0.707 * 20.1 * fine;
+      + textureSampleLevel(waves3, filtering, turned / cascade_size(3), 0.0).w) * 0.707 * 12.0 * fine;
   }
   let curvature = ripples
     + textureSampleLevel(waves2, filtering, entry / cascade_size(2), 0.0).w * 5.03
@@ -734,7 +745,8 @@ fn caustics(bed: vec2f, depth: f32, sun_down: vec3f, sea: Sea, pixel: f32,
   let focus = depth * 0.248 * 1.35 * curvature;
   let x = 1.0 - focus * vec3f(0.986, 1.0, 1.016);
   // The sun's disc and the pixel's footprint blur the focus.
-  let blur = 0.09 + depth * 0.025 + pixel * 2.0;
+  // Soft: a web of hairlines reads as a texture stamped on the bed.
+  let blur = 0.2 + depth * 0.03 + pixel * 2.5;
   let irradiance = min(1.0 / sqrt(x * x + blur * blur), vec3f(7.0));
   // Keep the mean near one: spreading dims the cells as focusing lights the lines.
   return irradiance / (1.0 + 0.35 * smoothstep(0.2, 1.2, depth * 0.33 * abs(curvature)));
@@ -829,7 +841,12 @@ fn surf_foam(p: vec2f, metrics: vec4f, sea: Sea, pixel: f32, settings: OceanSett
   var line = 0.0;
   if (metrics.x < 2.5) {
     let s = swash(metrics.w, -metrics.x, settings.time, settings.swell, pixel);
-    density = max(density, s.y);
+    // Thin swash foam is not an even web: it gathers in rafts and streaks
+    // drawn out along the beach, open water between them, except in the
+    // roll at the running front (as the sand's swash foam does, surf.js).
+    let rafts = smoothstep(0.35, 0.7, value_noise(vec2f(metrics.w * 0.8 + settings.time * 0.05, metrics.x * 2.2 - settings.time * 0.1)));
+    let near_front = 1.0 - smoothstep(0.08, 0.5, s.w);
+    density = max(density, s.y * mix(rafts * 0.8, 1.0, near_front));
     bubbles = max(bubbles, s.y * 0.35);
     agitation = max(agitation, s.y * s.x * 0.8);
     line = swash_line(metrics.w, -metrics.x, s, settings.time, pixel);
@@ -900,7 +917,9 @@ fn foam_cover(q_in: vec2f, density: f32, time: f32, pixel_in: f32, noise: textur
   let lace = foam_lace(w * 2.6 + bend * 1.1, local, pixel * 2.6, fray, tear);
   // Translucent where thin, near-opaque where it is a fresh raft; mottled.
   let opacity = mix(0.45, 0.93, smoothstep(0.3, 0.95, local)) * (0.62 + 0.38 * tear);
-  return lace * opacity * smoothstep(0.02, 0.12, local);
+  // Sparse foam goes as scattered flecks, not a fine web of walls across
+  // the water: the thinnest lace fades out before it reads as a pattern.
+  return lace * opacity * smoothstep(0.08, 0.3, local);
 }
 
 // Bubble cells one unit across (~24 cm). Each cell's hole opens at its own
