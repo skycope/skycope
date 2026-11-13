@@ -1,5 +1,26 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+
+// (Defined below; hoisted.)
+test("after a waking it leads on from the keepsake to the next (pool to boat, wreck to milkwood, boat to lighthouse)", () => {
+  for (const [from, to] of [["pool", "boat"], ["wreck", "milkwood"], ["boat", "lighthouse"]]) {
+    const a = place(from);
+    const b = place(to);
+    const mind = makeWisp();
+    const cat = makeCat({ x: a.x, z: a.z });
+    mind.appear(cat);
+    let reached = -1;
+    for (let i = 0; i < 30 * 300; i++) {
+      walkCat(cat, mind.position, DT, 1.6);
+      mind.update(DT, { cat, target: b, night: 0 });
+      if (Math.hypot(cat.x - b.x, cat.z - b.z) < b.r + 1.5) {
+        reached = i * DT;
+        break;
+      }
+    }
+    assert.ok(reached > 0, `${from} → ${to} not reached`);
+  }
+});
 import { createWispMind, WISP } from "../src/wisp-mind.js";
 import { groundHeight, shoreDistance } from "../src/terrain.js";
 import { placesLayout } from "../src/place-layout.js";

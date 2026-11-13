@@ -73,6 +73,7 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
   let reroute = 0;
   let tryingAt = -Infinity;
   let beckon = 0;
+  const tugFrom = { x: 0, z: 0 };
   // The way to the current target (routes.find), and how far along the cat is.
   const routes = createRoutes({ obstacles: obstacles ?? { trunks: [], domes: [] }, surface, reach });
   let route = null;
@@ -386,17 +387,25 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
           break;
         }
         case "tug": {
-          // A few metres toward the keepsake and a pause there, then back.
-          const dx = target ? target.x - cat.x : 0;
-          const dz = target ? target.z - cat.z : 0;
-          const d = Math.hypot(dx, dz) || 1;
-          const along = since() < 2.6 ? 4.5 : 0;
-          const p = keepInside(cat.x + (dx / d) * along, cat.z + (dz / d) * along);
-          goal.x = p.x;
-          goal.z = p.z;
-          goal.y = surface(p.x, p.z) + WISP.wait;
+          // A few metres along the way to the keepsake and a pause there;
+          // if the cat comes too, lead on from there, else back to it.
+          if (since() < 0.05 && target) {
+            choosePerch(cat, target, 4.5, 0);
+            tugFrom.x = cat.x;
+            tugFrom.z = cat.z;
+          }
+          const out = since() < 2.8 && target;
+          goal.x = out ? perch.x : cat.x + Math.sin(cat.heading + 0.9) * 1.6;
+          goal.z = out ? perch.z : cat.z + Math.cos(cat.heading + 0.9) * 1.6;
+          goal.y = surface(goal.x, goal.z) + (out ? WISP.wait : 0.85);
           speedCap = 6;
-          if (since() > 4.2) set("company");
+          const followed = target && Math.hypot(cat.x - tugFrom.x, cat.z - tugFrom.z) > 2 && Math.hypot(perch.x - cat.x, perch.z - cat.z) < Math.hypot(perch.x - tugFrom.x, perch.z - tugFrom.z);
+          if (followed) {
+            best = toTarget;
+            bestAt = clock;
+            perch.set = false;
+            set("lead");
+          } else if (since() > 4.4) set("company");
           break;
         }
         case "circle": {
