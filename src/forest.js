@@ -434,7 +434,10 @@ varying float vShadowFar;
 function occlusionGlsl(foliage) {
   return /* glsl */ `
   {
-    float skyVisible = 1.0 - vShade;
+    // land-look: by night the dome is the only light; a canopy hides less
+    // of it from a dark-adapted eye, so the ground under trees stays a
+    // deep blue instead of black.
+    float skyVisible = 1.0 - vShade * ( 1.0 - 0.85 * landNightFill );
     reflectedLight.indirectDiffuse *= skyVisible;
     reflectedLight.indirectSpecular *= skyVisible * skyVisible;
     float farShade = 1.0 - vShade * 0.85 * vShadowFar;
@@ -673,6 +676,25 @@ if ( rocky > 0.01 ) {
   diffuseColor.rgb = mix( diffuseColor.rgb, granite, rocky );
 }
 diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.19, 0.12, 0.06 ) * ( 0.7 + grain * 0.6 ), litter * 0.55 );
+// land-look: soil is never one flat brown. Over the inland ground: patches
+// a metre or two across, darker where humus gathers and paler where it is
+// dry and stony; and up close a speckle of pale pebbles, dark crumbs and
+// bits of leaf, averaged to their mean where they would shimmer.
+float soilZone = smoothstep( 4.0, 9.0, inland ) * ( 1.0 - rocky );
+if ( soilZone > 0.01 ) {
+  float soilPatch = dNoise( coast * 0.7 + 41.0 ) * 0.65 + dNoise( coast * 1.9 - 3.0 ) * 0.35;
+  diffuseColor.rgb *= mix( vec3( 1.0 ), mix( vec3( 0.72, 0.68, 0.62 ), vec3( 1.2, 1.14, 1.04 ), smoothstep( 0.3, 0.75, soilPatch ) ), soilZone );
+  float speckFade = 1.0 - smoothstep( 0.004, 0.01, px );
+  if ( speckFade > 0.01 ) {
+    float pebble = smoothstep( 0.84, 0.9, dNoise( coast * 34.0 + 7.0 ) ) * smoothstep( 0.4, 0.7, soilPatch );
+    float crumb = smoothstep( 0.76, 0.84, dNoise( coast * 41.0 - 5.0 ) );
+    float leafBit = smoothstep( 0.8, 0.88, dNoise( mat2( 0.8, -0.6, 0.6, 0.8 ) * coast * 17.0 + 13.0 ) ) * ( 0.3 + litter );
+    float k = soilZone * speckFade;
+    diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 1.5, 1.45, 1.4 ), pebble * k * 0.6 );
+    diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * 0.45, crumb * k * 0.6 );
+    diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.32, 0.2, 0.08 ), leafBit * k * 0.7 );
+  }
+}
 // Sward: under and between the tufts, blades too fine and too many to model.
 // Short strokes combed downwind, in clumps, over the thatch colour already
 // baked per vertex; each stroke averages to its mean below ~2 pixels. A
@@ -1014,6 +1036,27 @@ float drip = smoothstep( 0.56, 0.86, dNoise3( vec3( q.x * 2.1 + q.z * 1.5, q.y *
 diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.6, 0.6, 0.6 ), drip * 0.5 );
 // Patina: undersides and hollows darken where rain and light don't reach.
 diffuseColor.rgb *= mix( 0.72, 1.0, smoothstep( 0.0, 0.5, up + mid * 0.3 ) );
+// land-look: granite character at the boulder's own scale (its macro tone
+// was one blotch per stone, so every boulder read as one smooth grey):
+// weathered blotches a hand to a metre across, some warmer and buff where
+// feldspar has rotted, some cooler and grey; dark rain streaks fanning down
+// every steep flank from the crown; a damp, darker skirt at the foot.
+{
+  float blot = dNoise3( turn3 * q * 1.4 + 9.0 ) * 0.6 + mix( dNoise3( q * 3.3 + 2.0 ), 0.5, smoothstep( 0.2, 0.5, footprint * 3.3 ) ) * 0.4;
+  diffuseColor.rgb *= 0.58 + blot * 0.84;
+  float hue = dNoise3( q * 0.8 + 21.0 );
+  diffuseColor.rgb *= mix( vec3( 0.93, 0.96, 1.02 ), vec3( 1.1, 1.0, 0.86 ), smoothstep( 0.3, 0.75, hue ) );
+  vec3 runQ = vec3( q.x * 3.4 + q.z * 1.1, q.y * 0.28, q.z * 3.4 - q.x * 1.1 );
+  float runs = smoothstep( 0.42, 0.78, mix( dNoise3( runQ + 13.0 ), 0.5, smoothstep( 0.2, 0.5, footprint * 3.4 ) ) )
+    * ( 1.0 - smoothstep( 0.25, 0.75, up ) );
+  diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.48, 0.47, 0.45 ), runs * 0.75 );
+  // Crustose lichen: pale grey rosettes a few centimetres across on the
+  // upper faces, the speckle that makes granite read as stone at a glance.
+  float crust = smoothstep( 0.64, 0.72, mix( dNoise3( q * 7.0 + 31.0 ), 0.5, smoothstep( 0.2, 0.5, footprint * 7.0 ) ) );
+  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.6, 0.61, 0.56 ), crust * 0.5 * smoothstep( 0.3, 0.7, up ) );
+  float skirt = 1.0 - smoothstep( 0.04, 0.5 + ( blot - 0.5 ) * 0.4, vRockAbove );
+  diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.6, 0.62, 0.56 ), skirt * 0.75 );
+}
 // Joint cracks and exfoliation seams: thin dark lines, faded with distance.
 float seam = 0.0;
 if ( footprint < 0.04 ) {
@@ -1024,7 +1067,7 @@ if ( footprint < 0.04 ) {
 }
 diffuseColor.rgb *= 1.0 - seam * 0.16;
 // Grain: coarse porphyritic granite, feldspar crystals a centimetre or two.
-float grainFade = 1.0 - smoothstep( 0.004, 0.012, footprint );
+float grainFade = 1.0 - smoothstep( 0.006, 0.018, footprint ); // land-look: crisper, further
 float feldspar = 0.0;
 float biotite = 0.0;
 float quartz = 0.0;
@@ -1043,7 +1086,7 @@ if ( grainFade > 0.01 ) {
   biotite = rockGrain( q * 120.0, 5.3, 0.2, 0.45, footprint * 120.0 ) * grainFade;
   diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 1.09, 1.07, 1.04 ), feldspar );
   diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.8, 0.82, 0.86 ), quartz );
-  diffuseColor.rgb *= 1.0 - biotite * 0.45;
+  diffuseColor.rgb *= 1.0 - biotite * 0.6;
 }
 // Far away the grain's mean: the crystals lighten the rock a little overall.
 diffuseColor.rgb *= mix( 1.03, 1.0, grainFade );

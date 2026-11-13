@@ -61,7 +61,7 @@ THREE.ShaderChunk.tonemapping_pars_fragment =
 // land-look: night light on the land (see updateLighting), exposed linear
 // units: the moonless key, what a full moon adds, and the sky fill's lift.
 // `?perf`: landscape.nightLand tunes them live.
-const NIGHT_LAND = { key: 0.085, moon: 0.14, fill: 3.4 };
+const NIGHT_LAND = { key: 0.1, moon: 0.14, fill: 6 };
 const MOON_KEY = new THREE.Color(0.62, 0.74, 1.0);
 
 // Geometry shares the sky shader's 315° heading, 6° pitch, and projection.
@@ -234,6 +234,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       const night = THREE.MathUtils.smoothstep(celestial.scene, 1, 2);
       forest.updateWind(time, wind);
       forest.updateNight(night);
+      land.userData.forestShared.landNightFill.value = night; // land-look: canopy fill by night
       fauna.update(time, wind, night);
       // land-magic: the fireflies fly, then every gift's light is set.
       const levels = magic?.levels;

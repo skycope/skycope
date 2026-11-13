@@ -23,6 +23,7 @@ import { PRINT_MAGIC } from "./cat-ground.js";
 
 export const MAGIC_LIGHT_DECLARATIONS = /* glsl */ `
 uniform float magicOn;
+uniform float landNightFill; // land-look: night (0–1), for the canopy fill
 uniform vec4 magicGlow[ 4 ];
 uniform vec3 magicGlowColour[ 4 ];
 uniform vec4 magicLamp;
@@ -104,6 +105,7 @@ if ( magicOn > 0.0 ) {
 export function magicUniforms() {
   return {
     magicOn: { value: 0 },
+    landNightFill: { value: 0 },
     magicGlow: { value: Array.from({ length: 4 }, () => new THREE.Vector4(0, -1000, 0, 1)) },
     magicGlowColour: { value: Array.from({ length: 4 }, () => new THREE.Color(0, 0, 0)) },
     magicLamp: { value: new THREE.Vector4(0, 0, 0, 0) },
