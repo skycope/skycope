@@ -36,7 +36,9 @@ const SHOTS = {
   default: { elevation: 0.32, distance: 7, wide: [0.42, 9.5] },
   fireflies: { elevation: 0.22, distance: 6, wide: [0.27, 7.5] },
   lamp: { elevation: 0.12, distance: 10, wide: [0.16, 13] },
-  stars: { elevation: 0.3, distance: 7, wide: [0.48, 10] },
+  // The sky is the picture: the camera comes down level with the cat so
+  // the upper half of the frame is the sky leaning close.
+  stars: { elevation: 0.14, distance: 8, wide: [0.04, 10.5], camHome: 8, end: 9.5 },
   // The boat rises off its logs and glides down to its cove (8 s): the
   // camera stands back and turns with the hull, and holds longer.
   boat: { elevation: 0.3, distance: 8, wide: [0.36, 12], follow: true, camHome: 10, end: 11.5 },
