@@ -758,7 +758,7 @@ const CAT_LAMP = /* glsl */ `
           vec3 toL = catLamp.xyz + vViewPosition;
           float d2 = dot( toL, toL );
           float ndl = clamp( dot( normal, toL * inversesqrt( max( d2, 1e-4 ) ) ) * 0.7 + 0.3, 0.0, 1.0 );
-          reflectedLight.directDiffuse += vec3( 1.0, 0.56, 0.2 ) * catLamp.w * ndl * diffuseColor.rgb * 0.7 / ( 1.0 + d2 * 1.2 );
+          reflectedLight.directDiffuse += vec3( 1.0, 0.5, 0.16 ) * catLamp.w * ndl * diffuseColor.rgb * 0.7 / ( 1.0 + d2 * 6.0 );
         }`;
 
 const SHELL_LIGHT = /* glsl */ `

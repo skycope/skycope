@@ -192,3 +192,63 @@ test("the ride: launch on waking, board by pushing at the hull, steer, jump out,
     assert.ok(["waiting", "adrift"].includes(ride.ride.state));
   }
 });
+
+test("the cove mooring and the launch glide keep clear of boulders and landmark solids", async () => {
+  const { createBoatRide } = await import("../src/boat-ride.js");
+  const { rockyAt } = await import("../src/boat-dynamics.js");
+  for (const seed of SEEDS) {
+    const { walker, sea, places } = world(seed);
+    const landmark = places.layout.find((p) => p.id === "boat");
+    const ride = createBoatRide({ landmark, sea, bed: walker.bed, solids: walker.solids });
+    const m = ride.cove;
+    const blocked = (x, z) => rockyAt(x, z, walker.bed(x, z)) || walker.solids.touches(x, 0.5, z, 0.3);
+    // Nothing within a metre and a half of the hull.
+    const fx = Math.sin(m.heading), fz = Math.cos(m.heading);
+    for (let u = -3.8; u <= 3.8; u += 0.25)
+      for (let v = -2.3; v <= 2.3; v += 0.25)
+        assert.ok(!blocked(m.x + fx * u + fz * v, m.z + fz * u - fx * v), `seed ${seed}: boulder by the mooring at ${u}, ${v}`);
+    // The glide from the logs passes over no boulder.
+    const dx = m.x - landmark.x, dz = m.z - landmark.z, L = Math.hypot(dx, dz);
+    for (let t = 3; t <= L; t += 0.2)
+      for (const v of [-0.7, 0, 0.7]) {
+        const x = landmark.x + (dx / L) * t - (dz / L) * v, z = landmark.z + (dz / L) * t + (dx / L) * v;
+        assert.ok(!blocked(x, z), `seed ${seed}: the glide crosses a boulder ${t.toFixed(1)} m out`);
+      }
+  }
+});
+
+test("where the boat was left is remembered per seed, falling back to the cove", async () => {
+  const { createBoatRide, BOAT_KEY } = await import("../src/boat-ride.js");
+  const { createMagic } = await import("../src/magic.js");
+  const { walker, sea, places, tick } = world(1847);
+  const landmark = places.layout.find((p) => p.id === "boat");
+  const store = new Map();
+  const storage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) };
+  const awake = () => createMagic({ force: ["boat"] });
+  const cat = { ...walker.cat, air: 0, waterSlope: [0, 0], flow: [0, 0] };
+  const none = { move: [0, 0], jump: false };
+  const a = createBoatRide({ landmark, sea, bed: walker.bed, solids: walker.solids, magic: awake(), seed: 1847, storage });
+  tick(0);
+  a.update(1 / 30, none, cat);
+  assert.equal(a.ride.state, "waiting");
+  assert.ok(Math.hypot(a.state.x - a.cove.x, a.state.z - a.cove.z) < 0.5, "starts at the cove");
+  a.ride.state = "aboard";
+  const s = a.state;
+  const out = Math.atan2(s.x - 58, s.z - 70) + 1.4;
+  for (let t = 0; t < 5; t += 1 / 30) {
+    tick(t);
+    a.update(1 / 30, { move: [0, 1], jump: false }, cat, out);
+  }
+  a.update(1 / 30, { move: [0, 0], jump: true }, cat, out);
+  assert.notEqual(a.ride.state, "aboard", `jumped out (${s.offshore.toFixed(1)} m out)`);
+  assert.ok(store.has(BOAT_KEY + 1847), "stored");
+  const left = JSON.parse(store.get(BOAT_KEY + 1847));
+  assert.ok(Math.hypot(left.x - a.cove.x, left.z - a.cove.z) > 2, "somewhere else than the cove");
+  const b = createBoatRide({ landmark, sea, bed: walker.bed, solids: walker.solids, magic: awake(), seed: 1847, storage });
+  b.update(1 / 30, none, cat);
+  assert.ok(Math.hypot(b.state.x - left.x, b.state.z - left.z) < 0.5, "where it was left");
+  store.set(BOAT_KEY + 1847, '{"x": 58, "z": 70, "heading": 0}');
+  const c = createBoatRide({ landmark, sea, bed: walker.bed, solids: walker.solids, magic: awake(), seed: 1847, storage });
+  c.update(1 / 30, none, cat);
+  assert.ok(Math.hypot(c.state.x - c.cove.x, c.state.z - c.cove.z) < 0.5, "the cove again");
+});

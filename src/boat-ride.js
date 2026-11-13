@@ -38,10 +38,20 @@ const H = HULL.half;
 
 // landmark: the boat's place ({ x, z, facing }, places.js layout); bed:
 // walker.bed; sea; solids: walker.solids; magic: the shared record.
-export function createBoatRide({ landmark, sea, bed, solids = null, magic = null, swimLimit = 24 }) {
+// Where the boat was left, per seed (beside the quest's `skycope.gifts.<seed>`).
+export const BOAT_KEY = "skycope.boat.";
+
+// seed + storage (localStorage by default): remember where it was left
+// across reloads; without a seed nothing is stored.
+export function createBoatRide({ landmark, sea, bed, solids = null, magic = null, swimLimit = 24, seed = null, storage = defaultStorage() }) {
   const dyn = createBoatDynamics({ sea, bed, solids });
   const s = dyn.state;
-  const cove = findMooring(landmark.x, landmark.z, bed) ?? { x: landmark.x, z: landmark.z, heading: landmark.facing };
+  // The cove: clear of boulders and solids, reached from the logs by a clear
+  // glide (findMooring), with fallbacks that relax the margins.
+  const cove = findMooring(landmark.x, landmark.z, bed, { solids, from: landmark })
+    ?? findMooring(landmark.x, landmark.z, bed, { solids, from: landmark, margin: 1.2 })
+    ?? findMooring(landmark.x, landmark.z, bed)
+    ?? { x: landmark.x, z: landmark.z, heading: landmark.facing };
   const moor = { x: cove.x, z: cove.z, heading: cove.heading };
   const events = [];
   const ride = {
@@ -68,6 +78,9 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
     leftAt: -Infinity,
   };
   dyn.place(moor.x, moor.z, moor.heading);
+  // Where it was last left, if that is still somewhere it can float.
+  const key = seed === null ? null : BOAT_KEY + seed;
+  const left = readLeft();
 
   const fwd = () => [Math.sin(s.heading), Math.cos(s.heading)];
   // A boat-frame point (x across, z along) to world coast (x, z).
@@ -141,6 +154,11 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
         ride.launch = 0;
       } else {
         ride.state = "waiting";
+        if (left) {
+          moor.x = left.x;
+          moor.z = left.z;
+          moor.heading = left.heading;
+        }
         dyn.place(moor.x, moor.z, moor.heading);
       }
     },
@@ -284,6 +302,26 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
     moor.x = x;
     moor.z = z;
     moor.heading = heading;
+    if (!key || !storage) return;
+    try {
+      storage.setItem(key, JSON.stringify({ x: +x.toFixed(2), z: +z.toFixed(2), heading: +heading.toFixed(3) }));
+    } catch {
+      // Private mode or full: it simply starts at the cove next time.
+    }
+  }
+
+  function readLeft() {
+    if (!key || !storage) return null;
+    try {
+      const v = JSON.parse(storage.getItem(key) ?? "null");
+      if (!v || ![v.x, v.z, v.heading].every(Number.isFinite)) return null;
+      const off = -shoreDistance(v.x, v.z);
+      if (off < 1 || off > RIDE.jumpLimit + 2) return null;
+      if (dyn.probe(v.x, v.z, v.heading) > 0.05) return null;
+      return v;
+    } catch {
+      return null;
+    }
   }
 
   // Distance from (x, z) to the hull's outline (0 inside).
@@ -411,6 +449,14 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
   }
 
   return api;
+}
+
+function defaultStorage() {
+  try {
+    return globalThis.localStorage ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function clamp(v, a, b) {

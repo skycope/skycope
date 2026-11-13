@@ -315,11 +315,13 @@ export fn lantern_on_sea(s: SeaPoint, lantern: vec4f, night: f32) -> vec3f {
   let h = normalize(l - s.ray);
   let nh = max(dot(s.normal, h), 0.0);
   let glint = hash22m(floor(s.p.xz * 6.0)).x;
-  let spec = (pow(nh, 600.0) * (6.0 + 22.0 * glint * glint) + pow(nh, 60.0) * 0.9 + pow(nh, 12.0) * 0.08) * s.fresnel * 4.0;
+  let spec = (pow(nh, 600.0) * (1.5 + 5.0 * glint * glint) + pow(nh, 60.0) * 0.35 + pow(nh, 12.0) * 0.05) * s.fresnel * 4.0;
   let facing = max(dot(s.normal, l), 0.0);
-  let pool = facing * (0.035 + 0.5 * s.foam.x);
-  let flame = vec3f(1.0, 0.56, 0.2);
-  return flame * lantern.w * (spec + pool) / (1.0 + d2 * 0.12) * (0.4 + 0.6 * night);
+  let pool = facing * (0.03 + 0.35 * s.foam.x);
+  let flame = vec3f(1.0, 0.5, 0.16);
+  // Falls off with distance like the light it is; a glint never clips.
+  let light = flame * lantern.w * (spec + pool) / (1.0 + d2 * 0.3) * (0.4 + 0.6 * night);
+  return light / (1.0 + max(light.r, 0.0) * 0.6);
 }
 
 fn noise2(p: vec2f) -> f32 {
