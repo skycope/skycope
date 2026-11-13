@@ -148,7 +148,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
     bed: base,
     solids,
     // boat: boat.js attaches itself ({ deck(x, z), carries(cat), update(dt,
-    // input, cat, interest), view }); null detaches.
+    // input, cat, yaw) → true while it has the cat, view }); null detaches.
     set ride(r) {
       ride = r;
     },
@@ -213,9 +213,9 @@ export function createWalker(obstacles, sea = null, wake = null) {
     update(dt, input, interest, cameraDt = dt) {
       clock += dt;
       // boat: aboard, the boat carries the cat and the input steers it.
-      if (ride && ride.carries(cat)) {
+      // (Every frame, so the boat lives while the cat is ashore too.)
+      if (ride && ride.update(dt, input, cat, camera.yaw)) {
         target = null;
-        ride.update(dt, input, cat, interest);
         updateCamera(cameraDt, false);
         return cat;
       }

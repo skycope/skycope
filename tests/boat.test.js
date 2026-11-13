@@ -136,3 +136,59 @@ test("sailed straight at the beach, it grounds on the sand and stops", () => {
   }
   assert.ok(grounded, "the bow grounds");
 });
+
+test("the ride: launch on waking, board by pushing at the hull, steer, jump out, beach", async () => {
+  const { createBoatRide, RIDE } = await import("../src/boat-ride.js");
+  const { createMagic } = await import("../src/magic.js");
+  const { walker, sea, tick, places } = world(1847);
+  const landmark = places.layout.find((p) => p.id === "boat");
+  const magic = createMagic();
+  const ride = createBoatRide({ landmark, sea, bed: walker.bed, solids: walker.solids, magic });
+  const cat = walker.cat;
+  const none = { move: [0, 0], run: false, jump: false };
+  const dt = 1 / 30;
+  let t = 0;
+  const run = (seconds, input = none, yaw = 0) => {
+    let carried = false;
+    for (let end = t + seconds; t < end; t += dt) {
+      tick(t);
+      carried = ride.update(dt, input, cat, yaw);
+    }
+    return carried;
+  };
+  run(1);
+  assert.equal(ride.ride.state, "asleep");
+  assert.equal(ride.deck(ride.state.x, ride.state.z), -Infinity, "no deck while asleep");
+  magic.wake("boat");
+  run(0.2);
+  assert.equal(ride.ride.state, "launching");
+  run(RIDE.launch + 0.5);
+  assert.equal(ride.ride.state, "waiting");
+  assert.ok(Number.isFinite(ride.deck(ride.state.x, ride.state.z)), "a deck afloat");
+  // The cat beside the hull, pushing toward it.
+  const s = ride.state;
+  const side = { x: s.x + Math.cos(s.heading) * 1.1, z: s.z - Math.sin(s.heading) * 1.1 };
+  Object.assign(cat, { x: side.x, z: side.z, y: s.y - 0.3, air: 0 });
+  const toward = Math.atan2(s.x - cat.x, s.z - cat.z);
+  run(0.1, { move: [0, 1], run: false, jump: false }, toward);
+  assert.equal(ride.ride.state, "boarding");
+  run(RIDE.hop + 0.2);
+  assert.equal(ride.ride.state, "aboard");
+  assert.ok(ride.carries(cat));
+  assert.ok(cat.y > s.y, "the cat stands above the water in the boat");
+  assert.equal(cat.waterY, -Infinity);
+  // Steer out to sea for a while: it moves, carrying the cat.
+  const x0 = s.x, z0 = s.z;
+  const out = Math.atan2(s.x - 58, s.z - 70);
+  assert.ok(run(20, { move: [0, 1], run: true, jump: false }, out));
+  assert.ok(Math.hypot(s.x - x0, s.z - z0) > 8, "it sailed");
+  assert.ok(Math.hypot(cat.x - s.x, cat.z - s.z) < 2.5, "the cat goes with it");
+  for (const k of ["x", "y", "z", "heading"]) assert.ok(Number.isFinite(cat[k]));
+  // Jump out near shore: handed back to the walker, airborne.
+  if (s.offshore < RIDE.jumpLimit) {
+    const carried = run(dt * 1.5, { move: [0, 0], run: false, jump: true }, out);
+    assert.equal(carried, false);
+    assert.ok(cat.air > 0 && cat.vy > 0, "leapt");
+    assert.ok(["waiting", "adrift"].includes(ride.ride.state));
+  }
+});
