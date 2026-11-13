@@ -29,7 +29,8 @@ import { createJellies } from "./boat-jellies.js";
 //                 | "bump" | "ground" | "hull-slap" | "jump" | "refuse", gain }.
 //   boat.pois     places only a boat reaches ({ id, title, x, z, r }).
 
-const LANTERN_COLOUR = new THREE.Color(1.0, 0.56, 0.2);
+// An oil flame through old glass: amber, never white.
+const LANTERN_COLOUR = new THREE.Color(1.0, 0.5, 0.16);
 
 export function createBoat(land, { light = false, shared, landmark, hull = null, seed = 1 }) {
   const forms = buildBoatForms({ light });
@@ -202,7 +203,9 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
         w.position[0] += (towPos.x - w.position[0]) * tow;
         w.position[1] += (towPos.y - w.position[1]) * tow;
         w.position[2] += (towPos.z - w.position[2]) * tow;
-        w.glow = Math.max(w.glow, (0.7 + 0.5 * night) * tow);
+        // Aboard it dims to a small companion light: the lantern is the
+        // light of the picture, the two must not fight.
+        w.glow += (0.3 - 0.08 * night - w.glow) * tow;
         w.visible = true;
       } else towPos.set = false;
       // The wake: the hull's waterline in the sea while it moves.
@@ -270,7 +273,9 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
       const lit = 0.18 + 0.82 * smooth01(0.02, 0.35, night);
       const flick = 0.9 + 0.06 * Math.sin(time * 13.1) + 0.04 * Math.sin(time * 29.7 + 1.3);
       const strength = lit * flick;
-      glassMaterial.color.copy(LANTERN_COLOUR).multiplyScalar(3.2 * strength + 0.15);
+      // The globe glows amber (its form stays readable); the bright core
+      // is the halo mesh's.
+      glassMaterial.color.copy(LANTERN_COLOUR).multiplyScalar(0.7 * strength + 0.06);
       // Its flame in coast metres and in the camera's view.
       flame.set(0, -LANTERN.drop - 0.05, 0);
       glassMesh.localToWorld(flame);
@@ -281,7 +286,7 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
       lamp[3] = strength;
       const view = lampUniforms.boatLamp.value;
       view.set(flame.x, flame.y, flame.z, 1).applyMatrix4(camera.matrixWorldInverse);
-      view.w = strength * (0.5 + 5.5 * smooth01(0.02, 0.35, night));
+      view.w = strength * (0.4 + 4.6 * smooth01(0.02, 0.35, night));
       // The thread: from the pole's head to the wisp.
       stemCoast.set(0, LANTERN.pivot[1] + 0.02, LANTERN.pivot[2] - 0.05).applyMatrix4(group.matrix);
       glow.update(time, flame, strength, night, stemCoast, magic?.wisp, tow, ride.ride.throttle);
@@ -359,7 +364,8 @@ function boatMaterial(shared, plane, uniforms) {
           float d2 = dot( toL, toL );
           vec3 L = toL * inversesqrt( max( d2, 1e-4 ) );
           float ndl = clamp( dot( normal, L ) * 0.75 + 0.25, 0.0, 1.0 );
-          reflectedLight.directDiffuse += boatLampColour * boatLamp.w * ndl * diffuseColor.rgb * 0.31831 * 2.2 / ( 1.0 + d2 * 1.2 );
+          // Inverse square beyond the lantern's own size (~0.4 m).
+          reflectedLight.directDiffuse += boatLampColour * boatLamp.w * ndl * diffuseColor.rgb * 0.31831 * 2.2 / ( 1.0 + d2 * 6.0 );
         }`,
       );
   };
@@ -416,7 +422,8 @@ void main() {
   if ( slot < 0.5 ) {
     vec3 toEye = normalize( cameraPosition - lamp );
     float d = length( cameraPosition - lamp );
-    float s = 0.55 * ( 1.0 + d * 0.025 );
+    // A fixed size in the world, so it shrinks with distance on screen.
+    float s = 0.42;
     world = lamp + toEye * 0.12 + ( right * corner.x + up * corner.y ) * s;
     vAlong = 0.0;
   } else {
@@ -445,7 +452,8 @@ void main() {
   vec3 c;
   if ( vSlot < 0.5 ) {
     float r2 = dot( vUv2, vUv2 );
-    float g = exp( -r2 * 40.0 ) * 1.3 + exp( -r2 * 9.0 ) * 0.28 + exp( -r2 * 2.6 ) * 0.07;
+    // A small bright core and a soft halo whose peak stays below white.
+    float g = exp( -r2 * 260.0 ) * 0.75 + exp( -r2 * 22.0 ) * 0.16 + exp( -r2 * 5.0 ) * 0.07;
     c = glowColour * g * strength * ( 1.0 - smoothstep( 0.6, 1.0, r2 ) );
   } else {
     float across = 1.0 - vUv2.x * vUv2.x;
@@ -484,7 +492,7 @@ function glowMesh() {
     threadOn: { value: 0 },
     threadColour: { value: new THREE.Color() },
   };
-  const material = glowMaterial({ colour: [1.0, 0.58, 0.24], vertex: GLOW_VERTEX, fragment: GLOW_FRAGMENT, uniforms });
+  const material = glowMaterial({ colour: [1.0, 0.5, 0.16], vertex: GLOW_VERTEX, fragment: GLOW_FRAGMENT, uniforms });
   material.side = THREE.DoubleSide;
   const mesh = new THREE.Mesh(geometry, material);
   mesh.frustumCulled = false;
@@ -499,7 +507,7 @@ function glowMesh() {
       mesh.visible = true;
       uniforms.time.value = time;
       uniforms.lamp.value.copy(lamp);
-      uniforms.strength.value = strength * (0.35 + 0.65 * smooth01(0.02, 0.35, night));
+      uniforms.strength.value = Math.min(1, strength) * (0.35 + 0.65 * smooth01(0.02, 0.35, night));
       uniforms.stem.value.set(stem.x, stem.y, -stem.z);
       const on = wisp?.visible ? tow : 0;
       if (on > 0) uniforms.wisp.value.set(wisp.position[0], wisp.position[1], -wisp.position[2]);
