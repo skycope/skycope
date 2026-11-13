@@ -122,3 +122,12 @@ test("lamp helpers: nearest lights and the gifts' step colour", () => {
   const none = mixGiftColour({}, new THREE.Color());
   assert.ok(none.g > 0.5, "a hint colour before any gift");
 });
+
+test("the finale blazes for its ceremony, then settles", async () => {
+  const { finaleBlaze } = await import("../src/land-magic.js");
+  const at = (clock, wakeAt, level = 1) => finaleBlaze({ clock, levels: { finale: level }, wakeAt: { finale: wakeAt } });
+  assert.equal(at(10, Infinity, 0), 0);
+  assert.ok(at(30, 10) > 0.95, "full during the ceremony");
+  assert.ok(at(200, 10) < 0.15, "settled after it");
+  assert.ok(at(5, -Infinity) < 0.15, "restored from an earlier visit: settled");
+});

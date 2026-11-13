@@ -165,6 +165,17 @@ export function mixGiftColour(levels, out, night = 0) {
   return out;
 }
 
+// The finale's blaze belongs to its ceremony: full for about a minute after
+// it wakes, then settling to a little more than the fireflies alone. A
+// finale restored from an earlier visit (wakeAt −∞) is the settled state.
+export function finaleBlaze(magic) {
+  const level = magic?.levels?.finale ?? 0;
+  if (level <= 0) return 0;
+  const s = (magic.clock ?? 0) - (magic.wakeAt?.finale ?? -Infinity);
+  const ceremony = Number.isFinite(s) ? THREE.MathUtils.smoothstep(s, 0, 4) * (1 - THREE.MathUtils.smoothstep(s, 50, 75)) : 0;
+  return level * (0.12 + 0.88 * ceremony);
+}
+
 const ASLEEP = { fireflies: 0, tideglow: 0, lamp: 0, stars: 0, seafolk: 0, boat: 0, finale: 0 };
 const LAMP_PERIOD = 12;
 
@@ -225,7 +236,7 @@ export function createLandMagic({ shared, lamps = [], beacon = null, light = fal
       const step = lastClock === null ? 0 : Math.max(0, Math.min(0.25, clock - lastClock));
       lastClock = clock;
       const lampLevel = levels.lamp ?? 0;
-      const finale = levels.finale ?? 0;
+      const finale = finaleBlaze(magic);
       let on = 0;
 
       // The lamp: dark until its gift wakes; then it catches, and the
@@ -251,13 +262,13 @@ export function createLandMagic({ shared, lamps = [], beacon = null, light = fal
       // 0: the fireflies round the cat (fireflies.js gives centre and light).
       if (flies && flies.light > 0) {
         glows[0].set(flies.centre[0], flies.centre[1], -flies.centre[2], flies.radius);
-        colours[0].setRGB(0.8, 0.95, 0.12).multiplyScalar(flies.light);
+        colours[0].setRGB(0.95, 0.88, 0.45).multiplyScalar(flies.light);
         on = 1;
       } else colours[0].setRGB(0, 0, 0);
       // 1: the milkwood's crown, home of the fireflies.
       if (flies && flies.homeLight > 0) {
         glows[1].set(flies.home[0], flies.home[1], -flies.home[2], flies.homeRadius);
-        colours[1].setRGB(1.0, 0.72, 0.16).multiplyScalar(flies.homeLight);
+        colours[1].setRGB(1.0, 0.76, 0.4).multiplyScalar(flies.homeLight);
         on = 1;
       } else colours[1].setRGB(0, 0, 0);
       // 2: the wisp, the quest's guiding light (magic.wisp, thread.js).

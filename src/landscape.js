@@ -14,7 +14,7 @@ import { createArchipelago } from "./archipelago.js";
 import { createLens } from "./lens.js";
 import { createPlaces } from "./places.js"; // places:
 import { createWisp } from "./wisp.js"; // wisp: the little light that leads the cat
-import { createLandMagic, lightWithMagic } from "./land-magic.js"; // land-magic:
+import { createLandMagic, lightWithMagic, finaleBlaze } from "./land-magic.js"; // land-magic:
 import { createFireflies } from "./fireflies.js"; // land-magic:
 import { groundHeight } from "./terrain.js"; // land-magic:
 import { createBoat } from "./boat.js"; // boat: the fisherman's boat afloat
@@ -242,7 +242,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       fauna.update(time, wind, night, boat?.afloatNow ?? null); // boat: the pod rides its bow
       // land-magic: the fireflies fly, then every gift's light is set.
       const levels = magic?.levels;
-      const flies = fireflies.update({ dt, time, pose, night, level: levels?.fireflies ?? 0, finale: levels?.finale ?? 0, call: magic?.call ?? null, eye: camera.position, pixelScale: flyPixels });
+      const flies = fireflies.update({ dt, time, pose, night, level: levels?.fireflies ?? 0, finale: finaleBlaze(magic), call: magic?.call ?? null, eye: camera.position, pixelScale: flyPixels });
       const gifts = landMagic.update({ magic, time, dt, night, pose, flies }); // land-magic:
       starLevel = levels?.stars ?? 0; // land-look: the stars gift lifts the night
       // The cat's coat and the animals take the same light (their

@@ -130,6 +130,8 @@ void main() {
     p = escort.xyz + off;
     float blink = pow( max( 0.0, sin( t * ( 0.9 + r * 0.7 ) + kind.y * 6.2832 ) ), 6.0 );
     glow = mix( 0.22 + 0.78 * blink, 0.55 + 0.25 * sin( t * 0.4 + a * 9.0 ), sleep );
+    // Only some of the escort are lit at once: the cat shows through them.
+    present = step( kind.y, 0.42 );
   } else if ( kind.x < 1.5 ) {
     // Home: hung under the milkwood's dome, where the cat walks, and over
     // its outer leaves, on slow drifting paths, breathing.
@@ -182,19 +184,21 @@ void main() {
   float lantern = kind.x > 0.5 && kind.x < 1.5 ? step( 0.55, trait.w ) : 0.0;
   // The column's lights are seen from across the island: larger than life.
   float px = trait.w * mix( 0.11, 0.2, lantern ) * ( 1.0 + rise * 3.0 ) * pixelScale / depth;
-  gl_PointSize = clamp( px, 2.0, 72.0 );
+  // Never a large soft disc: a firefly is a point with a small halo.
+  gl_PointSize = clamp( px, 2.0, 20.0 );
   // Under a pixel and a half, brightness carries what size cannot.
   float tiny = clamp( px / 2.0, 0.15, 1.0 );
   // Too close to the lens: fade rather than fill the screen.
-  float near = smoothstep( 0.35, 1.1, depth );
+  float near = smoothstep( 0.8, 2.6, depth ) * ( 1.0 - smoothstep( 14.0, 20.0, px ) * 0.5 );
   // Firefly gold-green by night; sun-warm seed-down by day.
   // (Saturated beyond what they look: the night tonemap greys dim colour.)
-  vec3 fly = mix( vec3( 1.0, 0.74, 0.1 ), vec3( 0.6, 1.0, 0.08 ), fract( a * 5.3 + r ) );
+  float tone = fract( a * 5.3 + r );
+  vec3 fly = mix( mix( vec3( 1.0, 0.8, 0.38 ), vec3( 0.86, 0.95, 0.42 ), tone ), vec3( 1.0, 0.68, 0.3 ), step( 0.82, fract( r * 7.7 ) ) );
   // The crown's lights are amber and larger, like lanterns in the leaves.
-  fly = mix( fly, vec3( 1.0, 0.6, 0.14 ), lantern );
+  fly = mix( fly, vec3( 1.0, 0.66, 0.3 ), lantern );
   vec3 down = mix( vec3( 1.0, 0.93, 0.78 ), vec3( 1.0, 0.82, 0.55 ), r );
   vColour = mix( down, fly, night );
-  vGlow = glow * level * present * near * tiny * mix( 0.5, 1.0, night );
+  vGlow = glow * level * present * near * tiny * mix( 0.5, 1.35, night );
   vSoft = mix( 0.55, 1.0, night );
 }`;
 
@@ -261,11 +265,11 @@ export function createFireflies(scene, seed, { light = false, crown = null, summ
   scene.add(points);
   const steer = createFlySteer();
   const homeFoot = crown ? [crown.x, crown.ground + 2.2, crown.z] : [0, -500, 0];
-  const homeRadius = crown ? crown.radius * 0.7 : 1;
+  const homeRadius = crown ? Math.min(4.5, crown.radius * 0.35) : 1;
   // What the land reads to be lit by them (land-magic.js glow slots 0, 1).
   const glow = {
     light: 0, centre: [0, -100, 0], radius: 2.6,
-    homeLight: 0, home: crown ? [crown.x, crown.ground + 2.2, crown.z] : [0, -500, 0], homeRadius: crown ? crown.radius * 0.7 : 1,
+    homeLight: 0, home: crown ? [crown.x, crown.ground + 2.2, crown.z] : [0, -500, 0], homeRadius: crown ? Math.min(4.5, crown.radius * 0.35) : 1,
   };
   return {
     points,
@@ -294,10 +298,11 @@ export function createFireflies(scene, seed, { light = false, crown = null, summ
       uniforms.trail.value.set(s.vx * 0.55, -s.vz * 0.55, s.scatter, 0);
       uniforms.roam.value.set(eye.x, eye.y, eye.z, (pose?.y ?? 0));
       const dark = 0.12 + 0.88 * night;
-      glow.light = on * dark * (0.55 + 0.25 * Math.sin(time * 1.3) ** 2 + s.call * 1.4);
+      // A local pool round the cat, never brighter than the wisp's.
+      glow.light = Math.min(0.42, on * dark * (0.26 + 0.08 * Math.sin(time * 1.3) ** 2 + s.call * 0.5));
       glow.centre[0] = s.x; glow.centre[1] = s.y + 0.2; glow.centre[2] = s.z;
-      glow.radius = 1.6 + s.spread * 0.7;
-      glow.homeLight = on * dark * (0.75 + 0.25 * Math.sin(time * 0.55)) * 1.3;
+      glow.radius = 1.0 + s.spread * 0.35;
+      glow.homeLight = Math.min(0.45, on * dark * (0.32 + 0.08 * Math.sin(time * 0.55)));
       // The finale: the crown's light moves to the column over the summit
       // and grows to light the whole hilltop under it.
       if (finale > 0 && summit) {
@@ -305,8 +310,8 @@ export function createFireflies(scene, seed, { light = false, crown = null, summ
         glow.home[0] = homeFoot[0] + (summit.x - homeFoot[0]) * f;
         glow.home[1] = homeFoot[1] + (summit.y + 9 - homeFoot[1]) * f;
         glow.home[2] = homeFoot[2] + (summit.z - homeFoot[2]) * f;
-        glow.homeRadius = homeRadius + (16 - homeRadius) * f;
-        glow.homeLight = glow.homeLight * (1 - f) + f * dark * (1.6 + 0.3 * Math.sin(time * 0.4)) * 1.4;
+        glow.homeRadius = homeRadius + (9 - homeRadius) * f;
+        glow.homeLight = glow.homeLight * (1 - f) + f * Math.min(0.6, dark * (0.5 + 0.1 * Math.sin(time * 0.4)));
       }
       return glow;
     },
