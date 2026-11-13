@@ -641,8 +641,10 @@ export function createWalker(obstacles, sea = null, wake = null) {
   function boatCamera(dt) {
     const v = ride.view;
     const k = Math.min(1, dt * 1.2);
+    // Only once the bow has come round toward where the cat is steering:
+    // swinging sooner would drag the steering round with it.
     if (clock - lastDrag > 2.5) {
-      const rate = 0.45 + 0.5 * Math.min(1, Math.abs(v.speed) / 1.5);
+      const rate = (0.45 + 0.5 * Math.min(1, Math.abs(v.speed) / 1.5)) * smooth(0.5, 0.95, v.align ?? 1);
       camera.yaw += wrap(v.heading - camera.yaw) * Math.min(1, dt * rate);
     }
     camera.distance += (clamp(camera.distance, BOAT_VIEW.min, BOAT_VIEW.max) - camera.distance) * k;

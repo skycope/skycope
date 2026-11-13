@@ -62,7 +62,7 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
     // How long the deck is ignored after a jump out (clearing the gunwale).
     clearFor: 0,
     // The camera's view of it (walker.js boatCamera).
-    view: { x: 0, y: 0, z: 0, heading: 0, speed: 0 },
+    view: { x: 0, y: 0, z: 0, heading: 0, speed: 0, align: 1 },
     target: null,
     // Seconds since the cat last left (wildlife, the wisp).
     leftAt: -Infinity,
@@ -232,6 +232,7 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
         return true;
       }
 
+      if (ride.state !== "aboard") ride.throttle = 0;
       if (ride.state === "aboard") {
         ride.want[0] = wx;
         ride.want[1] = wz;
@@ -308,6 +309,8 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
     v.y = s.y + 0.3;
     v.heading = s.heading;
     v.speed = s.u;
+    // How far the bow points where the cat steers (1 when not steering).
+    v.align = ride.throttle > 0.05 ? ride.want[0] * Math.sin(s.heading) + ride.want[1] * Math.cos(s.heading) : 1;
   }
 
   // Aboard: the cat stands at the station, riding the deck; a cat that has

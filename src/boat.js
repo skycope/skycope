@@ -306,8 +306,8 @@ function boatMaterial(shared, plane, uniforms) {
           // Paint worn back to grey timber in patches near the gunwale and
           // the waterline, where hands, ropes and the sea work it.
           float edge = smoothstep( 0.3, 0.48, vBoatP.y ) + ( 1.0 - smoothstep( -0.02, 0.12, vBoatP.y ) ) * 0.7;
-          float wear = smoothstep( 0.72, 0.8, blotch + ( grain - 0.5 ) * 0.3 + edge * 0.12 ) * painted;
-          diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.36, 0.32, 0.27 ) * ( 0.8 + grain * 0.4 ), wear * 0.75 );
+          float wear = smoothstep( 0.78, 0.86, blotch + ( grain - 0.5 ) * 0.3 + edge * 0.1 ) * painted;
+          diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.16, 0.14, 0.11 ) * ( 0.8 + grain * 0.4 ), wear * 0.7 );
           // A green-brown tide line of weed at the boot-top.
           float tide = exp( -pow( ( vBoatP.y + 0.035 ) / 0.02, 2.0 ) ) * smoothstep( 0.4, 0.7, blotch );
           diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.08, 0.1, 0.04 ), tide * 0.6 );

@@ -101,9 +101,9 @@ const TOPSIDE = srgb("#285a7a");
 const SHEER_STRAKE = srgb("#1f4b68");
 const BOOT = srgb("#d9d2bf");
 const ANTIFOUL = srgb("#7a3527");
-const VARNISH = srgb("#7b4f2a");
+const VARNISH = srgb("#6b4c32");
 const RUBBING = srgb("#c8bfa8");
-const BUFF = srgb("#b7a98a");
+const BUFF = srgb("#b3a88e");
 const FRAME = srgb("#6e4a2a");
 const FLOORBOARD = srgb("#8a7a62");
 const BILGE = srgb("#2a241c");
@@ -186,7 +186,7 @@ export function buildBoatForms({ light = false } = {}) {
       for (let i = 0; i < ns; i++)
         for (let j = 0; j < rows; j++) {
           const a = i * (rows + 1) + j, b = a + 1, c = a + rows + 1, d = c + 1;
-          if (side > 0) index.push(a, c, b, b, c, d);
+          if (side < 0) index.push(a, c, b, b, c, d);
           else index.push(a, b, c, b, d, c);
         }
       const g = new THREE.BufferGeometry();
@@ -214,7 +214,7 @@ export function buildBoatForms({ light = false } = {}) {
     for (let i = 0; i < ns; i++)
       for (let j = 0; j < nt; j++) {
         const a = i * (nt + 1) + j, b = a + 1, c = a + nt + 1, d = c + 1;
-        if (side > 0) index.push(a, b, c, b, d, c);
+        if (side < 0) index.push(a, b, c, b, d, c);
         else index.push(a, c, b, b, c, d);
       }
     const g = new THREE.BufferGeometry();
