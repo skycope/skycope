@@ -192,3 +192,27 @@ test("the ride: launch on waking, board by pushing at the hull, steer, jump out,
     assert.ok(["waiting", "adrift"].includes(ride.ride.state));
   }
 });
+
+test("the cove mooring and the launch glide keep clear of boulders and landmark solids", async () => {
+  const { createBoatRide } = await import("../src/boat-ride.js");
+  const { rockyAt } = await import("../src/boat-dynamics.js");
+  for (const seed of SEEDS) {
+    const { walker, sea, places } = world(seed);
+    const landmark = places.layout.find((p) => p.id === "boat");
+    const ride = createBoatRide({ landmark, sea, bed: walker.bed, solids: walker.solids });
+    const m = ride.cove;
+    const blocked = (x, z) => rockyAt(x, z, walker.bed(x, z)) || walker.solids.touches(x, 0.5, z, 0.3);
+    // Nothing within a metre and a half of the hull.
+    const fx = Math.sin(m.heading), fz = Math.cos(m.heading);
+    for (let u = -3.8; u <= 3.8; u += 0.25)
+      for (let v = -2.3; v <= 2.3; v += 0.25)
+        assert.ok(!blocked(m.x + fx * u + fz * v, m.z + fz * u - fx * v), `seed ${seed}: boulder by the mooring at ${u}, ${v}`);
+    // The glide from the logs passes over no boulder.
+    const dx = m.x - landmark.x, dz = m.z - landmark.z, L = Math.hypot(dx, dz);
+    for (let t = 3; t <= L; t += 0.2)
+      for (const v of [-0.7, 0, 0.7]) {
+        const x = landmark.x + (dx / L) * t - (dz / L) * v, z = landmark.z + (dz / L) * t + (dx / L) * v;
+        assert.ok(!blocked(x, z), `seed ${seed}: the glide crosses a boulder ${t.toFixed(1)} m out`);
+      }
+  }
+});

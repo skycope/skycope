@@ -41,7 +41,12 @@ const H = HULL.half;
 export function createBoatRide({ landmark, sea, bed, solids = null, magic = null, swimLimit = 24 }) {
   const dyn = createBoatDynamics({ sea, bed, solids });
   const s = dyn.state;
-  const cove = findMooring(landmark.x, landmark.z, bed) ?? { x: landmark.x, z: landmark.z, heading: landmark.facing };
+  // The cove: clear of boulders and solids, reached from the logs by a clear
+  // glide (findMooring), with fallbacks that relax the margins.
+  const cove = findMooring(landmark.x, landmark.z, bed, { solids, from: landmark })
+    ?? findMooring(landmark.x, landmark.z, bed, { solids, from: landmark, margin: 1.2 })
+    ?? findMooring(landmark.x, landmark.z, bed)
+    ?? { x: landmark.x, z: landmark.z, heading: landmark.facing };
   const moor = { x: cove.x, z: cove.z, heading: cove.heading };
   const events = [];
   const ride = {

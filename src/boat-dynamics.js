@@ -1,4 +1,4 @@
-import { shoreDistance, groundHeight, ISLAND } from "./terrain.js";
+import { shoreDistance, shoreRadius, groundHeight, ISLAND } from "./terrain.js";
 import { seabedDepth, shoreAlong } from "./sea-surface.js";
 
 // The fisherman's boat on the water, without any drawing: a small clinker
@@ -416,39 +416,63 @@ function wrap(a) {
   return Math.atan2(Math.sin(a), Math.cos(a));
 }
 
+// Whether the bed at (x, z) is a boulder (or a landmark's tile) rather than
+// the sand or the seabed.
+export function rockyAt(x, z, b) {
+  const inland = shoreDistance(x, z);
+  const sand = inland < 0 ? Math.max(groundHeight(x, z), -seabedDepth(-inland, shoreAlong(x, z))) : groundHeight(x, z);
+  return b > sand + 0.03;
+}
+
 // Where the boat waits off a beach point (x, z): the nearest spot seaward
-// of it, straight out or a little either side, with water enough under the
-// whole keel and no boulder in reach; bow toward the beach, as if its
-// painter were made fast ashore. null if there is none within 22 m.
-export function findMooring(x, z, bed, { clear = 0.18 } = {}) {
+// of it with water enough under the whole keel, no boulder or landmark
+// solid within `margin` metres of the hull, and (given `from`, the boat's
+// logs) a straight run from there that passes over no boulder or solid, so
+// its launch glides clear. Bow toward the beach, as if its painter were
+// made fast ashore. Prefers straight out and close in; null if none.
+export function findMooring(x, z, bed, { clear = 0.18, solids = null, from = null, margin = 2.5 } = {}) {
   const theta = Math.atan2(z - ISLAND.z, x - ISLAND.x);
-  for (let off = 4; off <= 22; off += 0.5)
-    for (const turn of [0, 0.03, -0.03, 0.06, -0.06, 0.1, -0.1]) {
-      const a = theta + turn;
-      const r = Math.hypot(x - ISLAND.x, z - ISLAND.z);
-      // Out along the radius until `off` metres from the shore.
-      let px = 0, pz = 0;
-      for (let k = 0; k < 6; k++) {
-        px = ISLAND.x + Math.cos(a) * r;
-        pz = ISLAND.z + Math.sin(a) * r;
-        const d = -shoreDistance(px, pz);
-        if (Math.abs(d - off) < 0.05) break;
-        const grow = off - d;
-        px = ISLAND.x + Math.cos(a) * (r + grow);
-        pz = ISLAND.z + Math.sin(a) * (r + grow);
-        x = px;
-        z = pz;
-        break;
+  const candidates = [];
+  for (let off = 4; off <= 20; off += 0.5)
+    for (let turn = -0.4; turn <= 0.4001; turn += 0.02) candidates.push([off + Math.abs(turn) * 60, off, theta + turn]);
+  candidates.sort((a, b) => a[0] - b[0]);
+  const blocked = (qx, qz) => rockyAt(qx, qz, bed(qx, qz)) || (solids && solids.touches(qx, 0.5, qz, 0.35));
+  for (const [, off, a] of candidates) {
+    const r = shoreRadius(a) + off;
+    const px = ISLAND.x + Math.cos(a) * r, pz = ISLAND.z + Math.sin(a) * r;
+    const heading = Math.atan2(-Math.cos(a), -Math.sin(a));
+    const fx = Math.sin(heading), fz = Math.cos(heading);
+    let ok = true;
+    for (const u of [-HALF - 1, -HALF, -HALF / 2, 0, HALF / 2, HALF, HALF + 0.8]) {
+      for (const v of [-1.1, 0, 1.1]) {
+        const qx = px + fx * u + fz * v, qz = pz + fz * u - fx * v;
+        if (bed(qx, qz) > -BOAT.draft - clear || shoreDistance(qx, qz) > -1) ok = false;
       }
-      const heading = Math.atan2(-Math.cos(a), -Math.sin(a));
-      const fx = Math.sin(heading), fz = Math.cos(heading);
-      let ok = true;
-      for (const u of [-HALF - 1, -HALF, -HALF / 2, 0, HALF / 2, HALF, HALF + 0.8])
-        for (const v of [-1.1, 0, 1.1]) {
-          const qx = px + fx * u + fz * v, qz = pz + fz * u - fx * v;
-          if (bed(qx, qz) > -BOAT.draft - clear || shoreDistance(qx, qz) > -1) ok = false;
-        }
-      if (ok) return { x: px, z: pz, heading };
+      if (!ok) break;
     }
+    // Clear water round it.
+    for (let u = -HALF - margin; ok && u <= HALF + margin + 1e-6; u += 1)
+      for (let v = -0.8 - margin; v <= 0.8 + margin + 1e-6; v += 1) {
+        if (blocked(px + fx * u + fz * v, pz + fz * u - fx * v)) {
+          ok = false;
+          break;
+        }
+      }
+    // And a clear run from the logs (past their own few metres).
+    if (ok && from) {
+      const dx = px - from.x, dz = pz - from.z;
+      const L = Math.hypot(dx, dz) || 1;
+      const sx = -dz / L, sz = dx / L;
+      for (let t = 3; ok && t <= L; t += 0.5)
+        for (const v of [-1, 0, 1]) {
+          const qx = from.x + (dx / L) * t + sx * v, qz = from.z + (dz / L) * t + sz * v;
+          if (blocked(qx, qz)) {
+            ok = false;
+            break;
+          }
+        }
+    }
+    if (ok) return { x: px, z: pz, heading };
+  }
   return null;
 }
