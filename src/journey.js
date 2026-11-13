@@ -26,22 +26,24 @@ const FINALE = { small: "six gifts · one island", big: "the island is awake", a
 // Seconds into a ceremony (wall clock), from the moment the wisp is gone
 // into the keepsake: when the card shows, when time runs again, when the
 // camera comes home and the cat is let go.
-const WAKE = { card: 0.7, cardHold: 4.6, hold: 2.6, release: 5, camHome: 6.2, end: 8 };
-const FINALE_TIME = { wake: 2.8, card: 4.5, cardHold: 9, hold: 6, camHome: 17, end: 20.5 };
+const WAKE = { card: 0.6, cardHold: 3.4, hold: 1.8, release: 4, camHome: 5, end: 6.5 };
+const FINALE_TIME = { wake: 2.4, card: 3.8, cardHold: 6.5, hold: 4.5, camHome: 13, end: 16 };
 const WHITE = [1, 0.95, 0.85];
 // Each ceremony's camera: low behind the cat while the wisp dives (elevation,
 // distance), then easing wider to take in the place (`wide`). Under the
 // milkwood's canopy it stays low; at the lighthouse it stands well back.
 const SHOTS = {
-  default: { elevation: 0.32, distance: 7, wide: [0.42, 9.5] },
-  fireflies: { elevation: 0.22, distance: 6, wide: [0.27, 7.5] },
+  default: { elevation: 0.32, distance: 7, wide: [0.4, 8.5] },
+  fireflies: { elevation: 0.22, distance: 6, wide: [0.26, 7] },
   lamp: { elevation: 0.12, distance: 10, wide: [0.16, 13] },
   // The sky is the picture: the camera comes down level with the cat so
   // the upper half of the frame is the sky leaning close.
-  stars: { elevation: 0.14, distance: 8, wide: [0.04, 10.5], camHome: 8, end: 9.5 },
+  stars: { elevation: 0.14, distance: 8, wide: [0.04, 10.5], camHome: 6.5, end: 8 },
+  // Above the scrub behind the pool, looking out to where the sea's folk come.
+  seafolk: { elevation: 0.45, distance: 7.5, wide: [0.5, 9.5] },
   // The boat rises off its logs and glides down to its cove (8 s): the
   // camera stands back and turns with the hull, and holds longer.
-  boat: { elevation: 0.3, distance: 8, wide: [0.36, 12], follow: true, camHome: 10, end: 11.5 },
+  boat: { elevation: 0.3, distance: 8, wide: [0.36, 12], follow: true, camHome: 8.5, end: 10 },
 };
 
 export function createJourney({ state, card, findLine, now, onChange = () => {} }) {

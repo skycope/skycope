@@ -244,7 +244,7 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
           goal.z = cat.z + Math.cos(orbit) * r;
           goal.y = catY + 0.7;
           speedCap = 5;
-          if (since() > 3.4) set(target ? "lead" : "company");
+          if (since() > 2.4) set(target ? "lead" : "company");
           break;
         }
         case "lead": {
@@ -280,7 +280,7 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
           } else if (!perch.set || toPerch < WISP.near + (hopLength - WISP.hop) * 0.4 || (running && toPerch < WISP.near + 3) || perchToTarget > toTarget + 2) {
             // The cat has caught up (or the perch is behind it): flit on.
             choosePerch(cat, target, hopLength, 0);
-            flare = Math.max(flare, 0.25);
+            flare = Math.max(flare, 0.12);
           } else if (clock - perchBestAt > 6 && clock - tryingAt < 2 && toPerch > WISP.near) {
             // The cat cannot get to it (a rock, a gully): another way round.
             choosePerch(cat, target, Math.min(hopLength, 6), ++reroute);
@@ -320,8 +320,8 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
             // "Come on": while the cat stands still, now and then a quick
             // swoop toward it and back again.
             beckon = Math.abs(cat.speed) < 0.15 ? beckon + dt : 0;
-            if (beckon > 3) {
-              const swoop = Math.max(0, Math.sin((beckon - 3) * 1.2)) ** 6;
+            if (beckon > 4) {
+              const swoop = Math.max(0, Math.sin((beckon - 4) * 0.8)) ** 6;
               const bx = cat.x - perch.x;
               const bz = cat.z - perch.z;
               const bd = Math.hypot(bx, bz) || 1;
@@ -331,7 +331,7 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
               if (swoop > 0.5) stiff = 2.2;
             }
             // Far off, a slow brightening now and then, so it can be found.
-            if (nowToPerch > 6) flare = Math.max(flare, 0.55 * Math.max(0, Math.sin(clock * 1.7 + phase[2])) ** 10);
+            if (nowToPerch > 6) flare = Math.max(flare, 0.3 * Math.max(0, Math.sin(clock * 1.1 + phase[2])) ** 14);
             nextHide -= dt;
             if (nextHide <= 0 && shoreDistance(perch.x, perch.z) > 6 && toTarget > 9) {
               nextHide = 20 + random() * 25;
@@ -568,7 +568,7 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
       // flares decay.
       flare *= Math.exp(-dt * 1.6);
       const breathe = 1 + 0.06 * Math.sin(clock * 2.1 + phase[3]);
-      const aim = rest * (1 + 0.06 * (ctx.gifts ?? 0)) * breathe + flare;
+      const aim = rest * (1 + 0.03 * (ctx.gifts ?? 0)) * breathe + flare;
       glow += (aim - glow) * Math.min(1, dt * (rest < 0.2 ? 6 : 3));
       return mind;
     },
