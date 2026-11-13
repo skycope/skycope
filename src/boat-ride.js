@@ -63,6 +63,7 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
     clearFor: 0,
     // The camera's view of it (walker.js boatCamera).
     view: { x: 0, y: 0, z: 0, heading: 0, speed: 0 },
+    target: null,
     // Seconds since the cat last left (wildlife, the wisp).
     leftAt: -Infinity,
   };
@@ -112,6 +113,10 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
       return ride.state === "aboard" || ride.state === "boarding";
     },
     toWorld: (x, z) => ({ ...toWorld(x, z) }),
+    // Sail toward a tapped point (coast metres).
+    sailTo(x, z) {
+      ride.target = { x, z };
+    },
     // Walkable deck (world coast metres), or −∞ off the boat.
     deck(x, z) {
       if (!afloat() || ride.clearFor > 0) return -Infinity;
@@ -166,6 +171,17 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
       const sinY = Math.sin(yaw), cosY = Math.cos(yaw);
       let wx = sinY * mz + cosY * mx;
       let wz = cosY * mz - sinY * mx;
+      // A tapped point on the sea, until the keys take over or it is reached.
+      if (mx || mz) ride.target = null;
+      if (ride.target && ride.state === "aboard") {
+        const tx = ride.target.x - s.x, tz = ride.target.z - s.z;
+        const d = Math.hypot(tx, tz);
+        if (d < 2.5) ride.target = null;
+        else {
+          wx = tx / d;
+          wz = tz / d;
+        }
+      }
       const wl = Math.hypot(wx, wz);
       if (wl > 1) {
         wx /= wl;

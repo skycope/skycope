@@ -54,7 +54,9 @@ export function createWake() {
       Object.assign(body, { x, z, heading, immersion, speed, strength, radius });
       if (strength < 0.03) return;
       const last = trail[0];
-      if (!last || Math.hypot(x - last[0], z - last[1]) > 0.25 || now - last[2] > 0.45) {
+      // boat: a wider body drops its points further apart (a boat's
+      // 0.5 m waterline every 0.6 m), so the trail keeps its seconds.
+      if (!last || Math.hypot(x - last[0], z - last[1]) > Math.max(0.25, radius * 1.2) || now - last[2] > 0.45) {
         trail.unshift([x, z, now, strength]);
         if (trail.length > WAKE.trail) trail.pop();
       }

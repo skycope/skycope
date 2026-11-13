@@ -14,6 +14,7 @@ import { createArchipelago } from "./archipelago.js";
 import { createLens } from "./lens.js";
 import { createPlaces } from "./places.js"; // places:
 import { createWisp } from "./wisp.js"; // wisp: the little light that leads the cat
+import { createBoat } from "./boat.js"; // boat: the fisherman's boat afloat
 import { horizonRadiance, skyDomeRatio, skyDomeMean, skyEnvironmentKey } from "./sunlight.js";
 
 // The mesh layer tonemaps with the same curve as the WebGPU water pass
@@ -97,6 +98,9 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   const wildlife = createWildlife(land, seed, { obstacles: forest.obstacles, light });
   const wildEye = { x: 0, y: 0, z: 0 };
   const wisp = createWisp(land, { light }); // wisp: drawn from magic.wisp (thread.js follows it)
+  // boat: the fisherman's boat afloat (boat.js), hidden until its gift wakes.
+  const boatPlace = places.layout.find((p) => p.id === "boat");
+  const boat = boatPlace ? createBoat(land, { light, shared: land.userData.forestShared, landmark: boatPlace, hull: places.boatHull }) : null;
   scene.add(land);
   const motes = createMotes(scene, seed);
   // The distant islands: their own scene and depth range, drawn first.
@@ -312,6 +316,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       moteLight.copy(sun.color).multiplyScalar(sun.intensity * THREE.MathUtils.smoothstep(sunWorld.y, 0.0, 0.1) * (1 - night));
       motes.update(time, wind, camera.position, sunWorld, moteLight, pixelScale);
       wisp.update(time, night, renderer.domElement.height); // wisp:
+      boat?.render({ time, night, camera }); // boat:
       lens.update({
         camera, time, rain, wind, sky: lighting.sky, sunDirection: sunWorld, sunColour: sun.color,
         sunVisible: cloudBeam * THREE.MathUtils.smoothstep(sunWorld.y, -0.01, 0.06) * (1 - night),
@@ -342,6 +347,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     wildlife,
     // wisp: wisp.follow(magic.wisp, walker.surface) once (thread.js).
     wisp,
+    boat, // boat: attach({ walker, sea, magic, wake }) once (main.js)
     addPrint(print) {
       prints.add(print);
     },
@@ -374,6 +380,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       // build worker the scene traversal below cannot reach.
       cat.dispose();
       places.dispose(); // places:
+      boat?.dispose(); // boat:
       wildlife.dispose();
       precipitation.dispose();
       archipelago.geometry.dispose();

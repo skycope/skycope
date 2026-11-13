@@ -75,6 +75,8 @@ export function createPlaces(group, seed, { light = false, shared } = {}) {
     pois: layout.map(({ id, title, x, z, r }) => ({ id, title, x, z, r })),
     obstacles,
     blockers,
+    // boat: the fisherman's boat's hull ({ launch() }, place-shore.js).
+    boatHull: built.find((b) => b.hull)?.hull ?? null,
     update({ time = 0, night = 0, wind = [0, 0], eye = null, pose = null } = {}) {
       // Lamps are lit from sunset; the beam reads as the sky darkens.
       const lit = smooth01(0.02, 0.3, night);
