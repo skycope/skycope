@@ -14,8 +14,8 @@ test("firefly traits are deterministic by seed and split into the three flocks",
   assert.notDeepEqual(a.traits, c.traits);
   const counts = [0, 0, 0];
   for (let i = 0; i < 600; i++) counts[a.kinds[i * 2]]++;
-  assert.equal(counts[FLY_KIND.escort], 180);
-  assert.ok(counts[FLY_KIND.home] > 100 && counts[FLY_KIND.roam] > 200);
+  assert.equal(counts[FLY_KIND.escort], 132);
+  assert.ok(counts[FLY_KIND.home] > 200 && counts[FLY_KIND.roam] > 200);
   for (const v of a.traits) assert.ok(Number.isFinite(v) && v >= 0 && v < 2.5);
 });
 

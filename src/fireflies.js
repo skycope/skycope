@@ -19,14 +19,15 @@ import { seededRandom } from "./random.js";
 export const FLY_KIND = { escort: 0, home: 1, roam: 2 };
 
 // Per-fly traits, deterministic by seed: [phase, reach, height, size] and
-// [kind, blink phase]. Shares: escort 30 %, home 28 %, roam the rest.
+// [kind, blink phase]. Shares: escort 22 %, home 40 %, roam the rest: the
+// milkwood's own colony is the densest.
 export function fireflyTraits(seed, count) {
   const random = seededRandom((seed ^ 0xf1ef1e5) >>> 0 || 1);
   const traits = new Float32Array(count * 4);
   const kinds = new Float32Array(count * 2);
   for (let i = 0; i < count; i++) {
     const share = i / count;
-    const kind = share < 0.3 ? FLY_KIND.escort : share < 0.58 ? FLY_KIND.home : FLY_KIND.roam;
+    const kind = share < 0.22 ? FLY_KIND.escort : share < 0.62 ? FLY_KIND.home : FLY_KIND.roam;
     traits[i * 4] = random();
     traits[i * 4 + 1] = random();
     traits[i * 4 + 2] = random();
@@ -185,7 +186,8 @@ void main() {
   // The column's lights are seen from across the island: larger than life.
   float px = trait.w * mix( 0.11, 0.2, lantern ) * ( 1.0 + rise * 3.0 ) * pixelScale / depth;
   // Never a large soft disc: a firefly is a point with a small halo.
-  gl_PointSize = clamp( px, 2.0, 20.0 );
+  // (The crown's lanterns may be a little larger: they hang in the leaves.)
+  gl_PointSize = clamp( px, 2.0, mix( 20.0, 30.0, lantern ) );
   // Under a pixel and a half, brightness carries what size cannot.
   float tiny = clamp( px / 2.0, 0.15, 1.0 );
   // Too close to the lens: fade rather than fill the screen.
@@ -198,7 +200,8 @@ void main() {
   fly = mix( fly, vec3( 1.0, 0.66, 0.3 ), lantern );
   vec3 down = mix( vec3( 1.0, 0.93, 0.78 ), vec3( 1.0, 0.82, 0.55 ), r );
   vColour = mix( down, fly, night );
-  vGlow = glow * level * present * near * tiny * mix( 0.5, 1.35, night );
+  float colony = kind.x > 0.5 && kind.x < 1.5 ? 1.6 : 1.0;
+  vGlow = glow * level * present * near * tiny * mix( 0.5, 1.35, night ) * colony;
   vSoft = mix( 0.55, 1.0, night );
 }`;
 
@@ -265,11 +268,11 @@ export function createFireflies(scene, seed, { light = false, crown = null, summ
   scene.add(points);
   const steer = createFlySteer();
   const homeFoot = crown ? [crown.x, crown.ground + 2.2, crown.z] : [0, -500, 0];
-  const homeRadius = crown ? Math.min(4.5, crown.radius * 0.35) : 1;
+  const homeRadius = crown ? Math.min(7, crown.radius * 0.55) : 1;
   // What the land reads to be lit by them (land-magic.js glow slots 0, 1).
   const glow = {
     light: 0, centre: [0, -100, 0], radius: 2.6,
-    homeLight: 0, home: crown ? [crown.x, crown.ground + 2.2, crown.z] : [0, -500, 0], homeRadius: crown ? Math.min(4.5, crown.radius * 0.35) : 1,
+    homeLight: 0, home: crown ? [crown.x, crown.ground + 2.2, crown.z] : [0, -500, 0], homeRadius: crown ? Math.min(7, crown.radius * 0.55) : 1,
   };
   return {
     points,
@@ -302,7 +305,8 @@ export function createFireflies(scene, seed, { light = false, crown = null, summ
       glow.light = Math.min(0.42, on * dark * (0.26 + 0.08 * Math.sin(time * 1.3) ** 2 + s.call * 0.5));
       glow.centre[0] = s.x; glow.centre[1] = s.y + 0.2; glow.centre[2] = s.z;
       glow.radius = 1.0 + s.spread * 0.35;
-      glow.homeLight = Math.min(0.45, on * dark * (0.32 + 0.08 * Math.sin(time * 0.55)));
+      // The colony's pool on the grass under the dome: local, breathing.
+      glow.homeLight = Math.min(0.75, on * dark * (0.55 + 0.12 * Math.sin(time * 0.55)));
       // The finale: the crown's light moves to the column over the summit
       // and grows to light the whole hilltop under it.
       if (finale > 0 && summit) {

@@ -66,7 +66,10 @@ if ( magicOn > 0.0 ) {
     float across = sqrt( max( 1.0 - along * along, 0.0 ) ) * hd;
     float width = 0.7 + hd * 0.085;
     float drop = toP.y + hd * 0.06;
-    float cone = exp( -across * across / ( width * width ) ) * mix( 0.3, 1.0, exp( -drop * drop / ( width * width * 9.0 ) ) );
+    // Only what stands near the beam's height takes its light: ground far
+    // below it (the beach behind a hill, the sand behind a boulder seen from
+    // the lamp) stays dark, as if shadowed.
+    float cone = exp( -across * across / ( width * width ) ) * exp( -drop * drop / ( width * width * 14.0 ) );
     float reach = smoothstep( 4.0, 14.0, hd ) * exp( -hd / magicBeam.z );
     float face = clamp( dot( mN, -toP ) * inversesqrt( dot( toP, toP ) + 1e-4 ) * 0.7 + 0.3, 0.0, 1.0 );
     mLight += vec3( 1.0, 0.72, 0.4 ) * ( magicLamp.w * cone * reach * face );
@@ -268,7 +271,7 @@ export function createLandMagic({ shared, lamps = [], beacon = null, light = fal
       // 1: the milkwood's crown, home of the fireflies.
       if (flies && flies.homeLight > 0) {
         glows[1].set(flies.home[0], flies.home[1], -flies.home[2], flies.homeRadius);
-        colours[1].setRGB(1.0, 0.76, 0.4).multiplyScalar(flies.homeLight);
+        colours[1].setRGB(0.95, 0.86, 0.42).multiplyScalar(flies.homeLight);
         on = 1;
       } else colours[1].setRGB(0, 0, 0);
       // 2: the wisp, the quest's guiding light (magic.wisp, thread.js).
