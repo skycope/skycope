@@ -255,6 +255,19 @@ export function createMaterials(shared) {
           // A whitewashed wall is bright but not paper: a touch under white.
           diffuseColor.rgb *= mix( 1.0, 0.9, bright );
         }
+        // land-look: paint by the sea is never shop-fresh. Strong colours
+        // (the cupola, the roof, the door) are sun-faded and salt-dulled,
+        // grimed in patches; the corrugated roof bleeds rust down its runs.
+        {
+          float top = max( diffuseColor.r, max( diffuseColor.g, diffuseColor.b ) );
+          float sat = ( top - min( diffuseColor.r, min( diffuseColor.g, diffuseColor.b ) ) ) / max( top, 1e-3 );
+          float luma = dot( diffuseColor.rgb, vec3( 0.3, 0.59, 0.11 ) );
+          diffuseColor.rgb = mix( diffuseColor.rgb, vec3( luma ) * vec3( 1.04, 1.0, 0.95 ), sat * 0.32 );
+          diffuseColor.rgb *= 1.0 - smoothstep( 0.45, 0.85, patchy ) * 0.2 * sat;
+          float redRoof = smoothstep( 0.4, 0.7, sat ) * step( diffuseColor.b * 1.6, diffuseColor.r ) * ( 1.0 - vertical );
+          float rust = smoothstep( 0.5, 0.8, runs ) * redRoof;
+          diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.2, 0.09, 0.04 ), rust * 0.5 );
+        }
         float foot = 1.0 - smoothstep( 0.0, 1.1 + patchy * 0.4, above );
         diffuseColor.rgb *= mix( 1.0, 0.62, foot * foot * vertical );
       }`,
@@ -287,6 +300,8 @@ export function createMaterials(shared) {
         float top = max( diffuseColor.r, max( diffuseColor.g, diffuseColor.b ) );
         float painted = smoothstep( 0.18, 0.4, ( top - min( diffuseColor.r, min( diffuseColor.g, diffuseColor.b ) ) ) / max( top, 1e-3 ) );
         diffuseColor.rgb *= 0.82 + grain * mix( 0.36, 0.12, painted ) - checks * 0.3 + ( blotch - 0.5 ) * 0.2;
+        // land-look: boat paint faded by sun and salt: less chroma, chalky.
+        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( dot( diffuseColor.rgb, vec3( 0.3, 0.59, 0.11 ) ) ) * vec3( 1.05, 1.0, 0.94 ), painted * 0.3 );
         // Paint flaking off to grey wood.
         float flake = smoothstep( 0.7, 0.76, blotch + ( grain - 0.5 ) * 0.2 ) * painted;
         diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.2, 0.18, 0.16 ) * ( 0.8 + grain * 0.4 ), flake * 0.8 );
