@@ -216,3 +216,39 @@ test("the cove mooring and the launch glide keep clear of boulders and landmark 
       }
   }
 });
+
+test("where the boat was left is remembered per seed, falling back to the cove", async () => {
+  const { createBoatRide, BOAT_KEY } = await import("../src/boat-ride.js");
+  const { createMagic } = await import("../src/magic.js");
+  const { walker, sea, places, tick } = world(1847);
+  const landmark = places.layout.find((p) => p.id === "boat");
+  const store = new Map();
+  const storage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) };
+  const awake = () => createMagic({ force: ["boat"] });
+  const cat = { ...walker.cat, air: 0, waterSlope: [0, 0], flow: [0, 0] };
+  const none = { move: [0, 0], jump: false };
+  const a = createBoatRide({ landmark, sea, bed: walker.bed, solids: walker.solids, magic: awake(), seed: 1847, storage });
+  tick(0);
+  a.update(1 / 30, none, cat);
+  assert.equal(a.ride.state, "waiting");
+  assert.ok(Math.hypot(a.state.x - a.cove.x, a.state.z - a.cove.z) < 0.5, "starts at the cove");
+  a.ride.state = "aboard";
+  const s = a.state;
+  const out = Math.atan2(s.x - 58, s.z - 70) + 1.4;
+  for (let t = 0; t < 5; t += 1 / 30) {
+    tick(t);
+    a.update(1 / 30, { move: [0, 1], jump: false }, cat, out);
+  }
+  a.update(1 / 30, { move: [0, 0], jump: true }, cat, out);
+  assert.notEqual(a.ride.state, "aboard", `jumped out (${s.offshore.toFixed(1)} m out)`);
+  assert.ok(store.has(BOAT_KEY + 1847), "stored");
+  const left = JSON.parse(store.get(BOAT_KEY + 1847));
+  assert.ok(Math.hypot(left.x - a.cove.x, left.z - a.cove.z) > 2, "somewhere else than the cove");
+  const b = createBoatRide({ landmark, sea, bed: walker.bed, solids: walker.solids, magic: awake(), seed: 1847, storage });
+  b.update(1 / 30, none, cat);
+  assert.ok(Math.hypot(b.state.x - left.x, b.state.z - left.z) < 0.5, "where it was left");
+  store.set(BOAT_KEY + 1847, '{"x": 58, "z": 70, "heading": 0}');
+  const c = createBoatRide({ landmark, sea, bed: walker.bed, solids: walker.solids, magic: awake(), seed: 1847, storage });
+  c.update(1 / 30, none, cat);
+  assert.ok(Math.hypot(c.state.x - c.cove.x, c.state.z - c.cove.z) < 0.5, "the cove again");
+});

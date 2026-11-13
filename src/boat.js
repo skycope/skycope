@@ -140,7 +140,7 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
     attach({ walker, sea, magic: record, wake: wakeRecord }) {
       magic = record;
       wake = wakeRecord;
-      ride = createBoatRide({ landmark, sea, bed: walker.bed, solids: walker.solids, magic, swimLimit: SWIM_LIMIT });
+      ride = createBoatRide({ landmark, sea, bed: walker.bed, solids: walker.solids, magic, swimLimit: SWIM_LIMIT, seed });
       walker.ride = ride;
       record.afloat = null;
       return api;
