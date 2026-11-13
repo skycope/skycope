@@ -74,7 +74,7 @@ export function createForest(scene, seed, { light = false } = {}) {
   const obstacles = obstaclesFor(layout, rocks);
   const groundOccluders = occludersFor(layout, rocks);
   const groundCover = coverFor(layout, turf);
-  const groundField = addGround(scene, shared, groundOccluders, groundCover);
+  const groundField = addGround(scene, shared, groundOccluders, groundCover, rocks);
   addGroundDetails(scene, shared, groundDetailData(seed, producers, { light }), groundOccluders);
   // Sward, sprigs and fallen leaves round the cat (near-ground.js).
   const nearGround = createNearGround(scene, groundField, (material) =>
@@ -609,6 +609,30 @@ float dry = smoothstep( 1.2, 3.0, inland ) * ( 1.0 - smoothstep( 6.0, 11.0, inla
 float wet = 1.0 - smoothstep( 0.1, 1.6, inland + ( mottled - 0.5 ) * 0.8 );
 diffuseColor.rgb *= 0.78 + grain * mix( 0.3, 0.08, wet ) + ( mottled - 0.5 ) * 0.35;
 diffuseColor.rgb *= 1.0 + ripple * 0.06 * dry;
+// land-look: fine wind ripples a hand apart over the dry sand, wandering
+// and forking, their crests paler and their troughs holding darker grains;
+// averaged away where they would shimmer.
+float ripFade = 1.0 - smoothstep( 0.012, 0.03, px );
+float fine = 0.0;
+if ( ripFade * dry > 0.01 ) {
+  float ph = dot( coast, vec2( 0.5, 0.87 ) ) * 48.0 + dNoise( coast * 2.2 ) * 7.0 + dNoise( coast * 0.6 ) * 9.0;
+  fine = ( sin( ph ) * 0.5 + 0.5 );
+  fine = fine * fine * ( 3.0 - 2.0 * fine ) * smoothstep( 0.25, 0.6, dNoise( coast * 0.9 + 4.0 ) );
+  diffuseColor.rgb *= 1.0 + ( fine - 0.35 ) * 0.14 * dry * ripFade;
+}
+// The damp band above the swash: darker, a little cooler, with a soft sheen.
+float damp = smoothstep( 1.0, 1.8, inland ) * ( 1.0 - smoothstep( 2.4, 4.0, inland + ( dNoise( coast * 0.45 ) - 0.5 ) * 1.6 ) );
+diffuseColor.rgb *= mix( vec3( 1.0 ), vec3( 0.8, 0.8, 0.82 ), damp );
+// The strandline: the last high tide's line of dry kelp, shell and sea-bean
+// wrack, a ragged dark band that comes and goes along the beach.
+float strand = inland - ( 4.6 + ( dNoise( coast * 0.22 ) - 0.5 ) * 2.4 );
+float strandWrack = exp( -strand * strand * 9.0 ) * smoothstep( 0.4, 0.62, dNoise( coast * 0.35 + 21.0 ) );
+if ( strandWrack > 0.01 ) {
+  float bits = mix( smoothstep( 0.55, 0.75, dNoise( coast * 9.0 ) ), 0.45, smoothstep( 0.01, 0.04, px ) );
+  float shells = mix( step( 0.9, dNoise( coast * 31.0 + 5.0 ) ), 0.08, smoothstep( 0.004, 0.012, px ) );
+  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.13, 0.1, 0.06 ), strandWrack * bits * 0.8 );
+  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.78, 0.74, 0.68 ), strandWrack * shells * 0.6 );
+}
 // The vertex colour already carries most of wet sand's darkening (about
 // half the dry albedo); water in the pores adds a little more.
 diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.74, 0.72, 0.7 ), wet );
@@ -861,9 +885,10 @@ if ( nearDetail > 0.01 ) {
     }
   }
 }
-float detailHeight = grain * 0.004 + ripple * 0.012 * dry * ( 1.0 - grassy ) * ( 1.0 - lowCover ) + mottled * 0.03 * ( 1.0 - wet ) + rocky * strata * 0.08 + clutterHeight + sward * 0.02
+float detailHeight = grain * 0.004 + ( ripple * 0.012 + fine * 0.006 * ripFade ) * dry * ( 1.0 - grassy ) * ( 1.0 - lowCover ) + mottled * 0.03 * ( 1.0 - wet ) + rocky * strata * 0.08 + clutterHeight + sward * 0.02
   + bushDome + figRelief;
 float detailRoughness = mix( mix( mix( mix( 0.95, 0.9, rocky ), 0.8, bushCover ), 0.28, wet ), 0.35, clutterGloss );
+detailRoughness = mix( detailRoughness, 0.55, damp ); // land-look: the damp band's sheen
 detailRoughness = mix( detailRoughness, 0.55, figCover );
 // The swash (surf.js, on the sea's clock): each bore's film runs up the sand
 // and drains back, froth at its front and lace left in the backwash, little
@@ -1612,7 +1637,7 @@ function coverFor(layout, turf) {
   };
 }
 
-function addGround(scene, shared, occluders, cover) {
+function addGround(scene, shared, occluders, cover, rocks = []) {
   const { size, segments } = GROUND;
   const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
   const occlusion = occlusionField(occluders);
@@ -1660,6 +1685,38 @@ function addGround(scene, shared, occluders, cover) {
     color.toArray(colors, i * 3);
     mossy[i] = mossK * (1 - humus);
     shades[i] = 1 - occlusion(x, z);
+  }
+  // land-look: rocks sit in the sand, not on it: a soft contact shadow
+  // hugging each one's foot (where sky and bounce cannot reach), and the
+  // sand there a touch damper and cooler. Baked once into the vertex colour.
+  {
+    const bucket = new Map();
+    const key = (i, j) => i * 4096 + j;
+    for (const r of rocks) {
+      const rf = (r.scale.x + r.scale.z) * 0.5 * 0.95;
+      const reach = rf * 1.6 + 0.35;
+      for (let i = Math.floor((r.position.x - reach) / 4); i <= Math.floor((r.position.x + reach) / 4); i++)
+        for (let j = Math.floor((r.position.z - reach) / 4); j <= Math.floor((r.position.z + reach) / 4); j++) {
+          const k = key(i + 2048, j + 2048);
+          if (!bucket.has(k)) bucket.set(k, []);
+          bucket.get(k).push({ x: r.position.x, z: r.position.z, rf, reach });
+        }
+    }
+    for (let i = 0; i < position.count; i++) {
+      const x = position.getX(i), z = position.getZ(i);
+      const list = bucket.get(key(Math.floor(x / 4) + 2048, Math.floor(z / 4) + 2048));
+      if (!list) continue;
+      let dark = 0;
+      for (const q of list) {
+        const d = Math.hypot(x - q.x, z - q.z);
+        if (d < q.reach) dark = Math.max(dark, 1 - smoothstep(q.rf * 0.8, q.reach, d));
+      }
+      if (dark <= 0) continue;
+      colors[i * 3] *= 1 - 0.42 * dark;
+      colors[i * 3 + 1] *= 1 - 0.4 * dark;
+      colors[i * 3 + 2] *= 1 - 0.36 * dark;
+      shades[i] = Math.max(shades[i], 0.5 * dark);
+    }
   }
   geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
   geometry.setAttribute("canopyShade", new THREE.BufferAttribute(shades, 1));

@@ -239,7 +239,7 @@ export function createLandMagic({ shared, lamps = [], beacon = null, light = fal
       // The island's other lamps come on with it (a necklace of warm points).
       state.lampLights = caught * (0.3 + 0.7 * THREE.MathUtils.smoothstep(night, 0.02, 0.3)) * (1 + finale * 0.3);
       if (beacon && caught > 0) {
-        u.magicLamp.value.set(beacon.x, beacon.y, -beacon.z, lamp.strength * 2.4);
+        u.magicLamp.value.set(beacon.x, beacon.y, -beacon.z, lamp.strength * 1.5);
         u.magicBeam.value.set(Math.cos(beamAngle), Math.sin(beamAngle), 70, time);
         on = 1;
       } else u.magicLamp.value.w = 0;

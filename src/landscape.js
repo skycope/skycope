@@ -61,7 +61,7 @@ THREE.ShaderChunk.tonemapping_pars_fragment =
 // land-look: night light on the land (see updateLighting), exposed linear
 // units: the moonless key, what a full moon adds, and the sky fill's lift.
 // `?perf`: landscape.nightLand tunes them live.
-const NIGHT_LAND = { key: 0.05, moon: 0.09, fill: 2.2 };
+const NIGHT_LAND = { key: 0.085, moon: 0.14, fill: 3.4 };
 const MOON_KEY = new THREE.Color(0.62, 0.74, 1.0);
 
 // Geometry shares the sky shader's 315° heading, 6° pitch, and projection.
