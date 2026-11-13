@@ -214,7 +214,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       const night = THREE.MathUtils.smoothstep(celestial.scene, 1, 2);
       forest.updateWind(time, wind);
       forest.updateNight(night);
-      fauna.update(time, wind, night);
+      fauna.update(time, wind, night, boat?.afloatNow ?? null); // boat: the pod rides its bow
       places.update({ time, night, wind, eye: [flight.x, flight.y, flight.z], pose }); // places:
       const sinA = Math.sin(flight.azimuth);
       const cosA = Math.cos(flight.azimuth);

@@ -119,6 +119,10 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
     events,
     lamp,
     pois: [jellies.poi],
+    // magic.afloat's record while the cat is aboard, else null (fauna.js).
+    get afloatNow() {
+      return magic?.afloat ?? null;
+    },
     // The lantern for the cat's coat (view space xyz, strength), or null.
     get catLamp() {
       return launched && ride?.afloat && lampUniforms.boatLamp.value.w > 0 ? lampUniforms.boatLamp.value : null;

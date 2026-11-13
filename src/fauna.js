@@ -85,6 +85,10 @@ export function createFauna(group, seed) {
   const drift = new THREE.Vector2();
   const forward = new THREE.Vector2();
 
+  // boat: how far the pod has come over to ride a boat's bow (0…1), eased,
+  // and the clock it last updated on.
+  const bow = { w: 0, last: 0 };
+
   function place(mesh, index, x, y, z, rotation) {
     position.set(x, y, z);
     quaternion.setFromEuler(rotation);
@@ -92,7 +96,9 @@ export function createFauna(group, seed) {
     mesh.setMatrixAt(index, matrix);
   }
   return {
-    update(time, wind, night) {
+    // afloat: magic.afloat (boat.js) or null: a boat under way within reach
+    // of the pod draws it over to ride its bow wave.
+    update(time, wind, night, afloat = null) {
       shared.time.value = time;
       // Birds roost at night.
       const visible = night < 0.7;
@@ -145,6 +151,18 @@ export function createFauna(group, seed) {
       // Dolphins: each surfaces on its own breathing cycle, travelling along
       // the pod's slow circuit round the island.
       const podAngle = time * 0.012 + 1.3;
+      // boat: the pod comes to a boat making way within 45 m of it, and
+      // goes back to its circuit when the boat stops or leaves.
+      const dtBow = Math.min(0.1, Math.max(0, time - bow.last));
+      bow.last = time;
+      let wantBow = 0;
+      if (afloat && afloat.speed > 0.5) {
+        const px = ISLAND.x + Math.cos(podAngle) * 108, pz = ISLAND.z + Math.sin(podAngle) * 108;
+        if (Math.hypot(afloat.x - px, afloat.z - pz) < 45 || bow.w > 0.3) wantBow = 1;
+      }
+      bow.w += (wantBow - bow.w) * Math.min(1, dtBow * (wantBow ? 0.35 : 0.2));
+      if (bow.w < 1e-3) bow.w = 0;
+      const bfx = afloat ? Math.sin(afloat.heading) : 0, bfz = afloat ? Math.cos(afloat.heading) : 1;
       for (let i = 0; i < dolphins.count; i++) {
         const lane = (i % 3) - 1;
         const cycle = (time * 0.22 + i * 0.37) % 1;
@@ -159,8 +177,21 @@ export function createFauna(group, seed) {
         const y = leap > 0 ? leap * 1.1 - 0.4 : -2;
         // Nose up leaving the water, nose down re-entering (+x rotation dips +z).
         const pitch = cycle < 0.35 ? -Math.cos((cycle / 0.35) * Math.PI) * 0.9 : 0;
-        euler.set(pitch, -Math.atan2(forward.y, forward.x) + Math.PI / 2, 0);
-        place(dolphins.mesh, i, x + forward.x * along, y, z + forward.y * along, euler);
+        let yaw = -Math.atan2(forward.y, forward.x) + Math.PI / 2;
+        let dx = x + forward.x * along, dz = z + forward.y * along;
+        // boat: riding the bow: in turn either side of the stem, a few
+        // metres ahead, surfacing to breathe on the same cycles.
+        if (bow.w > 0 && afloat) {
+          const side = (i % 2 ? 1 : -1) * (0.9 + (i % 3) * 0.6);
+          const ahead = 2.6 + (i % 4) * 1.3 + Math.sin(time * 0.7 + i) * 0.6;
+          const bx = afloat.x + bfx * ahead + bfz * side, bz = afloat.z + bfz * ahead - bfx * side;
+          const w = bow.w * bow.w * (3 - 2 * bow.w);
+          dx += (bx - dx) * w;
+          dz += (bz - dz) * w;
+          yaw += Math.atan2(Math.sin(afloat.heading - yaw), Math.cos(afloat.heading - yaw)) * w;
+        }
+        euler.set(pitch, yaw, 0);
+        place(dolphins.mesh, i, dx, y, dz, euler);
       }
       dolphins.mesh.instanceMatrix.needsUpdate = true;
     },

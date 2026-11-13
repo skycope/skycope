@@ -29,8 +29,8 @@ export const BOAT = {
   rocker: 0.1,
   mass: 240,
   // The wisp's pull on the stem (N): an easy glide, and hurrying.
-  tow: 62,
-  hurry: 150,
+  tow: 80,
+  hurry: 190,
   // Offshore metres (−shoreDistance): the sea starts to turn it home, and
   // the farthest it goes. The whale ranges 95–120 m out.
   outerSoft: 118,
