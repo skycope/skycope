@@ -261,7 +261,9 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
           const toPerch = perch.set ? Math.hypot(perch.x - cat.x, perch.z - cat.z) : Infinity;
           // (With a route, the perch may stand off the straight line on purpose.)
           const perchToTarget = perch.set && !route ? Math.hypot(target.x - perch.x, target.z - perch.z) : -Infinity;
-          if (toTarget < 9) {
+          // Nearly there (or as near as the way goes): wait over the keepsake.
+          const routeEnd = route ? Math.hypot(route[route.length - 2] - cat.x, route[route.length - 1] - cat.z) : Infinity;
+          if (toTarget < 9 || (routeEnd < 3 && toTarget < 16)) {
             // Nearly there: wait over the keepsake itself.
             perch.x = target.x;
             perch.z = target.z;
