@@ -123,6 +123,7 @@ uniform float angle;
 uniform float reach;
 varying vec2 vBeam;
 varying float vSide;
+varying float vClear;
 void main() {
   float a = angle + beam.z * 3.14159265;
   vec3 dir = normalize( vec3( cos( a ), -0.015, sin( a ) ) );
@@ -135,18 +136,24 @@ void main() {
   vBeam = beam.xy;
   // Seen end-on the sheet is edge-on to the eye: the flash takes over.
   vSide = smoothstep( 0.05, 0.35, s );
-  gl_Position = projectionMatrix * viewMatrix * vec4( axis + side * beam.y * width, 1.0 );
+  vec3 world = axis + side * beam.y * width;
+  // land-magic: the sheet thins out low over the land and close to the eye,
+  // so where it would cut into sand, rock or hillside (a hard pale wedge)
+  // it has already faded: soft edges, as the haze would give.
+  vClear = smoothstep( 5.0, 11.0, world.y ) * smoothstep( 6.0, 24.0, length( axis - cameraPosition ) );
+  gl_Position = projectionMatrix * viewMatrix * vec4( world, 1.0 );
 }`;
 const BEAM_FRAGMENT = /* glsl */ `
 uniform vec3 glowColour;
 uniform float strength;
 varying vec2 vBeam;
 varying float vSide;
+varying float vClear;
 void main() {
   float t = vBeam.x;
   float across = exp( -vBeam.y * vBeam.y * 4.0 ) * ( 1.0 - vBeam.y * vBeam.y );
   float along = pow( 1.0 - t, 1.8 ) * ( 0.35 + 0.65 * exp( -t * 7.0 ) );
-  gl_FragColor = vec4( glowColour * strength * across * along * vSide, 1.0 );
+  gl_FragColor = vec4( glowColour * strength * across * along * vSide * vClear, 1.0 );
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 }`;
