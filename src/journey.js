@@ -39,7 +39,7 @@ const SHOTS = {
   lamp: { elevation: 0.08, distance: 11, wide: [0.08, 14] },
   // The sky is the picture: the camera comes down level with the cat so
   // the upper half of the frame is the sky leaning close.
-  stars: { elevation: 0.14, distance: 8, wide: [0.04, 10.5], camHome: 6.5, end: 8 },
+  stars: { elevation: 0.16, distance: 8.5, wide: [0.1, 10.5], camHome: 6.5, end: 8 },
   // Above the scrub behind the pool, looking out to where the sea's folk come.
   seafolk: { elevation: 0.45, distance: 7.5, wide: [0.5, 9.5] },
   // The boat rises off its logs and glides down to its cove (8 s): the
@@ -114,7 +114,8 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
       goneAt: null,
       // The lighthouse's gift is its lamp: the wisp goes in at the top.
       y: ground + (event.type === "finale" ? 2 : place.gift === "lamp" ? 16.4 : 1.1),
-      shot: SHOTS[event.type === "finale" ? "finale" : place.gift] ?? SHOTS.default,
+      // The sky only leans close in the dark: by day the stars shot is the usual one.
+      shot: (place.gift === "stars" && (state.celestial?.scene ?? 0) < 1.5 ? null : SHOTS[event.type === "finale" ? "finale" : place.gift]) ?? SHOTS.default,
       // Look from the cat toward the place, so it stands beyond the cat.
       yaw: Math.atan2(place.x - cat.x, place.z - cat.z),
       carded: false,
