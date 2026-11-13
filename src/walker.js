@@ -407,6 +407,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
         const churn = smooth(0.4, 1.6, speed) * smooth(0.03, 0.12, depth) * 0.7;
         const strength = Math.max(immersion * (0.45 + 0.55 * Math.min(1, speed / 0.6)), churn);
         wake.body.half = 0.2 * CAT_SCALE * lerp(0.6, 1, cat.swim);
+        wake.body.trailBack = 0; // boat: (the boat drops its trail from the transom)
         wake.body.flow = depth > 0 ? cat.flow : [0, 0];
         wake.move(cat.x, cat.z, cat.heading, immersion, speed, cat.air > 0 ? 0 : strength, lerp(0.09, 0.075, cat.swim) * CAT_SCALE);
       }

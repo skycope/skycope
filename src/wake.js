@@ -22,7 +22,9 @@ export function createWake() {
   const rings = [];
   const bound = new Float64Array(3);
   const paws = Array.from({ length: WAKE.paws }, () => [0, 0, 0]);
-  const body = { x: 0, z: 0, heading: 0, immersion: 0, speed: 0, half: 0.2, radius: 0.08, strength: 0, flow: [0, 0] };
+  // boat: trailBack drops the trail that many metres behind the body's
+  // middle (a boat's transom), so its foam starts where the water leaves it.
+  const body = { x: 0, z: 0, heading: 0, immersion: 0, speed: 0, half: 0.2, radius: 0.08, strength: 0, flow: [0, 0], trailBack: 0 };
   let now = 0;
   let idle = false;
 
@@ -53,6 +55,11 @@ export function createWake() {
       radius = Math.max(0.008, Math.min(1, radius));
       Object.assign(body, { x, z, heading, immersion, speed, strength, radius });
       if (strength < 0.03) return;
+      // boat: from the transom.
+      if (body.trailBack) {
+        x -= Math.sin(heading) * body.trailBack;
+        z -= Math.cos(heading) * body.trailBack;
+      }
       const last = trail[0];
       // boat: a wider body drops its points further apart (a boat's
       // 0.5 m waterline every 0.6 m), so the trail keeps its seconds.

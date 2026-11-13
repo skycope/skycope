@@ -204,7 +204,8 @@ export function createBoat(land, { light = false, shared, landmark, hull = null 
         wake.body.flow = WAKE_FLOW;
         WAKE_FLOW[0] = -Math.sin(s.heading) * s.u;
         WAKE_FLOW[1] = -Math.cos(s.heading) * s.u;
-        const strength2 = 0.5 + 1.2 * Math.min(1, speed / 1.6);
+        const strength2 = 0.6 + 1.4 * Math.min(1, speed / 1.2);
+        wake.body.trailBack = 1.9;
         wake.move(s.x + Math.sin(s.heading) * 0.15, s.z + Math.cos(s.heading) * 0.15, s.heading, 1, speed, strength2, 0.5);
       }
     },

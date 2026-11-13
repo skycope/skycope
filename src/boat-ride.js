@@ -316,10 +316,13 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
   // Aboard: the cat stands at the station, riding the deck; a cat that has
   // decided it is captain. The pose fields follow walker.js's.
   function holdCat(cat, dt, steering) {
-    const st = toWorld(STATION.x, STATION.z);
+    // Standing, front paws up on the breasthook; sitting, a step back so
+    // all four are on the bow sheets.
+    const sz = STATION.z - 0.2 * clamp(cat.sit, 0, 1);
+    const st = toWorld(STATION.x, sz);
     cat.x = st.x;
     cat.z = st.z;
-    cat.y = deckWorld(STATION.x, STATION.z);
+    cat.y = deckWorld(STATION.x, sz);
     // Faces the bow; the head turns into the wind of its going and to
     // whatever is off the bow.
     cat.heading = s.heading;
