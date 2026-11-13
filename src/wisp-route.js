@@ -10,8 +10,9 @@ const HALF = 96;
 const N = Math.ceil((HALF * 2) / CELL);
 // The steepest step between neighbouring cells a cat takes (metres per cell).
 const CLIMB = 1.1;
-// A boulder top this far above the ground is a rock to go round.
-const ROCK = 0.4;
+// A boulder top (or wall) this far above the ground is a rock to go round;
+// lower ones (the lighthouse yard's wall) the cat hops onto.
+const ROCK = 0.85;
 
 export function createRoutes({ obstacles = null, surface = groundHeight, reach = 21 } = {}) {
   let blocked = null;

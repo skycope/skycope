@@ -530,7 +530,7 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
           goal.z = dive.z + Math.cos(t * 0.5) * Math.min(4, 1 + t * 0.4);
           goal.y = dive.y + Math.min(2.6, 0.8 + t * 0.3);
           speedCap = 6;
-          rest = 1.6;
+          rest = 1.15;
           break;
         }
         default:

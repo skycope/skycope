@@ -35,7 +35,8 @@ const WHITE = [1, 0.95, 0.85];
 const SHOTS = {
   default: { elevation: 0.32, distance: 7, wide: [0.4, 8.5] },
   fireflies: { elevation: 0.22, distance: 6, wide: [0.26, 7] },
-  lamp: { elevation: 0.12, distance: 10, wide: [0.16, 13] },
+  // Low and far, so the lit lantern at the top of the tower is in the frame.
+  lamp: { elevation: 0.08, distance: 11, wide: [0.08, 14] },
   // The sky is the picture: the camera comes down level with the cat so
   // the upper half of the frame is the sky leaning close.
   stars: { elevation: 0.14, distance: 8, wide: [0.04, 10.5], camHome: 6.5, end: 8 },
