@@ -37,6 +37,9 @@ const SHOTS = {
   fireflies: { elevation: 0.22, distance: 6, wide: [0.27, 7.5] },
   lamp: { elevation: 0.12, distance: 10, wide: [0.16, 13] },
   stars: { elevation: 0.3, distance: 7, wide: [0.48, 10] },
+  // The boat rises off its logs and glides down to its cove (8 s): the
+  // camera stands back and turns with the hull, and holds longer.
+  boat: { elevation: 0.3, distance: 8, wide: [0.36, 12], follow: true, camHome: 10, end: 11.5 },
 };
 
 export function createJourney({ state, card, findLine, now, onChange = () => {} }) {
@@ -177,12 +180,21 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
     }
     // Ease back, low, to take it in (the place beyond the cat), then home.
     const s = c.shot;
-    if (g < WAKE.camHome) camAim(c.yaw, g < 0 ? s.elevation : s.wide[0], g < 0 ? s.distance : s.wide[1], g < 0 ? 1.6 : 0.45, dt);
+    let yaw = c.yaw;
+    // The boat: keep the hull in the picture as it glides to its cove.
+    const ride = s.follow ? state.boat?.ride : null;
+    if (ride?.cove && g >= 0) {
+      const k = ride.ride?.state === "launching" ? ride.ride.launch : 1;
+      const hx = c.place.x + (ride.cove.x - c.place.x) * k;
+      const hz = c.place.z + (ride.cove.z - c.place.z) * k;
+      yaw = Math.atan2(hx - cat.x, hz - cat.z);
+    }
+    if (g < (s.camHome ?? WAKE.camHome)) camAim(yaw, g < 0 ? s.elevation : s.wide[0], g < 0 ? s.distance : s.wide[1], g < 0 ? 1.6 : s.follow ? 0.9 : 0.45, dt);
     else camAim(cam.home.yaw, cam.home.elevation, cam.home.distance, 1.8, dt);
     // Time holds its breath, then runs again.
     const held = g >= 0 && g < WAKE.hold;
     scale += ((held ? 0.3 : 1) - scale) * Math.min(1, dt * (held ? 3 : 1));
-    if (g > WAKE.end) finish();
+    if (g > (s.end ?? WAKE.end)) finish();
     void cat;
   }
 
@@ -264,6 +276,8 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
       ctx.sunset = sun < 6 && sun > -4 && (celestial?.sunAzimuth ?? 0) > 180;
       ctx.gifts = quest.count;
       ctx.trying = trying;
+      // Towing the boat, the wisp is where the boat put it (boat.js afterThread).
+      if (magic.afloat && mind.visible) mind.place(magic.wisp.position[0], magic.wisp.position[1], magic.wisp.position[2]);
       mind.update(dt, ctx);
       ctx.call = false;
       // The wisp answers a meow with a little chime once it is close.

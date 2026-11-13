@@ -162,6 +162,14 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
       perch.set = false;
       set("greet");
     },
+    // Somewhere else moved it (the boat tows it while the cat is aboard):
+    // carry on from there, so it does not slide back across the bay after.
+    place(x, y, z) {
+      body.x = x;
+      body.y = y;
+      body.z = z;
+      vel.x = vel.y = vel.z = 0;
+    },
     // Back to before it met the cat (begin again).
     reset() {
       visible = false;
