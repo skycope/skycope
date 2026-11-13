@@ -25,7 +25,9 @@ test("the escort follows the cat, stays bounded, scatters on a leap and settles 
   for (let i = 0; i < 600; i++) s = steer.step(1 / 60, pose(i * 0.08, 0)); // ~4.8 m/s for 10 s
   assert.ok(s.x > 40 && s.x < 48.1, `centre follows behind the cat (${s.x})`);
   assert.ok(s.vx > 4 && s.vx < 5.2, "streams along the cat's velocity");
-  assert.ok(s.spread < 2, "spread stays small while running");
+  assert.ok(s.spread < 3.5 && s.gather < 0.1, "running, they drift wide and few");
+  for (let i = 0; i < 480; i++) s = steer.step(1 / 60, pose(48, 0));
+  assert.ok(s.gather > 0.8 && s.spread < 1.8, "they gather round a cat that stops");
   for (let i = 0; i < 30; i++) s = steer.step(1 / 60, pose(48, 0, { air: 0.5 }));
   assert.ok(s.scatter > 0.9 && s.spread > 3, "a leap throws them wide");
   for (let i = 0; i < 300; i++) s = steer.step(1 / 60, pose(48, 0));
@@ -67,7 +69,7 @@ test("nothing is lit while the lamp sleeps; it catches, then the beams turn", ()
   }
   assert.equal(shared.magicLamp.value.w, 0);
   assert.equal(shared.magicOn.value, 0, "every gift asleep: the land's magic block is skipped");
-  assert.equal(PRINT_MAGIC.level.value, 0.12, "only a hint in the steps at night");
+  assert.equal(PRINT_MAGIC.level.value, 0.05, "only a hint in the steps at night");
   magic.wake("lamp");
   const angles = [];
   for (let i = 0; i < 600; i++) {
@@ -76,7 +78,7 @@ test("nothing is lit while the lamp sleeps; it catches, then the beams turn", ()
     angles.push(st.lamp.angle);
   }
   const st = land.state;
-  assert.ok(st.lamp.lit > 0.95 && st.lampLights > 0.9);
+  assert.ok(st.lamp.lit > 0.95 && st.lampLights > 0.55);
   assert.ok(shared.magicLamp.value.w > 0 && shared.magicOn.value === 1);
   assert.ok(angles[60] < 0.05, "still while the lamp catches");
   assert.ok(angles[599] > 0.5, "then the first sweep");

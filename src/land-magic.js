@@ -98,7 +98,7 @@ if ( magicOn > 0.0 ) {
     float small = 1.0 - smoothstep( 0.6, 2.0, 70.0 * length( fwidth( mWorld ) ) );
     float dew = step( 0.993, magicHash( cell ) ) * spot * small * smoothstep( 0.55, 0.85, mN.y )
       * ( 0.5 + 0.5 * sin( magicHash( cell + 3.1 ) * 40.0 + magicBeam.w * 2.0 + dot( mView, vec3( 30.0 ) ) ) );
-    mSheen = magicSheen.rgb * ( skyward * ( 0.25 + rim * 0.9 ) ) + magicSheen.rgb * dew * magicSheen.w * 5.0;
+    mSheen = magicSheen.rgb * ( skyward * ( 0.25 + rim * 0.9 ) ) + magicSheen.rgb * dew * magicSheen.w * 2.5;
   }
   reflectedLight.directDiffuse += mLight * diffuseColor.rgb;
   reflectedLight.directSpecular += mLight * 0.035 + mSheen + mEdge;
@@ -253,9 +253,10 @@ export function createLandMagic({ shared, lamps = [], beacon = null, light = fal
       // Its glass burns by day too once awake; its beams read as the sky darkens.
       lamp.strength = caught * (0.18 + 0.82 * night) * (1 + finale * 0.35);
       // The island's other lamps come on with it (a necklace of warm points).
-      state.lampLights = caught * (0.3 + 0.7 * THREE.MathUtils.smoothstep(night, 0.02, 0.3)) * (1 + finale * 0.3);
+      // (Restraint: the necklace is a few small warm points, not floodlights.)
+      state.lampLights = caught * (0.2 + 0.4 * THREE.MathUtils.smoothstep(night, 0.02, 0.3)) * (1 + finale * 0.2);
       if (beacon && caught > 0) {
-        u.magicLamp.value.set(beacon.x, beacon.y, -beacon.z, lamp.strength * 1.5);
+        u.magicLamp.value.set(beacon.x, beacon.y, -beacon.z, lamp.strength * 1.0);
         u.magicBeam.value.set(Math.cos(beamAngle), Math.sin(beamAngle), 70, time);
         on = 1;
       } else u.magicLamp.value.w = 0;
@@ -277,8 +278,8 @@ export function createLandMagic({ shared, lamps = [], beacon = null, light = fal
       // 2: the wisp, the quest's guiding light (magic.wisp, thread.js).
       const wisp = magic?.wisp;
       if (wisp?.visible && wisp.glow > 0) {
-        glows[2].set(wisp.position[0], wisp.position[1], -wisp.position[2], 2.2);
-        const k = wisp.glow * (0.12 + 0.55 * night);
+        glows[2].set(wisp.position[0], wisp.position[1], -wisp.position[2], 1.5);
+        const k = wisp.glow * (0.04 + 0.2 * night);
         colours[2].setRGB(wisp.colour[0] * k, wisp.colour[1] * k, wisp.colour[2] * k);
         on = 1;
       } else colours[2].setRGB(0, 0, 0);
@@ -300,7 +301,7 @@ export function createLandMagic({ shared, lamps = [], beacon = null, light = fal
         const reach = pulse.reach ?? 150;
         if (r >= 0 && r < reach) {
           const fade = (1 - THREE.MathUtils.smoothstep(r, reach * 0.55, reach)) * THREE.MathUtils.smoothstep(r, 0, 4);
-          u.magicPulse.value.set(pulse.x, -pulse.z, r, fade * (1.4 - 0.5 * night));
+          u.magicPulse.value.set(pulse.x, -pulse.z, r, fade * (0.7 - 0.25 * night));
           // Saturated beyond the gift's own colour: the night tonemap
           // greys dim light toward blue, and the ring must stay its colour.
           const c = pulse.colour ?? [1, 1, 1];
@@ -315,7 +316,7 @@ export function createLandMagic({ shared, lamps = [], beacon = null, light = fal
       // gift awake, and brightest at the finale (cat-ground.js prints).
       let awake = 0;
       for (const g of GIFT_LIST) awake += levels[g] ?? 0;
-      PRINT_MAGIC.level.value = (0.12 * night + 0.88 * (awake / GIFT_LIST.length)) * (1 + finale * 0.5);
+      PRINT_MAGIC.level.value = (0.05 * night + 0.4 * (awake / GIFT_LIST.length)) * (1 + finale * 0.3);
       PRINT_MAGIC.night.value = night;
       // The step glow takes on the colours of the gifts awake.
       mixGiftColour(levels, PRINT_MAGIC.colour.value, night);
@@ -323,7 +324,7 @@ export function createLandMagic({ shared, lamps = [], beacon = null, light = fal
       // Starlight (the beacon's gift): a cool sheen on the night land.
       const stars = (levels.stars ?? 0) * THREE.MathUtils.smoothstep(night, 0.3, 0.9);
       if (stars > 0) {
-        u.magicSheen.value.set(0.007 * stars, 0.0105 * stars, 0.022 * stars, light ? 0 : stars);
+        u.magicSheen.value.set(0.0035 * stars, 0.0052 * stars, 0.011 * stars, light ? 0 : stars);
         on = 1;
       } else u.magicSheen.value.set(0, 0, 0, 0);
 
