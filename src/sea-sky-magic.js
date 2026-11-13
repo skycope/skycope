@@ -47,7 +47,11 @@ export const TIDEGLOW = { colour: [0.08, 0.62, 1.0], sandSeconds: 2.5 };
 
 // After `reach` the sea lets the ring run on toward the horizon, fading
 // out by this many reaches.
-export const PULSE_SEA_REACH = 3.2;
+export const PULSE_SEA_REACH = 1.3;
+
+// The finale is a ceremony: full for its first minute, then it settles to
+// a quiet share of itself (magic.w carries the settled strength).
+export const FINALE_SETTLE = { seconds: 60, rest: 0.3 };
 
 // The sky and water shaders carry `@id(7301) override MAGIC_AWAKE` (view.wgsl).
 // magicVariant(source, false) compiles every gift's code out; main.js and
@@ -79,6 +83,11 @@ export function magicUniforms(magic, { time = magic?.clock ?? 0, lamp = null, la
   };
   const clock = magic.clock ?? time;
   u.magic = [level("tideglow"), level("stars"), level("lamp"), level("finale")];
+  if (u.magic[3] > 0) {
+    const woke = magic.wakeAt?.finale;
+    const age = Math.max(0, Number.isFinite(woke) ? clock - woke : clock);
+    u.magic[3] *= FINALE_SETTLE.rest + (1 - FINALE_SETTLE.rest) * Math.exp(-age / FINALE_SETTLE.seconds);
+  }
   if (u.magic[1] > 0) {
     const woke = magic.wakeAt?.stars;
     u.magic2[0] = Math.max(0, Number.isFinite(woke) ? clock - woke : clock) + 1e-3;

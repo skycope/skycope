@@ -17,7 +17,11 @@ test("awake gifts fill their lanes", () => {
   const magic = createMagic({ force: ["tideglow", "stars", "lamp", "finale"] });
   magic.update(1 / 60, 30);
   const u = magicUniforms(magic, { time: 30, lamp: { x: 5, y: 16, z: -7 } });
-  assert.deepEqual(u.magic, [1, 1, 1, 1]);
+  assert.deepEqual(u.magic.slice(0, 3), [1, 1, 1]);
+  // The finale settles after its first minute (awake at load: from load).
+  assert.ok(u.magic[3] > 0.6 && u.magic[3] < 0.8);
+  magic.update(1 / 60, 600);
+  assert.ok(Math.abs(magicUniforms(magic, { time: 600 }).magic[3] - 0.3) < 0.01);
   // Awake at load: the figures draw from load.
   assert.ok(Math.abs(u.magic2[0] - 30) < 0.01);
   assert.deepEqual(u.lamp.slice(0, 3), [5, 16, -7]);
@@ -64,7 +68,7 @@ test("the stars gift brings meteors and answers a meow with a falling star", asy
     for (let t = 0; t < 600; t += 0.5) if (skyEventFrame({ ...base, time: t, magic }).uniforms.meteor[3] > 0) n++;
     return n;
   };
-  assert.ok(count({ stars: 1 }) > count(null) * 2);
+  assert.ok(count({ stars: 1 }) > count(null) * 1.4);
   // Asleep, a meow brings nothing; awake, a star falls after the delay.
   const callAt = 500.3;
   const at = callAt + CALL_ANSWER.delay + 0.15;

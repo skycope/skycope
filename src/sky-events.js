@@ -305,7 +305,7 @@ export function meteorInSlot(seed, slot, conditions, forced = null, magic = null
     green: smoothstep(35, 65, speed) * (0.4 + 0.6 * r(11)),
     train: fireball ? 2.5 + 3 * r(12) : magic?.stars > 0 ? (1.5 + 2.5 * r(12)) * magic.stars : 0,
     // Persistent train brightness per unit flux (the gift's are brighter).
-    glow: magic?.stars > 0 ? 0.0004 + 0.004 * magic.stars : 0.0004,
+    glow: magic?.stars > 0 ? 0.0004 + 0.0016 * magic.stars : 0.0004,
   };
 }
 
@@ -403,8 +403,8 @@ const FLASH_RADIANCE = 0.03;
 
 export function skyEventFrame({ seed, time, date = null, celestial, weather = null, sunlit = null, lighting = null, force = null, view = null, frameSeconds = 1 / 60, conditions = null, magic = null }) {
   let c = conditions ?? skyConditions({ celestial, weather, sunlit, date });
-  // sea-sky-magic: the stars gift brings meteors six times as often.
-  if (magic?.stars > 0) c = { ...c, meteorRate: c.meteorRate * (1 + 5 * magic.stars) };
+  // sea-sky-magic: the stars gift brings meteors twice as often.
+  if (magic?.stars > 0) c = { ...c, meteorRate: c.meteorRate * (1 + magic.stars) };
   const facing = view ? { bearing: ((view.azimuth / DEG) % 360 + 360) % 360, elevation: Math.max(15, (view.pitch / DEG) + 12) } : { bearing: 0, elevation: 35 };
   const forced = (name) => force === name || (Array.isArray(force) && force.includes(name));
   const u = quietSkyUniforms();

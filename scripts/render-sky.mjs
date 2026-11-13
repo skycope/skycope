@@ -303,6 +303,12 @@ for (const [name, time, weather, rain, view, windOverride, skyOptions] of [
   ["pulse-day", "2026-09-08T15:00:00Z", [0, 0, 0, 0], 0, [292, -0.12, [8.3, 4, 1.7]], null, { magic: { gifts: [], pulse: { x: -9.4, z: 43.8, at: 22.2, gift: "lamp", speed: 18, reach: 150 } } }],
   ["finale", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [200, 0.3, [8.3, 3, 1.7]], null, { magic: { gifts: ["fireflies", "tideglow", "lamp", "stars", "seafolk", "boat", "finale"], age: 40 } }],
   ["finale-sea", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [44, -0.15, [8.3, 6, 1.7]], null, { magic: { gifts: ["fireflies", "tideglow", "lamp", "stars", "seafolk", "boat", "finale"], age: 40 } }],
+  // Every gift long awake (the finale settled): still a real night, and a
+  // real day, with a few wonders in it.
+  ["all-night", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [44, -0.12, [8.3, 2, 1.7]], null, { magic: { gifts: ["fireflies", "tideglow", "lamp", "stars", "seafolk", "boat", "finale"], age: 600 } }],
+  ["all-night-sky", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [200, 0.3, [8.3, 3, 1.7]], null, { magic: { gifts: ["fireflies", "tideglow", "lamp", "stars", "seafolk", "boat", "finale"], age: 600 } }],
+  ["all-day", "2026-09-08T12:00:00Z", [0.3, 0.1, 0.2, 0.3], 0, [138, -0.2, [13.2, 1.9, 14.1]], null, { magic: { gifts: ["fireflies", "tideglow", "lamp", "stars", "seafolk", "boat", "finale"], age: 600 } }],
+  ["all-dusk", "2026-09-08T16:30:00Z", [0.3, 0.1, 0.2, 0.3], 0, [276, 0.05, [8.3, 2.5, 1.7]], null, { magic: { gifts: ["fireflies", "tideglow", "lamp", "stars", "seafolk", "boat", "finale"], age: 600 } }],
 ]) {
   // ONLY=name,name: render just those fixtures (quick A/B runs).
   if (process.env.ONLY && !process.env.ONLY.split(",").includes(name)) continue;
