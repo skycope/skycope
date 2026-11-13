@@ -490,6 +490,9 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       uniforms.catBlink.value = debug.blink ?? Math.min(1, Math.max(blink, pose.sleepy * (1 + state.lie * 0.9), yawn * 0.8, (light.rain ?? 0) * 0.25));
       uniforms.catPupil.value = pupilResponse(uniforms.catPupil.value, light, step);
       uniforms.catEyeshine.value = light.night;
+      // boat: the boat's lantern ([x, y, z] view space, w), or none.
+      if (light.lamp) uniforms.catLamp.value.copy(light.lamp);
+      else uniforms.catLamp.value.w = 0;
       // The see-through silhouette is unlit: keep it as dim as the scene.
       ghost.color.setRGB(0.95, 0.85, 0.7).multiplyScalar(0.12 + 0.88 * (1 - light.night) * (0.4 + 0.6 * light.direct));
       state.gazeTimer -= step;

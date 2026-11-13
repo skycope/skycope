@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { groundHeight } from "./terrain.js";
-import { capsule, cylinder } from "./blockers.js";
+import { capsule, cylinder, setCapsule } from "./blockers.js";
 import { seededRandom } from "./random.js";
 import { part, merge, sweep, lathe, place, smooth01, srgb, staticMesh, glowMaterial } from "./place-kit.js";
 import { heightTile } from "./place-lighthouse.js";
@@ -32,6 +32,9 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
   const ground = (x, z) => groundHeight(p.x + x, p.z + z);
   const anchor = (q) => ground(q.x, q.z);
   const wood = [], woodFar = [], paint = [], net = [], glow = [];
+  // boat: the hull (and the oar across it) is its own mesh, so it can leave
+  // when the boat gift launches it (boat.js); hullFar its far level.
+  const hullParts = [], hullFar = [];
   const trunks = [];
   // solid: the hull and traps the camera keeps out of (blockers.js).
   const blockers = [];
@@ -84,8 +87,8 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
     out.copy(t < 0.42 ? ANTIFOUL : t < 0.88 ? TOPSIDE : RUBBING);
   };
   const shadeUnder = (q) => 0.4 * (1 - smooth01(restAt((q.x * fx + q.z * fz) / (L / 2)) - 0.2, restAt((q.x * fx + q.z * fz) / (L / 2)) + 0.3, q.y));
-  wood.push(part(hull(light ? 18 : 28, light ? 18 : 30), { colour: hullColour, shade: shadeUnder, anchor }));
-  woodFar.push(part(hull(10, 6), { colour: hullColour, anchor }));
+  hullParts.push(part(hull(light ? 18 : 28, light ? 18 : 30), { colour: hullColour, shade: shadeUnder, anchor })); // boat:
+  hullFar.push(part(hull(10, 6), { colour: hullColour, anchor })); // boat:
   // Transom: a flat board closing the stern.
   {
     const positions = [];
@@ -98,7 +101,7 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
     g.computeVertexNormals();
-    wood.push(part(g, { colour: hullColour, anchor }));
+    hullParts.push(part(g, { colour: hullColour, anchor })); // boat:
   }
   // Keel strip along the top, stem at the bow.
   {
@@ -107,7 +110,7 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
       const [x, y, z] = hullPoint(-1 + k / 5, 0, 1);
       pts.push(new THREE.Vector3(x, y + 0.03, z));
     }
-    wood.push(part(sweep(pts, pts.map(() => [0.035, 0.05]), 4), { colour: ANTIFOUL }));
+    hullParts.push(part(sweep(pts, pts.map(() => [0.035, 0.05]), 4), { colour: ANTIFOUL })); // boat:
   }
   // Two driftwood logs it rests on.
   for (const s of [-0.62, 0.55]) {
@@ -127,7 +130,7 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
   };
   {
     const [x0, z0] = at(-0.4, -1.4), [x1, z1] = at(0.6, 1.2);
-    oar(new THREE.Vector3(x0, ground(x0, z0) + 0.03, z0), new THREE.Vector3(x1, keelAt(0.25) + 0.05, z1), wood);
+    oar(new THREE.Vector3(x0, ground(x0, z0) + 0.03, z0), new THREE.Vector3(x1, keelAt(0.25) + 0.05, z1), hullParts); // boat:
     const [x2, z2] = at(1.2, 1.25), [x3, z3] = at(-1.3, 1.05);
     oar(new THREE.Vector3(x2, ground(x2, z2) + 0.04, z2), new THREE.Vector3(x3, ground(x3, z3) + 0.04, z3), wood);
   }
@@ -187,6 +190,11 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
   near.add(staticMesh(merge(wood), materials.wood), staticMesh(merge(paint), materials.paint), staticMesh(merge(net), materials.net), staticMesh(merge(glow), materials.glow, { cast: false }));
   const far = new THREE.Group();
   far.add(staticMesh(merge(woodFar), materials.wood));
+  // boat: the hull's meshes, near and far.
+  const hullNear = staticMesh(merge(hullParts), materials.wood), hullFarMesh = staticMesh(merge(hullFar), materials.wood);
+  near.add(hullNear);
+  far.add(hullFarMesh);
+  const hullBlockers = [];
   // The upturned hull to the camera: two capsules along the keel, as wide
   // as the beam and topped at the keel (the cat stands on it by the tile).
   {
@@ -194,7 +202,8 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
       const [x, z] = at(s * L / 2, 0);
       return { x: p.x + x, y: keelAt(s) - 0.72, z: p.z + z };
     };
-    blockers.push(capsule(keelPoint(-0.6), keelPoint(0), 0.72, { body: false }), capsule(keelPoint(0), keelPoint(0.55), 0.72, { body: false }));
+    hullBlockers.push(capsule(keelPoint(-0.6), keelPoint(0), 0.72, { body: false }), capsule(keelPoint(0), keelPoint(0.55), 0.72, { body: false })); // boat:
+    blockers.push(...hullBlockers);
   }
   // The hull's back to stand on; a cat will.
   const domes = [heightTile(p.x, p.z, L / 2 + 0.3, 0.08, (x, z) => {
@@ -213,6 +222,16 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
     near, far, farDistance: 40,
     obstacles: { trunks, domes },
     blockers,
+    // boat: launch() takes the hull off its logs for good (boat.js then
+    // draws the boat): its meshes hide, its camera solids sink out of
+    // reach (static blockers cannot be removed) and its standing tile goes.
+    hull: {
+      launch() {
+        hullNear.visible = hullFarMesh.visible = false;
+        for (const c of hullBlockers) setCapsule(c, c.ax, -100, c.az, c.bx, -100, c.bz, 0.01);
+        domes[0].heights.fill(-Infinity);
+      },
+    },
     halos: [{ x: p.x + lamp.x, y: lamp.y, z: p.z + lamp.z, size: 1.5, colour: [1.0, 0.6, 0.24], flicker: true }],
     extra: pool.mesh,
     update({ time, lit }) {

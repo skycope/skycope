@@ -80,6 +80,8 @@ export function createPlaces(group, seed, { light = false, shared } = {}) {
     pois: layout.map(({ id, title, x, z, r }) => ({ id, title, x, z, r })),
     obstacles,
     blockers,
+    // boat: the fisherman's boat's hull ({ launch() }, place-shore.js).
+    boatHull: built.find((b) => b.hull)?.hull ?? null,
     // land-magic: the lighthouse lamp (coast metres) and the island's lamps.
     beacon: lighthouse?.lamp ?? null,
     lamps,

@@ -17,6 +17,7 @@ import { createWisp } from "./wisp.js"; // wisp: the little light that leads the
 import { createLandMagic, lightWithMagic } from "./land-magic.js"; // land-magic:
 import { createFireflies } from "./fireflies.js"; // land-magic:
 import { groundHeight } from "./terrain.js"; // land-magic:
+import { createBoat } from "./boat.js"; // boat: the fisherman's boat afloat
 import { horizonRadiance, skyDomeRatio, skyDomeMean, skyEnvironmentKey } from "./sunlight.js";
 
 // The mesh layer tonemaps with the same curve as the WebGPU water pass
@@ -112,6 +113,9 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   const wildlife = createWildlife(land, seed, { obstacles: forest.obstacles, light });
   const wildEye = { x: 0, y: 0, z: 0 };
   const wisp = createWisp(land, { light }); // wisp: drawn from magic.wisp (thread.js follows it)
+  // boat: the fisherman's boat afloat (boat.js), hidden until its gift wakes.
+  const boatPlace = places.layout.find((p) => p.id === "boat");
+  const boat = boatPlace ? createBoat(land, { light, shared: land.userData.forestShared, landmark: boatPlace, hull: places.boatHull, seed }) : null;
   scene.add(land);
   const motes = createMotes(scene, seed);
   // land-magic: the milkwood's fireflies (one draw of points, hidden asleep).
@@ -235,7 +239,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       forest.updateWind(time, wind);
       forest.updateNight(night);
       land.userData.forestShared.landNightFill.value = night; // land-look: canopy fill by night
-      fauna.update(time, wind, night);
+      fauna.update(time, wind, night, boat?.afloatNow ?? null); // boat: the pod rides its bow
       // land-magic: the fireflies fly, then every gift's light is set.
       const levels = magic?.levels;
       const flies = fireflies.update({ dt, time, pose, night, level: levels?.fireflies ?? 0, finale: levels?.finale ?? 0, call: magic?.call ?? null, eye: camera.position, pixelScale: flyPixels });
@@ -309,6 +313,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         .addScaledVector(lookUp, (pointer[1] - 0.5) * 0.009);
       camera.lookAt(lookTarget);
       camera.updateMatrixWorld();
+      boat?.render({ time, night, camera }); // boat: before the cat (its lantern lights it)
       const far = archipelago.camera;
       far.position.copy(camera.position);
       far.quaternion.copy(camera.quaternion);
@@ -333,6 +338,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         pixelScale,
         wind,
         rain,
+        lamp: boat?.catLamp ?? null, // boat:
       }, wake);
       if (wake) forest.updateCatWater(wake.paws, wake.body.flow);
       if (water) forest.updateSurf(time, [flight.x, flight.y, flight.z], pixelScale, water);
@@ -377,6 +383,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     wildlife,
     // wisp: wisp.follow(magic.wisp, walker.surface) once (thread.js).
     wisp,
+    boat, // boat: attach({ walker, sea, magic, wake }) once (main.js)
     addPrint(print) {
       prints.add(print);
     },
@@ -410,6 +417,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       cat.dispose();
       places.dispose(); // places:
       fireflies.dispose(); // land-magic:
+      boat?.dispose(); // boat:
       wildlife.dispose();
       precipitation.dispose();
       archipelago.geometry.dispose();

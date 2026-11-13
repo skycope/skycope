@@ -104,6 +104,8 @@ export function catUniforms() {
     catWaterDepth: { value: 0 },
     catSoak: { value: -1 },
     catWaterColour: CAT_SEA.colour,
+    // boat: the boat's lantern in view space (xyz) and its strength (w).
+    catLamp: { value: new THREE.Vector4(0, 0, 0, 0) },
     catFoamLight: CAT_SEA.foam,
   };
 }
@@ -450,7 +452,7 @@ void RE_Direct_Fur( const in IncidentLight directLight, const in vec3 geometryPo
 export function coatMaterial(uniforms, { shell = false, baked = false } = {}) {
   // Shells are fuzz at the silhouette: Lambert-lit, painted per vertex.
   const material = shell ? new THREE.MeshLambertMaterial({ color: 0xffffff }) : new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 });
-  material.customProgramCacheKey = () => `cat-coat-v5-${shell}-${baked}`;
+  material.customProgramCacheKey = () => `cat-coat-v6-${shell}-${baked}`; // boat: v6 adds catLamp
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader
@@ -526,7 +528,8 @@ export function coatMaterial(uniforms, { shell = false, baked = false } = {}) {
       );
     if (shell) {
       shader.fragmentShader = shader.fragmentShader
-        .replace("#include <lights_lambert_pars_fragment>", `#include <lights_lambert_pars_fragment>\n${SHELL_LIGHT}`)
+        .replace("#include <lights_lambert_pars_fragment>", `#include <lights_lambert_pars_fragment>\n${SHELL_LIGHT}\nuniform vec4 catLamp; // boat:`)
+        .replace("#include <lights_fragment_end>", `#include <lights_fragment_end>${CAT_LAMP}`) // boat:
         .replace("void main() {", `${SHELL_PARS}${WATER_PARS}\nvoid main() {`)
         .replace("#include <color_fragment>", `#include <color_fragment>\n${SHELL_COLOUR}`)
         .replace("#include <opaque_fragment>", WATER_FRAGMENT);
@@ -535,7 +538,7 @@ export function coatMaterial(uniforms, { shell = false, baked = false } = {}) {
     shader.fragmentShader = shader.fragmentShader
       .replace(
         "#include <lights_physical_pars_fragment>",
-        `#include <lights_physical_pars_fragment>\n${baked ? "#define CAT_BAKED\nvarying vec3 vBakedColour;\n" : ""}${FRAGMENT_PARS}${WATER_PARS}\n#undef RE_Direct\n#define RE_Direct RE_Direct_Fur`,
+        `#include <lights_physical_pars_fragment>\n${baked ? "#define CAT_BAKED\nvarying vec3 vBakedColour;\n" : ""}${FRAGMENT_PARS}${WATER_PARS}\nuniform vec4 catLamp; // boat:\n#undef RE_Direct\n#define RE_Direct RE_Direct_Fur`,
       )
       .replace("#include <opaque_fragment>", WATER_FRAGMENT)
       .replace("#include <color_fragment>", `#include <color_fragment>\n${BASE_COLOUR}`)
@@ -560,7 +563,7 @@ export function coatMaterial(uniforms, { shell = false, baked = false } = {}) {
       .replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n totalEmissiveRadiance += glow;")
       .replace(
         "#include <lights_fragment_end>",
-        /* glsl */ `#include <lights_fragment_end>
+        /* glsl */ `#include <lights_fragment_end>${CAT_LAMP}
         {
           // Occlusion: baked in the bind pose, deeper toward the roots, and
           // the ground's own shadow under the belly.
@@ -748,6 +751,16 @@ const SHELL_COLOUR = /* glsl */ `
 // Strands against the light: each passes and scatters some of it, so a
 // backlit coat wears a bright fringe of light round its silhouette (and the
 // scene's shadows still apply: this runs inside the light loop).
+// boat: the boat's lantern on the coat (catLamp, set by cat.js).
+const CAT_LAMP = /* glsl */ `
+        if ( catLamp.w > 0.0 ) {
+          // boat: the boat's lantern, a warm point light close by.
+          vec3 toL = catLamp.xyz + vViewPosition;
+          float d2 = dot( toL, toL );
+          float ndl = clamp( dot( normal, toL * inversesqrt( max( d2, 1e-4 ) ) ) * 0.7 + 0.3, 0.0, 1.0 );
+          reflectedLight.directDiffuse += vec3( 1.0, 0.56, 0.2 ) * catLamp.w * ndl * diffuseColor.rgb * 0.7 / ( 1.0 + d2 * 1.2 );
+        }`;
+
 const SHELL_LIGHT = /* glsl */ `
 float shellRim = 0.0;
 void RE_Direct_Shell( const in IncidentLight directLight, const in vec3 geometryPosition, const in vec3 geometryNormal, const in vec3 geometryViewDir, const in vec3 geometryClearcoatNormal, const in LambertMaterial material, inout ReflectedLight reflectedLight ) {

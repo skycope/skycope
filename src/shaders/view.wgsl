@@ -68,6 +68,9 @@ export struct Atmosphere {
   // The guiding wisp: position (coast metres), glow (w; 0 = hidden); colour.
   wisp: vec4f,
   wispColour: vec4f,
+  // boat: the boat's hurricane lantern: flame position (coast metres) and
+  // strength (w; 0 = no boat afloat).
+  lantern: vec4f,
 };
 
 // sea-sky-magic: false compiles every gift's code out of the sky and water

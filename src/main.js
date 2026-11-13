@@ -413,6 +413,12 @@ function tap(clientX, clientY) {
     const x = origin[0] + direction[0] * t;
     const y = origin[1] + direction[1] * t;
     const z = origin[2] + direction[2] * t;
+    // boat: aboard, a tap on the sea (or the shore) sails there.
+    if (state.boat?.ride?.aboard && y < 0.3) {
+      state.boat.ride.sailTo(x, z);
+      dismissHint();
+      return;
+    }
     // The sea surface: swim there (not past the kelp).
     if (y < 0 && shoreDistance(x, z) < 0) {
       state.walker.walkTo(...(shoreDistance(x, z) > -SWIM_LIMIT + 1 ? [x, z] : pullInland(x, z, SWIM_LIMIT - 1)));
@@ -677,6 +683,8 @@ async function startAtmosphere() {
   water.set(waterSet);
   state.sea = createSea(state.seed, waveModes.data);
   state.walker = createWalker(state.landscape.obstacles, state.sea, state.wake);
+  // boat: the fisherman's boat joins the walker (it carries the cat afloat).
+  state.boat = state.landscape.boat?.attach({ walker: state.walker, sea: state.sea, magic: state.magic, wake: state.wake }) ?? null;
   applyReviewFixture(state.walker, review, state.landscape.obstacles);
   state.flight = state.walker.camera;
   state.thread.attach(); // thread: the island's discoveries, watch and dawn lapse
@@ -934,7 +942,7 @@ function createUniforms() {
     ocean: [0, 0, 0, state.landscape?.cloudTransmission ?? 1],
     ...skyEventUniforms(sky, weather, light, view),
     // sea-sky-magic: the awakened gifts for the sea and sky (all zero asleep).
-    ...magicUniforms(state.magic, { time: state.time, lamp: lampPosition() }),
+    ...magicUniforms(state.magic, { time: state.time, lamp: lampPosition(), lantern: state.boat?.lantern ?? null }), // boat: lantern
   };
 }
 
@@ -1019,6 +1027,7 @@ function updateCat(dt, realDt = dt) {
   state.jump = false;
   if (cat.air > 0 && !hold) state.thread.did("run");
   state.thread.update(dt, realDt);
+  boatAfter(dt); // boat:
   hearWildlife();
   for (const event of walker.events.splice(0)) {
     if (event.type === "jump") state.sound.jump();
@@ -1069,6 +1078,25 @@ function updateCat(dt, realDt = dt) {
   });
 }
 
+// boat: after the wisp's mind, the boat tows it (boat.js), and its events
+// are heard with the sounds the cat's own splashes and landings use.
+function boatAfter(dt) {
+  const boat = state.boat;
+  if (!boat) return;
+  boat.afterThread(dt, smooth(1, 2, state.celestial?.scene ?? 0));
+  for (const e of boat.events) {
+    const gain = e.gain ?? 1;
+    if (e.type === "board") state.sound.land(1.2);
+    else if (e.type === "jump") state.sound.jump();
+    else if (e.type === "launch") state.sound.splash(1, 0);
+    else if (e.type === "bump") {
+      state.sound.land(0.6 + gain);
+      state.sound.splash(0.3 * gain, 0);
+    } else if (e.type === "ground") state.sound.splash(0.35 * gain, 0);
+    else if (e.type === "hull-slap") state.sound.splash(0.12 + 0.18 * gain, 0);
+  }
+}
+
 // The landmarks (places.js), the animals (wildlife.js) and the sky's events
 // (sky-events.js) join the thread: each is something to find, the animals
 // and the lightning are heard, and what the sky is staging swells the score
@@ -1085,6 +1113,7 @@ function joinWorld() {
   const lower = (p, kind) => ({ ...p, kind, title: p.title.charAt(0).toLowerCase() + p.title.slice(1) });
   state.thread.discoveries.add([
     ...(state.landscape.pois ?? []).map((p) => lower(p, "place")),
+    ...(state.boat?.pois ?? []).map((p) => lower(p, "place")), // boat: places only the boat reaches
     ...(state.landscape.wildlife?.pois ?? []).map((p) => lower(p, "creature")),
     ...SKY_FINDS.map(([id, title]) => ({ id, title, kind: "sky", scope: "island", hold: 1.5, when: spectacleSeen(id) })),
   ]);
@@ -1126,6 +1155,7 @@ function hearWildlife() {
 // decide whether sand flies.
 function footstep(leg, x, z, heading, front, { side = 1, speed = 0, pace = speed } = {}, silent = false) {
   const cat = state.walker.cat;
+  if (state.boat?.ride?.aboard) return 0; // boat: paws on the deck leave no prints
   const ground = state.walker.surface;
   const onRock = ground(x, z) > groundHeight(x, z) + 0.03;
   // A paw set down in the water splashes instead of printing.

@@ -1,4 +1,5 @@
 import test from "node:test";
+import { MAGIC_FIELDS } from "../src/sea-sky-magic.js"; // boat:
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { skyAt } from "../src/astronomy.js";
@@ -138,7 +139,9 @@ test("the Atmosphere struct carries the sky-event fields at its end", () => {
   const struct = view.match(/struct Atmosphere \{([^]*?)\n\};/)[1];
   const fields = [...struct.matchAll(/^\s*(\w+):/gm)].map((m) => m[1]);
   // sea-sky-magic's fields follow them (tests/sea-sky-magic.test.js).
-  assert.deepEqual(fields.slice(-14, -7), Object.keys(quietSkyUniforms()));
+  // (boat: eight of them now, with the lantern.)
+  const magic = MAGIC_FIELDS.length;
+  assert.deepEqual(fields.slice(-7 - magic, -magic), Object.keys(quietSkyUniforms()));
   const render = readFileSync(new URL("../scripts/render-sky.mjs", import.meta.url), "utf8");
   assert.match(render, /skyEventFrame/);
 });

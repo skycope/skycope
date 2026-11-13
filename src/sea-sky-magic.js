@@ -1,5 +1,5 @@
 // sea-sky-magic: what the island's awakened gifts (src/magic.js) do to the
-// sea and the sky, packed into seven Atmosphere fields at the end of the
+// sea and the sky, packed into eight Atmosphere fields (the eighth, `lantern`, is the boat's) at the end of the
 // struct (src/shaders/view.wgsl). Filled in main.js createUniforms and
 // scripts/render-sky.mjs. ALL ZERO = every gift asleep, no pulse, no wisp:
 // every shader branch gates on these before doing any work.
@@ -16,6 +16,8 @@
 //               bearing in w (radians, see lampAngle). Zero while asleep.
 //   wisp        the guiding light: x, y, z (coast metres), w glow (0 hidden).
 //   wispColour  rgb, w unused.
+//   lantern     boat: the boat's hurricane lantern afloat: flame x, y, z
+//               (coast metres), w strength (0 = no boat on the water).
 //
 // For the land layer (another engineer's): mirror these constants.
 //   LAMP_PERIOD / lampAngle: places.js turns its beams once every 12 s of
@@ -26,7 +28,7 @@
 //     where the swash and the cat's paws stirred it (see its comment).
 import { GIFT_COLOURS, PULSE } from "./magic.js";
 
-export const MAGIC_FIELDS = ["magic", "magic2", "pulse", "pulseColour", "lamp", "wisp", "wispColour"];
+export const MAGIC_FIELDS = ["magic", "magic2", "pulse", "pulseColour", "lamp", "wisp", "wispColour", "lantern"];
 
 export const LAMP_PERIOD = 12;
 export function lampAngle(time) {
@@ -68,7 +70,7 @@ export function quietMagicUniforms() {
 
 // magic: the shared record (createMagic); lamp: { x, y, z } of the lamp in
 // coast metres, or null; time: the scene clock (state.time = magic.clock).
-export function magicUniforms(magic, { time = magic?.clock ?? 0, lamp = null } = {}) {
+export function magicUniforms(magic, { time = magic?.clock ?? 0, lamp = null, lantern = null } = {}) {
   const u = quietMagicUniforms();
   if (!magic) return u;
   const level = (g) => {
@@ -109,6 +111,8 @@ export function magicUniforms(magic, { time = magic?.clock ?? 0, lamp = null } =
     u.wisp = [wisp.position[0], wisp.position[1], wisp.position[2], wisp.glow];
     u.wispColour = [...wisp.colour.slice(0, 3), 0];
   }
+  // boat: [x, y, z, strength] from boat.js while it floats.
+  if (lantern && lantern[3] > 0.001) u.lantern = [lantern[0], lantern[1], lantern[2], lantern[3]];
   // Never NaN into a uniform: a bad record silences the field.
   for (const k of MAGIC_FIELDS) if (!u[k].every(Number.isFinite)) u[k] = [0, 0, 0, 0];
   return u;

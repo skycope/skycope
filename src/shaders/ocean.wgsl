@@ -3,7 +3,7 @@ import { lut_uv, overcast_sky } from "./skyview.wgsl";
 import { rock_slots, rock_sea, rock_traces, rock_hides, RockSea, RockHit, RockHits } from "./rocks.wgsl";
 import { cat_near, cat_sea } from "./wake.wgsl";
 import { archipelago_hit, archipelago_sun, archipelago_radiance } from "./archipelago.wgsl";
-import { SeaPoint, tideglow, lamp_on_sea, pulse_on_sea, wisp_on_sea } from "./sea-magic.wgsl";
+import { SeaPoint, tideglow, lamp_on_sea, pulse_on_sea, wisp_on_sea, lantern_on_sea } from "./sea-magic.wgsl";
 
 
 // Camera-relative metres: x right, y up, z toward the coast. Everything here is
@@ -39,6 +39,8 @@ export struct OceanSettings {
   lamp: vec4f,
   wisp: vec4f,
   wisp_colour: vec4f,
+  // boat: the lantern (Atmosphere.lantern).
+  lantern: vec4f,
 };
 
 // Clear coastal water: pure-water absorption takes red within a metre or two
@@ -482,7 +484,7 @@ fn ocean(
 
   // ---- sea-sky-magic: the awakened gifts on the water (sea-magic.wgsl). ----
   // All zero while every gift sleeps: one uniform test, no work.
-  if (MAGIC_AWAKE && (any(settings.magic.xzw > vec3f(0.0)) || settings.pulse.w > 0.0 || settings.wisp.w > 0.0)) {
+  if (MAGIC_AWAKE && (any(settings.magic.xzw > vec3f(0.0)) || settings.pulse.w > 0.0 || settings.wisp.w > 0.0 || settings.lantern.w > 0.0)) {
     let point = SeaPoint(p, metrics, ray, normal, sea.phase, sea.breaking, sea.height, foam, rock.edge, stir,
       pixel, depth, fresnel);
     if (settings.magic.x > 0.0) {
@@ -498,6 +500,10 @@ fn ocean(
     }
     if (settings.wisp.w > 0.0) {
       color += wisp_on_sea(point, settings.wisp, settings.wisp_colour.rgb);
+    }
+    // boat: the lantern's path and pool on the water.
+    if (settings.lantern.w > 0.0) {
+      color += lantern_on_sea(point, settings.lantern, night);
     }
   }
 
