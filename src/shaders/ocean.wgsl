@@ -723,10 +723,10 @@ fn seabed(p: vec2f, metrics: vec4f, offshore: f32, settings: OceanSettings, nois
 // the refractive index for red, green and blue, so focused lines fringe.
 fn caustics(bed: vec2f, depth: f32, sun_down: vec3f, sea: Sea, pixel: f32,
   waves1: texture_2d<f32>, waves2: texture_2d<f32>, waves3: texture_2d<f32>, filtering: sampler) -> vec3f {
-  // The cascades tile every 2.5 m: a slow domain warp (hash noise, no
-  // texture reads) bends the web so no two tiles of the bed match.
-  let turn = value_noise(bed * 0.37 + 4.1) * 6.283185;
-  let entry = bed - sun_down.xz / max(-sun_down.y, 0.2) * depth + vec2f(cos(turn), sin(turn)) * 0.6;
+  // The cascades tile every 2.5 m: the broad swell passing overhead (its
+  // height, already known) warps the web, so no two tiles of the bed match
+  // and the pattern breathes with each wave, at no cost.
+  let entry = bed - sun_down.xz / max(-sun_down.y, 0.2) * depth + vec2f(sea.height * 1.8, (sea.swell - sea.height) * 2.4);
   // A second rotated, rescaled sample breaks the lattice further without
   // changing its statistics.
   let turned = mat2x2f(vec2f(0.799, 0.602), vec2f(-0.602, 0.799)) * entry * 1.31 + vec2f(1.7, 3.1);
