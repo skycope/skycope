@@ -302,6 +302,26 @@ export fn wisp_on_sea(s: SeaPoint, wisp: vec4f, colour: vec3f) -> vec3f {
   return colour * wisp.w * (spec + pool) / (1.0 + d2 * 0.08);
 }
 
+// ---- boat: the hurricane lantern over the bow (src/boat.js). ------------------
+// A warm oil flame a metre over the water: its broken path of glints toward
+// the eye (a tight lobe that sparkles where the facets catch it, and a wide
+// one that lays a soft gold road across the swell), and the faint pool of
+// light it spreads on the surface and the foam round the hull.
+export fn lantern_on_sea(s: SeaPoint, lantern: vec4f, night: f32) -> vec3f {
+  let to = lantern.xyz - s.p;
+  let d2 = dot(to, to);
+  if (d2 > 1600.0) { return vec3f(0.0); }
+  let l = to * inverseSqrt(d2);
+  let h = normalize(l - s.ray);
+  let nh = max(dot(s.normal, h), 0.0);
+  let glint = hash22m(floor(s.p.xz * 6.0)).x;
+  let spec = (pow(nh, 600.0) * (6.0 + 22.0 * glint * glint) + pow(nh, 60.0) * 0.9 + pow(nh, 12.0) * 0.08) * s.fresnel * 4.0;
+  let facing = max(dot(s.normal, l), 0.0);
+  let pool = facing * (0.035 + 0.5 * s.foam.x);
+  let flame = vec3f(1.0, 0.56, 0.2);
+  return flame * lantern.w * (spec + pool) / (1.0 + d2 * 0.12) * (0.4 + 0.6 * night);
+}
+
 fn noise2(p: vec2f) -> f32 {
   let i = floor(p);
   let f = fract(p);

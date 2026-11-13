@@ -279,6 +279,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         .addScaledVector(lookUp, (pointer[1] - 0.5) * 0.009);
       camera.lookAt(lookTarget);
       camera.updateMatrixWorld();
+      boat?.render({ time, night, camera }); // boat: before the cat (its lantern lights it)
       const far = archipelago.camera;
       far.position.copy(camera.position);
       far.quaternion.copy(camera.quaternion);
@@ -302,6 +303,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         pixelScale,
         wind,
         rain,
+        lamp: boat?.catLamp ?? null, // boat:
       }, wake);
       if (wake) forest.updateCatWater(wake.paws, wake.body.flow);
       if (water) forest.updateSurf(time, [flight.x, flight.y, flight.z], pixelScale, water);
@@ -316,7 +318,6 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       moteLight.copy(sun.color).multiplyScalar(sun.intensity * THREE.MathUtils.smoothstep(sunWorld.y, 0.0, 0.1) * (1 - night));
       motes.update(time, wind, camera.position, sunWorld, moteLight, pixelScale);
       wisp.update(time, night, renderer.domElement.height); // wisp:
-      boat?.render({ time, night, camera }); // boat:
       lens.update({
         camera, time, rain, wind, sky: lighting.sky, sunDirection: sunWorld, sunColour: sun.color,
         sunVisible: cloudBeam * THREE.MathUtils.smoothstep(sunWorld.y, -0.01, 0.06) * (1 - night),

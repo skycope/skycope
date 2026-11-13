@@ -942,7 +942,7 @@ function createUniforms() {
     ocean: [0, 0, 0, state.landscape?.cloudTransmission ?? 1],
     ...skyEventUniforms(sky, weather, light, view),
     // sea-sky-magic: the awakened gifts for the sea and sky (all zero asleep).
-    ...magicUniforms(state.magic, { time: state.time, lamp: lampPosition() }),
+    ...magicUniforms(state.magic, { time: state.time, lamp: lampPosition(), lantern: state.boat?.lantern ?? null }), // boat: lantern
   };
 }
 

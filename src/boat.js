@@ -115,6 +115,14 @@ export function createBoat(land, { light = false, shared, landmark, hull = null 
     events,
     lamp,
     pois: [],
+    // The lantern for the cat's coat (view space xyz, strength), or null.
+    get catLamp() {
+      return launched && ride?.afloat && lampUniforms.boatLamp.value.w > 0 ? lampUniforms.boatLamp.value : null;
+    },
+    // The lantern for the water (main.js → Atmosphere.lantern), or null.
+    get lantern() {
+      return launched && ride?.afloat ? lamp : null;
+    },
     get ride() {
       return ride;
     },
@@ -252,7 +260,7 @@ export function createBoat(land, { light = false, shared, landmark, hull = null 
       lamp[3] = strength;
       const view = lampUniforms.boatLamp.value;
       view.set(flame.x, flame.y, flame.z, 1).applyMatrix4(camera.matrixWorldInverse);
-      view.w = strength * (0.6 + 1.4 * smooth01(0.02, 0.35, night));
+      view.w = strength * (0.5 + 5.5 * smooth01(0.02, 0.35, night));
       // The thread: from the pole's head to the wisp.
       stemCoast.set(0, LANTERN.pivot[1] + 0.02, LANTERN.pivot[2] - 0.05).applyMatrix4(group.matrix);
       glow.update({ time, lamp: flame, strength, night, stem: stemCoast, wisp: magic?.wisp, tow, pull: ride.ride.throttle });
@@ -329,7 +337,7 @@ function boatMaterial(shared, plane, uniforms) {
           float d2 = dot( toL, toL );
           vec3 L = toL * inversesqrt( max( d2, 1e-4 ) );
           float ndl = clamp( dot( normal, L ) * 0.75 + 0.25, 0.0, 1.0 );
-          reflectedLight.directDiffuse += boatLampColour * boatLamp.w * ndl * diffuseColor.rgb * 0.31831 * 2.2 / ( 1.0 + d2 * 1.6 );
+          reflectedLight.directDiffuse += boatLampColour * boatLamp.w * ndl * diffuseColor.rgb * 0.31831 * 2.2 / ( 1.0 + d2 * 1.2 );
         }`,
       );
   };
@@ -386,7 +394,7 @@ void main() {
   if ( slot < 0.5 ) {
     vec3 toEye = normalize( cameraPosition - lamp );
     float d = length( cameraPosition - lamp );
-    float s = 0.9 * ( 1.0 + d * 0.02 );
+    float s = 0.55 * ( 1.0 + d * 0.025 );
     world = lamp + toEye * 0.12 + ( right * corner.x + up * corner.y ) * s;
     vAlong = 0.0;
   } else {
@@ -415,7 +423,7 @@ void main() {
   vec3 c;
   if ( vSlot < 0.5 ) {
     float r2 = dot( vUv2, vUv2 );
-    float g = exp( -r2 * 38.0 ) * 1.6 + exp( -r2 * 8.0 ) * 0.4 + exp( -r2 * 2.2 ) * 0.1;
+    float g = exp( -r2 * 40.0 ) * 1.3 + exp( -r2 * 9.0 ) * 0.28 + exp( -r2 * 2.6 ) * 0.07;
     c = glowColour * g * strength * ( 1.0 - smoothstep( 0.6, 1.0, r2 ) );
   } else {
     float across = 1.0 - vUv2.x * vUv2.x;
@@ -473,9 +481,10 @@ function glowMesh() {
       uniforms.stem.value.set(stem.x, stem.y, -stem.z);
       const on = wisp?.visible ? tow : 0;
       if (on > 0) uniforms.wisp.value.set(wisp.position[0], wisp.position[1], -wisp.position[2]);
-      uniforms.threadOn.value = on * (0.35 + 0.4 * pull) * (0.5 + 0.8 * night);
+      uniforms.threadOn.value = on * (0.25 + 0.35 * pull) * (0.45 + 0.55 * night);
       uniforms.sag.value = 0.35 - 0.25 * pull;
-      if (wisp) uniforms.threadColour.value.setRGB(wisp.colour[0], wisp.colour[1], wisp.colour[2]).multiplyScalar(1.4);
+      // The wisp's own colour, warmed toward the flame it runs from.
+      if (wisp) uniforms.threadColour.value.setRGB(wisp.colour[0], wisp.colour[1], wisp.colour[2]).lerp(LANTERN_COLOUR, 0.35).multiplyScalar(1.2);
     },
     dispose() {
       geometry.dispose();
