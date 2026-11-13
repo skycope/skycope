@@ -902,7 +902,16 @@ if ( inland < 4.5 ) {
   float pixel = length( fwidth( coast ) );
   vec4 sw = swash( along, inland, breezeTime, pixel );
   swashFilm = sw.x;
-  swashCover = swashFoam( vec2( along * 0.7, inland ), sw.y, breezeTime, pixel );
+  // land-look: foam is not an even web. Thick and creamy in a band at the
+  // running edge; behind it, as the film thins and drains back, it breaks
+  // into rafts and drawn-out streaks along the backwash, with open water
+  // between them.
+  float foamLead = exp( -sw.w * 7.0 );
+  float foamRafts = smoothstep( 0.32, 0.72, swashValue( vec2( along * 0.32, inland * 0.55 ) + vec2( breezeTime * 0.04, 0.0 ) ) * 0.7
+    + swashValue( vec2( along * 1.1, inland * 1.6 ) + 9.0 ) * 0.3 );
+  float foamStreaks = swashValue( vec2( along * 5.0, inland * 0.45 - breezeTime * 0.25 ) + 3.0 );
+  float foamDensity = sw.y * mix( ( 0.15 + 1.05 * foamRafts ) * ( 0.45 + 0.8 * foamStreaks ), 1.35, foamLead );
+  swashCover = swashFoam( vec2( along * 0.7, inland ), foamDensity, breezeTime, pixel );
   // Bubbles ride in the froth and just behind the front, and dot the film.
   vec2 bubbles = swashBubbles( coast, breezeTime, pixel, smoothstep( 0.04, 0.35, sw.y + sw.x * 0.12 ) );
   // Sand the swash has soaked darkens like the band below it, no further:

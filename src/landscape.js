@@ -480,7 +480,16 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     const nightFill = 1 + night * NIGHT_LAND.fill * starLift;
     // At night the moon/night floor in lighting.sky is already the whole
     // story, and an overcast dome is near uniform (brighter overhead).
-    const uniform = Math.max(night, cover);
+    // land-look: even under a full deck the sky is brighter on the sun's
+    // side, so the land keeps a direction to its light.
+    const uniform = Math.max(night, cover * 0.72);
+    // land-look: aerial perspective at the island's own scale. In clear air
+    // the hill across the island holds its colour; under cloud, at dusk and
+    // in rain the air thickens, so the far slopes fall back into the haze
+    // and the foreground stands in front of them. Thin by night, where the
+    // haze is dark and would only blacken the far land.
+    const dusk = THREE.MathUtils.smoothstep(celestial.sun[1], 0.25, 0.02) * (1 - night);
+    scene.fog.density = (0.0042 + 0.0058 * THREE.MathUtils.smoothstep(cover, 0.35, 1) + 0.0025 * dusk + Math.min(rainRate, 6) * 0.0007) * (1 - 0.35 * night);
     // The environment is baked at unit exposure; environmentIntensity carries
     // the eye's adaptation frame to frame, so it is rebuilt only when the sun,
     // weather or night changes, not as exposure drifts.
