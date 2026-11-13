@@ -238,6 +238,25 @@ export function createMaterials(shared) {
         float above = vPlace.y - vPlaceAnchor;
         float damp = ( 1.0 - smoothstep( 0.05, 0.55 + patchy * 0.4, above ) ) * vertical;
         diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.55, 0.6, 0.45 ), damp * 0.7 );
+        // land-look: old limewash is never one white. Coats of different
+        // ages drift from warm cream to a cool grey over a few metres; rain
+        // has drawn long grey-brown stains down from every ledge and the
+        // gallery; salt bloom and flaking show the darker render beneath;
+        // and the foot of each wall, where splash and soil reach, sits in a
+        // soft, damp shadow.
+        if ( bright > 0.01 ) {
+          float drift = pOctave( vPlace * vec3( 0.35, 0.18, 0.35 ), 1.0, px );
+          diffuseColor.rgb *= mix( vec3( 1.0 ), mix( vec3( 0.9, 0.92, 0.95 ), vec3( 1.02, 0.97, 0.88 ), drift ), bright );
+          float stain = smoothstep( 0.42, 0.8, pOctave( vec3( vPlace.x * 4.5, vPlace.y * 0.12, vPlace.z * 4.5 ), 1.0, px * 4.5 ) )
+            * smoothstep( 0.35, 0.75, pOctave( vec3( vPlace.x * 1.3, vPlace.y * 0.5, vPlace.z * 1.3 ) + 5.0, 1.0, px ) );
+          diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.68, 0.64, 0.58 ), vertical * stain * 0.55 * bright );
+          float flake = smoothstep( 0.74, 0.8, patchy + ( grain - 0.5 ) * 0.3 );
+          diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.46, 0.43, 0.38 ), flake * 0.6 * bright );
+          // A whitewashed wall is bright but not paper: a touch under white.
+          diffuseColor.rgb *= mix( 1.0, 0.9, bright );
+        }
+        float foot = 1.0 - smoothstep( 0.0, 1.1 + patchy * 0.4, above );
+        diffuseColor.rgb *= mix( 1.0, 0.62, foot * foot * vertical );
       }`,
     ).replace("void main() {", "varying float vPlaceAnchor;\nvoid main() {"),
     vertex: (s) => s.replace("void main() {", "varying float vPlaceAnchor;\nvoid main() {\n  vPlaceAnchor = anchorHeight;"),
