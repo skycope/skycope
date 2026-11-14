@@ -49,7 +49,7 @@ const FREE = { min: 0.7, max: 14, low: 0.02, high: 1.4 };
 // How close the spring arm may pull the camera to the cat, and how far the
 // lens keeps from a trunk.
 const ARM_MIN = 0.9;
-const ARM_CLEARANCE = 0.35;
+const ARM_CLEARANCE = 0.6;
 // The most the camera rises to see over a boulder before the arm shortens.
 const ARM_LIFT = 1.6;
 // How far the lens keeps from a wall, a tower or a timber (blockers.js),
@@ -61,7 +61,7 @@ const SOLID_RISE = 1.1;
 // The rig's springs (critically damped, rad/s): how quickly the view follows
 // a drag or the swing behind the cat, a zoom, the pivot on the cat, and the
 // arm drawing in for an obstacle (quick) or letting out past it (slow).
-const RIG = { turn: 12, zoom: 8, pivot: 14, pivotY: 6, armIn: 9, armOut: 2.4, liftUp: 5, liftDown: 2, floor: 9 };
+const RIG = { turn: 12, zoom: 8, pivot: 14, pivotY: 6, armIn: 9, armOut: 2.4, liftUp: 5, liftDown: 2, floor: 9, ease: 14 };
 // The trunk clearance the lens must never come inside, whatever the springs.
 const TRUNK_GUARD = 0.15;
 // Step turns (radians) tried when the cat brushes a wall (see update).
@@ -151,6 +151,13 @@ export function createWalker(obstacles, sea = null, wake = null) {
     yaw: { x: 0, v: 0 }, elevation: { x: 0, v: 0 }, distance: { x: 0, v: 0 },
     px: { x: 0, v: 0 }, py: { x: 0, v: 0 }, pz: { x: 0, v: 0 },
     arm: { x: 1, v: 0 }, lift: { x: 0, v: 0 }, floor: { x: 0, v: 0 },
+    // The reach and lift the arm springs toward, eased first (RIG.ease): an
+    // obstacle entering the boom moves the goal in a step, and a spring
+    // driven by a step starts with a jolt (its acceleration jumps); eased,
+    // the lens's acceleration stays continuous too.
+    reach: 1, lift2: 0,
+    // How far up (0…1 of 1.6 m) the look-down-from-above view is clear.
+    up: 1,
     // What the rig last wrote to camera.yaw, elevation, distance, targetY.
     wrote: [NaN, NaN, NaN, NaN],
   };
@@ -653,7 +660,8 @@ export function createWalker(obstacles, sea = null, wake = null) {
     settle(rig.pz, cat.z);
     settle(rig.py, camera.targetY);
     rig.arm.v = rig.lift.v = rig.floor.v = 0;
-    rig.arm.x = -1; // (placed at once on the next placeCamera)
+    rig.arm.x = -1; // (arm, lift and floor placed at once on the next placeCamera)
+    rig.up = 1;
   }
 
   function updateCamera(dt, moving) {
@@ -722,57 +730,76 @@ export function createWalker(obstacles, sea = null, wake = null) {
     // 4. Reach: afloat the open sea needs none.
     const reach = afloat ? 1 : armReach(tx, ty, tz, horizontal, rise);
     const lift = afloat ? 0 : armLift;
-    if (dt === 0 || rig.arm.x < 0) {
+    const placing = dt === 0 || rig.arm.x < 0;
+    if (placing) {
       settle(rig.arm, reach);
       settle(rig.lift, lift);
+      rig.reach = reach;
+      rig.lift2 = lift;
     }
-    let arm = spring(rig.arm, reach, reach < rig.arm.x ? RIG.armIn : RIG.armOut, dt);
-    const lifted = spring(rig.lift, lift, lift > rig.lift.x ? RIG.liftUp : RIG.liftDown, dt);
-    // 5. Guards. A trunk the springs have not yet cleared: the arm stops
-    // short of it at once.
+    const ease = 1 - Math.exp(-RIG.ease * dt);
+    rig.reach += (reach - rig.reach) * ease;
+    rig.lift2 += (lift - rig.lift2) * ease;
+    let arm = spring(rig.arm, rig.reach, rig.reach < rig.arm.x ? RIG.armIn : RIG.armOut, dt);
+    const lifted = spring(rig.lift, rig.lift2, rig.lift2 > rig.lift.x ? RIG.liftUp : RIG.liftDown, dt);
+    let x = tx - sin * horizontal * arm;
+    let z = tz - cos * horizontal * arm;
+    let y = ty + rise * arm + lifted * arm;
+    // 5. Guards. A trunk the springs have not yet cleared (the boom swung
+    // round onto it faster than the arm draws in): the lens slides round
+    // its bark instead of entering it. Pushed straight out, it moves on
+    // smoothly round the trunk; shortening the arm here was a jump.
     if (!afloat) {
-      const hard = trunkReach(tx, ty, tz, -sin * horizontal, -cos * horizontal, rise, TRUNK_GUARD, 1);
-      if (arm > hard) {
-        arm = rig.arm.x = Math.max(hard, Math.min(1, ARM_MIN / Math.hypot(horizontal, rise)));
-        rig.arm.v = Math.min(rig.arm.v, 0);
+      const n = grid.trunksNear(x, z, 1);
+      for (let i = 0; i < n; i++) {
+        const t = grid.found[i];
+        const r = t.r + TRUNK_GUARD;
+        const dx = x - t.x, dz = z - t.z;
+        const d = Math.hypot(dx, dz);
+        if (d >= r + 0.3 || y > trunkTop(t)) continue;
+        // (Eased onto the guard radius, so the lens's path bends round
+        // the bark instead of kinking.)
+        const k = d > 1e-6 ? softMax(d, r, 0.3) / d : 1;
+        x = t.x + (d > 1e-6 ? dx : -sin * r) * k;
+        z = t.z + (d > 1e-6 ? dz : -cos * r) * k;
       }
     }
-    const x = tx - sin * horizontal * arm;
-    const z = tz - cos * horizontal * arm;
-    let y = ty + rise * arm + lifted * arm;
     // The ground (and boulders) below the lens: a floor that follows the
     // ground under the lens on a spring (so bumps do not jog it), and a
     // harder one close to the ground; never toward the sea surface.
     const ashore = shoreDistance(x, z) > -1;
     const ground = ashore ? surface(x, z) : -Infinity;
     const floorAt = ashore ? ground + (afloat ? 0.6 : 0.45) : afloat ? 1.1 : 0.9;
-    if (dt === 0) settle(rig.floor, floorAt);
+    if (placing) settle(rig.floor, floorAt);
     const floor = spring(rig.floor, floorAt, RIG.floor, dt);
-    y = Math.max(y, floor, ground + 0.25, 0.9);
+    // (A soft max: the lens settles onto the floor and lifts off it without
+    // a kink in its path.)
+    y = Math.max(softMax(y, floor, 0.25), ground + 0.25, 0.9);
     camera.x = x;
     camera.y = y;
     camera.z = z;
     // solid: the lens never ends up in a wall or a timber. The springs can
     // carry it into one for a moment; it is pulled in along the line to
-    // the cat, at once, and the arm keeps that length.
-    if (solids.distance(camera.x, camera.y, camera.z, LENS_CLEARANCE) < LENS_GUARD) {
-      const f = solids.trace(tx, ty, tz, camera.x, camera.y, camera.z, LENS_GUARD);
-      if (f < 1) {
-        camera.x = tx + (camera.x - tx) * f;
-        camera.y = ty + (camera.y - ty) * f;
-        camera.z = tz + (camera.z - tz) * f;
-        rig.arm.x *= f;
-        rig.arm.v = Math.min(rig.arm.v, 0);
-      }
-      // Pulled right in to the cat's back: look down on it from above
-      // instead, as far up as is clear.
-      if (Math.hypot(camera.x - tx, camera.y - ty, camera.z - tz) < 0.7) {
-        const bx = -sin * 0.4, bz = -cos * 0.4;
-        const up = solids.trace(tx, ty, tz, tx + bx, ty + 1.6, tz + bz, LENS_GUARD);
-        camera.x = tx + bx * up;
-        camera.y = ty + 1.6 * up;
-        camera.z = tz + bz * up;
-      }
+    // the cat, at once. (The springs keep their state: the pull eases off
+    // by itself as the unguarded lens comes clear, so it never steps;
+    // shortening the arm itself here left it stuck at the cat's back.)
+    if (solids.distance(camera.x, camera.y, camera.z, LENS_CLEARANCE) < LENS_GUARD) pullClear(tx, ty, tz);
+    // Pulled right in to the cat's back: look down on it from above
+    // instead, as far up as is clear, blending in as the boom shortens
+    // (a switch here flicked between the two views frame to frame).
+    const near = Math.hypot(camera.x - tx, camera.y - ty, camera.z - tz);
+    const over = smooth(0.95, 0.55, near);
+    if (over > 0) {
+      const bx = -sin * 0.4, bz = -cos * 0.4;
+      // (How far up is clear, eased: a limb passing over the cat would
+      // otherwise drop the lens in one frame; the guard below still holds.)
+      const upClear = solids.trace(tx, ty, tz, tx + bx, ty + 1.6, tz + bz, LENS_GUARD);
+      rig.up += (upClear - rig.up) * (upClear < rig.up ? 1 - Math.exp(-dt * 10) : 1 - Math.exp(-dt * 3));
+      const up = Math.min(rig.up, upClear + 0.3);
+      camera.x += (tx + bx * up - camera.x) * over;
+      camera.y += (ty + 1.6 * up - camera.y) * over;
+      camera.z += (tz + bz * up - camera.z) * over;
+      if (solids.distance(camera.x, camera.y, camera.z, LENS_CLEARANCE) < LENS_GUARD * 0.5) pullClear(tx, ty, tz);
     }
     camera.arm = rig.arm.x;
     camera.lift = rig.lift.x;
@@ -787,11 +814,28 @@ export function createWalker(obstacles, sea = null, wake = null) {
     rig.wrote[3] = camera.targetY;
   }
 
+  // The lens drawn in along the line to the pivot until it is clear of the
+  // landmarks' solids.
+  function pullClear(tx, ty, tz) {
+    const f = solids.trace(tx, ty, tz, camera.x, camera.y, camera.z, LENS_GUARD);
+    if (f >= 1) return;
+    camera.x = tx + (camera.x - tx) * f;
+    camera.y = ty + (camera.y - ty) * f;
+    camera.z = tz + (camera.z - tz) * f;
+  }
+
+  // How high a trunk stands as a solid: the stem carries on up into the
+  // crown, to about 80% of the tree's height (from its girth; see
+  // obstaclesFor in forest.js); above it, only leaves and twigs, which
+  // fold out of the view (forest.js FOLD_GLSL). Cached on the trunk.
+  function trunkTop(t) {
+    if (t.top === undefined) t.top = groundHeight(t.x, t.z) + 0.8 * Math.max(1.5, (t.r - 0.02) / 0.034);
+    return t.top;
+  }
+
   // The unobstructed fraction (≤ t) of the boom (bx, bz back, `rise` up)
-  // from (tx, ty, tz) past the trunks, each padded by `clearance`. A trunk
-  // only blocks below its crown: a high boom passes over the branching
-  // (about 40% of the tree's height, from its girth; see obstaclesFor in
-  // forest.js), and leaves there are only a veil.
+  // from (tx, ty, tz) past the trunks, each padded by `clearance`, up to
+  // their tops (trunkTop).
   function trunkReach(tx, ty, tz, bx, bz, rise, clearance, t) {
     const n = grid.trunksNear(tx + bx / 2, tz + bz / 2, Math.hypot(bx, bz) / 2 + 1);
     for (let i = 0; i < n; i++) {
@@ -808,8 +852,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
       if (disc < 0) continue;
       const s = (-b - Math.sqrt(disc)) / a;
       if (!(s > 0 && s < t)) continue;
-      const crownBase = surface(trunk.x, trunk.z) + 0.4 * Math.max(1.5, (trunk.r - 0.02) / 0.034);
-      if (ty + rise * s > crownBase) continue;
+      if (ty + rise * s > trunkTop(trunk)) continue;
       t = s;
     }
     return t;
@@ -844,6 +887,10 @@ export function createWalker(obstacles, sea = null, wake = null) {
       t = ((blocked - 1) / steps) * t;
       lift = 0;
     }
+    // Trunks and ground never draw the lens closer than ARM_MIN (it lifts
+    // over them instead); a landmark may, and then the lens rises to look
+    // down from above the cat (placeCamera).
+    t = Math.max(t, Math.min(1, ARM_MIN / length));
     // solid: the landmarks. The boom (lifted as above) is sphere-traced
     // through their walls, towers, timbers and limbs; a low one (the yard
     // wall, the boat, a resting limb) is cleared by lifting further when a
@@ -873,7 +920,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
       t *= f;
     }
     armLift = lift;
-    return Math.max(t, Math.min(1, ARM_MIN / length));
+    return Math.max(t, 0.1 / length);
   }
 }
 
@@ -1070,6 +1117,12 @@ export function spring(s, target, omega, dt) {
   s.x = target + (y + c * dt) * e;
   s.v = (s.v - omega * c * dt) * e;
   return s.x;
+}
+// max(a, b), rounded over a band `k` wide so a path that meets the larger
+// one turns smoothly onto it (never below the max, at most k/4 above).
+function softMax(a, b, k) {
+  const h = Math.max(k - Math.abs(a - b), 0) / k;
+  return Math.max(a, b) + h * h * k * 0.25;
 }
 function settle(s, x) {
   s.x = x;
