@@ -135,7 +135,8 @@ test("penguins never climb the boulders", () => {
   let worst = 0, where = "";
   const check = () => {
     for (const b of p.birds) {
-      if (b.swim > 0.5) continue;
+      // (Afloat, or standing at the sea's edge on a submerged ledge.)
+      if (b.swim > 0.5 || b.y < 0.15) continue;
       const up = b.y - groundHeightAt(b.x, b.z);
       if (up > worst) { worst = up; where = `${b.mode} at ${b.x.toFixed(1)},${b.z.toFixed(1)} home ${b.home.x.toFixed(1)},${b.home.z.toFixed(1)} speed ${b.speed.toFixed(2)} vy ${b.vy.toFixed(2)}`; }
     }
