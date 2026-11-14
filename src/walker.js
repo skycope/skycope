@@ -58,6 +58,12 @@ const LENS_CLEARANCE = 0.4;
 const LENS_GUARD = 0.18;
 // Each step the boom may tilt up to see over a solid at the cat's back.
 const SOLID_RISE = 1.1;
+// The rig's springs (critically damped, rad/s): how quickly the view follows
+// a drag or the swing behind the cat, a zoom, the pivot on the cat, and the
+// arm drawing in for an obstacle (quick) or letting out past it (slow).
+const RIG = { turn: 12, zoom: 8, pivot: 14, pivotY: 6, armIn: 9, armOut: 2.4, liftUp: 5, liftDown: 2, floor: 9 };
+// The trunk clearance the lens must never come inside, whatever the springs.
+const TRUNK_GUARD = 0.15;
 // Step turns (radians) tried when the cat brushes a wall (see update).
 const SKEW = [0.3, 0.6, -0.3, -0.6];
 
@@ -122,17 +128,43 @@ export function createWalker(obstacles, sea = null, wake = null) {
     // How far the arm tilts up to clear a rise or a boulder (metres).
     lift: 0,
   };
+  // The camera rig, in stages, each frame (updateCamera):
+  //   1. aim: the boom the viewer and the follow want (yaw, elevation,
+  //      distance). Drags, zooms, the swing behind the cat, photo mode, the
+  //      ceremonies and the watch drift all move the aim, never the camera;
+  //   2. the view: yaw, elevation and distance follow the aim on critically
+  //      damped springs (camera.yaw etc. are these current values);
+  //   3. the pivot: the cat's head, followed on springs (a step or a hop does
+  //      not jolt the view);
+  //   4. reach: the arm's length and lift that keep the lens clear of trunks,
+  //      rocks, ground and landmarks (armReach), followed on springs that
+  //      draw in quickly and let out slowly; vegetation is not solid (the
+  //      plants near the lens and between it and the cat thin out in their
+  //      shader instead);
+  //   5. guards: the lens never inside a solid, a trunk or below the ground,
+  //      whatever the springs did (instant, and rare);
+  //   6. look: azimuth and pitch from the lens to the pivot.
+  // Writing camera.yaw (or elevation, distance) from outside is a cut: the
+  // rig jumps there (tests, review fixtures, QA scripts).
+  const aim = { yaw: 0, elevation: CAMERA.elevation, distance: CAMERA.distance };
+  const rig = {
+    yaw: { x: 0, v: 0 }, elevation: { x: 0, v: 0 }, distance: { x: 0, v: 0 },
+    px: { x: 0, v: 0 }, py: { x: 0, v: 0 }, pz: { x: 0, v: 0 },
+    arm: { x: 1, v: 0 }, lift: { x: 0, v: 0 }, floor: { x: 0, v: 0 },
+    // What the rig last wrote to camera.yaw, elevation, distance, targetY.
+    wrote: [NaN, NaN, NaN, NaN],
+  };
   let target = null;
   let blocked = 0;
   let armLift = 0;
   let lastDrag = -10;
   let clock = 0;
-  // Where the camera is easing to when it is not simply following: the
-  // viewer's own framing in photo mode (`free`), or the slow drift of
-  // sitting to watch the sky. { yaw, elevation, distance, rate }
+  // Where the aim is easing to when it is not simply following: the slow
+  // drift of sitting to watch the sky. { yaw, elevation, distance, rate }
   let goal = null;
   let free = false;
   let last = null;
+  const lastWater = { level: -Infinity, flowX: 0, flowZ: 0, breaking: 0 };
   // The last rock face the body met: outward normal, when, which way round
   // the cat is going, and how long it has pushed straight at it.
   const wall = { x: 0, z: 0, at: -10, side: 1, top: -Infinity, headOn: 0 };
@@ -173,35 +205,32 @@ export function createWalker(obstacles, sea = null, wake = null) {
       cat.meowing = 0.9;
       cat.idle = Math.min(cat.idle, 2);
     },
+    // The viewer turns the aim; the view follows it on its springs, so a
+    // drag's uneven pointer steps and a wheel's notches come out smooth.
     orbit(dx, dy) {
-      if (free) {
-        goal.yaw += dx;
-        goal.elevation = clamp(goal.elevation + dy, FREE.low, FREE.high);
-        return;
-      }
-      camera.yaw += dx;
-      camera.elevation = clamp(camera.elevation + dy, 0.06, 1.2);
-      lastDrag = clock;
+      goal = null;
+      aim.yaw += dx;
+      aim.elevation = free ? clamp(aim.elevation + dy, FREE.low, FREE.high) : clamp(aim.elevation + dy, 0.06, 1.2);
+      if (!free) lastDrag = clock;
     },
     zoom(factor) {
       if (free) {
-        goal.distance = clamp(goal.distance * factor, FREE.min, FREE.max);
+        aim.distance = clamp(aim.distance * factor, FREE.min, FREE.max);
         return;
       }
       // boat: afloat it may draw further back.
       const afloat = ride && ride.carries(cat);
-      camera.distance = clamp(camera.distance * factor, afloat ? BOAT_VIEW.min : CAMERA.min, afloat ? BOAT_VIEW.max : CAMERA.max);
+      aim.distance = clamp(aim.distance * factor, afloat ? BOAT_VIEW.min : CAMERA.min, afloat ? BOAT_VIEW.max : CAMERA.max);
     },
-    // Photo mode: orbit and zoom ease toward where the viewer puts them,
-    // over a wider range; off again, the follow camera takes over from
-    // wherever the photo left it.
+    // Photo mode (and the ceremonies): orbit and zoom range wider; off
+    // again, the aim comes back inside the follow camera's range and the
+    // view eases there from wherever it was.
     freeCamera(on) {
       free = Boolean(on);
-      if (free) goal = { yaw: camera.yaw, elevation: camera.elevation, distance: camera.distance, rate: 3.5 };
-      else {
-        goal = null;
-        camera.elevation = clamp(camera.elevation, 0.06, 1.2);
-        camera.distance = clamp(camera.distance, CAMERA.min, CAMERA.max);
+      goal = null;
+      if (!free) {
+        aim.elevation = clamp(aim.elevation, 0.06, 1.2);
+        aim.distance = clamp(aim.distance, CAMERA.min, CAMERA.max);
         lastDrag = clock;
       }
     },
@@ -209,7 +238,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
     // distance }), or null to stop wherever it has got to.
     watch(view) {
       if (free) return;
-      goal = view ? { ...view, yaw: camera.yaw + wrap(view.yaw - camera.yaw), rate: 0.11 } : null;
+      goal = view ? { yaw: aim.yaw + wrap(view.yaw - aim.yaw), elevation: view.elevation, distance: view.distance, rate: 0.11 } : null;
       if (!view) lastDrag = clock;
     },
     // input: move [right, forward] in camera terms (−1…1), run, jump (edge).
@@ -348,8 +377,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
       // Water: the level here, and its slope for the body to roll with.
       const bed = surface(cat.x, cat.z);
       // (sea.at reuses one result object: copy it before sampling again.)
-      const water = { ...waterAt(cat.x, cat.z, bed) };
-      last = water;
+      const water = (last = Object.assign(lastWater, waterAt(cat.x, cat.z, bed)));
       const depth = Math.max(0, water.level - bed);
       if (depth > 0) {
         // Over the sand, never a rock top: the film over a boulder beside
@@ -491,8 +519,9 @@ export function createWalker(obstacles, sea = null, wake = null) {
     camera.elevation = CAMERA.elevation;
     camera.distance = CAMERA.distance;
     camera.targetY = cat.y;
-    goal = free ? { yaw: camera.yaw, elevation: camera.elevation, distance: camera.distance, rate: 3.5 } : null;
-    placeCamera(1);
+    goal = null;
+    cut();
+    placeCamera(0);
   }
 
   function tryMove(nx, nz, drift = false) {
@@ -597,124 +626,164 @@ export function createWalker(obstacles, sea = null, wake = null) {
     return sea ? sea.at(x, z, bed) : NO_WATER;
   }
 
-  function updateCamera(dt, moving) {
-    // boat: afloat, a lower, wider, calmer follow (boatCamera below).
-    if (ride && ride.carries(cat) && !free && !goal) {
-      boatCamera(dt);
-      return;
-    }
-    if (goal) {
-      const k = 1 - Math.exp(-dt * goal.rate);
-      camera.yaw += wrap(goal.yaw - camera.yaw) * k;
-      camera.elevation += (goal.elevation - camera.elevation) * k;
-      camera.distance += (goal.distance - camera.distance) * k;
-    }
-    // Swing round behind the cat while it walks, unless the viewer is
-    // steering the camera themselves.
-    else if (moving && clock - lastDrag > 1.2) {
-      const rate = 1.4 * Math.min(1, Math.abs(cat.speed) / WALK_SPEED);
-      camera.yaw += wrap(cat.heading - camera.yaw) * Math.min(1, dt * rate);
-    }
-    placeCamera(Math.min(1, dt * 6));
+  // The rig jumps to where camera.yaw, elevation, distance and targetY say
+  // and the cat is: no springing from wherever it was.
+  function cut() {
+    aim.yaw = camera.yaw;
+    aim.elevation = camera.elevation;
+    aim.distance = camera.distance;
+    settle(rig.yaw, camera.yaw);
+    settle(rig.elevation, camera.elevation);
+    settle(rig.distance, camera.distance);
+    settle(rig.px, cat.x);
+    settle(rig.pz, cat.z);
+    settle(rig.py, camera.targetY);
+    rig.arm.v = rig.lift.v = rig.floor.v = 0;
+    rig.arm.x = -1; // (placed at once on the next placeCamera)
   }
 
-  function placeCamera(ease) {
-    // Follow a softened height so hops and stepping stones don't jolt the view.
-    camera.targetY += (cat.y - camera.targetY) * Math.min(1, ease * 0.6 + 0.02);
-    const tx = cat.x;
-    const tz = cat.z;
-    const ty = camera.targetY + 0.26 * CAT_SCALE;
+  function updateCamera(dt, moving) {
+    // A write from outside (a test, a review fixture, a QA script) is a cut.
+    if (camera.yaw !== rig.wrote[0] || camera.elevation !== rig.wrote[1] || camera.distance !== rig.wrote[2] || camera.targetY !== rig.wrote[3]) cut();
+    const afloat = ride && ride.carries(cat) && !free && !goal;
+    // 1. Aim.
+    if (goal) {
+      const k = 1 - Math.exp(-dt * goal.rate);
+      aim.yaw += wrap(goal.yaw - aim.yaw) * k;
+      aim.elevation += (goal.elevation - aim.elevation) * k;
+      aim.distance += (goal.distance - aim.distance) * k;
+    } else if (afloat) {
+      // boat: swing round behind the boat's heading slowly (the viewer's
+      // drag wins for a while), only once the bow has come round toward
+      // where the cat is steering: sooner would drag the steering with it.
+      const v = ride.view;
+      if (clock - lastDrag > 2.5) {
+        const rate = (0.45 + 0.5 * Math.min(1, Math.abs(v.speed) / 1.5)) * smooth(0.5, 0.95, v.align ?? 1);
+        aim.yaw += wrap(v.heading - aim.yaw) * Math.min(1, dt * rate);
+      }
+      aim.distance = clamp(aim.distance, BOAT_VIEW.min, BOAT_VIEW.max);
+      aim.elevation = clamp(aim.elevation, BOAT_VIEW.low, BOAT_VIEW.high);
+    } else {
+      if (!free && (aim.distance > CAMERA.max || aim.distance < CAMERA.min)) aim.distance = clamp(aim.distance, CAMERA.min, CAMERA.max);
+      // Swing round behind the cat while it walks, unless the viewer is
+      // steering the camera themselves.
+      if (moving && !free && clock - lastDrag > 1.2) {
+        const rate = 1.4 * Math.min(1, Math.abs(cat.speed) / WALK_SPEED);
+        aim.yaw += wrap(cat.heading - aim.yaw) * Math.min(1, dt * rate);
+      }
+    }
+    // 2. The view follows the aim (afloat, more calmly).
+    const calm = afloat ? 0.5 : 1;
+    camera.yaw = spring(rig.yaw, rig.yaw.x + wrap(aim.yaw - rig.yaw.x), RIG.turn * calm, dt);
+    camera.elevation = spring(rig.elevation, aim.elevation, RIG.turn * calm, dt);
+    camera.distance = spring(rig.distance, aim.distance, RIG.zoom * calm, dt);
+    // Keep the aim's yaw beside the view's (both unwrapped), so a long
+    // orbit never makes the spring take the long way round.
+    aim.yaw = camera.yaw + wrap(aim.yaw - camera.yaw);
+    placeCamera(dt, afloat);
+  }
+
+  // Stages 3–6 (see the rig above). dt 0 places everything at once.
+  function placeCamera(dt, afloat = false) {
+    const v = afloat ? ride.view : null;
+    // 3. Pivot: the cat's head (afloat, the boat, its heave heavily
+    // softened so the swell does not shake the view). A jump of metres
+    // (home, a teleport) is a cut.
+    const cx = afloat ? v.x : cat.x;
+    const cz = afloat ? v.z : cat.z;
+    const cy = afloat ? v.y : cat.y;
+    if (dt === 0 || Math.hypot(cx - rig.px.x, cz - rig.pz.x) > 3) {
+      settle(rig.px, cx);
+      settle(rig.pz, cz);
+      if (dt === 0) settle(rig.py, cy);
+    }
+    const tx = spring(rig.px, cx, afloat ? RIG.pivot * 0.3 : RIG.pivot, dt);
+    const tz = spring(rig.pz, cz, afloat ? RIG.pivot * 0.3 : RIG.pivot, dt);
+    camera.targetY = spring(rig.py, cy, afloat ? 1.2 : RIG.pivotY, dt);
+    const ty = camera.targetY + (afloat ? 0.35 : 0.26 * CAT_SCALE);
     const horizontal = Math.cos(camera.elevation) * camera.distance;
-    // Spring arm: shorten the boom to just short of the first trunk, rock or
-    // rise of ground between the cat and the camera. It pulls in quickly and
-    // lets out slowly, so passing a tree doesn't make the view pump.
-    const reach = armReach(tx, ty, tz, horizontal, Math.sin(camera.elevation) * camera.distance);
-    camera.arm += (reach - camera.arm) * (reach < camera.arm ? Math.min(1, ease * 2.5) : ease * 0.35);
-    if (ease >= 1) camera.arm = reach;
-    let x = tx - Math.sin(camera.yaw) * horizontal * camera.arm;
-    let z = tz - Math.cos(camera.yaw) * horizontal * camera.arm;
-    camera.lift += (armLift - camera.lift) * (armLift > camera.lift ? Math.min(1, ease * 2.5) : ease * 0.35);
-    if (ease >= 1) camera.lift = armLift;
-    let y = ty + Math.sin(camera.elevation) * camera.distance * camera.arm + camera.lift * camera.arm;
-    // Clear the ground (and boulders), and never dip toward the sea surface.
-    const clearance = shoreDistance(x, z) > -1 ? surface(x, z) + 0.45 : 0.9;
-    y = Math.max(y, clearance, 0.9);
-    camera.x += (x - camera.x) * ease;
-    camera.z += (z - camera.z) * ease;
-    camera.y += (y - camera.y) * ease;
-    // solid: the eased lens never ends up in a wall or a timber. Swinging
-    // round or lifting over the ground can carry it into one between arm
-    // updates; it is pulled in along the line to the cat, at once.
+    const rise = Math.sin(camera.elevation) * camera.distance;
+    const sin = Math.sin(camera.yaw);
+    const cos = Math.cos(camera.yaw);
+    // 4. Reach: afloat the open sea needs none.
+    const reach = afloat ? 1 : armReach(tx, ty, tz, horizontal, rise);
+    const lift = afloat ? 0 : armLift;
+    if (dt === 0 || rig.arm.x < 0) {
+      settle(rig.arm, reach);
+      settle(rig.lift, lift);
+    }
+    let arm = spring(rig.arm, reach, reach < rig.arm.x ? RIG.armIn : RIG.armOut, dt);
+    const lifted = spring(rig.lift, lift, lift > rig.lift.x ? RIG.liftUp : RIG.liftDown, dt);
+    // 5. Guards. A trunk the springs have not yet cleared: the arm stops
+    // short of it at once.
+    if (!afloat) {
+      const hard = trunkReach(tx, ty, tz, -sin * horizontal, -cos * horizontal, rise, TRUNK_GUARD, 1);
+      if (arm > hard) {
+        arm = rig.arm.x = Math.max(hard, Math.min(1, ARM_MIN / Math.hypot(horizontal, rise)));
+        rig.arm.v = Math.min(rig.arm.v, 0);
+      }
+    }
+    const x = tx - sin * horizontal * arm;
+    const z = tz - cos * horizontal * arm;
+    let y = ty + rise * arm + lifted * arm;
+    // The ground (and boulders) below the lens: a floor that follows the
+    // ground under the lens on a spring (so bumps do not jog it), and a
+    // harder one close to the ground; never toward the sea surface.
+    const ashore = shoreDistance(x, z) > -1;
+    const ground = ashore ? surface(x, z) : -Infinity;
+    const floorAt = ashore ? ground + (afloat ? 0.6 : 0.45) : afloat ? 1.1 : 0.9;
+    if (dt === 0) settle(rig.floor, floorAt);
+    const floor = spring(rig.floor, floorAt, RIG.floor, dt);
+    y = Math.max(y, floor, ground + 0.25, 0.9);
+    camera.x = x;
+    camera.y = y;
+    camera.z = z;
+    // solid: the lens never ends up in a wall or a timber. The springs can
+    // carry it into one for a moment; it is pulled in along the line to
+    // the cat, at once, and the arm keeps that length.
     if (solids.distance(camera.x, camera.y, camera.z, LENS_CLEARANCE) < LENS_GUARD) {
       const f = solids.trace(tx, ty, tz, camera.x, camera.y, camera.z, LENS_GUARD);
       if (f < 1) {
         camera.x = tx + (camera.x - tx) * f;
         camera.y = ty + (camera.y - ty) * f;
         camera.z = tz + (camera.z - tz) * f;
+        rig.arm.x *= f;
+        rig.arm.v = Math.min(rig.arm.v, 0);
       }
       // Pulled right in to the cat's back: look down on it from above
       // instead, as far up as is clear.
       if (Math.hypot(camera.x - tx, camera.y - ty, camera.z - tz) < 0.7) {
-        const bx = -Math.sin(camera.yaw) * 0.4, bz = -Math.cos(camera.yaw) * 0.4;
+        const bx = -sin * 0.4, bz = -cos * 0.4;
         const up = solids.trace(tx, ty, tz, tx + bx, ty + 1.6, tz + bz, LENS_GUARD);
         camera.x = tx + bx * up;
         camera.y = ty + 1.6 * up;
         camera.z = tz + bz * up;
       }
     }
+    camera.arm = rig.arm.x;
+    camera.lift = rig.lift.x;
+    // 6. Look at the pivot.
     const dx = tx - camera.x;
     const dz = tz - camera.z;
-    const heading = Math.atan2(dx, dz);
-    camera.azimuth = heading - Math.PI / 4;
-    camera.pitch = Math.atan2(ty - camera.y, Math.hypot(dx, dz)) + LOOK_LIFT;
-  }
-
-  // boat: the camera afloat. It frames the boat and the cat in it from
-  // further back and lower, swings round behind the boat's heading slowly
-  // (the viewer's drag wins for a while), follows a heavily softened heave
-  // so the swell does not shake the view, and never dips toward the sea.
-  function boatCamera(dt) {
-    const v = ride.view;
-    const k = Math.min(1, dt * 1.2);
-    // Only once the bow has come round toward where the cat is steering:
-    // swinging sooner would drag the steering round with it.
-    if (clock - lastDrag > 2.5) {
-      const rate = (0.45 + 0.5 * Math.min(1, Math.abs(v.speed) / 1.5)) * smooth(0.5, 0.95, v.align ?? 1);
-      camera.yaw += wrap(v.heading - camera.yaw) * Math.min(1, dt * rate);
-    }
-    camera.distance += (clamp(camera.distance, BOAT_VIEW.min, BOAT_VIEW.max) - camera.distance) * k;
-    camera.elevation += (clamp(camera.elevation, BOAT_VIEW.low, BOAT_VIEW.high) - camera.elevation) * k;
-    camera.targetY += (v.y - camera.targetY) * Math.min(1, dt * 0.8);
-    const ty = camera.targetY + 0.35;
-    const horizontal = Math.cos(camera.elevation) * camera.distance;
-    const x = v.x - Math.sin(camera.yaw) * horizontal;
-    const z = v.z - Math.cos(camera.yaw) * horizontal;
-    let y = ty + Math.sin(camera.elevation) * camera.distance;
-    y = Math.max(y, shoreDistance(x, z) > -1 ? surface(x, z) + 0.6 : 1.1);
-    const ease = Math.min(1, dt * 3);
-    camera.x += (x - camera.x) * ease;
-    camera.z += (z - camera.z) * ease;
-    camera.y += (y - camera.y) * ease;
-    camera.arm = 1;
-    camera.lift = 0;
-    const dx = v.x - camera.x;
-    const dz = v.z - camera.z;
     camera.azimuth = Math.atan2(dx, dz) - Math.PI / 4;
-    camera.pitch = Math.atan2(ty - camera.y, Math.hypot(dx, dz)) + LOOK_LIFT * 0.6;
+    camera.pitch = Math.atan2(ty - camera.y, Math.hypot(dx, dz)) + LOOK_LIFT * (afloat ? 0.6 : 1);
+    rig.wrote[0] = camera.yaw;
+    rig.wrote[1] = camera.elevation;
+    rig.wrote[2] = camera.distance;
+    rig.wrote[3] = camera.targetY;
   }
 
-  // The unobstructed fraction (0…1) of the boom from the cat's head toward
-  // the camera (`horizontal` back along −yaw, `rise` up). Trunks are
-  // cylinders up to their crowns, padded by the lens's clearance; ground and boulders are
-  // sampled along the boom. Never closer than ARM_MIN metres.
-  function armReach(tx, ty, tz, horizontal, rise) {
-    const bx = -Math.sin(camera.yaw) * horizontal;
-    const bz = -Math.cos(camera.yaw) * horizontal;
-    const length = Math.hypot(horizontal, rise) || 1;
-    let t = 1;
-    for (const trunk of grid.trunksNear(tx + bx / 2, tz + bz / 2, horizontal / 2 + 1)) {
+  // The unobstructed fraction (≤ t) of the boom (bx, bz back, `rise` up)
+  // from (tx, ty, tz) past the trunks, each padded by `clearance`. A trunk
+  // only blocks below its crown: a high boom passes over the branching
+  // (about 40% of the tree's height, from its girth; see obstaclesFor in
+  // forest.js), and leaves there are only a veil.
+  function trunkReach(tx, ty, tz, bx, bz, rise, clearance, t) {
+    const n = grid.trunksNear(tx + bx / 2, tz + bz / 2, Math.hypot(bx, bz) / 2 + 1);
+    for (let i = 0; i < n; i++) {
+      const trunk = grid.found[i];
       // Segment (tx, tz) + s·(bx, bz) against the padded circle.
-      const r = trunk.r + ARM_CLEARANCE;
+      const r = trunk.r + clearance;
       const ox = tx - trunk.x;
       const oz = tz - trunk.z;
       const a = bx * bx + bz * bz;
@@ -725,13 +794,22 @@ export function createWalker(obstacles, sea = null, wake = null) {
       if (disc < 0) continue;
       const s = (-b - Math.sqrt(disc)) / a;
       if (!(s > 0 && s < t)) continue;
-      // A trunk only blocks below its crown: a high boom passes over the
-      // branching (about 40% of the tree's height, from its girth; see
-      // obstaclesFor in forest.js), and leaves there are only a veil.
       const crownBase = surface(trunk.x, trunk.z) + 0.4 * Math.max(1.5, (trunk.r - 0.02) / 0.034);
       if (ty + rise * s > crownBase) continue;
       t = s;
     }
+    return t;
+  }
+
+  // The unobstructed fraction (0…1) of the boom from the cat's head toward
+  // the camera (`horizontal` back along −yaw, `rise` up). Trunks are
+  // cylinders up to their crowns, padded by the lens's clearance; ground and boulders are
+  // sampled along the boom. Never closer than ARM_MIN metres.
+  function armReach(tx, ty, tz, horizontal, rise) {
+    const bx = -Math.sin(camera.yaw) * horizontal;
+    const bz = -Math.cos(camera.yaw) * horizontal;
+    const length = Math.hypot(horizontal, rise) || 1;
+    let t = trunkReach(tx, ty, tz, bx, bz, rise, ARM_CLEARANCE, 1);
     // Ground and boulders: the boom tilts up over a rise or a rock (lifting
     // the camera by `lift` raises the boom at s by lift·s) when a modest
     // lift clears it; otherwise it shortens to just before the obstacle.
@@ -756,14 +834,13 @@ export function createWalker(obstacles, sea = null, wake = null) {
     // through their walls, towers, timbers and limbs; a low one (the yard
     // wall, the boat, a resting limb) is cleared by lifting further when a
     // modest lift does it, anything else stops the arm short of it.
-    const boomTo = (lift2) => solids.trace(tx, ty, tz, tx + bx * t, ty + (rise + lift2) * t, tz + bz * t, LENS_CLEARANCE);
-    let f = boomTo(lift);
+    let f = solids.trace(tx, ty, tz, tx + bx * t, ty + (rise + lift) * t, tz + bz * t, LENS_CLEARANCE);
     if (f < 1) {
       const prim = solids.hit.prim;
       const s = Math.max(f * t, 0.05);
       const over = prim && prim.k !== 3 ? (prim.y1 + LENS_CLEARANCE + 0.05 - (ty + rise * s)) / s : Infinity;
       if (over > lift && over < ARM_LIFT) {
-        const f2 = boomTo(over);
+        const f2 = solids.trace(tx, ty, tz, tx + bx * t, ty + (rise + over) * t, tz + bz * t, LENS_CLEARANCE);
         if (f2 > f) {
           f = f2;
           lift = over;
@@ -773,7 +850,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
       // look down over it from higher up rather than from the cat's back.
       const base = lift;
       for (let k = 1; f * t * length < ARM_MIN * 1.6 && k <= 3; k++) {
-        const f2 = boomTo(base + k * SOLID_RISE);
+        const f2 = solids.trace(tx, ty, tz, tx + bx * t, ty + (rise + base + k * SOLID_RISE) * t, tz + bz * t, LENS_CLEARANCE);
         if (f2 > f + 0.1) {
           f = f2;
           lift = base + k * SOLID_RISE;
@@ -893,17 +970,24 @@ function spatialGrid({ trunks, domes }) {
   for (const d of domes) add("domes", d, d.r + 0.1);
   let found = null;
   const hit = { x: 0, z: 0, top: 0, gradient: false, tile: null };
+  // trunksNear: its results, and a stamp per query so each trunk is listed once.
+  const foundTrunks = [];
+  const marks = new Map();
+  let stamp = 0;
   const at = (x, z) => cells.get(Math.floor(x / cell) * 4096 + Math.floor(z / cell));
   return {
-    // Trunks within `radius` of (x, z) (whole cells; may include a few more).
+    // Trunks within `radius` of (x, z) (whole cells; may include a few
+    // more), into `found`, each once; returns how many. No allocation.
+    found: foundTrunks,
     trunksNear(x, z, radius) {
-      const out = new Set();
+      stamp++;
+      let n = 0;
       for (let i = Math.floor((x - radius) / cell); i <= Math.floor((x + radius) / cell); i++)
         for (let j = Math.floor((z - radius) / cell); j <= Math.floor((z + radius) / cell); j++) {
           const c = cells.get(i * 4096 + j);
-          if (c) for (const t of c.trunks) out.add(t);
+          if (c) for (const t of c.trunks) if (marks.get(t) !== stamp) { marks.set(t, stamp); foundTrunks[n++] = t; }
         }
-      return out;
+      return n;
     },
     clearOfTrunks(x, z, radius) {
       const c = at(x, z);
@@ -953,6 +1037,23 @@ export function surfaceKind(x, z, onRock, inWater = false) {
 }
 
 const NO_WATER = { level: -Infinity, flowX: 0, flowZ: 0, breaking: 0 };
+
+// A critically damped spring, s = { x, v }, toward `target` at angular
+// frequency `omega` (rad/s): exact for any dt, so it moves the same at 30
+// and 120 fps; no overshoot, no allocation. Returns the new x.
+export function spring(s, target, omega, dt) {
+  if (!(dt > 0)) return s.x;
+  const y = s.x - target;
+  const c = s.v + omega * y;
+  const e = Math.exp(-omega * dt);
+  s.x = target + (y + c * dt) * e;
+  s.v = (s.v - omega * c * dt) * e;
+  return s.x;
+}
+function settle(s, x) {
+  s.x = x;
+  s.v = 0;
+}
 
 function lerp(a, b, t) {
   return a + (b - a) * t;

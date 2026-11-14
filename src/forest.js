@@ -1188,8 +1188,10 @@ if ( rockSandy > 0.01 && vRockAbove < 0.3 ) {
   float driftTop = 0.012 + 0.045 * windward * windward + ( relief - 0.5 ) * 0.02 + ( mid - 0.5 ) * 0.02
     + ( mix( dNoise3( q * 23.0 ), 0.5, smoothstep( 0.2, 0.5, footprint * 23.0 ) ) - 0.5 ) * 0.015;
   drift = ( 1.0 - smoothstep( driftTop - 0.015, driftTop + 0.004, vRockAbove ) ) * rockSandy;
-  vec3 sandTone = mix( vec3( 0.41, 0.36, 0.26 ), vec3( 0.29, 0.24, 0.16 ), smoothstep( 4.0, 9.0, rockInland ) );
-  diffuseColor.rgb = mix( diffuseColor.rgb, sandTone * ( 0.85 + relief * 0.3 ), drift );
+  // The sand it is: the ground's own baked albedo right there, darkened
+  // as the ground is round the rock's foot (a fixed bright tone read as a
+  // pale band against the shaded sand beside it).
+  diffuseColor.rgb = mix( diffuseColor.rgb, rockSandAlbedo( coast ) * ( 0.85 + relief * 0.3 ), drift );
 }
 float detailHeight = macro * 0.05 + mid * 0.018 + relief * 0.022 + feldspar * 0.0006 - biotite * 0.0004 - seam * 0.006 + barnacles * 0.0015 + lichen * 0.002;
 float detailRoughness = mix( mix( mix( 0.82, 0.95, max( barnacles, lichen ) ), 0.55, damp ), 0.32, sheet );
@@ -1630,18 +1632,49 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
     if (rock) {
       // The foot sees almost no sky where it meets the sand (or the stone it
       // rests on): contact shadow, like the bark foot.
+      // Height above the sand under each vertex (the ground field), not
+      // above the instance's anchor: that is the terrain at the rock's
+      // centre, so on a sloping beach the whole downhill foot read as below
+      // the sand and drew as a pale, sky-lit band of drift. A rock resting
+      // on another (its anchor well above the sand at its centre) keeps the
+      // anchor: its foot is on stone.
       shader.vertexShader = shader.vertexShader
-        .replace("void main() {", "varying float vRockAbove;\nvoid main() {")
-        .replace("vWorld = ( modelMatrix * detailWorld ).xyz;", "vWorld = ( modelMatrix * detailWorld ).xyz;\n          vRockAbove = vWorld.y - anchorHeight;");
+        .replace("void main() {", "varying float vRockAbove;\nuniform sampler2D groundField;\nuniform vec4 groundRect;\nvoid main() {")
+        .replace(
+          "vWorld = ( modelMatrix * detailWorld ).xyz;",
+          `vWorld = ( modelMatrix * detailWorld ).xyz;
+          {
+            float sandHere = texture2D( groundField, ( vec2( vWorld.x, -vWorld.z ) - groundRect.xy ) * groundRect.zw ).r;
+            #ifdef USE_INSTANCING
+              vec3 rockCentre = ( modelMatrix * vec4( instanceMatrix[3].xyz, 1.0 ) ).xyz;
+              float sandCentre = texture2D( groundField, ( vec2( rockCentre.x, -rockCentre.z ) - groundRect.xy ) * groundRect.zw ).r;
+              float rockFoot = anchorHeight > sandCentre + 0.08 ? anchorHeight : sandHere;
+            #else
+              float rockFoot = sandHere;
+            #endif
+            vRockAbove = vWorld.y - rockFoot;
+          }`,
+        );
       shader.fragmentShader = shader.fragmentShader
-        .replace("void main() {", "varying float vRockAbove;\nvoid main() {")
+        .replace(
+          "void main() {",
+          `varying float vRockAbove;
+          uniform sampler2D groundField;
+          uniform vec4 groundRect;
+          vec3 rockSandAlbedo( vec2 p ) {
+            vec4 f = texture2D( groundField, ( p - groundRect.xy ) * groundRect.zw );
+            return mix( vec3( ${SOIL_TINT.map((v) => v.toFixed(3)).join(", ")} ), vec3( ${SAND_GROUND_TINT.map((v) => v.toFixed(3)).join(", ")} ), f.a ) * f.b;
+          }
+          void main() {`,
+        )
         .replace(
           "#include <lights_fragment_end>",
           `#include <lights_fragment_end>
           {
             float contact = mix( 0.45, 1.0, smoothstep( 0.0, 0.5, vRockAbove ) );
-            // Drifted sand at the foot faces the open sky, like the beach.
-            contact = mix( contact, max( contact, 0.85 ), drift );
+            // Drifted sand at the foot sees the sky as the sand beside it
+            // does: half hidden by the rock (the ground's baked shade).
+            contact = mix( contact, max( contact, 0.6 ), drift );
             reflectedLight.indirectDiffuse *= contact;
             reflectedLight.indirectSpecular *= contact;
           }`,
