@@ -176,7 +176,7 @@ export function createWeather(core) {
           roofGain = p.gain;
         }
       }
-      if (under === "eave") roof = { gain: 2, pan: 0, cutoff: 20000 };
+      if (under === "eave") roof = { gain: 1, pan: 0, cutoff: 20000 };
       set(rig.roof.out.gain, roof ? roof.gain : 0);
       set(rig.roofPan.pan, roof?.pan ?? 0);
       set(rig.roofAir.frequency, roof?.cutoff ?? 20000);

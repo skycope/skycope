@@ -278,8 +278,8 @@ const SYNTHS = {
   owl(io, out, t) {
     const f = rand(330, 370);
     const formants = [[f * 1.05, 2, 1.6], [f * 2.1, 3, 0.15]];
-    voiced(io, out, { t, length: 0.28, contour: [[0, f * 0.9], [0.3, f], [1, f * 0.97]], formants, gain: 0.07, type: "triangle", breath: 0.12, attack: 0.05, release: 0.08 });
-    voiced(io, out, { t: t + 0.55, length: 0.62, contour: [[0, f * 0.84], [0.3, f * 0.92], [1, f * 0.8]], formants, gain: 0.075, type: "triangle", breath: 0.12, attack: 0.07, release: 0.2 });
+    voiced(io, out, { t, length: 0.28, contour: [[0, f * 0.9], [0.3, f], [1, f * 0.97]], formants, gain: 0.018, type: "triangle", breath: 0.12, attack: 0.05, release: 0.08 });
+    voiced(io, out, { t: t + 0.55, length: 0.62, contour: [[0, f * 0.84], [0.3, f * 0.92], [1, f * 0.8]], formants, gain: 0.02, type: "triangle", breath: 0.12, attack: 0.07, release: 0.2 });
     return 1.5;
   },
 

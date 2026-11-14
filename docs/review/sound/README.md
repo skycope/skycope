@@ -92,7 +92,7 @@ Numbered as on the audition page (`/?audition`) and in the listening checklist (
 | 5.3 | Chirrup | 0.29 | -30.2 | -30.2 | -37.7 | -39.2 | 755 | a questioning 'mrrp?' | [png](spectrograms/5.3-chirrup.png) |
 | 5.4 | The wisp's answer | 1.25 | -31.9 | -31.9 | -39.2 | -41.8 | 1582 | three small glassy notes skipping up | [png](spectrograms/5.4-wisp.png) |
 | 5.5 | A penguin's soft 'haw' back (8 m left) | 0.65 | -26.4 | -26.4 | -42.0 | -42.8 | 729 | one short soft honk | [png](spectrograms/5.5-haw.png) |
-| 5.6 | The owl in the milkwood (25 m ahead) | 1.92 | -17.0 | -17.0 | -18.8 | -21.8 | 332 | a soft 'hoo, hooo', the second lower and longer | [png](spectrograms/5.6-owl.png) |
+| 5.6 | The owl in the milkwood (25 m ahead) | 1.92 | -28.5 | -28.5 | -30.2 | -33.2 | 331 | a soft 'hoo, hooo', the second lower and longer | [png](spectrograms/5.6-owl.png) |
 | 5.7 | The lighthouse throwing a meow back (25 m) | 0.79 | -20.3 | -20.3 | -26.1 | -28.0 | 1022 | the meow, late and dark | [png](spectrograms/5.7-tower-echo.png) |
 
 ### 6. The purr
@@ -108,7 +108,7 @@ Numbered as on the audition page (`/?audition`) and in the listening checklist (
 | 7.1 | Rain 4 mm/h in the open (scene, 8 s) | 8.30 | -22.4 | -22.3 | -28.6 | -29.0 | 5855 | a soft full rain, lighter on sand | [png](spectrograms/7.1-rain-open.png) |
 | 7.2 | Rain under the milkwood (scene, 8 s) | 8.30 | -16.2 | -16.0 | -25.0 | -25.3 | 8981 | the open rain softer, leaves louder, big drips falling | [png](spectrograms/7.2-rain-tree.png) |
 | 7.3 | Rain on the iron roof, 12 m away (scene, 8 s) | 8.30 | -12.4 | -12.4 | -24.7 | -25.3 | 4982 | the roof ringing and drumming from where it is | [png](spectrograms/7.3-rain-roof.png) |
-| 7.4 | Under the eave (scene, 8 s) | 8.30 | -12.8 | -12.8 | -28.3 | -31.9 | 928 | outside soft and far, the roof loud overhead, a gutter dripping: the contrast is the point | [png](spectrograms/7.4-rain-eave.png) |
+| 7.4 | Under the eave (scene, 8 s) | 8.30 | -18.8 | -18.8 | -33.8 | -37.2 | 990 | outside soft and far, the roof loud overhead, a gutter dripping: the contrast is the point | [png](spectrograms/7.4-rain-eave.png) |
 | 7.5 | Thunder, 1.5 km | 11.54 | -13.2 | -13.2 | -24.5 | -27.9 | 131 | a crack then rolls; loud but not painful | [png](spectrograms/7.5-thunder-near.png) |
 | 7.6 | Thunder, 8 km | 28.47 | -19.5 | -19.5 | -30.2 | -36.7 | 84 | only a low grumble | [png](spectrograms/7.6-thunder-far.png) |
 
