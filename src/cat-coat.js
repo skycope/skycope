@@ -691,7 +691,9 @@ const COMMON_COLOUR = /* glsl */ `
     // The lid margins are black; a wet line of tears sits on the lower one.
     float rim = band( e.y - upper, 0.032 ) + band( e.y - lower, 0.03 );
     eyeWet += band( e.y - lower - 0.05, 0.05 ) * 1.5;
-    coatColour = mix( coatColour, lin( vec3( 0.5, 0.43, 0.34 ) ), lid );
+    // The lid over the globe is the dark skin of its margin running into
+    // the coat's own colour, never a pale ring round the iris.
+    coatColour = mix( coatColour, lin( vec3( 0.27, 0.21, 0.16 ) ), lid );
     coatColour *= 1.0 - clamp( rim, 0.0, 1.0 ) * 0.88;
     furGloss *= 1.0 - lid;
     eyeWet *= 1.0 - lid;

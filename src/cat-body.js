@@ -652,11 +652,13 @@ export function furFlow(position, normal, region, primitiveComb) {
 // coat coordinates are the eye's own (+z along the gaze, x outward), so the
 // iris and pupil are drawn per pixel.
 
-// Set forward with the coat round it (LOFT), so the globe fills its lids
-// rather than peering from a pit.
+// Set into the socket so the coat round it meets the cornea: the globe fills
+// its lids without standing proud of the face. The visible cornea is a
+// shallow dome, not a ball: the globe is flattened along its gaze.
 export const EYE_RADIUS = 0.0098 * HEAD_SCALE;
+const EYE_FLAT = 0.8;
 export function eyeCentre(side) {
-  return [0.019 * side * HEAD_SCALE, 0.0062 * HEAD_SCALE, 0.0287 * HEAD_SCALE];
+  return [0.0188 * side * HEAD_SCALE, 0.0062 * HEAD_SCALE, 0.0276 * HEAD_SCALE];
 }
 export const EYE_GAZE = { yaw: 0.26, pitch: -0.04 };
 
@@ -666,13 +668,15 @@ function eyes(rig, detail = 1) {
     const g = new THREE.SphereGeometry(EYE_RADIUS, Math.round(22 * detail), Math.round(16 * detail));
     const out = part(g.attributes.position.count);
     const c = eyeCentre(side);
-    const toGaze = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(EYE_GAZE.pitch, side * EYE_GAZE.yaw, 0, "YXZ")).invert();
+    const fromGaze = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(EYE_GAZE.pitch, side * EYE_GAZE.yaw, 0, "YXZ"));
+    const toGaze = fromGaze.clone().invert();
     const q = new THREE.Vector3();
     for (let i = 0; i < out.count; i++) {
       q.fromBufferAttribute(g.attributes.position, i);
       const local = q.clone().applyMatrix4(toGaze);
-      out.position.set([q.x + c[0] + HEAD[0], q.y + c[1] + HEAD[1], q.z + c[2] + HEAD[2]], i * 3);
-      const nrm = q.clone().normalize();
+      const flat = local.clone().setZ(local.z * EYE_FLAT).applyMatrix4(fromGaze);
+      out.position.set([flat.x + c[0] + HEAD[0], flat.y + c[1] + HEAD[1], flat.z + c[2] + HEAD[2]], i * 3);
+      const nrm = local.clone().setZ(local.z / (EYE_FLAT * EYE_FLAT)).applyMatrix4(fromGaze).normalize();
       out.normal.set(nrm.toArray(), i * 3);
       // coat.w carries the side (1 left, 1.25 right) for the lids.
       out.coat.set([local.x, local.y, local.z, EYE + (side < 0 ? 0.25 : 0)], i * 4);

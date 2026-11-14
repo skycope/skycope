@@ -187,15 +187,16 @@
       top: up.clone().addScaledVector(fwd, -0.001),
       follow: fwd.clone().negate().multiplyScalar(Math.cos(0.38)).addScaledVector(up, Math.sin(0.38)),
       quarter: fwd.clone().add(left).normalize().multiplyScalar(Math.cos(0.25)).addScaledVector(up, Math.sin(0.25)),
+      profile: left.clone().addScaledVector(fwd, 0.15).normalize(),
       face: fwd.clone().multiplyScalar(Math.cos(0.08)).addScaledVector(up, Math.sin(0.08)).addScaledVector(left, 0.25).normalize(),
       thighs: fwd.clone().negate().multiplyScalar(0.8).addScaledVector(up, -0.05).addScaledVector(left, 0.6).normalize(),
       under: fwd.clone().negate().multiplyScalar(0.9).addScaledVector(up, 0.12).normalize(),
     }[view];
     let look = centre.clone();
-    if (aim === "head" || view === "face") look = new THREE.Vector3().setFromMatrixPosition(b.head.matrixWorld);
+    if (aim === "head" || view === "face" || view === "profile") look = new THREE.Vector3().setFromMatrixPosition(b.head.matrixWorld);
     if (aim === "hips" || view === "thighs" || view === "under") look = new THREE.Vector3().setFromMatrixPosition(b.hips.matrixWorld).addScaledVector(up, -0.08);
     if (aim && typeof aim === "object") look = new THREE.Vector3(...aim);
-    const span = view === "face" ? 0.22 : view === "thighs" || view === "under" ? 0.42 : 0.95;
+    const span = view === "face" || view === "profile" ? 0.22 : view === "thighs" || view === "under" ? 0.42 : 0.95;
     const d = distance ?? span / 2 / Math.tan((fov * Math.PI) / 360);
     shotCamera.fov = fov;
     shotCamera.aspect = 1;
