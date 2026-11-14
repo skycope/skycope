@@ -49,7 +49,8 @@ import { createWake } from "./wake.js";
 import { createSound } from "./sound.js";
 import { CAT_SCALE } from "./cat-rig.js";
 import { reviewFixture, applyReviewFixture } from "./review-fixtures.js";
-import { createLoadingScreen } from "./loading-screen.js";
+// The loading veil (index.html starts it before this module loads).
+import { loading } from "./loading-screen.js";
 // thread: discoveries, score inputs, photo mode, small moments (thread.js).
 import { createThread } from "./thread.js";
 // quality: render sizes and what to shed under load (src/quality.js).
@@ -58,7 +59,6 @@ import { previewDate } from "./moments.js";
 
 const review = reviewFixture(window.location.search);
 const PERF = new URLSearchParams(window.location.search).has("perf");
-const loading = createLoadingScreen();
 
 // You are a cat: WASD/arrows walk (relative to the camera), shift runs,
 // space jumps, M meows. Click or tap the ground to walk there; drag orbits
@@ -505,6 +505,7 @@ function updateTime() {
   canvas.dataset.time = state.date.toISOString();
   canvas.dataset.frameMs = state.frameMs.toFixed(1);
   canvas.dataset.seed = String(state.seed);
+  loading.scene({ celestial: state.celestial, weather: state.weather });
   renderStill();
 }
 
@@ -556,6 +557,7 @@ function applyWeather() {
     weatherLabel.textContent = state.liveStatus === "unavailable" ? "weather unavailable" : "weather…";
     document.body.dataset.weather = state.liveStatus ?? "loading";
   }
+  if (state.celestial) loading.scene({ celestial: state.celestial, weather: state.weather });
   renderStill();
 }
 
@@ -567,6 +569,7 @@ async function startAtmosphere() {
   const adapter = await navigator.gpu?.requestAdapter({ powerPreference: "low-power" }).catch(() => null);
   const timed = !!adapter?.features.has("timestamp-query");
   const gpu = await init({ powerPreference: "low-power", ...(timed ? { requiredFeatures: ["timestamp-query"] } : {}) });
+  loading.progress("gpu");
   if (state.disposed) {
     gpu.dispose();
     return;
@@ -678,6 +681,7 @@ async function startAtmosphere() {
   await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   const { createLandscape } = await import("./landscape.js");
   if (state.disposed) return;
+  loading.progress("island");
   state.landscape = createLandscape(
     document.querySelector("#landscape"),
     state.seed,
@@ -709,6 +713,8 @@ async function startAtmosphere() {
   state.boat = state.landscape.boat?.attach({ walker: state.walker, sea: state.sea, magic: state.magic, wake: state.wake }) ?? null;
   applyReviewFixture(state.walker, review, state.landscape.obstacles);
   state.flight = state.walker.camera;
+  loading.progress("world");
+  loading.scene({ view: state.flight });
   state.thread.attach(); // thread: the island's discoveries, watch and dawn lapse
   joinWorld();
   state.landscape.resize(window.innerWidth, window.innerHeight, state.sizes.land);
@@ -721,6 +727,7 @@ async function startAtmosphere() {
   await foamPass.compile(foamTarget.write);
   await water.compile({ colors: [output.format] });
   if (state.disposed) return;
+  loading.progress("shaders");
   gpu.onError(useFallback);
   // `?perf`: count WebGPU validation errors nothing else caught, so a
   // regression (a target resized mid-frame) shows on the sky canvas.
@@ -888,7 +895,7 @@ async function startAtmosphere() {
     if (!state.firstFrame) {
       state.firstFrame = true;
       state.loadingRaf = requestAnimationFrame(() => {
-        loading.ready();
+        loading.ready({ view: state.flight, cat: state.walker.cat });
         state.thread.arrive(); // thread: the name, as the world sharpens
         sharpen();
       });
@@ -901,10 +908,7 @@ async function startAtmosphere() {
 // Steps the reveal up to full resolution, one resize per step.
 function sharpen() {
   clearTimeout(state.revealTimer);
-  if (state.reveal >= 1) {
-    document.body.classList.remove("revealing");
-    state.revealedAt ??= performance.now();
-  }
+  if (state.reveal >= 1) state.revealedAt ??= performance.now();
   if (state.reveal >= 1 || state.disposed) return;
   state.revealTimer = setTimeout(() => {
     state.reveal = REVEAL[REVEAL.indexOf(state.reveal) + 1] ?? 1;

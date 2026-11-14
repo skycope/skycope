@@ -914,28 +914,83 @@
         }
       }
 
+      /* The loading veil (src/loading-screen.js): a soft painting of the
+         first view and the wisp over it. Everything moving is a transform
+         or an opacity, so it runs on the compositor while the island
+         builds. The gradient shows only until the painting is drawn. */
       .loading-screen {
-        position: fixed; inset: 0; z-index: 100; display: grid; place-items: center;
-        background: linear-gradient(#3a78c4, #95bee0 57%, #3d8397 58%, #22a6a6); color: #f4f7f8; font-size: 0.85rem; letter-spacing: 0.08em;
-        text-shadow: 0 1px 10px rgba(20, 45, 60, 0.35);
-        transition: opacity 0.7s ease, visibility 0.7s ease;
+        position: fixed; inset: 0; z-index: 100; overflow: hidden;
+        background: linear-gradient(#34495a, #5d6f78 34%, #4c5d60 36%, #5a5a50);
+        color: #f4f7f8; font-size: 0.68rem; letter-spacing: 0.08em;
+        touch-action: none;
+        --glow: 0;
       }
       .loading-screen canvas {
         position: absolute; inset: 0; width: 100%; height: 100%;
-        image-rendering: pixelated;
+        opacity: 0; transition: opacity 1.4s ease;
       }
-      .loading-screen p { position: relative; margin: 0; }
+      .loading-screen canvas[data-shown] { opacity: 1; }
+      .veil-paint { position: absolute; inset: 0; z-index: 0; transition: opacity 1.9s cubic-bezier(0.4, 0, 0.2, 1) 0.15s; }
+      .loading-screen p {
+        position: absolute; left: 0; right: 0; bottom: max(1.4rem, env(safe-area-inset-bottom)); margin: 0;
+        text-align: center; opacity: 0.55; text-shadow: 0 1px 8px rgba(20, 40, 50, 0.4);
+        transition: opacity 0.5s ease;
+      }
+      .wisp { position: absolute; inset: 0; pointer-events: none; transition: opacity 1.3s ease; }
+      /* Each part glides to the same point (--x, --y), the tail a little
+         later than the head: a comet's tail while it moves, one light at rest. */
+      .wisp-part {
+        position: absolute; left: 0; top: 0;
+        transform: translate3d(var(--x, 50vw), var(--y, 60vh), 0);
+        transition: transform calc(var(--move, 0s) + var(--k) * 45ms) cubic-bezier(0.45, 0.05, 0.3, 1);
+      }
+      .wisp-bob { animation: wisp-bob 4.4s ease-in-out infinite; animation-delay: calc(var(--k) * 60ms - 4.4s); }
+      /* Brighter as the world builds (--glow, 0…1); the tail fainter and finer. */
+      .wisp-size {
+        transform: scale(calc((0.5 + 0.5 * var(--glow)) * (1 - var(--k) * 0.07)));
+        opacity: calc((0.45 + 0.55 * var(--glow)) * (1 - var(--k) * 0.085));
+        transition: transform 2.4s ease, opacity 2.4s ease;
+      }
+      .wisp-light {
+        width: 128px; height: 128px; margin: -64px; border-radius: 50%;
+        background: radial-gradient(closest-side, #fffdf4 0, rgba(255, 246, 216, 0.95) 6%, rgba(255, 214, 140, 0.62) 12%,
+          rgba(255, 196, 110, 0.26) 26%, rgba(255, 190, 110, 0.09) 52%, rgba(255, 190, 110, 0) 100%);
+        animation: wisp-breathe 3.1s ease-in-out infinite;
+      }
+      .wisp-part + .wisp-part .wisp-light {
+        background: radial-gradient(closest-side, rgba(255, 244, 214, 0.7) 0, rgba(255, 214, 146, 0.3) 18%, rgba(255, 200, 130, 0) 52%);
+        animation: none;
+      }
+      @keyframes wisp-bob {
+        0%, 100% { transform: translate3d(0, 0, 0); }
+        30% { transform: translate3d(5px, -7px, 0); }
+        65% { transform: translate3d(-4px, 4px, 0); }
+      }
+      @keyframes wisp-breathe {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.78; }
+      }
+      .loading-screen[data-state="leaving"],
+      .loading-screen[data-state="settling"] { pointer-events: none; }
+      .loading-screen[data-state="leaving"] .veil-paint,
+      .loading-screen[data-state="settling"] .veil-paint,
+      .loading-screen[data-state="leaving"] p,
+      .loading-screen[data-state="settling"] p { opacity: 0; }
+      .loading-screen[data-state="leaving"],
+      .loading-screen[data-state="settling"] { background: transparent; }
+      .loading-screen[data-state="settling"] .wisp { opacity: 0; }
+      .loading-screen[data-state="failed"] { opacity: 0; pointer-events: none; transition: opacity 0.9s ease; }
       .loading-screen[hidden] { display: none; }
-      .loading-screen[data-state="leaving"] { opacity: 0; visibility: hidden; pointer-events: none; }
+      /* Reduced motion: no drifting, only a plain cross-fade. */
+      @media (prefers-reduced-motion: reduce) {
+        .loading-screen[data-state] { opacity: 0; transition: opacity 0.9s ease !important; }
+      }
       /* The lens's gentle corner falloff, composited for free over both
          canvases (the rain and glare pass is src/lens.js). */
       .vignette {
         position: fixed; inset: 0; z-index: 1; pointer-events: none;
         background: radial-gradient(ellipse farthest-corner, transparent 0, rgba(0, 0, 0, 0.012) 35%, rgba(0, 0, 0, 0.045) 70%, rgba(0, 0, 0, 0.1) 100%);
       }
-      /* The world sharpens in from coarse blocks (main.js REVEAL). */
-      body.revealing #sky,
-      body.revealing #landscape { image-rendering: pixelated; }
       @media (prefers-reduced-motion: reduce) {
         *,
         *::before,
@@ -946,8 +1001,12 @@
       }
     </style>
   </head>
-  <body data-scene="0" data-arrival="pending" class="revealing">
-    <div id="loading-screen" class="loading-screen" role="status" aria-live="polite"><canvas aria-hidden="true"></canvas><p>loading<span class="cursor">_</span></p></div>
+  <body data-scene="0" data-arrival="pending">
+    <div id="loading-screen" class="loading-screen" role="status" aria-live="polite">
+      <div class="veil-paint" aria-hidden="true"><canvas></canvas><canvas></canvas></div>
+      <div class="wisp" aria-hidden="true"></div>
+      <p>loading</p>
+    </div>
 
     <div class="fallback" aria-hidden="true"></div>
     <canvas id="sky" aria-hidden="true"></canvas>
@@ -1114,6 +1173,10 @@
       <span class="photo-keys" aria-hidden="true">s save · space pause · esc</span>
       <p class="photo-status" role="status" aria-live="polite"></p>
     </div>
-    <script type="module" src="/src/main.js"></script>
+    <!-- The loading veil paints first; the world (main.js) loads behind it. -->
+    <script type="module">
+      import { loading } from "/src/loading-screen.js";
+      import("/src/main.js").then(() => loading.progress("start"), (error) => loading.fail(error));
+    </script>
   </body>
 </html>
