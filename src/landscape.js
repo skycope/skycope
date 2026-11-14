@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { createForest } from "./forest.js";
+import { createForest, groundAnimals } from "./forest.js";
 import { createFauna } from "./fauna.js";
 import { createCat, SPLASH } from "./cat.js";
 import { CAT_SKY } from "./cat-ground.js";
@@ -83,6 +83,8 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   forest.obstacles.trunks.push(...places.obstacles.trunks);
   forest.obstacles.domes.push(...places.obstacles.domes);
   forest.obstacles.blockers = places.blockers; // solid: camera and body solids (blockers.js)
+  // land-look: the ground darkens round the landmarks' feet (forest.js).
+  forest.groundContact(land, [places.group]);
   // land-magic: the gifts' light on the land (uniforms in forest.js shared).
   const landMagic = createLandMagic({ shared: land.userData.forestShared, lamps: places.lamps, beacon: places.beacon, light });
   const fauna = createFauna(land, seed);
@@ -226,7 +228,10 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       starLevel = levels?.stars ?? 0; // land-look: the stars gift lifts the night
       // The cat's coat and the animals take the same light (their
       // materials are built lazily: wrapped at load and once more later).
-      if (magicScan < 2400 && magicScan % 300 === 30) lightWithMagic(land, land.userData.forestShared);
+      if (magicScan < 2400 && magicScan % 300 === 30) {
+        lightWithMagic(land, land.userData.forestShared);
+        groundAnimals(land, land.userData.forestShared); // land-look: animals sit in the ground
+      }
       magicScan++;
       places.update({ time, night, wind, eye: [flight.x, flight.y, flight.z], pose, lamp: gifts.lamp, lights: gifts.lampLights }); // places:
       const sinA = Math.sin(flight.azimuth);
