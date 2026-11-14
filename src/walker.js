@@ -14,6 +14,9 @@ const RUN_SPEED = 3.4;
 const GRAVITY = 9.8;
 const JUMP_SPEED = 4.1;
 const CAT_RADIUS = 0.12 * CAT_SCALE;
+// Where the body meets solids: a sphere of CAT_RADIUS this far above the
+// paws (chest height, from the leg).
+const BODY_Y = STAND_HEIGHT * CAT_SCALE * 0.6;
 const LOOK_LIFT = 0.13;
 const HOME_THETA = Math.atan2(0 - ISLAND.z, 6 - ISLAND.x);
 // The body, not just its centre, meets a rock: points along the chest to the
@@ -373,9 +376,11 @@ export function createWalker(obstacles, sea = null, wake = null) {
       const floor = depth > 0 ? Math.max(bed, water.level - LEG - FLOAT) : bed;
       if (cat.air > 0) {
         cat.vy -= GRAVITY * dt;
+        // solid: a leap stops under a limb or a seal, not inside it (but
+        // one that starts against a solid, out of a hull, goes on).
+        const rising = cat.vy > 0 && !solids.touches(cat.x, cat.y + BODY_Y, cat.z, CAT_RADIUS);
         cat.y += cat.vy * dt;
-        // solid: a leap stops under a limb or a seal, not inside it.
-        if (cat.vy > 0 && solids.touches(cat.x, cat.y + 0.17, cat.z, CAT_RADIUS)) {
+        if (rising && solids.touches(cat.x, cat.y + BODY_Y, cat.z, CAT_RADIUS)) {
           cat.y -= cat.vy * dt;
           cat.vy = 0;
         }
@@ -505,7 +510,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
     if (cat.air > 0 ? rise > 0.02 : tall && rise > 0.003 && rise / run > 1.6) return false;
     if (!drift && !bodyClear(nx, nz, next - rise)) return false;
     // solid: walls, the tank, the stem and the milkwood's resting limbs.
-    const bodyY = (cat.air > 0 ? Math.max(cat.y, next) : next) + 0.17;
+    const bodyY = (cat.air > 0 ? Math.max(cat.y, next) : next) + BODY_Y;
     if (solids.touches(nx, bodyY, nz, CAT_RADIUS)) {
       const h = solids.hit;
       // Only a step that goes deeper into it: free to back away or slide
@@ -805,6 +810,69 @@ export function tileHeight(d, x, z) {
   if (h00 > -Infinity && h10 > -Infinity && h01 > -Infinity && h11 > -Infinity)
     return (h00 * (1 - fu) + h10 * fu) * (1 - fv) + (h01 * (1 - fu) + h11 * fu) * fv;
   return Math.max(h00, h10, h01, h11);
+}
+
+// Bridges the crevices between touching rocks that are narrower than a cat
+// (a morphological closing of their joint surface, radius CREVICE): each
+// group of overlapping tiles gets one more tile holding only the bridges.
+// Without it a cat that dropped into such a slot could neither walk nor
+// jump out. Returns the tiles with the bridges added.
+const CREVICE = 0.3;
+export function bridgeCrevices(domes, cell = 0.1) {
+  const groups = [];
+  const seen = new Set();
+  const overlaps = (a, b) => Math.abs(a.x - b.x) < a.r + b.r && Math.abs(a.z - b.z) < a.r + b.r;
+  for (const d of domes) {
+    if (seen.has(d)) continue;
+    const group = [d];
+    seen.add(d);
+    for (let i = 0; i < group.length; i++)
+      for (const e of domes) if (!seen.has(e) && overlaps(group[i], e)) { seen.add(e); group.push(e); }
+    if (group.length > 1) groups.push(group);
+  }
+  const out = [...domes];
+  const k = Math.ceil(CREVICE / cell);
+  for (const group of groups) {
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (const d of group) { x0 = Math.min(x0, d.x - d.r); x1 = Math.max(x1, d.x + d.r); z0 = Math.min(z0, d.z - d.r); z1 = Math.max(z1, d.z + d.r); }
+    const nx = Math.ceil((x1 - x0) / cell) + 1, nz = Math.ceil((z1 - z0) / cell) + 1;
+    if (nx * nz > 4e6) continue;
+    const h = new Float32Array(nx * nz);
+    for (let j = 0; j < nz; j++)
+      for (let i = 0; i < nx; i++) {
+        const x = x0 + i * cell, z = z0 + j * cell;
+        let y = groundHeight(x, z);
+        for (const d of group) if (Math.abs(x - d.x) <= d.r && Math.abs(z - d.z) <= d.r) y = Math.max(y, tileHeight(d, x, z));
+        h[j * nx + i] = y;
+      }
+    // Closing: dilate (max) then erode (min) over a square of ±k cells,
+    // separably.
+    const pass = (src, op, alongX) => {
+      const dst = new Float32Array(src.length);
+      for (let j = 0; j < nz; j++)
+        for (let i = 0; i < nx; i++) {
+          let v = src[j * nx + i];
+          for (let s = -k; s <= k; s++) {
+            const ii = alongX ? i + s : i, jj = alongX ? j : j + s;
+            if (ii < 0 || jj < 0 || ii >= nx || jj >= nz) continue;
+            v = op(v, src[jj * nx + ii]);
+          }
+          dst[j * nx + i] = v;
+        }
+      return dst;
+    };
+    const closed = pass(pass(pass(pass(h, Math.max, true), Math.max, false), Math.min, true), Math.min, false);
+    const fill = new Float32Array(nx * nz);
+    let any = false;
+    for (let i = 0; i < fill.length; i++) {
+      // Only real crevices: filled well above what is there, between rock.
+      fill[i] = closed[i] > h[i] + 0.12 ? closed[i] : -Infinity;
+      if (fill[i] > -Infinity) any = true;
+    }
+    if (!any) continue;
+    out.push({ x0, z0, cell, nx, nz, heights: fill, x: (x0 + x1) / 2, z: (z0 + z1) / 2, r: Math.max(x1 - x0, z1 - z0) / 2, bridge: true });
+  }
+  return out;
 }
 
 // Trunks and boulder domes bucketed in 4 m cells.

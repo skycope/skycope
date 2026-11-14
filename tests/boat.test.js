@@ -235,13 +235,14 @@ test("where the boat was left is remembered per seed, falling back to the cove",
   a.ride.state = "aboard";
   const s = a.state;
   const out = Math.atan2(s.x - 58, s.z - 70) + 1.4;
-  for (let t = 0; t < 5; t += 1 / 30) {
+  // (Rowed out a little way, short of where a boat left is adrift.)
+  for (let t = 0; t < 4.8; t += 1 / 30) {
     tick(t);
     a.update(1 / 30, { move: [0, 1], jump: false }, cat, out);
   }
   a.update(1 / 30, { move: [0, 0], jump: true }, cat, out);
   assert.notEqual(a.ride.state, "aboard", `jumped out (${s.offshore.toFixed(1)} m out)`);
-  assert.ok(store.has(BOAT_KEY + 1847), "stored");
+  assert.ok(store.has(BOAT_KEY + 1847), `stored (state ${a.ride.state}, ${s.offshore.toFixed(1)} m out)`);
   const left = JSON.parse(store.get(BOAT_KEY + 1847));
   assert.ok(Math.hypot(left.x - a.cove.x, left.z - a.cove.z) > 2, "somewhere else than the cove");
   const b = createBoatRide({ landmark, sea, bed: walker.bed, solids: walker.solids, magic: awake(), seed: 1847, storage });

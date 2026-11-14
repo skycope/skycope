@@ -198,16 +198,18 @@ export function buildMilkwood(p, materials, { light = false, seed = 1 } = {}) {
   for (const b of beards) {
     const count = 1 + Math.floor(random() * 3);
     for (let k = 0; k < count; k++) {
-      const len = 0.25 + random() ** 1.5 * 0.75;
+      // solid: short, fine and lichen-grey-green (long pale strips read as
+      // flat untextured quads hanging from the tree).
+      const len = 0.15 + random() ** 1.5 * 0.35;
       strands.push({
         position: b.at.clone().add(new THREE.Vector3((random() - 0.5) * 0.3, -b.r * 0.8, (random() - 0.5) * 0.3)),
         scale: new THREE.Vector3(0.6 + random() * 0.6, len, 1),
         rotation: new THREE.Euler(0, random() * Math.PI, 0),
-        color: hsl(0.2 + random() * 0.05, 0.14 + random() * 0.06, 0.5 + random() * 0.12),
+        color: hsl(0.2 + random() * 0.05, 0.12 + random() * 0.06, 0.34 + random() * 0.1),
       });
     }
   }
-  const beardMesh = instanced(beardGeometry(), materials.lichen, strands.slice(0, light ? 500 : 1100), false);
+  const beardMesh = instanced(beardGeometry(), materials.lichen, strands.slice(0, light ? 250 : 600), false);
 
   const rootTile = heightTile(p.x, p.z, 2.4, 0.08, (x, z) => {
     const lx = x - p.x, lz = z - p.z;
