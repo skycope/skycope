@@ -175,10 +175,12 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   // a teleport) or the first frame renders it at once.
   const drawShadows = renderer.shadowMap.render.bind(renderer.shadowMap);
   renderer.shadowMap.render = (lights, target, eye) => {
-    if (target !== scene || !shadows.pending) return drawShadows(lights, target, eye);
+    // The cat's own shadow pass renders this scene too: a slice belongs to
+    // the frame's main render only, or two run in one frame.
+    if (target !== scene || !shadows.pending || shadows.catPass) return drawShadows(lights, target, eye);
     renderShadowSlice(() => drawShadows(lights, target, eye));
   };
-  const shadows = { key: "", anchor: null, pending: false, again: false, jump: false, slice: 0, count: 1, casters: [], cast: [], back: null, light: new THREE.Vector3(), target: new THREE.Vector3(), centre: [0, 0], matrix: new THREE.Matrix4() };
+  const shadows = { key: "", anchor: null, pending: false, again: false, jump: false, catPass: false, slice: 0, count: 1, casters: [], cast: [], back: null, light: new THREE.Vector3(), target: new THREE.Vector3(), centre: [0, 0], matrix: new THREE.Matrix4() };
   let environmentKey = "";
   let environmentTime = -Infinity;
   // Horizon haze toward and away from the sun, unexposed; see updateLighting.
@@ -380,7 +382,8 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       });
       profiler.render(() => {
         renderer.info.reset();
-        cat.renderShadow(renderer, scene);
+        shadows.catPass = true;
+        try { cat.renderShadow(renderer, scene); } finally { shadows.catPass = false; }
         // Islands kilometres out, then the near scene over them with a
         // fresh depth buffer: each gets the whole depth precision. Both
         // into the multisampled buffer (msaa), resolved onto the canvas;
