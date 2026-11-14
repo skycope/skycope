@@ -1007,7 +1007,16 @@ export function createWalker(obstacles, sea = null, wake = null) {
         }
     // Turn the view to the middle of the cat and the subject's top (by
     // angle), so both sit in the frame.
-    best.look = { x: (subject.x + tx) / 2, y: (sy1 * 0.65 + sy0 * 0.35 + ty) / 2, z: (subject.z + tz) / 2 };
+    // (The bisector of the directions from the lens to the cat and to the
+    // subject's upper part: a midpoint in space put a near cat out of the
+    // bottom of the frame.)
+    const L = best.lens;
+    const fx = subject.x, fy = sy0 + (sy1 - sy0) * 0.65, fz = subject.z;
+    const dc = hyp(hyp(tx - L.x, tz - L.z), ty - 0.1 - L.y) || 1;
+    const ds = hyp(hyp(fx - L.x, fz - L.z), fy - L.y) || 1;
+    const ux = (tx - L.x) / dc + (fx - L.x) / ds, uy = (ty - 0.1 - L.y) / dc + (fy - L.y) / ds, uz = (tz - L.z) / dc + (fz - L.z) / ds;
+    const u = hyp(hyp(ux, uz), uy) || 1;
+    best.look = { x: L.x + (ux / u) * 20, y: L.y + (uy / u) * 20, z: L.z + (uz / u) * 20 };
     return best;
   }
 

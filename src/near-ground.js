@@ -429,7 +429,8 @@ export function createNearGround(scene, field, patch, { light = false } = {}) {
     windows,
     mesh,
     setCat(x, z) {
-      cat = [x, z];
+      cat[0] = x;
+      cat[1] = z;
       if (lastCamera.seen) update(lastCamera);
     },
   };

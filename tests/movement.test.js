@@ -176,9 +176,10 @@ test('each ceremony ends on a clear view of its place', async () => {
     camera.yaw = yaw; camera.elevation = elevation; camera.distance = distance; camera.targetY = cat.y;
     walker.lookAt(look, 1);
     for (let i = 0; i < 120; i++) walker.update(1 / 60, { move: [0, 0], run: false, jump: false }, null);
+    const view = { x: camera.x, y: camera.y, z: camera.z, azimuth: camera.azimuth + Math.PI / 4, pitch: camera.pitch };
     walker.lookAt(null);
     walker.freeCamera(false);
-    return { x: camera.x, y: camera.y, z: camera.z };
+    return view;
   };
   const faults = (lens, subject) => {
     const out = [];
@@ -197,6 +198,15 @@ test('each ceremony ends on a clear view of its place', async () => {
       if (Math.hypot(lens.x + ex * t - c.x, lens.y + ey * t - c.y, lens.z + ez * t - c.z) < c.r * 0.7) leafy++;
     }
     if (leafy > 1) out.push(`${leafy} crowns in front`);
+    // In the frame (58 degrees tall, wider across): the cat and the top.
+    const inFrame = (p) => {
+      const dx = p.x - lens.x, dz = p.z - lens.z;
+      const across = Math.abs(Math.atan2(Math.sin(Math.atan2(dx, dz) - lens.azimuth), Math.cos(Math.atan2(dx, dz) - lens.azimuth)));
+      const up = Math.abs(Math.atan2(p.y - lens.y, Math.hypot(dx, dz)) - lens.pitch);
+      return across < 0.75 && up < 0.48;
+    };
+    if (!inFrame({ x: cat.x, y: cat.y + 0.15, z: cat.z })) out.push('cat out of frame');
+    if (!inFrame(top)) out.push('top out of frame');
     for (let i = 1; i < 16; i++) {
       const t = i / 16, x = lens.x + (top.x - lens.x) * t, z = lens.z + (top.z - lens.z) * t;
       if (lens.y + (top.y - lens.y) * t < walker.surface(x, z) - 0.05) { out.push('top behind the land'); break; }
