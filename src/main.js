@@ -56,6 +56,8 @@ import { createThread } from "./thread.js";
 // quality: render sizes and what to shed under load (src/quality.js).
 import { baseSettings, qualityLadder, renderSizes, createQualityState, stepQuality, pinQuality, qualitySettings } from "./quality.js";
 import { previewDate } from "./moments.js";
+import { BOAT } from "./boat-dynamics.js"; // sound: the stem, for the painter coming taut
+const BOAT_HALF = BOAT.length / 2;
 
 const review = reviewFixture(window.location.search);
 const PERF = new URLSearchParams(window.location.search).has("perf");
@@ -181,7 +183,7 @@ const state = {
 };
 
 // The score is seeded by the world's seed, so a permalink plays the same.
-state.sound = createSound({ seed: state.seed });
+state.sound = createSound({ seed: state.seed, perf: PERF });
 
 // `?perf` QA exposes live state, e.g. to aim the camera at the sun.
 if (PERF) window.skycope = state;
@@ -1067,7 +1069,6 @@ function updateCat(dt, realDt = dt) {
       state.landscape.catSplashed(state.time, strength, cat.waterY);
     }
     if (event.type === "land") {
-      state.sound.land(event.speed);
       let kind = 2;
       for (const front of [true, false])
         for (const side of [-1, 1]) {
@@ -1077,12 +1078,13 @@ function updateCat(dt, realDt = dt) {
           const cos = Math.cos(cat.heading);
           kind = footstep(side < 0 ? "l" : "r", cat.x + cos * across + sin * along, cat.z - sin * across + cos * along, cat.heading, front, { side: -side, speed: 1 }, true);
         }
+      state.sound.land(event.speed, kind, { x: cat.x, z: cat.z }); // sound: the landing by surface
       state.landscape.catLanded(state.time, Math.min(1.5, event.speed / 3), kind, walker.surface);
     }
   }
   state.sound.setSwim(cat.swim, Math.abs(cat.speed));
   // Purr once settled; chirrup at something new to watch.
-  state.sound.setPurr(cat.sit > 0.9 && cat.idle > 8);
+  state.sound.setPurr(cat.sit > 0.9 && cat.idle > 12);
   const interest = state.landscape.interest;
   if (interest?.near && state.time - state.lastChirp > 12) {
     state.lastChirp = state.time;
@@ -1102,25 +1104,38 @@ function updateCat(dt, realDt = dt) {
     rain: state.weather?.rain ?? 0,
     night: smooth(1, 2, state.celestial.scene),
     trees: smooth(8, 16, inland),
+    // sound: where the listener is and what is round it (src/sound/index.js).
+    shore: inland,
+    cat: { x: cat.x, y: cat.y, z: cat.z, speed: cat.speed, sit: cat.sit, swim: cat.swim, wade: cat.wade, air: cat.air },
+    camera: state.walker.camera,
+    interest,
+    boat: boatSound(),
+    levels: state.magic?.levels,
+    lamp: state.landscape.lamp,
   });
 }
 
+// sound: the boat as the sound engine hears it (src/sound/world.js).
+function boatSound() {
+  const ride = state.boat?.ride;
+  if (!ride?.afloat) return null;
+  const s = ride.state;
+  const t = ride.tether;
+  const stem = BOAT_HALF + 0.02;
+  const stretch = t ? Math.hypot(t.x - (s.x + Math.sin(s.heading) * stem), t.z - (s.z + Math.cos(s.heading) * stem)) - t.length : -1;
+  return { afloat: true, aboard: ride.aboard, x: s.x, z: s.z, y: s.y ?? 0, speed: Math.hypot(s.vx, s.vz), roll: s.roll, vr: s.vr, stretch };
+}
+
 // boat: after the wisp's mind, the boat tows it (boat.js), and its events
-// are heard with the sounds the cat's own splashes and landings use.
+// are heard (src/sound/world.js: knock, scrape, launch, slap, creak).
 function boatAfter(dt) {
   const boat = state.boat;
   if (!boat) return;
   boat.afterThread(dt, smooth(1, 2, state.celestial?.scene ?? 0));
+  const heard = boatSound() ?? boat.ride?.state;
   for (const e of boat.events) {
-    const gain = e.gain ?? 1;
-    if (e.type === "board") state.sound.land(1.2);
-    else if (e.type === "jump") state.sound.jump();
-    else if (e.type === "launch") state.sound.splash(1, 0);
-    else if (e.type === "bump") {
-      state.sound.land(0.6 + gain);
-      state.sound.splash(0.3 * gain, 0);
-    } else if (e.type === "ground") state.sound.splash(0.35 * gain, 0);
-    else if (e.type === "hull-slap") state.sound.splash(0.12 + 0.18 * gain, 0);
+    if (e.type === "jump") state.sound.jump();
+    else state.sound.boatEvent(e, { ...heard, aboard: boat.ride?.aboard });
   }
 }
 
@@ -1128,15 +1143,11 @@ function boatAfter(dt) {
 // (sky-events.js) join the thread: each is something to find, the animals
 // and the lightning are heard, and what the sky is staging swells the score
 // and is what a sitting cat's camera turns to watch.
-const WILD_SOUNDS = {
-  "penguins:bray": ["penguin-bray", 1], "penguins:honk": ["penguin-bray", 0.5], "penguins:threat": ["penguin-bray", 0.35],
-  "seals:bark": ["seal-bark", 1], "seals:splash": ["splash-big", 0.7], "seals:blow": ["whale-blow", 0.25],
-  "whale:blow": ["whale-blow", 1], "whale:crash": ["splash-big", 1], "whale:slap": ["splash-big", 0.6],
-};
 const SKY_FINDS = [["rainbow", "a rainbow"], ["moonbow", "a moonbow"], ["lightning", "lightning over the sea"], ["halo", "a halo round the sun"], ["green-flash", "the green flash"]];
 let spectacleList = [];
 let spectacleAt = -Infinity;
 function joinWorld() {
+  state.sound.setWorld({ ...state.landscape.soundWorld, pois: state.landscape.pois }); // sound: plants, roofs, places
   const lower = (p, kind) => ({ ...p, kind, title: p.title.charAt(0).toLowerCase() + p.title.slice(1) });
   state.thread.discoveries.add([
     ...(state.landscape.pois ?? []).map((p) => lower(p, "place")),
@@ -1171,10 +1182,7 @@ function joinWorld() {
 function hearWildlife() {
   const events = state.landscape.wildlife?.events;
   if (!events?.length) return;
-  for (const event of events) {
-    const sound = WILD_SOUNDS[`${event.source}:${event.type}`];
-    if (sound) state.thread.hear(sound[0], event, { gain: (event.gain ?? 1) * sound[1] });
-  }
+  for (const event of events) state.sound.wild(event); // sound: each animal's voice and reaction (src/sound/world.js)
 }
 
 // A paw lands: a print in the ground and a step you can hear.
@@ -1182,7 +1190,7 @@ function hearWildlife() {
 // decide whether sand flies.
 function footstep(leg, x, z, heading, front, { side = 1, speed = 0, pace = speed } = {}, silent = false) {
   const cat = state.walker.cat;
-  if (state.boat?.ride?.aboard) return 0; // boat: paws on the deck leave no prints
+  if (state.boat?.ride?.aboard) return silent || state.sound.step(10, cat.running, leg.startsWith("l") ? -0.15 : 0.15, { exact: true, front }), 0; // boat: paws on the deck leave no prints (sound: a hollow knock)
   const ground = state.walker.surface;
   const onRock = ground(x, z) > groundHeight(x, z) + 0.03;
   // A paw set down in the water splashes instead of printing.
@@ -1192,7 +1200,7 @@ function footstep(leg, x, z, heading, front, { side = 1, speed = 0, pace = speed
     state.pawWet = 1;
     // Rings and froth as big as the splash: deeper and faster, bigger.
     state.wake.ring(x, z, Math.min(2.5, 0.3 + depth * 6 + pace * 0.5));
-    if (!silent) state.sound.splash(Math.min(1, 0.15 + depth * 3 + speed * 0.4), leg.startsWith("l") ? -0.15 : 0.15);
+    if (!silent) state.sound.step(kind, cat.running, leg.startsWith("l") ? -0.15 : 0.15, { x, z, front, depth, speed }); // sound: shallows plip, or a slosh belly deep
     return kind;
   }
   const inland = shoreDistance(x, z);
@@ -1226,7 +1234,7 @@ function footstep(leg, x, z, heading, front, { side = 1, speed = 0, pace = speed
     speed,
     rock: kind === 0,
   });
-  if (!silent) state.sound.step(kind, cat.running, leg.startsWith("l") ? -0.15 : 0.15);
+  if (!silent) state.sound.step(kind, cat.running, leg.startsWith("l") ? -0.15 : 0.15, { x, z, front }); // sound: refined to grass, timber, … (src/sound/index.js)
   return kind;
 }
 

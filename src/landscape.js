@@ -234,6 +234,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     obstacles: forest.obstacles,
     // places: the landmarks the cat can find ({ id, title, x, z, r }).
     pois: places.pois,
+    soundWorld: { habitat: forest.habitat, places }, // sound: plants the cat brushes, roofs in rain, the milkwood's owl
     places: perf ? places : null, // places: `?perf` QA
     landMagic: perf ? landMagic : null, // land-magic: `?perf` QA
     nightLand: perf ? NIGHT_LAND : null, // land-look: `?perf` tuning

@@ -179,7 +179,7 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
       speed: PULSE.speed,
       reach: gift === "finale" ? PULSE.reach * 1.6 : PULSE.reach,
     };
-    state.thread?.hear?.("wake", { x: c.place.x, z: c.place.z, y: c.y }, { gift });
+    state.sound.waking?.(gift, { x: c.place.x, z: c.place.z, y: c.y }); // sound: the waking light's cues (src/sound/cues.js)
   }
 
   function stage(dt) {
