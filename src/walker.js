@@ -14,6 +14,9 @@ const RUN_SPEED = 3.4;
 const GRAVITY = 9.8;
 const JUMP_SPEED = 4.1;
 const CAT_RADIUS = 0.12 * CAT_SCALE;
+// Where the body meets solids: a sphere of CAT_RADIUS this far above the
+// paws (chest height, from the leg).
+const BODY_Y = STAND_HEIGHT * CAT_SCALE * 0.6;
 const LOOK_LIFT = 0.13;
 const HOME_THETA = Math.atan2(0 - ISLAND.z, 6 - ISLAND.x);
 // The body, not just its centre, meets a rock: points along the chest to the
@@ -375,9 +378,9 @@ export function createWalker(obstacles, sea = null, wake = null) {
         cat.vy -= GRAVITY * dt;
         // solid: a leap stops under a limb or a seal, not inside it (but
         // one that starts against a solid, out of a hull, goes on).
-        const rising = cat.vy > 0 && !solids.touches(cat.x, cat.y + 0.17, cat.z, CAT_RADIUS);
+        const rising = cat.vy > 0 && !solids.touches(cat.x, cat.y + BODY_Y, cat.z, CAT_RADIUS);
         cat.y += cat.vy * dt;
-        if (rising && solids.touches(cat.x, cat.y + 0.17, cat.z, CAT_RADIUS)) {
+        if (rising && solids.touches(cat.x, cat.y + BODY_Y, cat.z, CAT_RADIUS)) {
           cat.y -= cat.vy * dt;
           cat.vy = 0;
         }
@@ -507,7 +510,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
     if (cat.air > 0 ? rise > 0.02 : tall && rise > 0.003 && rise / run > 1.6) return false;
     if (!drift && !bodyClear(nx, nz, next - rise)) return false;
     // solid: walls, the tank, the stem and the milkwood's resting limbs.
-    const bodyY = (cat.air > 0 ? Math.max(cat.y, next) : next) + 0.17;
+    const bodyY = (cat.air > 0 ? Math.max(cat.y, next) : next) + BODY_Y;
     if (solids.touches(nx, bodyY, nz, CAT_RADIUS)) {
       const h = solids.hit;
       // Only a step that goes deeper into it: free to back away or slide
