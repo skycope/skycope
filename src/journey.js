@@ -426,7 +426,8 @@ export function wakingSourceFor(state, gift) {
   const cat = state.walker?.cat;
   return wakingSource(gift, {
     pois: land.pois ?? [], crown: land.wakingPlaces?.crown, beacon: land.wakingPlaces?.beacon, blockers: land.obstacles?.blockers ?? [],
-    surface: groundHeight, toward: gift === "fireflies" && cat ? [cat.x, cat.z] : undefined,
+    // (The pool's light is under its water: the walker's surface there.)
+    surface: gift === "seafolk" && state.walker?.surface ? state.walker.surface : groundHeight, toward: gift === "fireflies" && cat ? [cat.x, cat.z] : undefined,
   });
 }
 
@@ -461,7 +462,9 @@ export function createWakingQA(state) {
     }
     magic.levels[gift] = frozen ? 1 - Math.exp(-age / 2.5) : 0;
     magic.wakeAt[gift] = magic.clock - age;
-    magic.waking = createWaking(gift, at, { age, frozen, follow: null });
+    // (The boat's light rides with its lantern once the hull is afloat.)
+    const follow = gift === "boat" ? () => { const l = state.boat?.lantern; return l && l[3] > 0.001 ? [l[0], l[1], l[2]] : null; } : null;
+    magic.waking = createWaking(gift, at, { age, frozen, follow });
     return magic.waking;
   };
   return {

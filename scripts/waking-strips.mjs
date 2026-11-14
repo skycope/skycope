@@ -12,7 +12,8 @@ import { openPage } from "./qa-cdp.mjs";
 const out = process.argv[2] ?? "docs/review/waking";
 const port = Number(process.argv[3] ?? 5351);
 const cdp = Number(process.argv[4] ?? 9421);
-const ALL = ["fireflies", "tideglow", "lamp", "stars", "seafolk", "boat"];
+// (No stars: the beacon has no waking of its own, story-and-wow.md 9.)
+const ALL = ["fireflies", "tideglow", "lamp", "seafolk", "boat"];
 const gifts = process.argv[5] && process.argv[5] !== "all" ? process.argv[5].split(",") : ALL;
 const label = process.argv[6] ?? process.env.MODE ?? "after";
 const before = process.env.MODE === "before";
@@ -20,7 +21,7 @@ const AGES = (process.env.AGES ?? "-1,0.7,2.2,5,14").split(",").map(Number);
 const TIMES = (process.env.TIMES ?? "1320,750").split(",").map(Number);
 const W = 1280, H = 800;
 // Where the cat stands for each gift's shot (see setup below); STANDS='{"lamp":[1.2,16]}' overrides.
-const STANDS = { fireflies: [0, 4], tideglow: [0, 5], lamp: [1.2, 16], stars: [0, 5], seafolk: [0, 5], boat: [0, 5], ...JSON.parse(process.env.STANDS ?? "{}") };
+const STANDS = { fireflies: [0, 4], tideglow: [0, 5], lamp: [1.2, 16], stars: [0, 5], seafolk: [0, 5], boat: [-0.9, 6], ...JSON.parse(process.env.STANDS ?? "{}") };
 await mkdir(out, { recursive: true });
 const frames = process.env.FRAMES ?? `${out}/frames`;
 await mkdir(frames, { recursive: true });

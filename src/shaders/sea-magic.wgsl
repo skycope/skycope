@@ -307,7 +307,7 @@ export fn waking_on_sea(s: SeaPoint, waking: vec4f, light: vec4f, time: f32, day
   let glitter = step(0.93, hh.x) * spot * flare;
   out += mix(tint, vec3f(1.0), 0.5 * daylight) * band * (crest + glitter * 2.0) * (0.5 + daylight);
   // (Near the source only: lit water, not a bay of confetti.)
-  out += tint * peak * reached * glitter * 1.5 * exp(-d / 18.0);
+  out += tint * peak * reached * glitter * 0.3 * exp(-d / 10.0);
   return out;
 }
 

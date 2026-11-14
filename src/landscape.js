@@ -104,7 +104,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     ["seafolk", WAKE_LIGHT.seafolk.tint, 2.2, 0.45],
     ["boat", WAKE_LIGHT.boat.tint, 2.6, 0.6],
   ].map(([gift, colour, reach, power]) => {
-    const at = wakingSource(gift, { pois: places.pois, blockers: places.blockers, surface: groundHeight });
+    const at = wakingSource(gift, { pois: places.pois, blockers: places.blockers, surface: gift === "seafolk" ? surfaceOf(forest.obstacles) : groundHeight });
     return at && { x: at[0], y: at[1] + (gift === "seafolk" ? 0.25 : 0), z: at[2], colour, reach, power, gift };
   }).filter(Boolean);
   const landMagic = createLandMagic({ shared: land.userData.forestShared, lamps: places.lamps, practicals, beacon: places.beacon, light });
