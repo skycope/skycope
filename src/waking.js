@@ -147,8 +147,14 @@ export function practicalLevel(s) {
 // anchors.
 export const SOURCE_POI = { fireflies: "milkwood", tideglow: "wreck", lamp: "lighthouse", stars: "beacon", seafolk: "pool", boat: "boat" };
 const ISLAND = [58, 70];
-export function wakingSource(gift, { pois = [], crown = null, beacon = null, blockers = [], surface = () => 0, toward = ISLAND } = {}) {
+// anchors: places.wakingAnchors, the props' own points by place id (the
+// guesses below were calibrated on the old props: the wreck's drum lookup
+// missed the new walk-in boiler, the pool's light sat in its rock floor,
+// the boat's inside its upturned hull).
+export function wakingSource(gift, { pois = [], crown = null, beacon = null, blockers = [], surface = () => 0, toward = ISLAND, anchors = null } = {}) {
   if (gift === "lamp" && beacon) return [beacon.x, beacon.y, beacon.z];
+  const anchor = anchors?.[SOURCE_POI[gift]];
+  if (anchor && gift !== "fireflies" && gift !== "lamp") return [anchor[0], anchor[1], anchor[2]];
   // The milkwood's hollow: in the bole's face (~0.95 m round its centre,
   // place-milkwood.js) on the visitor's side, 1.6 m up.
   if (gift === "fireflies" && crown) {

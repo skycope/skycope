@@ -245,6 +245,8 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
       },
     },
     lights: [{ kind: "lantern", x: p.x + lamp.x, y: lamp.y, z: p.z + lamp.z, size: 1.5, colour: [1.0, 0.6, 0.24], flicker: true }],
+    // waking.js: the boat's gift is kindled in its lantern on the post.
+    waking: [p.x + lamp.x, lamp.y, p.z + lamp.z],
     extra: pool.mesh,
     update({ time, lit }) {
       pool.update(time, lit);
@@ -616,6 +618,9 @@ export function buildPool(p, materials, { light = false, seed = 1 } = {}) {
   })];
   let last = 0;
   return prop({
+    // waking.js: the sea folk's light, under the still water over the
+    // basin's floor.
+    waking: [p.x, floor + 0.12, p.z],
     // solid: culled where the fog has the shelf (it popped at 70 m).
     lod: { near, far, farDistance: 30, cullDistance: 115 },
     // solid: the camera keeps above the pool's still water (it slid under

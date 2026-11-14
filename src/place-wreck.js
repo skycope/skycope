@@ -267,6 +267,9 @@ export function buildWreck(p, materials, { light = false, seed = 1 } = {}) {
     lod: { near: nearGroup, far: farGroup, farDistance: 40 },
     surfaces: { trunks, tiles, solids },
     covers: [{ kind: "roof", x: inside.x, z: inside.z, yaw: mouth, hu: Lb / 2 - 0.2, hv: Rf * 0.6, y: tubeY + Rf }],
+    // waking.js: the tideglow's ember, on the furnace floor just inside the
+    // mouth (coast x, y, z).
+    waking: [p.x + centre.x + ax * (Lb / 2 - 0.3), floorY + 0.15, p.z + centre.z + az * (Lb / 2 - 0.3)],
     affordances: [
       { id: "wreck-boiler", kind: "inside", x: inside.x, y: floorY, z: inside.z, r: 0.9, facing: mouth, hint: "a dark cat-sized mouth faces the approach" },
       { id: "wreck-bell", kind: "meow-near", x: inside.x, y: floorY, z: inside.z, r: 0.9, hint: "a meow inside comes back as a bell" },

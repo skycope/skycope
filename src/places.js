@@ -88,6 +88,10 @@ export function createPlaces(group, seed, { light = false, shared } = {}) {
     // covers for precipitation.js, affordances for affordances.js.
     covers: built.flatMap((b) => b.covers.map((c) => ({ place: b.place.id, ...c }))),
     affordances: built.flatMap((b) => b.affordances.map((a) => ({ place: b.place.id, ...a }))),
+    // waking.js: where a keepsake's light is kindled, by place id (coast
+    // [x, y, z]), where its prop says (the boiler's furnace, the pool's
+    // water, the boat's lantern).
+    wakingAnchors: Object.fromEntries(built.filter((b) => b.waking).map((b) => [b.place.id, b.waking])),
     // boat: the fisherman's boat's hull ({ launch() }, place-shore.js).
     boatHull: built.find((b) => b.hull)?.hull ?? null,
     // land-magic: the lighthouse lamp (coast metres) and the island's lamps.

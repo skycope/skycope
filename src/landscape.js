@@ -111,7 +111,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     ["tideglow", WAKE_LIGHT.tideglow.tint, 1.6, 0.35],
     ["seafolk", WAKE_LIGHT.seafolk.tint, 2.2, 0.45],
   ].map(([gift, colour, reach, power]) => {
-    const at = wakingSource(gift, { pois: places.pois, blockers: places.blockers, surface: gift === "seafolk" ? surfaceOf(forest.obstacles) : groundHeight });
+    const at = wakingSource(gift, { pois: places.pois, blockers: places.blockers, anchors: places.wakingAnchors, surface: gift === "seafolk" ? surfaceOf(forest.obstacles) : groundHeight });
     return at && { x: at[0], y: at[1] + (gift === "seafolk" ? 0.25 : 0), z: at[2], colour, reach, power, gift };
   }).filter(Boolean);
   const landMagic = createLandMagic({ shared: land.userData.forestShared, lamps: places.lamps, practicals, beacon: places.beacon, light });
@@ -257,7 +257,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     places: perf ? places : null, // places: `?perf` QA
     landMagic: perf ? landMagic : null, // land-magic: `?perf` QA
     // waking: the places a gift's light is kindled from (waking.js wakingSource).
-    wakingPlaces: { crown: places.crown, beacon: places.beacon },
+    wakingPlaces: { crown: places.crown, beacon: places.beacon, anchors: places.wakingAnchors },
     nightLand: perf ? NIGHT_LAND : null, // land-look: `?perf` tuning
     shadows: perf ? shadows : null, // shadow: `?perf` QA of the sliced refresh
     // land-magic: the lighthouse lamp this frame (coast metres; `angle` is

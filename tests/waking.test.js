@@ -101,3 +101,31 @@ test("sources sit at each keepsake; the practical hands over without a gap", () 
   assert.equal(practicalLevel(Infinity), 1);
   for (const g of GIFTS) assert.equal(GIFT_COLOURS[g].length, 3);
 });
+
+// On the real props (the places rework rebuilt them after these anchors
+// were set): the ember in the boiler's furnace mouth, the pool's light in
+// its water over the basin floor, the boat's in its lantern, the lamp in
+// the lantern room, the hollow in the milkwood's bole face.
+test("each waking light sits in its own prop on the reworked places", async () => {
+  const { island, walkerFor } = await import("./interaction-harness.js");
+  const { groundHeight } = await import("../src/terrain.js");
+  for (const seed of [1847, 1, 99999]) {
+    const { places } = island(seed);
+    const walker = walkerFor(seed);
+    const at = (gift) => wakingSource(gift, { pois: places.pois, crown: places.crown, beacon: places.beacon, blockers: places.blockers, anchors: places.wakingAnchors, surface: gift === "seafolk" ? walker.surface : groundHeight });
+    const boiler = places.affordances.find((a) => a.id === "wreck-boiler");
+    const ember = at("tideglow");
+    const into = (ember[0] - boiler.x) * Math.sin(boiler.facing) + (ember[2] - boiler.z) * Math.cos(boiler.facing);
+    assert.ok(Math.hypot(ember[0] - boiler.x, ember[2] - boiler.z) < 1.4 && into > 0.3, `seed ${seed}: the ember toward the furnace mouth (${into.toFixed(2)} m)`);
+    assert.ok(ember[1] > boiler.y && ember[1] < boiler.y + 0.5, `seed ${seed}: the ember on the furnace floor`);
+    const pool = places.pois.find((p) => p.id === "pool");
+    const sea = at("seafolk");
+    assert.ok(Math.hypot(sea[0] - pool.x, sea[2] - pool.z) < 0.5 && sea[1] > walker.surface(pool.x, pool.z) + 0.02, `seed ${seed}: the pool's light above its floor`);
+    const lantern = places.lamps.find((l) => Math.hypot(l.x - places.wakingAnchors.boat[0], l.z - places.wakingAnchors.boat[2]) < 0.01);
+    assert.ok(lantern && Math.abs(at("boat")[1] - lantern.y) < 0.01, `seed ${seed}: the boat's light in its lantern`);
+    assert.deepEqual(at("lamp"), [places.beacon.x, places.beacon.y, places.beacon.z]);
+    const hollow = at("fireflies"), bole = places.obstacles.trunks.find((t) => Math.hypot(t.x - places.crown.x, t.z - places.crown.z) < 0.01);
+    const d = Math.hypot(hollow[0] - bole.x, hollow[2] - bole.z);
+    assert.ok(d > bole.r - 0.05 && d < bole.r + 0.2, `seed ${seed}: the hollow in the bole's face (${d.toFixed(2)} m, bole ${bole.r.toFixed(2)})`);
+  }
+});

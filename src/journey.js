@@ -432,7 +432,7 @@ export function wakingSourceFor(state, gift) {
   // practical it resolves into must stay put.)
   const cat = state.walker?.cat;
   return wakingSource(gift, {
-    pois: land.pois ?? [], crown: land.wakingPlaces?.crown, beacon: land.wakingPlaces?.beacon, blockers: land.obstacles?.blockers ?? [],
+    pois: land.pois ?? [], crown: land.wakingPlaces?.crown, beacon: land.wakingPlaces?.beacon, anchors: land.wakingPlaces?.anchors, blockers: land.obstacles?.blockers ?? [],
     // (The pool's light is under its water: the walker's surface there.)
     surface: gift === "seafolk" && state.walker?.surface ? state.walker.surface : groundHeight, toward: gift === "fireflies" && cat ? [cat.x, cat.z] : undefined,
   });
