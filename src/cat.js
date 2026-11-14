@@ -31,11 +31,13 @@ const GALLOP = { lh: 0, rh: 0.1, lf: 0.5, rf: 0.6 };
 // Swimming: a dog paddle in diagonal pairs, as swimming quadrupeds use.
 const PADDLE = { lf: 0, rh: 0.08, rf: 0.5, lh: 0.58 };
 // Postures (body frame, before scaling): the height of the mid-back over
-// the ground, the body's pitch, and where the paws rest [x, z].
+// the ground, the body's pitch, where the paws rest [x, z], and how the
+// spine curls (radians the chest bends forward and the pelvis tucks under).
 const POSTURE = {
   stand: { height: STAND_HEIGHT, pitch: 0 },
-  // Sitting: haunches on the ground, front legs straight, ~40° up.
-  sit: { height: 0.145, pitch: 0.72, front: [0.02, 0.1], hind: [0.042, 0.045] },
+  // Sitting: haunches on the ground, the back rounded (pelvis steep, chest
+  // upright), front legs straight under the shoulders.
+  sit: { height: 0.152, pitch: 0.8, chest: 0.18, hips: 0.3, front: [0.026, 0.15], hind: [0.05, 0.045] },
   // Lying (a sphinx): belly on the ground, forearms flat along it with the
   // paws under the chin, hind legs folded beside the belly.
   lie: { height: 0.062, pitch: 0.03, front: [0.024, 0.19], hind: [0.045, -0.07] },
@@ -395,11 +397,11 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       const wiggle = crouch * Math.max(0, Math.sin(time * 0.9)) * Math.sin(time * 11) * 0.09;
       // Paddling works the spine a little: shoulders and hips roll in turn.
       const paddleRoll = Math.sin(strokeC) * 0.07 * swim;
-      b.chest.rotation.set(-flex * 0.6 + 0.04 * sitW, bend, -walkRoll * 0.7 - paddleRoll + shakeWave(0.02) * 0.32 * shakeBody);
+      b.chest.rotation.set(-flex * 0.6 + POSTURE.sit.chest * sitW, bend, -walkRoll * 0.7 - paddleRoll + shakeWave(0.02) * 0.32 * shakeBody);
       // Flexing shortens the back and stretching lengthens it.
       b.hips.position.copy(bind.hips).setZ(bind.hips.z - ext * 0.022);
       b.chest.position.copy(bind.chest).setZ(bind.chest.z + ext * 0.01);
-      b.hips.rotation.set(flex - 0.22 * sitW - 0.05 * lieW + Math.sin(strokeC * 2) * 0.03 * swim, -bend * 0.8, walkRoll + wiggle + paddleRoll - shakeWave(0.06) * 0.26 * shakeBody);
+      b.hips.rotation.set(flex - POSTURE.sit.hips * sitW - 0.05 * lieW + Math.sin(strokeC * 2) * 0.03 * swim, -bend * 0.8, walkRoll + wiggle + paddleRoll - shakeWave(0.06) * 0.26 * shakeBody);
       // Breathing: slow at rest, deeper after running, and quick when purring.
       state.breath += step * Math.PI * 2 * lerp(0.33, 1.1, state.exertion);
       const breath = Math.sin(state.breath) * lerp(0.012, 0.03, state.exertion) + (pose.sit > 0.9 && pose.idle > 8 ? Math.sin(time * 150) * 0.002 : 0);
@@ -604,7 +606,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
           const weight = leg.stance ? 1 : 0;
           leg.scapLift = (leg.scapLift ?? 0) + (weight - (leg.scapLift ?? 0)) * Math.min(1, step * 10);
           // (At a gallop the blade swings with the arm, adding to its reach.)
-          leg.scapula.rotation.x = -((leg.lastUpper ?? leg.restUpper) - leg.restUpper) * lerp(0.3, 0.5, gallop);
+          leg.scapula.rotation.x = -((leg.lastUpper ?? leg.restUpper) - leg.restUpper) * lerp(0.3, 0.5, gallop) * (1 - pose.sit);
           leg.scapula.position.copy(bind[leg.scapula.name]).setY(bind[leg.scapula.name].y + (leg.scapLift - 0.5) * 0.006 * amp);
           leg.scapula.updateMatrixWorld(true);
         }
@@ -705,8 +707,9 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       const hipsToCoast = inverse.multiplyMatrices(toCoast, b.hips.matrixWorld);
       for (let i = 0; i < TAIL_BONES; i++) {
         const s = i / TAIL_BONES;
-        // Walking: up like a question mark, the tip hooked over forward.
-        const carried = 0.55 + smooth(s, 0, 0.45) * 0.95 + smooth(s, 0.72, 1) * 0.75;
+        // Walking: carried in a relaxed curve, out and up from the rump to
+        // about 50°, the tip curling higher (not a raised pole).
+        const carried = 0.2 + smooth(s, 0, 0.6) * 0.7 + smooth(s, 0.65, 1) * 0.6;
         // At a gallop: out behind, a little low at the root, curving up
         // toward the tip.
         const streaming = lerp(0.15 - s * 0.1, -0.02 + smooth(s, 0.2, 1) * 0.38, gallop);
