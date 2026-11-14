@@ -44,6 +44,7 @@ vec3 CustomToneMapping( vec3 color ) {
 }
 
 // Twin of tone.wgsl's tone_adapt (tests/tone.test.js checks they agree).
-export function toneAdapt(night) {
-  return night;
+export function toneAdapt(night, cover = 0) {
+  const t = Math.max(0, Math.min(1, (cover - 0.55) / 0.4));
+  return night - (1 - night) * t * t * (3 - 2 * t);
 }

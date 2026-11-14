@@ -11,16 +11,22 @@
 // shoulder so the sun disc and glints roll off to white instead of clipping.
 // Every blend before it happens in linear light.
 //
-// `adapt` (tone_adapt) is the eye's state: 0 to 1 is dark adaptation, by
+// `adapt` (tone_adapt) is the eye's state. 0 to 1 is dark adaptation: by
 // moonlight the rods take over, colour fades and what is left shifts toward
-// blue-green (their 507 nm peak, the Purkinje shift).
+// blue-green (their 507 nm peak, the Purkinje shift). 0 to -1 is a camera's
+// white balance under a full cloud deck: cool and neutral, with the greens
+// rich (no sun to bleach them), instead of the warm albedos turning the
+// whole land khaki.
 
 // glsl: begin
 const TONE_GAIN: f32 = 1.35;
 const VIBRANCE: f32 = 0.04;
+const OVERCAST_BALANCE: vec3f = vec3f(0.94, 0.99, 1.08);
+const OVERCAST_VIBRANCE: f32 = 0.14;
 fn tone_curve(hdr: vec3f, adapt: f32) -> vec3f {
   let rods: f32 = clamp(adapt, 0.0, 1.0);
-  var color: vec3f = max(hdr * TONE_GAIN, vec3f(0.0));
+  let overcast: f32 = clamp(-adapt, 0.0, 1.0);
+  var color: vec3f = max(hdr * TONE_GAIN * mix(vec3f(1.0), OVERCAST_BALANCE, overcast), vec3f(0.0));
   // Bright things (the Moon's disc, glints) still reach the cones.
   let scotopic: f32 = dot(color, vec3f(0.06, 0.56, 0.38));
   // Warm light at night is lamp, lantern, window or wisp light: it keeps its
@@ -43,19 +49,22 @@ fn tone_curve(hdr: vec3f, adapt: f32) -> vec3f {
     color = mix(color, vec3f(new_peak), 1.0 - 1.0 / (0.15 * (peak - new_peak) + 1.0));
   }
   // A camera's picture profile: vibrance lifts muted colours (sky, leaves,
-  // sand) and leaves saturated ones be. Off by moonlight.
+  // sand) and leaves saturated ones be; more under cloud, where foliage is
+  // at its richest. Off by moonlight.
   let luma: f32 = dot(color, vec3f(0.2126, 0.7152, 0.0722));
   let top: f32 = max(color.r, max(color.g, color.b));
   let chroma: f32 = (top - min(color.r, min(color.g, color.b))) / max(top, 1e-4);
-  return max(vec3f(luma) + (color - luma) * (1.0 + VIBRANCE * (1.0 - chroma) * (1.0 - rods)), vec3f(0.0));
+  let vibrance: f32 = mix(VIBRANCE, OVERCAST_VIBRANCE, overcast);
+  return max(vec3f(luma) + (color - luma) * (1.0 + vibrance * (1.0 - chroma) * (1.0 - rods)), vec3f(0.0));
 }
 // glsl: end
 
-// The eye's state from the scene's twilight (`night`, 0-1). landscape.js
-// sets the land's toneMappingExposure to 1 + toneAdapt(...) (tone-glsl.js),
-// its twin: tests/tone.test.js checks they agree.
-export fn tone_adapt(night: f32) -> f32 {
-  return night;
+// The eye's state from the scene's twilight (`night`, 0-1) and the total
+// cloud cover (0-1). landscape.js sets the land's toneMappingExposure to
+// 1 + toneAdapt(...) (tone-glsl.js), its twin: tests/tone.test.js checks
+// they agree.
+export fn tone_adapt(night: f32, cover: f32) -> f32 {
+  return night - (1.0 - night) * smoothstep(0.55, 0.95, cover);
 }
 
 // The sea and sky's final pass: tone curve, then sRGB encoding (three

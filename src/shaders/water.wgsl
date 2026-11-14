@@ -92,7 +92,7 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   // layers, drawn last by the land layer (landscape.js). This keeps only a
   // one-level dither against banding in the sky's gradients.
   let dither = (hash2(floor(uv * atmosphere.resolution)).x - 0.5) / 255.0;
-  return vec4f(tonemap(color, tone_adapt(night)) + dither, 1.0);
+  return vec4f(tonemap(color, tone_adapt(night, atmosphere.weather.w)) + dither, 1.0);
 }
 
 // The Moon and stars need full-resolution pixels: the cloud pass is

@@ -482,9 +482,10 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     // the eye's adaptation frame to frame, so it is rebuilt only when the sun,
     // weather or night changes, not as exposure drifts.
     const exposure = Math.max(lighting.exposure, 1e-6);
-    // Night vision: by moonlight the eye sees with rods, colour fades to a
-    // blue-grey (the tonemap reads it from the exposure uniform).
-    renderer.toneMappingExposure = 1 + toneAdapt(night);
+    // Night vision (by moonlight the eye sees with rods, colour fades to a
+    // blue-grey) and the overcast white balance: the tonemap reads both from
+    // the exposure uniform (tone.wgsl).
+    renderer.toneMappingExposure = 1 + toneAdapt(night, cover);
     scene.environmentIntensity = exposure * nightFill;
     const mean = skyDomeMean(domeRatio, envWidth, uniform);
     const sky = lighting.sky.map((v, i) => v * mean[i] * (1 + cover * 0.45));
