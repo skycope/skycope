@@ -73,3 +73,26 @@ test('the launched boat leaves no blocker and no tile on the beach', () => {
     assert.ok(walker.surface(boat.x, boat.z) < hullTop - 0.3, `seed ${seed}: the hull's tile remains`);
   }
 });
+
+// The yard: walking at the wall from inside, the cat slides along it or hops
+// onto it; it never stands pressed into it (it was trapped for minutes: the
+// wall's normal came from the yard's centre and pointed outward, into it).
+test('a cat in the lighthouse yard is never trapped against the wall', () => {
+  for (const seed of SEEDS) {
+    const { places } = island(seed);
+    const walker = walkerFor(seed);
+    const p = places.layout.find((q) => q.kind === 'lighthouse');
+    const fx = Math.sin(p.facing), fz = Math.cos(p.facing), rx = Math.cos(p.facing), rz = -Math.sin(p.facing);
+    const at = (u, v) => ({ x: p.x + u * fx + v * rx, z: p.z + u * fz + v * rz });
+    for (const [u, v] of [[-1, 6.5], [1.5, -3], [-9, -3.5], [2.5, 5]]) {
+      for (let k = 0; k < 8; k++) {
+        // Pressed on at the wall (into a corner, it may stop there), then
+        // the other way and to each side: it must always get away.
+        const h = (k / 8) * Math.PI * 2;
+        const r = run(walker, { from: at(u, v), heading: h, seconds: 5 });
+        const away = Math.max(...[Math.PI, Math.PI / 2, -Math.PI / 2].map((t) => run(walker, { from: r.end, heading: h + t, seconds: 3 }).travelled));
+        assert.ok(r.travelled > 1.0 && away > 1.5, `seed ${seed}: stuck at ${u},${v} heading ${k} (${r.travelled.toFixed(2)} m, then ${away.toFixed(2)} m)`);
+      }
+    }
+  }
+});

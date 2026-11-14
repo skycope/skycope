@@ -55,6 +55,8 @@ const LENS_CLEARANCE = 0.4;
 const LENS_GUARD = 0.18;
 // Each step the boom may tilt up to see over a solid at the cat's back.
 const SOLID_RISE = 1.1;
+// Step turns (radians) tried when the cat brushes a wall (see update).
+const SKEW = [0.3, 0.6, -0.3, -0.6];
 
 // sea (sea-surface.js) gives the water level; wake (wake.js) takes the
 // cat's trail through it.
@@ -321,6 +323,13 @@ export function createWalker(obstacles, sea = null, wake = null) {
         if (into < 0) moved = tryMove(cat.x + sx - wall.x * into, cat.z + sz - wall.z * into);
       }
       if (!moved) moved = tryMove(cat.x + sx, cat.z) || tryMove(cat.x, cat.z + sz);
+      // solid: still pressed in (a wall met at a shallow angle the normal
+      // misjudged by a few degrees): turn the step a little either way,
+      // so a cat brushing a wall slides along it and is never pinned.
+      for (let k = 0; !moved && k < SKEW.length && Math.abs(step) > 1e-4; k++) {
+        const a = cat.heading + SKEW[k] * wall.side;
+        moved = tryMove(cat.x + Math.sin(a) * step * 0.8, cat.z + Math.cos(a) * step * 0.8);
+      }
       if (!moved && Math.abs(step) > 1e-4) {
         blocked += dt;
         // In the air, momentum carries on once the body clears the rim.
@@ -521,10 +530,23 @@ export function createWalker(obstacles, sea = null, wake = null) {
       // The rock's outward normal: from its centre, which turns smoothly
       // as the cat goes round (the height field's gradient is ragged at
       // the rim).
+      // A wall, a hull or a log (a tile marked `gradient`): the way its
+      // own surface falls away, round the probe.
       const dome = grid.domeAt(px, pz);
       let nx;
       let nz;
-      if (dome) {
+      if (dome?.gradient) {
+        nx = nz = 0;
+        for (let k = 0; k < 8; k++) {
+          const a = (k / 8) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+          const fall = h - Math.max(groundHeight(px + ca * 0.3, pz + sa * 0.3), tileHeight(dome.tile, px + ca * 0.3, pz + sa * 0.3));
+          nx += ca * fall;
+          nz += sa * fall;
+        }
+        // Its top here (a tile's highest point is the cottage roof, not
+        // the wall in front of the cat).
+        wall.top = h;
+      } else if (dome) {
         nx = px - dome.x;
         nz = pz - dome.z;
         wall.top = dome.top;
@@ -759,6 +781,25 @@ export function surfaceOf(obstacles) {
   return (x, z) => Math.max(groundHeight(x, z), grid.domeHeight(x, z));
 }
 
+// The surface of one height tile (a boulder's dome, a landmark's tile) at
+// (x, z), bilinear within its cells; −∞ off it. The one implementation:
+// animal-forms.js and everything standing on rocks use it too.
+export function tileHeight(d, x, z) {
+  const u = (x - d.x0) / d.cell;
+  const v = (z - d.z0) / d.cell;
+  const i = Math.floor(u);
+  const j = Math.floor(v);
+  if (i < 0 || j < 0 || i >= d.nx - 1 || j >= d.nz - 1) return -Infinity;
+  const h = d.heights;
+  const k = j * d.nx + i;
+  const h00 = h[k], h10 = h[k + 1], h01 = h[k + d.nx], h11 = h[k + d.nx + 1];
+  const fu = u - i;
+  const fv = v - j;
+  if (h00 > -Infinity && h10 > -Infinity && h01 > -Infinity && h11 > -Infinity)
+    return (h00 * (1 - fu) + h10 * fu) * (1 - fv) + (h01 * (1 - fu) + h11 * fu) * fv;
+  return Math.max(h00, h10, h01, h11);
+}
+
 // Trunks and boulder domes bucketed in 4 m cells.
 function spatialGrid({ trunks, domes }) {
   const cell = 4;
@@ -776,6 +817,7 @@ function spatialGrid({ trunks, domes }) {
   const tops = new Map(domes.map((d) => [d, d.heights.reduce((m, h) => Math.max(m, h), -Infinity)]));
   for (const d of domes) add("domes", d, d.r + 0.1);
   let found = null;
+  const hit = { x: 0, z: 0, top: 0, gradient: false, tile: null };
   const at = (x, z) => cells.get(Math.floor(x / cell) * 4096 + Math.floor(z / cell));
   return {
     // Trunks within `radius` of (x, z) (whole cells; may include a few more).
@@ -801,20 +843,7 @@ function spatialGrid({ trunks, domes }) {
       found = null;
       if (!c) return best;
       for (const d of c.domes) {
-        const u = (x - d.x0) / d.cell;
-        const v = (z - d.z0) / d.cell;
-        const i = Math.floor(u);
-        const j = Math.floor(v);
-        if (i < 0 || j < 0 || i >= d.nx - 1 || j >= d.nz - 1) continue;
-        const h = d.heights;
-        const k = j * d.nx + i;
-        const h00 = h[k], h10 = h[k + 1], h01 = h[k + d.nx], h11 = h[k + d.nx + 1];
-        const fu = u - i;
-        const fv = v - j;
-        let y;
-        if (h00 > -Infinity && h10 > -Infinity && h01 > -Infinity && h11 > -Infinity)
-          y = (h00 * (1 - fu) + h10 * fu) * (1 - fv) + (h01 * (1 - fu) + h11 * fu) * fv;
-        else y = Math.max(h00, h10, h01, h11);
+        const y = tileHeight(d, x, z);
         if (y > best) {
           best = y;
           found = d;
@@ -822,10 +851,16 @@ function spatialGrid({ trunks, domes }) {
       }
       return best;
     },
-    // The rock whose surface that is: { x, z (its centre), top }.
+    // The rock whose surface that is: { x, z (its centre), top, gradient,
+    // and the tile itself } (one object, reused).
     domeAt(x, z) {
       if (this.domeHeight(x, z) === -Infinity) return null;
-      return { x: found.x, z: found.z, top: tops.get(found) };
+      hit.x = found.x;
+      hit.z = found.z;
+      hit.top = tops.get(found);
+      hit.gradient = Boolean(found.gradient);
+      hit.tile = found;
+      return hit;
     },
   };
 }

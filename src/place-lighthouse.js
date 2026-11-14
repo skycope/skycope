@@ -343,13 +343,18 @@ function yardWall(groundUV, at, { u0, u1, half, cv = 0, corner }) {
     geometry,
     path,
     top(u, v) {
-      // Distance to the perimeter in (u, v), coarse: nearest path point.
-      let best = Infinity, gap = false;
-      for (const q of path) {
-        const d = (q.u - u) ** 2 + (q.v - v) ** 2;
-        if (d < best) { best = d; gap = q.gap; }
+      // solid: distance to the wall's run, segment by segment. Nearest path
+      // point (0.5 m apart, 0.25 m reach) left notches between the beads
+      // that a cat's chest wedged into.
+      let best = Infinity;
+      for (let i = 0; i + 1 < path.length; i++) {
+        const a = path[i], b = path[i + 1];
+        if (a.gap || b.gap) continue;
+        const du = b.u - a.u, dv = b.v - a.v;
+        const t = Math.max(0, Math.min(1, ((u - a.u) * du + (v - a.v) * dv) / (du * du + dv * dv || 1e-9)));
+        best = Math.min(best, (a.u + du * t - u) ** 2 + (a.v + dv * t - v) ** 2);
       }
-      if (gap || best > (thick / 2 + 0.04) ** 2) return -Infinity;
+      if (best > (thick / 2 + 0.02) ** 2) return -Infinity;
       // The coping's crown (it stood 5 cm proud of the collision top).
       return groundUV(u, v) + height + 0.1;
     },
@@ -412,5 +417,8 @@ export function heightTile(cx, cz, half, cell, fn) {
   const heights = new Float32Array(nx * nz);
   for (let j = 0; j < nz; j++)
     for (let i = 0; i < nx; i++) heights[j * nx + i] = fn(x0 + i * cell, z0 + j * cell);
-  return { x0, z0, cell, nx, nz, heights, x: cx, z: cz, r: half };
+  // `gradient`: walker.js takes a wall's normal from the tile's own slope,
+  // not from its centre (a wall round a yard pointed the cat inside the
+  // yard into the wall, and it pushed there for good).
+  return { x0, z0, cell, nx, nz, heights, x: cx, z: cz, r: half, gradient: true };
 }
