@@ -6,8 +6,8 @@ import { STEPS, SURFACE, playLayers } from "./patches.js";
 
 export function createFoley(core) {
   const { ctx } = core;
-  let lastStep = -1;
-  let lastRunStep = -1;
+  let lastStep = -Infinity;
+  let lastRunStep = -Infinity;
   let nextPaddle = 0;
   let nextBreath = 0;
   let wet = 0;
@@ -15,7 +15,7 @@ export function createFoley(core) {
   let rustle = null;
   let inPlant = 0;
   let plantKind = "shrub";
-  let lastSlosh = 0;
+  let lastSlosh = -Infinity;
   let boilerSend = null;
 
   // A paw landing on `surface` (patches.js SURFACE). info: { front, depth,
@@ -29,7 +29,7 @@ export function createFoley(core) {
     lastStep = now;
     if (surface === SURFACE.shallows && (info.depth ?? 0) > 0.06) return wade(info.depth, info.speed ?? 1, pan);
     const patch = STEPS[surface] ?? STEPS[SURFACE.drySand];
-    const scale = (running ? 1.8 : 1) * (info.front === false ? 1 / 1.2 : 1) * (info.scale ?? 1);
+    const scale = (patch.trim ?? 1) * (running ? 1.8 : 1) * (info.front === false ? 1 / 1.2 : 1) * (info.scale ?? 1);
     const v = core.voice({ bus: "foley", pan, gain: 1, sendB: patch.sendB ?? 0 });
     if (v && boilerSend && surface === SURFACE.metal) v.input.connect(boilerSend);
     playLayers(core, v, patch.layers, { scale, shorten: running ? 0.8 : 1, running });
@@ -114,9 +114,8 @@ export function createFoley(core) {
     const g = Math.min(0.12, 0.03 + speed * 0.025);
     const v = core.voice({ bus: "foley", sendB: surface === SURFACE.deck ? 0.2 : 0 });
     core.noise(v, { colour: "brown", type: "lowpass", f: 260, q: 0, attack: 0.004, tail: 0.12, gain: g });
-    if (surface === SURFACE.rock || surface === SURFACE.pebbles) playLayers(core, v, STEPS[SURFACE.rock].layers, { scale: 2 });
-    else if (surface === SURFACE.timber || surface === SURFACE.deck) playLayers(core, v, STEPS[surface].layers, { scale: 1.6 });
-    else if (surface === SURFACE.metal) playLayers(core, v, STEPS[SURFACE.metal].layers, { scale: 1.6 });
+    if (surface === SURFACE.rock || surface === SURFACE.pebbles) playLayers(core, v, STEPS[SURFACE.rock].layers, { scale: 2 * STEPS[SURFACE.rock].trim });
+    else if (surface === SURFACE.timber || surface === SURFACE.deck || surface === SURFACE.metal) playLayers(core, v, STEPS[surface].layers, { scale: 1.6 * STEPS[surface].trim });
     return v?.done();
   }
 
@@ -211,6 +210,7 @@ export function createFoley(core) {
     depth.gain.value = 9;
     vib.connect(depth).connect(osc.frequency);
     const env = core.counted.createGain();
+    env.gain.value = 0;
     env.gain.setValueAtTime(0, t);
     env.gain.linearRampToValueAtTime(level, t + 0.05);
     env.gain.setValueAtTime(level, t + duration * 0.7);

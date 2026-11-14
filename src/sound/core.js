@@ -232,6 +232,7 @@ export function createCore(ctx, mix, { seed = 1 } = {}) {
     src.loop = true;
     src.playbackRate.value = rate;
     const env = counted.createGain();
+    env.gain.value = 0;
     const end = shape(env.gain, t, { attack, hold, tail, peak: gain });
     let head = src;
     if (type !== "none") {
@@ -263,6 +264,7 @@ export function createCore(ctx, mix, { seed = 1 } = {}) {
       osc.frequency.setValueAtTime(hz * ratio, t);
       if (detune) osc.detune.value = detune;
       const env = counted.createGain();
+      env.gain.value = 0;
       const e = shape(env.gain, t, { attack, hold, tail: tail * (tailScale ?? 1), peak: gain * g });
       if (to) osc.frequency.exponentialRampToValueAtTime(to * ratio, t + (glide ?? attack + hold + tail));
       osc.connect(env).connect(out ?? v.input);
@@ -303,6 +305,7 @@ export function createCore(ctx, mix, { seed = 1 } = {}) {
     contour.forEach(([u, hz], i) => (i === 0 ? osc.frequency.setValueAtTime(hz, t) : osc.frequency.exponentialRampToValueAtTime(hz, t + u * length)));
     const end = t + length + release + 0.02;
     const env = counted.createGain();
+    env.gain.value = 0;
     env.gain.setValueAtTime(0, t);
     env.gain.linearRampToValueAtTime(gain, t + attack);
     env.gain.setValueAtTime(gain, t + Math.max(attack, length - release));

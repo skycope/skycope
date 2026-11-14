@@ -94,6 +94,7 @@ function burst(io, out, { buffer, t, type = "bandpass", frequency, to = null, q 
   if (to) filter.frequency.exponentialRampToValueAtTime(to, t + attack + length);
   filter.Q.value = q;
   const env = ctx.createGain();
+  env.gain.value = 0;
   env.gain.setValueAtTime(0, t);
   env.gain.linearRampToValueAtTime(gain, t + attack);
   env.gain.exponentialRampToValueAtTime(0.0003, t + attack + length);
@@ -121,6 +122,7 @@ function voiced(io, out, { t, length, contour, formants, gain, rough = 0, roughR
     nodes.push(lfo, depth);
   }
   const env = ctx.createGain();
+  env.gain.value = 0;
   env.gain.setValueAtTime(0, t);
   env.gain.linearRampToValueAtTime(gain, t + attack);
   env.gain.setValueAtTime(gain, t + Math.max(attack, length - release));
@@ -167,6 +169,7 @@ function tone(io, out, { t, hz, to = null, length, gain, attack = 0.01, type = "
   osc.frequency.setValueAtTime(hz, t);
   if (to) osc.frequency.exponentialRampToValueAtTime(to, t + length);
   const env = ctx.createGain();
+  env.gain.value = 0;
   env.gain.setValueAtTime(0, t);
   env.gain.linearRampToValueAtTime(gain, t + attack);
   env.gain.exponentialRampToValueAtTime(0.0003, t + attack + length);

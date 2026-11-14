@@ -269,6 +269,7 @@ function pad(ctx, out, send, notes, t, duration, level) {
   filter.frequency.linearRampToValueAtTime(900, t + duration * 0.5);
   filter.frequency.linearRampToValueAtTime(420, t + duration + 5);
   const env = ctx.createGain();
+  env.gain.value = 0;
   const attack = Math.min(4, duration * 0.4);
   env.gain.setValueAtTime(0, t);
   env.gain.linearRampToValueAtTime(level, t + attack);
@@ -328,6 +329,7 @@ export function pluck(ctx, out, send, midi, t, velocity, { decay = 1.4, bright =
       osc.frequency.exponentialRampToValueAtTime(hz * ratio, t + 0.15);
     } else osc.frequency.value = hz * ratio;
     const g = ctx.createGain();
+    g.gain.value = 0;
     g.gain.setValueAtTime(0, t);
     g.gain.linearRampToValueAtTime(gain, t + attack);
     g.gain.setTargetAtTime(0, t + attack, tau);
