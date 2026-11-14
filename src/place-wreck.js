@@ -3,7 +3,7 @@ import { groundHeight } from "./terrain.js";
 import { capsule } from "./blockers.js";
 import { seededRandom } from "./random.js";
 import { part, merge, sweep, place, smooth01, srgb, hash, staticMesh, prop } from "./place-kit.js";
-import { heightTile, timberTile } from "./place-lighthouse.js";
+import { heightTile, timberTile } from "./place-kit.js";
 import { hurricaneLantern } from "./place-shore.js"; // land-magic:
 
 // The bones of a wooden coaster, driven bow-first up the beach and half

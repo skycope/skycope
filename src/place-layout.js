@@ -53,6 +53,9 @@ function pick(list, weights, random) {
   return list[list.length - 1];
 }
 
+// The keeper's cottage, in the lighthouse's frame (u seaward, v to the side).
+export const COTTAGE = { u: -1.4, v: 9.4 };
+
 const WRECK_NAMES = ["Seaflower", "Kowie Lass", "Good Intent", "Thistle", "Maria Stella", "Albatross", "Star of Hope", "Wanderer"];
 
 // The landmarks: [{ id, title, kind, x, z, y, r, zone, … }], coast metres.
@@ -78,17 +81,33 @@ export function placesLayout(seed) {
       });
     const h = pick(eligible.slice(0, 3), [0.55, 0.3, 0.15].slice(0, Math.min(3, eligible.length)), random);
     const theta = h.theta + (random() - 0.5) * 0.03;
-    const inland = 8.5;
+    // On the first level-ish ground above the shore: the headlands climb
+    // steeply from the beach, and every metre further back is a taller
+    // cut and fill for the pad the tower stands on (place-lighthouse.js).
+    const inland = 6.5;
     const { x, z } = islandPoint(theta, inland);
     // Faces the sea: the door and the keeper's cottage are on the lee side.
     const seaward = Math.atan2(Math.cos(theta), Math.sin(theta));
-    // The compound runs inland from the tower: the keeper's cottage behind it.
-    const bx = x - Math.sin(seaward) * 6.5 + Math.cos(seaward) * 4.6;
-    const bz = z - Math.cos(seaward) * 6.5 - Math.sin(seaward) * 4.6;
+    const fx = Math.sin(seaward), fz = Math.cos(seaward), rx = Math.cos(seaward), rz = -Math.sin(seaward);
+    // The keeper's cottage stands beside the tower along the contour (behind
+    // it, up the slope, it needed a two-metre podium), on whichever side
+    // the ground is more nearly level.
+    const spread = (side) => {
+      let lo = Infinity, hi = -Infinity;
+      for (let i = -3; i <= 3; i++) for (let j = -3; j <= 3; j++) {
+        const u = COTTAGE.u + (i / 3) * 2.4, v = side * COTTAGE.v + (j / 3) * 3.8;
+        const h = terrainHeight(x + u * fx + v * rx, z + u * fz + v * rz);
+        lo = Math.min(lo, h); hi = Math.max(hi, h);
+      }
+      return hi - lo;
+    };
+    const side = spread(1) <= spread(-1) ? 1 : -1;
+    const bx = x + COTTAGE.u * fx + side * COTTAGE.v * rx;
+    const bz = z + COTTAGE.u * fz + side * COTTAGE.v * rz;
     places.push({
       id: "lighthouse", title: "The lighthouse on the point", kind: "lighthouse",
-      x, z, y: terrainHeight(x, z), r: 10, theta, inland, facing: seaward,
-      zone: { ax: x, az: z, bx, bz, clear: 9.5, bare: 7.5 },
+      x, z, y: terrainHeight(x, z), r: 10, theta, inland, facing: seaward, side,
+      zone: { ax: x, az: z, bx, bz, clear: 7, bare: 5.5 },
     });
   }
 
@@ -123,25 +142,30 @@ export function placesLayout(seed) {
     });
   }
 
-  // The wreck: on a beach across the island from the light, lying across
-  // the swash with its bow driven up the sand.
+  // The wreck: the landward bones of a coaster on a beach across the island
+  // from the light, wholly above the tide line (the sea has taken the rest),
+  // its bow driven up the sand.
   {
     const light = places[0];
     let wreck = null;
     for (let i = 0; i < 40 && !wreck; i++) {
       const theta = light.theta + Math.PI + (random() - 0.5) * (1.2 + i * 0.05);
-      const centre = islandPoint(theta, 1.6);
+      const centre = islandPoint(theta, 4.8);
       if (!farFrom(centre.x, centre.z, 32)) continue;
-      // Shore tangent, then turned 20–45° so the bow points up the beach.
-      const along = Math.atan2(-Math.sin(theta), Math.cos(theta));
-      const turn = (0.35 + random() * 0.4) * (random() < 0.5 ? -1 : 1);
+      // Shore tangent, then turned 17–34° so the bow points up the beach.
+      // The shore's own normal (the radius is not: the shore winds), from
+      // the gradient of the shore distance.
+      const turn = (0.3 + random() * 0.3) * (random() < 0.5 ? -1 : 1);
+      const gx = shoreDistance(centre.x + 0.5, centre.z) - shoreDistance(centre.x - 0.5, centre.z);
+      const gz = shoreDistance(centre.x, centre.z + 0.5) - shoreDistance(centre.x, centre.z - 0.5);
+      const gl = Math.hypot(gx, gz) || 1;
+      const nx = gx / gl, nz = gz / gl; // inland
       // Heading in the coast frame: (sin h, cos h).
-      const tx = Math.cos(along), tz = Math.sin(along);
-      const nx = -Math.cos(theta), nz = -Math.sin(theta); // inland
+      const tx = -nz, tz = nx;
       const c = Math.cos(Math.abs(turn)), s = Math.sin(Math.abs(turn));
       let dx = tx * c + nx * s, dz = tz * c + nz * s;
       if (turn < 0) { dx = -tx * c + nx * s; dz = -tz * c + nz * s; }
-      const half = 8.5;
+      const half = 4.5;
       const bow = { x: centre.x + dx * half, z: centre.z + dz * half };
       const stern = { x: centre.x - dx * half, z: centre.z - dz * half };
       wreck = {

@@ -315,16 +315,16 @@ function paintGround(group, layout) {
 
 function stainsFor(p) {
   if (p.kind === "lighthouse") {
-    const fx = Math.sin(p.facing), fz = Math.cos(p.facing);
-    const along = (u) => ({ x: p.x + fx * u, z: p.z + fz * u });
+    const fx = Math.sin(p.facing), fz = Math.cos(p.facing), rx = Math.cos(p.facing), rz = -Math.sin(p.facing);
+    const side = p.side ?? 1;
+    const at = (u, v) => ({ x: p.x + fx * u + rx * v, z: p.z + fz * u + rz * v });
     const yard = [];
-    // A trodden yard of short turf, and a gravel path from the gate past
-    // the cottage door to the tower's.
-    for (let u = 2; u >= -10; u -= 2) yard.push({ ...along(u), r: 6.5, scrub: 0, grass: 0.35, amount: 0 });
-    for (let u = -2.5; u >= -14; u -= 0.8) yard.push({ ...along(u), r: 1.3, soft: 0.4, colour: "#8e8676", amount: 0.55, grass: 0, scrub: 0 });
-    // Contact shade at the plinth's foot only: wider, it lay on the sand
-    // beside the tower as a dark painted blob.
-    yard.push({ x: p.x, z: p.z, r: 3.9, soft: 0.8, shade: 0.3 });
+    // A trodden yard of short turf along the contour from the tower to the
+    // cottage, and a worn path from the tower's door to the cottage's.
+    for (let v = 0; v <= 12; v += 2) yard.push({ ...at(-1, side * v), r: 5.5, scrub: 0, grass: 0.35, amount: 0 });
+    for (let v = 3.2; v <= 5.6; v += 0.6) yard.push({ ...at(0.2, side * v), r: 0.9, soft: 0.4, colour: "#8e8676", amount: 0.45, grass: 0, scrub: 0 });
+    // Contact shade at the apron's foot only.
+    yard.push({ x: p.x, z: p.z, r: 3.3, soft: 0.8, shade: 0.22 });
     return yard;
   }
   if (p.kind === "beacon") {

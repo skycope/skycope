@@ -30,14 +30,15 @@ test('landmarks sit where they belong: on land, at the shore, apart', () => {
     const places = Object.fromEntries(placesLayout(seed).map((p) => [p.id, p]));
     const inland = (p) => shoreDistance(p.x, p.z);
     // The light is back from its point, the milkwood and beacon deep inland.
-    assert.ok(inland(places.lighthouse) > 6 && inland(places.lighthouse) < 12, `lighthouse ${inland(places.lighthouse)}`);
+    assert.ok(inland(places.lighthouse) > 5 && inland(places.lighthouse) < 9, `lighthouse ${inland(places.lighthouse)}`);
     assert.ok(inland(places.milkwood) > 20, `milkwood ${inland(places.milkwood)}`);
     assert.ok(inland(places.beacon) > 20, `beacon ${inland(places.beacon)}`);
     // The beacon is on one of the island's highest summits.
     assert.ok(terrainHeight(places.beacon.x, places.beacon.z) > 11);
-    // Shore places: the wreck straddles the swash (bow up the beach), the
+    // Shore places: the wreck above the tide (bow up the beach), the
     // boat is above the tide line, the pool at the top of the shore.
-    assert.ok(Math.abs(inland(places.wreck)) < 3, `wreck centre ${inland(places.wreck)}`);
+    assert.ok(inland(places.wreck) > 3 && inland(places.wreck) < 6, `wreck centre ${inland(places.wreck)}`);
+    assert.ok(shoreDistance(places.wreck.stern.x, places.wreck.stern.z) > 1.2, 'the wreck lies above the tide line');
     assert.ok(shoreDistance(places.wreck.bow.x, places.wreck.bow.z) > shoreDistance(places.wreck.stern.x, places.wreck.stern.z));
     assert.ok(inland(places.boat) > 4 && inland(places.boat) < 9, `boat ${inland(places.boat)}`);
     assert.ok(inland(places.pool) > 0.5 && inland(places.pool) < 3, `pool ${inland(places.pool)}`);

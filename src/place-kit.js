@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { patchMaterial } from "./forest.js";
+import { MATERIAL_LINEAR } from "./material-palette.js";
 
 // The landmarks' toolkit: a few geometry helpers (every landmark is built in
 // coast metres and merged into one mesh per material, so a whole place is a
@@ -438,6 +439,28 @@ export function createMaterials(shared) {
     ),
   });
 
+  // Soil: a levelled pad's graded bank (pad() below). It takes the colour
+  // of the ground it was dug from (the ground field: forest.js grounding),
+  // trodden a little darker and gritty, so it reads as the island's own
+  // ground raised to a level, not as a thing set on it.
+  const chroma = (c) => { const l = c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722; return c.map((v) => (v / l).toFixed(3)).join(", "); };
+  const soil = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.97 });
+  patchMaterial(soil, shared, { grounded: true });
+  extend(soil, "soil", {
+    fragment: (s) => s.replace(
+      "#include <color_fragment>",
+      `#include <color_fragment>
+      {
+        float px = max( fwidth( vPlace.x ), max( fwidth( vPlace.z ), 1e-4 ) );
+        vec3 earth = mix( vec3( ${chroma(MATERIAL_LINEAR.litter)} ), vec3( ${chroma(MATERIAL_LINEAR.sand)} ), groundingField.a ) * groundingField.b;
+        float grit = pOctave( vPlace, 37.0, px ) * 0.5 + pOctave( vPlace, 9.0, px ) * 0.5;
+        float stones = smoothstep( 0.7, 0.78, pOctave( vPlace, 13.0, px ) );
+        diffuseColor.rgb = earth * ( 0.86 + grit * 0.22 ) * diffuseColor.rgb;
+        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.2, 0.19, 0.17 ), stones * 0.5 );
+      }`,
+    ),
+  });
+
   // Rubble: granite in the rocks' own shader (lichen above the spray, the
   // splash band, barnacles and the swash's wet line).
   const rubble = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 });
@@ -541,7 +564,7 @@ export function createMaterials(shared) {
     ),
   });
 
-  return { limewash, rubble, iron, timber, rust, bark, glow, foliage, lichen, net, water, lights };
+  return { limewash, rubble, iron, timber, rust, bark, soil, glow, foliage, lichen, net, water, lights };
 }
 
 // Additive glows: unlit, depth-tested, no depth writes, no fog (lights carry
@@ -628,4 +651,110 @@ export function prop({ lod, surfaces = {}, covers = [], lights = [], affordances
     affordances,
     ...rest,
   };
+}
+
+// ---- Levelled pads -----------------------------------------------------------
+
+// A levelled pad: the ground graded up to a level round a footprint, as a
+// builder makes a site on a slope, instead of a podium. The footprint is a
+// rounded rectangle (half-lengths hu, hv about (cu, cv) in a place's u, v
+// frame; `at(u, v)` → local [x, z]). The bank leaves the footprint's edge
+// at `top` and runs straight out over `reach` metres to meet the ground
+// exactly (soil material: it takes the ground's own colour). Downhill it
+// is a graded fill; uphill it dips under the ground and the hill shows.
+// Returns the bank geometry (place-local x, z; y absolute) and its height
+// at a local (u, v) for a collision tile (−Infinity off the bank).
+export function pad(ground, at, { cu = 0, cv = 0, hu, hv, top, reach = 2.4, rings = 6, segments = 56, k = 6 }) {
+  const norm = (u, v) => Math.pow(Math.pow(Math.abs(u) / hu, k) + Math.pow(Math.abs(v) / hv, k), 1 / k);
+  const positions = [];
+  const index = [];
+  const groundUV = (u, v) => ground(...at(u, v));
+  const ease = (t) => t * t * (3 - 2 * t);
+  for (let i = 0; i <= rings; i++) {
+    const t = i / rings;
+    for (let j = 0; j < segments; j++) {
+      const a = (j / segments) * Math.PI * 2;
+      const c = Math.cos(a), s = Math.sin(a);
+      const r = 1 / norm(c, s); // the footprint's edge along this ray
+      const d = r + reach * t;
+      const u = cu + c * d, v = cv + s * d;
+      const g = groundUV(u, v);
+      const y = i === rings ? g : top + (g - top) * ease(t);
+      const [x, z] = at(u, v);
+      positions.push(x, y, z);
+    }
+  }
+  for (let i = 0; i < rings; i++)
+    for (let j = 0; j < segments; j++) {
+      const a = i * segments + j, b = i * segments + ((j + 1) % segments), c = a + segments, d = b + segments;
+      index.push(a, b, c, b, d, c);
+    }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(index);
+  geometry.computeVertexNormals();
+  // Normals face up whichever way the rings wind.
+  const n = geometry.attributes.normal;
+  let up = 0;
+  for (let i = 0; i < n.count; i++) up += n.getY(i);
+  if (up < 0) { index.reverse(); geometry.setIndex(index); geometry.computeVertexNormals(); }
+  return {
+    geometry,
+    height(u, v) {
+      const du = u - cu, dv = v - cv;
+      const len = Math.hypot(du, dv);
+      if (len < 1e-6) return -Infinity;
+      const r = norm(du, dv);
+      if (r <= 1) return top;
+      const d = len - len / r;
+      if (d >= reach) return -Infinity;
+      return top + (groundUV(u, v) - top) * ease(d / reach);
+    },
+  };
+}
+
+// ---- Collision tiles ---------------------------------------------------------
+
+// solid: low things as surfaces, not walls. A trunk is a wall of no height
+// (the cat met it in mid-air and could never jump over it or onto it); a
+// tile is a surface the walker treats like a boulder: walked round, hopped
+// onto when low, jumped over, landed on. Coast metres.
+// A flat-topped disc (a crayfish trap, a plinth).
+export function discTile(x, z, r, top) {
+  return heightTile(x, z, r + 0.1, 0.06, (px, pz) => (Math.hypot(px - x, pz - z) <= r ? top : -Infinity));
+}
+// A round timber lying along a polyline of { x, y, z } (centre line) with
+// radius r: its upper surface.
+export function timberTile(points, r) {
+  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+  for (const q of points) { x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); z0 = Math.min(z0, q.z); z1 = Math.max(z1, q.z); }
+  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  const half = Math.max(x1 - x0, z1 - z0) / 2 + r + 0.1;
+  return heightTile(cx, cz, half, 0.06, (px, pz) => {
+    let best = -Infinity;
+    for (let i = 0; i + 1 < points.length; i++) {
+      const a = points[i], b = points[i + 1];
+      const dx = b.x - a.x, dz = b.z - a.z;
+      const l2 = dx * dx + dz * dz || 1e-9;
+      const t = Math.max(0, Math.min(1, ((px - a.x) * dx + (pz - a.z) * dz) / l2));
+      const d = Math.hypot(px - a.x - dx * t, pz - a.z - dz * t);
+      if (d < r) best = Math.max(best, a.y + (b.y - a.y) * t + Math.sqrt(r * r - d * d));
+    }
+    return best;
+  });
+}
+
+// A collision height tile in walker.js's dome format, sampled from fn(x, z)
+// (−Infinity where there is nothing to stand on).
+export function heightTile(cx, cz, half, cell, fn) {
+  const nx = Math.ceil((half * 2) / cell) + 1;
+  const nz = nx;
+  const x0 = cx - half, z0 = cz - half;
+  const heights = new Float32Array(nx * nz);
+  for (let j = 0; j < nz; j++)
+    for (let i = 0; i < nx; i++) heights[j * nx + i] = fn(x0 + i * cell, z0 + j * cell);
+  // `gradient`: walker.js takes a wall's normal from the tile's own slope,
+  // not from its centre (a wall round a yard pointed the cat inside the
+  // yard into the wall, and it pushed there for good).
+  return { x0, z0, cell, nx, nz, heights, x: cx, z: cz, r: half, gradient: true };
 }

@@ -28,9 +28,12 @@ const from = (p, bearing, d) => [p.x + Math.sin(bearing) * d, p.z + Math.cos(bea
   // Lighthouse: from inland, a little off the axis, and close at the door.
   const p = P.lighthouse, back = p.facing + Math.PI, φ = p.facing;
   look("lighthouse-wide", ...from(p, back + 1.2, 22), p.x, p.z, { el: 0.32, dist: 7 });
-  look("lighthouse-close", ...from(p, φ - Math.PI / 2 - 0.3, 7.5), p.x, p.z, { el: 0.3, dist: 4.5 });
-  const c = { x: p.x - Math.sin(φ) * 6.5 + Math.cos(φ) * 4.6, z: p.z - Math.cos(φ) * 6.5 - Math.sin(φ) * 4.6 };
-  look("cottage-close", ...from(c, φ + Math.PI / 2 + 0.5, 8.5), c.x, c.z, { el: 0.3, dist: 5 });
+  // The cottage's side (p.side; the old layout had it on +v, behind).
+  const side = p.side ?? 1;
+  look("lighthouse-close", ...from(p, φ - side * (Math.PI / 2 + 0.3), 7.5), p.x, p.z, { el: 0.3, dist: 4.5 });
+  const cu = p.side ? -1.4 : -6.5, cv = p.side ? 9.4 * side : 4.6;
+  const c = { x: p.x + Math.sin(φ) * cu + Math.cos(φ) * cv, z: p.z + Math.cos(φ) * cu - Math.sin(φ) * cv };
+  look("cottage-close", ...from(c, φ + side * 0.5, 8.5), c.x, c.z, { el: 0.25, dist: 5 });
 }
 {
   const p = P.wreck, inland = Math.atan2(58 - p.x, 70 - p.z);

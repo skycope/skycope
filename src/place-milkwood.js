@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { groundHeight } from "./terrain.js";
 import { capsule, roof } from "./blockers.js";
-import { heightTile } from "./place-lighthouse.js";
+import { heightTile } from "./place-kit.js";
 import { seededRandom } from "./random.js";
 import { part, merge, sweep, smooth01, srgb, hsl, staticMesh, prop } from "./place-kit.js";
 

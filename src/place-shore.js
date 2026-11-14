@@ -3,7 +3,7 @@ import { groundHeight } from "./terrain.js";
 import { capsule, cylinder, setCapsule } from "./blockers.js";
 import { seededRandom } from "./random.js";
 import { part, merge, sweep, lathe, place, smooth01, srgb, staticMesh, glowMaterial, prop } from "./place-kit.js";
-import { heightTile, discTile, timberTile } from "./place-lighthouse.js";
+import { heightTile, discTile, timberTile } from "./place-kit.js";
 import { CAIRN, POOL } from "./place-rocks.js";
 
 // The smaller places: a fisherman's upturned boat with its gear and a
