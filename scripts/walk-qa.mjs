@@ -74,6 +74,8 @@ async function pageFor(query = "seed=1847") {
     pages.clear();
     const page = await openPage({ port, cdp, query });
     await install(page);
+    // The walk cases are about movement: no ceremony takes the camera.
+    if (!query.includes("ceremony")) await page.evaluate("(() => { const q = skycope.thread.journey.quest; if (q) q.update = () => null; })()");
     pages.set(query, page);
   }
   return pages.get(query);
