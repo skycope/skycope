@@ -97,6 +97,7 @@ reduced-motion mode, background/resume, and with the weather endpoint blocked.
 | `src/ground-detail.js`   | Fallen leaves, twigs, roots and pebbles; painted scrub and sour-fig cover |
 | `src/material-palette.js` | Authored material colours shared by the mesh and the reflection field   |
 | `src/forest.js`          | Instanced plants, wind and gusts, foliage/ground/bark shaders, LOD       |
+| `src/instance-lod.js`    | Vegetation level of detail per instance, with the cross-fade (no three)  |
 | `src/plant-forms.js`     | Unit plant organs: tufts, reeds, fronds, aloe leaves, heath shoots, heads |
 | `src/near-ground.js`     | Sward, sprigs, sour-fig fingers and fallen leaves round the cat (≤ 9 m)  |
 | `src/motes.js`           | Pollen and dust that catch the sun when you look toward it               |
@@ -467,24 +468,40 @@ compressed (`LINGER`) so a visitor who stays a few minutes sees one.
   cloud self-shadowing; directional light, ambient fill and haze add depth.
 - An alpha WebGL canvas composites depth-tested terrain and forest meshes over
   the water/sky canvas. Both cameras share position, heading, pitch and FOV.
-  Geometry uses instancing and no per-tree scene graph. Each 28 m chunk is a
-  `THREE.LOD`: beyond 42 m it swaps to cheaper leaf/cluster/branch/rock geometry and
-  drops unresolvable twigs, blades and flowers. The layer is vertex-bound, not
-  fill-bound (a tiny canvas costs nearly the same), so distant shoots keep a
-  stable half, then a third, grown to cover the same canopy area. Full-detail
-  shoots, tufts and fronds exist only in the chunks round the cat (a leaf is a few
-  pixels past ~17 m); sparse sets (aloes, reeds, flower heads) use 40 m chunks to
-  save draw calls. The home view draws 1.9 M triangles (2.9 M before the organ
-  rework) in the same GPU time. The mesh canvas caps at
-  1.6 million pixels with MSAA (0.8 million without MSAA on phones). Rendering
+  Geometry uses instancing and no per-tree scene graph. Instances are bucketed
+  into 20 m chunks (40 m for sparse sets) for culling and draw calls, but each
+  instance chooses its own level of detail by its own distance
+  (`src/instance-lod.js`, tested): leafy shoots are 10 folded leaves within
+  11 m, then 7 leaf cards, 5 from 22 m and 3 from 38 m, then half and a third
+  of the shoots, grown to cover the same canopy area (from 60 and 100 m);
+  tufts, fronds, needles, branches, flowers and rocks have their own ladders.
+  Over a band before each boundary the vertex shader shrinks an instance the
+  next level drops and grows one it keeps to the next level's size, so the
+  swap itself changes only the part count: nothing pops. Chunks are re-packed
+  on the CPU (at most ~24k instances a frame, nearest first) when the eye has
+  moved enough to move instances between levels; the render budget's
+  `lodBias` pulls every level in. Per-instance levels cut the milkwood,
+  beacon and summit views from 2.2–3.3 M triangles to 1.7–2.1 M. The mesh layer renders
+  into its own multisampled framebuffer, resolved onto the (single-sampled)
+  canvas by one blit, so the render budget chooses the sample count: MSAA 2
+  on high-DPI screens at 1.94 MP (about the cost of the old 1.6 MP at MSAA 4,
+  measured whole-frame), up to 0.75 of native linear (2160 × 1350 on a
+  1440 × 900 Retina laptop) while the GPU has headroom; MSAA 4 at native size
+  on 1x screens; 0.8 MP without MSAA on phones. Rendering
   is capped at 60 fps, 30 once the cat has settled, on the low-power GPU. The
   cat is ~8 draws (the old one ~63): its skinned passes are vertex-bound, so the
   fur shells, shadow map and see-through silhouette use a coarse mesh, outer
   shells are clipped away before rasterisation except at the silhouette, and the
   coat is baked per vertex once on the GPU for the shells (and for the body
   beyond ~2 m). Its cost matches the old cat at the follow distance. Sun
-  shadows use one 2048² map over 64 m around the cat, updated only when
-  lighting changes. Individual leaf tips flutter in a vertex shader.
+  shadows use one 2048² map over 64 m around the cat, re-rendered only when
+  the light's direction moves ~0.3° or the cat's 10 m anchor moves (not for
+  colour, twilight or cloud). A refresh is spread over four frames (eight
+  under load, `shadowSlices`): each renders a quarter of the casters into a
+  back map that replaces the front one only when whole, so no frame pays the
+  whole caster set (at the milkwood 3 M extra triangles in one frame before,
+  about 0.5–0.8 M in each of four now); a jump renders it at once. Individual
+  leaf tips flutter in a vertex shader.
 - A 256 KiB repeating noise volume avoids hashing many noise octaves per sample.
   The constellation atlas is uploaded once (2048 × 1024 RGBA, 8 MiB), and the
   star catalog grid once (1024 × 512 RGBA16F, 4 MiB).

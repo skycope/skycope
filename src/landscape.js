@@ -56,7 +56,10 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   const renderer = new THREE.WebGLRenderer({
     canvas,
     alpha: true,
-    antialias: !light,
+    // msaa: the canvas itself is single-sampled; the scene renders into a
+    // multisampled framebuffer whose sample count the render budget sets
+    // (quality.js msaa), resolved onto the canvas by one blit.
+    antialias: false,
     // The cat's see-through silhouette uses the stencil buffer (cat.js).
     stencil: true,
     // Same GPU as the WebGPU passes (see main.js), and the quiet one.
@@ -164,6 +167,18 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   sun.target.position.set(23, 0, -35);
   scene.add(sun, sun.target);
   let previousLighting = "";
+  // shadow: the sun's map is refreshed a slice of its casters per frame
+  // (quality.js shadowSlices) into a back map, which replaces the front
+  // one when it is whole; until then the front map and its matrix stay in
+  // use, so a refresh never shows half the casters, and never costs a
+  // frame the whole caster set (about a million triangles). A jump (home,
+  // a teleport) or the first frame renders it at once.
+  const drawShadows = renderer.shadowMap.render.bind(renderer.shadowMap);
+  renderer.shadowMap.render = (lights, target, eye) => {
+    if (target !== scene || !shadows.pending) return drawShadows(lights, target, eye);
+    renderShadowSlice(() => drawShadows(lights, target, eye));
+  };
+  const shadows = { key: "", anchor: null, pending: false, again: false, jump: false, slice: 0, count: 1, casters: [], cast: [], back: null, light: new THREE.Vector3(), target: new THREE.Vector3(), centre: [0, 0], matrix: new THREE.Matrix4() };
   let environmentKey = "";
   let environmentTime = -Infinity;
   // Horizon haze toward and away from the sun, unexposed; see updateLighting.
@@ -178,6 +193,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   // quality: the render budget's settings for this layer (quality.js).
   let quality = null;
   const drawingBuffer = new THREE.Vector2();
+  const msaa = createMsaa(renderer);
 
   const sunWorld = new THREE.Vector3(0, 1, 0);
   const sunView = new THREE.Vector3();
@@ -201,6 +217,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     places: perf ? places : null, // places: `?perf` QA
     landMagic: perf ? landMagic : null, // land-magic: `?perf` QA
     nightLand: perf ? NIGHT_LAND : null, // land-look: `?perf` tuning
+    shadows: perf ? shadows : null, // shadow: `?perf` QA of the sliced refresh
     // land-magic: the lighthouse lamp this frame (coast metres; `angle` is
     // the beams' bearing, see land-magic.js), for the sea's own beam.
     get lamp() { return landMagic.state.lamp; },
@@ -262,8 +279,16 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         const norm = Math.hypot(toward[0], toward[2]);
         hazeToward = horizonRadiance(celestial, [toward[0] / norm, 0, toward[2] / norm], 1);
         hazeAway = horizonRadiance(celestial, [-toward[0] / norm, 0, -toward[2] / norm], 1);
-        forest.updateShadowCentre(anchorX, anchorZ);
-        renderer.shadowMap.needsUpdate = true;
+        // shadow: the map is re-rendered only when what it holds moves: the
+        // light's direction (to ~0.3°) or the anchor, not the sun's colour,
+        // the twilight scene or cloud cover.
+        const shadowKey = `${Math.round(sunWorld.x * 200)}:${Math.round(sunWorld.y * 200)}:${Math.round(sunWorld.z * 200)}:${anchorX}:${anchorZ}`;
+        if (shadowKey !== shadows.key) {
+          const jump = !shadows.anchor || Math.hypot(anchorX - shadows.anchor[0], anchorZ - shadows.anchor[1]) > 20;
+          shadows.key = shadowKey;
+          shadows.anchor = [anchorX, anchorZ];
+          requestShadow(jump);
+        }
       }
       // The sky dome only depends on the sun (not the cat's shadow anchor).
       // It costs ~4 ms of CPU, so while the time slider scrubs it follows at
@@ -306,6 +331,8 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         .addScaledVector(lookUp, (pointer[1] - 0.5) * 0.009);
       camera.lookAt(lookTarget);
       camera.updateMatrixWorld();
+      // lod: vegetation detail by each instance's distance (quality: bias).
+      forest.updateLod(camera.position, quality?.lodBias ?? 1);
       boat?.render({ time, night, camera }); // boat: before the cat (its lantern lights it)
       const far = archipelago.camera;
       far.position.copy(camera.position);
@@ -355,11 +382,16 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         renderer.info.reset();
         cat.renderShadow(renderer, scene);
         // Islands kilometres out, then the near scene over them with a
-        // fresh depth buffer: each gets the whole depth precision.
+        // fresh depth buffer: each gets the whole depth precision. Both
+        // into the multisampled buffer (msaa), resolved onto the canvas;
+        // the lens is a full-screen pass with no edges to antialias.
+        renderer.setRenderTarget(msaa.target);
         renderer.render(archipelago.scene, far);
         renderer.autoClear = false;
         renderer.clearDepth();
         renderer.render(scene, camera);
+        msaa.resolve();
+        renderer.setRenderTarget(null);
         renderer.render(lens.scene, camera);
         renderer.autoClear = true;
       });
@@ -400,14 +432,18 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       archipelago.camera.updateProjectionMatrix();
       const size = renderer.getDrawingBufferSize(drawingBuffer);
       if (size.x !== w || size.y !== h) renderer.setSize(w, h, false);
+      msaa.set(w, h, quality?.msaa ?? (light ? 0 : 2));
       archipelago.uniforms.pixelAngle.value = 1 / (0.9 * h);
     },
     // quality: this level's settings (quality.js baseSettings).
     setQuality(settings) {
       quality = settings;
+      const size = renderer.getDrawingBufferSize(drawingBuffer);
+      msaa.set(size.x, size.y, settings.msaa);
     },
     dispose() {
       profiler.dispose();
+      msaa.dispose();
       // The cat owns render targets (its shadow map, the coat bakes) and a
       // build worker the scene traversal below cannot reach.
       cat.dispose();
@@ -429,12 +465,95 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       geometries.forEach((geometry) => geometry.dispose());
       materials.forEach((material) => material.dispose());
       sun.shadow.dispose();
+      shadows.back?.depthTexture?.dispose();
+      shadows.back?.dispose();
       envTarget?.dispose();
       envSource.dispose();
       pmrem.dispose();
       renderer.dispose();
     },
   };
+
+  function requestShadow(jump) {
+    if (shadows.pending && shadows.slice > 0 && !jump) {
+      shadows.again = true;
+      return;
+    }
+    shadows.pending = true;
+    shadows.jump = shadows.jump || jump;
+    shadows.slice = 0;
+  }
+
+  // Called by three inside renderer.render(scene), where its shadow pass
+  // runs (before the lights are set up for the colour pass).
+  function renderShadowSlice(draw) {
+    const shadow = sun.shadow;
+    if (shadows.slice === 0) {
+      shadows.count = !shadow.map || shadows.jump ? 1 : Math.max(1, quality?.shadowSlices ?? 1);
+      shadows.light.copy(sun.position);
+      shadows.target.copy(sun.target.position);
+      shadows.centre = shadows.anchor;
+      shadows.casters.length = 0;
+      if (shadows.count > 1) scene.traverse((o) => { if (o.castShadow && (o.isMesh || o.isLine || o.isPoints)) shadows.casters.push(o); });
+    }
+    const { count, slice, casters } = shadows;
+    // Render with the light where this refresh began.
+    const lightNow = sun.position.clone(), targetNow = sun.target.position.clone();
+    sun.position.copy(shadows.light);
+    sun.target.position.copy(shadows.target);
+    sun.updateMatrixWorld();
+    sun.target.updateMatrixWorld();
+    const front = shadow.map;
+    if (count > 1) {
+      if (!shadows.back) shadows.back = shadowTarget(front);
+      shadows.matrix.copy(shadow.matrix);
+      shadow.map = shadows.back;
+      // Others toggle castShadow too (the cat's own map): restore, never assume.
+      for (let i = 0; i < casters.length; i++) {
+        shadows.cast[i] = casters[i].castShadow;
+        casters[i].castShadow = shadows.cast[i] && i % count === slice;
+      }
+    }
+    const clear = renderer.clear;
+    if (slice > 0) renderer.clear = () => {};
+    renderer.shadowMap.needsUpdate = true;
+    try {
+      draw();
+    } finally {
+      renderer.clear = clear;
+      if (count > 1) for (let i = 0; i < casters.length; i++) casters[i].castShadow = shadows.cast[i];
+      sun.position.copy(lightNow);
+      sun.target.position.copy(targetNow);
+      sun.updateMatrixWorld();
+      sun.target.updateMatrixWorld();
+    }
+    shadows.slice++;
+    if (shadows.slice < count) {
+      // Not whole yet: draw this frame with the front map.
+      shadow.map = front;
+      shadow.matrix.copy(shadows.matrix);
+      return;
+    }
+    if (count > 1) shadows.back = front;
+    forest.updateShadowCentre(shadows.centre[0], shadows.centre[1]);
+    shadows.slice = 0;
+    shadows.jump = false;
+    shadows.pending = shadows.again;
+    shadows.again = false;
+  }
+
+  // A second map like three's own (depth, compared, filtered), to render into.
+  function shadowTarget(like) {
+    const size = like.width;
+    const target = new THREE.WebGLRenderTarget(size, size);
+    target.depthTexture = new THREE.DepthTexture(size, size, THREE.UnsignedIntType);
+    target.depthTexture.format = THREE.DepthFormat;
+    target.depthTexture.compareFunction = like.depthTexture.compareFunction;
+    target.depthTexture.minFilter = like.depthTexture.minFilter;
+    target.depthTexture.magFilter = like.depthTexture.magFilter;
+    target.depthTexture.name = like.depthTexture.name;
+    return target;
+  }
 
   function updateDirection(celestial) {
     const night = THREE.MathUtils.smoothstep(celestial.scene, 1, 2);
@@ -636,4 +755,68 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     envTarget = pmrem.fromEquirectangular(envSource, previous ?? null);
     scene.environment = envTarget.texture;
   }
+}
+
+// msaa: a multisampled colour + depth/stencil framebuffer that three renders
+// into as an externally managed target (so it never resolves it itself),
+// resolved straight onto the single-sampled canvas by one blit. `target` is
+// null (render to the canvas) when the sample count is 0. The target is
+// flagged as XR so three applies tone mapping and sRGB output to it, as it
+// does for the canvas.
+function createMsaa(renderer) {
+  const gl = renderer.getContext();
+  const most = gl.getParameter(gl.MAX_SAMPLES);
+  const state = { target: null, fbo: null, colour: null, depth: null, width: 0, height: 0, samples: 0 };
+  const release = () => {
+    if (state.fbo) gl.deleteFramebuffer(state.fbo);
+    if (state.colour) gl.deleteRenderbuffer(state.colour);
+    if (state.depth) gl.deleteRenderbuffer(state.depth);
+    state.fbo = state.colour = state.depth = null;
+    state.target?.dispose();
+    state.target = null;
+  };
+  return {
+    get target() {
+      return state.target;
+    },
+    set(width, height, samples) {
+      samples = Math.min(samples, most);
+      if (width === state.width && height === state.height && samples === state.samples) return;
+      release();
+      state.width = width;
+      state.height = height;
+      state.samples = samples;
+      if (!samples) return;
+      const storage = (format) => {
+        const buffer = gl.createRenderbuffer();
+        gl.bindRenderbuffer(gl.RENDERBUFFER, buffer);
+        gl.renderbufferStorageMultisample(gl.RENDERBUFFER, samples, format, width, height);
+        return buffer;
+      };
+      state.colour = storage(gl.RGBA8);
+      state.depth = storage(gl.DEPTH24_STENCIL8);
+      gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+      state.fbo = gl.createFramebuffer();
+      renderer.state.bindFramebuffer(gl.FRAMEBUFFER, state.fbo);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, state.colour);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_STENCIL_ATTACHMENT, gl.RENDERBUFFER, state.depth);
+      renderer.state.bindFramebuffer(gl.FRAMEBUFFER, null);
+      const target = new THREE.WebGLRenderTarget(width, height, { depthBuffer: true, stencilBuffer: true });
+      target.texture.colorSpace = THREE.SRGBColorSpace;
+      target.isXRRenderTarget = true;
+      renderer.setRenderTargetFramebuffer(target, state.fbo);
+      state.target = target;
+    },
+    // Resolves the samples onto the canvas (call with the target bound).
+    resolve() {
+      if (!state.target) return;
+      const { width, height } = state;
+      renderer.state.setScissorTest(false);
+      renderer.state.bindFramebuffer(gl.READ_FRAMEBUFFER, state.fbo);
+      renderer.state.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+      gl.blitFramebuffer(0, 0, width, height, 0, 0, width, height, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+      renderer.state.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+    },
+    dispose: release,
+  };
 }

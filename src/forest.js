@@ -19,6 +19,7 @@ import { bridgeCrevices } from "./walker.js"; // solid:
 import { MATERIAL_HEX, MATERIAL_LINEAR } from "./material-palette.js";
 import { groundDetailData, groundCover } from "./ground-detail.js";
 import { createNearGround } from "./near-ground.js";
+import { createLodChunk, packChunk, packDue, chunkRange } from "./instance-lod.js"; // lod:
 import { magicUniforms, MAGIC_LIGHT_DECLARATIONS, MAGIC_LIGHT_GLSL } from "./land-magic.js"; // land-magic:
 import {
   finish,
@@ -115,8 +116,8 @@ export function createForest(scene, seed, { light = false } = {}) {
     true,
     [
       // Seven sides only where a limb is wide enough on screen to show them.
-      { geometry: new THREE.CylinderGeometry(1, 1, 1, 5, 1, true), keep: (w) => w.scale.x > 0.03, distance: 18 },
-      { geometry: new THREE.CylinderGeometry(1, 1, 1, 3, 1, true), keep: (w) => w.scale.x > 0.07, distance: 85 },
+      { geometry: new THREE.CylinderGeometry(1, 1, 1, 5, 1, true), keep: (w) => w.scale.x > 0.03, distance: 16 },
+      { geometry: new THREE.CylinderGeometry(1, 1, 1, 3, 1, true), keep: (w) => w.scale.x > 0.07, distance: 90 },
     ],
   );
   addInstances(
@@ -126,8 +127,8 @@ export function createForest(scene, seed, { light = false } = {}) {
     trunks.filter((w) => w.scale.x < TWIG),
     true,
     [
-      { geometry: new THREE.CylinderGeometry(1, 1, 1, 3, 1, true), keep: (w) => w.scale.x > 0.006, distance: 12 },
-      { keep: () => false, distance: 30 },
+      { geometry: new THREE.CylinderGeometry(1, 1, 1, 3, 1, true), keep: (w) => w.scale.x > 0.006, distance: 18 },
+      { keep: () => false, distance: 36 },
     ],
   );
   const clusterMaterial = new THREE.MeshStandardMaterial({
@@ -147,13 +148,16 @@ export function createForest(scene, seed, { light = false } = {}) {
   // by fill. Far levels keep a half, then a third, of the shoots (a stable
   // per-shoot choice), grown so the canopy covers the same area. Near shoots
   // are 10 small folded leaves (60 triangles, 70 vertices; 14 cost 84 and
-  // the extra four were hidden by their neighbours), only round the cat: past ~17 m a leaf is a
-  // few pixels and its folds are invisible, and full shoots out to 25 m cost
-  // a millisecond. Then 7, 3 and 1 larger leaf cards (28, 12, 4 vertices).
+  // the extra four were hidden by their neighbours), only round the cat: past
+  // ~11 m a leaf is a few pixels and its folds are invisible. Then 7, 3 and 1
+  // larger leaf cards (28, 12, 4 vertices); from 24 m every shoot is three
+  // cards (a shoot is ~10 px there), from 48 m half of them.
   addInstances(scene, shootGeometry(10, 1), clusterMaterial, clusters, true, [
-    { geometry: shootGeometry(7, 0), grow: 1.12, distance: 6 },
-    { geometry: shootGeometry(3, 0), grow: 1.35 * Math.SQRT2, keep: (c) => shootShare(c) < 0.5, distance: 52 },
-    { geometry: shootGeometry(1, 0), grow: 1.9 * Math.sqrt(3), keep: (c) => shootShare(c) < 0.34, distance: 95 },
+    { geometry: shootGeometry(7, 0), grow: 1.12, distance: 11 },
+    { geometry: shootGeometry(5, 0), grow: 1.2, distance: 22 },
+    { geometry: shootGeometry(3, 0), grow: 1.35, distance: 38 },
+    { geometry: shootGeometry(3, 0), grow: 1.35 * Math.SQRT2, keep: (c) => shootShare(c) < 0.5, distance: 60 },
+    { geometry: shootGeometry(1, 0), grow: 1.9 * Math.sqrt(3), keep: (c) => shootShare(c) < 0.34, distance: 100 },
   ], { shadowGrow: SHADOW_GROW });
   const bladeMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff,
@@ -163,9 +167,9 @@ export function createForest(scene, seed, { light = false } = {}) {
   });
   patchMaterial(bladeMaterial, shared, { sway: true, flutter: 0.08, foliage: true, bent: 0.45, pliant: true, rooted: 0.25, sheen: 0.3 });
   addInstances(scene, leafGeometry(1), bladeMaterial, leaves, true, [
-    { geometry: leafGeometry(0), keep: (l) => l.scale.y > 0.18 || l.scale.x > 0.05, distance: 24 },
-    { geometry: leafGeometry(0), keep: (l) => l.scale.y > 0.5, distance: 56 },
-    { geometry: leafGeometry(0), keep: (l) => l.scale.y > 1.2, distance: 90 },
+    { geometry: leafGeometry(0), keep: (l) => l.scale.y > 0.18 || l.scale.x > 0.05, distance: 28 },
+    { geometry: leafGeometry(0), keep: (l) => l.scale.y > 0.5, distance: 60 },
+    { geometry: leafGeometry(0), keep: (l) => l.scale.y > 1.2, distance: 95 },
   ]);
   // Turf shades as a soft lawn (normals bent up) and only near clumps cast
   // shadows; far away a sparse subset stands in for the rest.
@@ -177,31 +181,31 @@ export function createForest(scene, seed, { light = false } = {}) {
   });
   patchMaterial(turfMaterial, shared, { sway: true, flutter: 0.06, foliage: true, bent: 0.55, pliant: true, rooted: 0.12 });
   // Full tufts (5 mm blades, flowering culms) only round the cat; past
-  // ~17 m a blade is under a pixel wide. The near-ground carpet thickens
+  // ~10 m a blade is under a pixel wide. The near-ground carpet thickens
   // the sward between them, so a tuft needs fewer blades of its own.
   addInstances(scene, tuftGeometry(20, 3, 2), turfMaterial, turf, false, [
-    { geometry: tuftGeometry(10, 2), distance: 6 },
+    { geometry: tuftGeometry(10, 2), distance: 10 },
+    { geometry: tuftGeometry(5, 2), grow: 1.15, distance: 24 },
     { geometry: tuftGeometry(5, 2), keep: (t) => t.far, grow: 1.3, distance: 42 },
-    { keep: () => false, distance: 70 },
+    { keep: () => false, distance: 75 },
   ]);
   // Restio clumps share the tufts' pliant, vertex-coloured material.
-  // (Sparse sets use 40 m chunks, so a level's reach is 22 m past its
-  // distance: full clumps to ~26 m.)
   addInstances(scene, reedGeometry(30, 1), turfMaterial, reeds, true, [
-    { geometry: reedGeometry(14, 0), distance: 4 },
-    { keep: () => false, distance: 75 },
+    { geometry: reedGeometry(14, 0), distance: 18 },
+    { keep: () => false, distance: 90 },
   ], { chunk: 40 });
   // Fern and palm fronds: one organ per frond. Palms (tall anchors) stay
   // to the horizon; fern fronds drop out where they'd be a few pixels.
   addInstances(scene, frondGeometry(16, 2), bladeMaterial, fronds, true, [
-    { geometry: frondGeometry(12, 1), distance: 6 },
-    { geometry: frondGeometry(8, 0), keep: (f) => f.scale.y > 1.5 || shootShare(f) < 0.6, distance: 45 },
-    { geometry: frondGeometry(6, 0), keep: (f) => f.scale.y > 1.5, distance: 90 },
+    { geometry: frondGeometry(12, 1), distance: 13 },
+    { geometry: frondGeometry(8, 0), keep: (f) => f.scale.y > 1.5 || shootShare(f) < 0.6, distance: 50 },
+    { geometry: frondGeometry(6, 0), keep: (f) => f.scale.y > 1.5, distance: 95 },
   ]);
   // Heath shoots: needles, on the same foliage material as leafy shoots.
   addInstances(scene, needleGeometry(26), clusterMaterial, needles, true, [
-    { geometry: needleGeometry(10), grow: 1.15, distance: 14 },
-    { geometry: needleGeometry(4), grow: 1.5, keep: (c) => shootShare(c) < 0.5, distance: 55 },
+    { geometry: needleGeometry(10), grow: 1.15, distance: 16 },
+    { geometry: needleGeometry(4), grow: 1.3, distance: 30 },
+    { geometry: needleGeometry(4), grow: 1.5, keep: (c) => shootShare(c) < 0.5, distance: 60 },
   ], { shadowGrow: SHADOW_GROW });
   // Aloe leaves are thick and waxy, not translucent: plain lit, a little
   // glossy, stiff in the wind.
@@ -213,8 +217,8 @@ export function createForest(scene, seed, { light = false } = {}) {
   });
   patchMaterial(succulentMaterial, shared, { sway: true });
   addInstances(scene, succulentGeometry(1), succulentMaterial, succulents, true, [
-    { geometry: succulentGeometry(0), distance: 6 },
-    { keep: (s) => s.scale.y > 0.35, distance: 60 },
+    { geometry: succulentGeometry(0), distance: 18 },
+    { keep: (s) => s.scale.y > 0.35, distance: 75 },
   ], { chunk: 40 });
   // Petals are thin and backlit like leaves; they share the flutter and the
   // translucency, with a satin sheen instead of a waxy one.
@@ -225,11 +229,14 @@ export function createForest(scene, seed, { light = false } = {}) {
     side: THREE.DoubleSide,
   });
   patchMaterial(petalMaterial, shared, { sway: true, flutter: 0.04, foliage: true, bent: 0.35 });
-  addInstances(scene, daisyGeometry(), petalMaterial, flowers.daisy, false, { keep: () => false, distance: 32 }, { chunk: 40 });
-  addInstances(scene, proteaGeometry(1), petalMaterial, flowers.protea, true, [{ geometry: proteaGeometry(0), distance: 8 }, { keep: () => false, distance: 70 }], { chunk: 40 });
-  addInstances(scene, pincushionGeometry(36, 1), petalMaterial, flowers.pincushion, true, [{ geometry: pincushionGeometry(14, 0), distance: 8 }, { keep: () => false, distance: 70 }], { chunk: 40 });
-  addInstances(scene, spikeGeometry(), petalMaterial, flowers.spike, true, [{ geometry: spikeGeometry(14), distance: 31 }, { keep: () => false, distance: 84 }], { chunk: 40 });
-  addInstances(scene, white(bellGeometry()), petalMaterial, flowers.bell, false, { keep: () => false, distance: 31 }, { chunk: 40 });
+  // Daisy and bell drifts: past ~22 m a head is a pixel or two, so half of
+  // them, grown to keep the drift's colour, then none.
+  const halfDrift = { keep: (f) => shootShare(f) < 0.5, grow: Math.SQRT2, distance: 22 };
+  addInstances(scene, daisyGeometry(), petalMaterial, flowers.daisy, false, [halfDrift, { keep: () => false, distance: 45 }], { chunk: 40 });
+  addInstances(scene, proteaGeometry(1), petalMaterial, flowers.protea, true, [{ geometry: proteaGeometry(0), distance: 20 }, { keep: () => false, distance: 85 }], { chunk: 40 });
+  addInstances(scene, pincushionGeometry(36, 1), petalMaterial, flowers.pincushion, true, [{ geometry: pincushionGeometry(14, 0), distance: 20 }, { keep: () => false, distance: 85 }], { chunk: 40 });
+  addInstances(scene, spikeGeometry(), petalMaterial, flowers.spike, true, [{ geometry: spikeGeometry(14), distance: 45 }, { keep: () => false, distance: 95 }], { chunk: 40 });
+  addInstances(scene, white(bellGeometry()), petalMaterial, flowers.bell, false, [halfDrift, { keep: () => false, distance: 45 }], { chunk: 40 });
   return {
     habitat,
     // Trunks and boulders, for the cat to walk around (or climb).
@@ -297,6 +304,11 @@ export function createForest(scene, seed, { light = false } = {}) {
     // (`roots` under the land group `land`), baked once they are built.
     groundContact(land, roots) {
       bakeGroundContact(shared, land, roots);
+    },
+    // lod: each frame, the eye (world space) and the render budget's LOD
+    // bias (quality.js lodBias, ≤ 1 pulls every level in).
+    updateLod(eye, bias = 1) {
+      packLod(scene, eye, bias);
     },
   };
 }
@@ -2126,9 +2138,9 @@ function addGroundDetails(scene, shared, details, occluders) {
   const woodMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 });
   const mineralMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.88 });
   for (const material of [woodMaterial, mineralMaterial]) patchMaterial(material, shared);
-  const near = [{ keep: () => false, distance: 22 }];
+  const near = [{ keep: () => false, distance: 30 }];
   addInstances(scene, new THREE.CylinderGeometry(0.65, 1, 1, 3, 1, false), woodMaterial, details.twigs, false, near);
-  addInstances(scene, new THREE.CylinderGeometry(0.4, 1, 1, 4, 1, false), woodMaterial, details.roots, false, [{ keep: () => false, distance: 30 }]);
+  addInstances(scene, new THREE.CylinderGeometry(0.4, 1, 1, 4, 1, false), woodMaterial, details.roots, false, [{ keep: () => false, distance: 38 }]);
   addInstances(scene, new THREE.IcosahedronGeometry(1, 0), mineralMaterial, details.stones, false, near);
 }
 
@@ -2407,100 +2419,218 @@ function shootShare(shoot) {
 }
 
 // Instances are bucketed into ground chunks so the camera frustum culls whole
-// regions in both the colour and shadow passes. Each chunk is also a THREE.LOD:
-// beyond LOD_DISTANCE it swaps to a cheaper geometry and drops instances the
-// eye cannot resolve (fine twigs, tiny blades), which is where most triangles
-// were being spent. Chunks share geometry and material; the cost is draw calls.
-// LOD distances are measured to the chunk centre, so each threshold is pushed
-// out by most of the chunk's half-diagonal: a chunk no longer swaps detail
-// (or drops shoots) while its near edge is right beside the camera, which
-// read as plants glitching in and out. Hysteresis stops it flickering on the
-// boundary as the cat walks back and forth.
+// regions in both the colour and shadow passes, but each instance chooses
+// its own level of detail (src/instance-lod.js): `far` lists the levels
+// after the first, nearest first, as `{ geometry, grow, keep, distance }`,
+// where `distance` (metres from the eye to the instance's nearest extent,
+// scaled by the render budget's LOD bias) is where the level begins, `keep`
+// which instances it still draws (a cheaper level drops those the eye cannot
+// resolve, and `grow`s the rest to cover the same area), and a level that
+// keeps nothing ends the set. The vertex shader fades each instance over a
+// band before every boundary (LOD_FADE_GLSL), so nothing pops. Each chunk
+// level is an InstancedMesh over the set's shared vertex buffers; chunks
+// are re-packed on the CPU, a few thousand instances a frame, when the eye
+// has moved enough to move instances between levels (packLod).
 const CHUNK = 20;
-const LOD_HYSTERESIS = 0.12;
 // How much larger leafy shoots draw into the sun's shadow map (see
-// grownDepthMaterial).
+// lodDepthMaterial).
 const SHADOW_GROW = 1.4;
 // Leaves sway up to ~1.5 m from their rest pose: cull with that margin.
 const SWAY_MARGIN = 1.5;
 const UP = new THREE.Vector3(0, 1, 0);
-const LOD_DISTANCE = 42;
-// Sparse sets (a few hundred aloes, reeds or flower heads) pass a larger
-// `chunk`: each chunk costs a draw call per set, and a sparse set gains
-// little from fine culling.
+// Instances re-packed per frame at most (a jump re-packs everything at once).
+const LOD_PACK_BUDGET = 24000;
+// The eye in world space, for the fades in every pass (the shadow pass's
+// camera is the sun's, but plants fade by distance from the eye).
+const LOD_EYE = { value: new THREE.Vector3() };
 function addInstances(scene, geometry, material, instances, shadows, far = null, { chunk = CHUNK, shadowGrow = 0 } = {}) {
-  const depthMaterial = shadowGrow ? grownDepthMaterial(shadowGrow) : null;
-  const margin = chunk * 0.55;
-  const chunks = new Map();
+  if (!instances.length) return;
+  const steps = far ? (Array.isArray(far) ? far : [far]) : [];
+  const levels = [{ geometry, grow: 1, keep: null, start: 0 }, ...steps.map((level) => ({
+    geometry: level.geometry ?? geometry,
+    grow: level.grow ?? 1,
+    keep: level.keep ?? null,
+    start: level.distance,
+  }))];
+  // Only sets whose levels change an instance's size need the fade.
+  const fades = levels.some((level, i) => i > 0 && (level.grow !== levels[i - 1].grow || level.keep));
+  const lodMaterial = fades ? withLodFade(material) : material;
+  const depthMaterial = shadowGrow || fades ? lodDepthMaterial(shadowGrow || 1) : null;
+  const tapered = instances[0].taper !== undefined;
+  const coloured = instances.some((instance) => instance.color);
+  for (const level of levels) withFlutter(level.geometry);
+  levels.forEach((level) => level.geometry.computeBoundingSphere());
+  const unitRadius = levels[0].geometry.boundingSphere.radius + levels[0].geometry.boundingSphere.center.length();
+  const maxGrow = Math.max(...levels.map((level) => level.grow));
+  const buckets = new Map();
   for (const instance of instances) {
     const key = `${Math.floor(instance.position.x / chunk)},${Math.floor(instance.position.z / chunk)}`;
-    if (!chunks.has(key)) chunks.set(key, []);
-    chunks.get(key).push(instance);
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(instance);
   }
   const transform = new THREE.Object3D();
-  const tapered = instances.length > 0 && instances[0].taper !== undefined;
-  const build = (source, bucket, level) => {
-    withFlutter(source);
-    // Instance attributes live on the geometry, so each chunk gets a light
-    // clone (vertex buffers are small) carrying its anchors and bent normals.
-    const geo = source.clone();
-    const anchors = new Float32Array(bucket.length);
-    const bends = new Float32Array(bucket.length * 3);
-    const shades = new Float32Array(bucket.length);
-    const mesh = new THREE.InstancedMesh(geo, material, bucket.length);
-    for (let i = 0; i < bucket.length; i++) {
-      const instance = bucket[i];
+  const registry = (scene.userData.lodChunks ??= []);
+  for (const bucket of buckets.values()) {
+    const n = bucket.length;
+    const matrix = new Float32Array(n * 16);
+    const color = coloured ? new Float32Array(n * 3).fill(1) : null;
+    const anchor = new Float32Array(n);
+    const bend = new Float32Array(n * 3);
+    const shade = new Float32Array(n);
+    const taper = tapered ? new Float32Array(n) : null;
+    const positions = new Float32Array(n * 3);
+    const radii = new Float32Array(n);
+    const kept = new Uint8Array(n);
+    bucket.forEach((instance, i) => {
       transform.position.copy(instance.position);
       transform.scale.copy(instance.scale);
       transform.rotation.copy(instance.rotation);
-      if (level?.grow) transform.scale.multiplyScalar(level.grow);
       transform.updateMatrix();
-      mesh.setMatrixAt(i, transform.matrix);
-      if (instance.color) mesh.setColorAt(i, instance.color);
-      anchors[i] = instance.ground ?? instance.position.y;
-      const bend = instance.bend ?? UP;
-      bends.set([bend.x, bend.y, bend.z], i * 3);
-      shades[i] = instance.shade ?? 0;
-    }
-    geo.setAttribute("anchorHeight", new THREE.InstancedBufferAttribute(anchors, 1));
-    if (tapered)
-      geo.setAttribute("taper", new THREE.InstancedBufferAttribute(Float32Array.from(bucket, (w) => w.taper), 1));
-    geo.setAttribute("bendNormal", new THREE.InstancedBufferAttribute(bends, 3));
-    geo.setAttribute("canopyShade", new THREE.InstancedBufferAttribute(shades, 1));
-    mesh.castShadow = shadows;
-    if (depthMaterial) mesh.customDepthMaterial = depthMaterial;
-    mesh.receiveShadow = true;
-    mesh.computeBoundingSphere();
-    mesh.boundingSphere.radius += SWAY_MARGIN;
-    return mesh;
-  };
-  // `far` is one LOD level or a list of them, nearest first.
-  const levels = far ? (Array.isArray(far) ? far : [far]) : [];
-  for (const bucket of chunks.values()) {
-    const near = build(geometry, bucket, null);
-    if (!levels.length) {
-      scene.add(near);
-      continue;
-    }
-    // LOD distances are measured to the object origin, so centre it on the chunk.
-    const centre = near.boundingSphere.center.clone();
-    const lod = new THREE.LOD();
-    lod.position.copy(centre);
-    near.position.sub(centre);
-    lod.addLevel(near, 0);
-    levels.forEach((level, index) => {
-      const kept = level.keep ? bucket.filter(level.keep) : bucket;
-      const distance = (level.distance ?? LOD_DISTANCE * (index + 1)) + margin;
-      if (!kept.length) {
-        lod.addLevel(new THREE.Object3D(), distance, LOD_HYSTERESIS);
-        return;
-      }
-      const mesh = build(level.geometry ?? geometry, kept, level);
-      mesh.position.sub(centre);
-      lod.addLevel(mesh, distance, LOD_HYSTERESIS);
+      transform.matrix.toArray(matrix, i * 16);
+      if (instance.color) instance.color.toArray(color, i * 3);
+      anchor[i] = instance.ground ?? instance.position.y;
+      const b = instance.bend ?? UP;
+      bend[i * 3] = b.x;
+      bend[i * 3 + 1] = b.y;
+      bend[i * 3 + 2] = b.z;
+      shade[i] = instance.shade ?? 0;
+      if (taper) taper[i] = instance.taper;
+      instance.position.toArray(positions, i * 3);
+      radii[i] = unitRadius * Math.max(instance.scale.x, instance.scale.y, instance.scale.z);
+      levels.forEach((level, l) => {
+        if (!level.keep || level.keep(instance)) kept[i] |= 1 << l;
+      });
     });
-    scene.add(lod);
+    const fields = [
+      { name: "matrix", size: 16, data: matrix },
+      { name: "anchorHeight", size: 1, data: anchor },
+      { name: "bendNormal", size: 3, data: bend },
+      { name: "canopyShade", size: 1, data: shade },
+      ...(color ? [{ name: "color", size: 3, data: color }] : []),
+      ...(taper ? [{ name: "taper", size: 1, data: taper }] : []),
+    ];
+    const lod = createLodChunk({ positions, radii, kept, fields, levels });
+    // One bounding sphere for every level: all the chunk's instances at
+    // their largest, with the sway margin.
+    const centre = new THREE.Vector3((lod.min[0] + lod.max[0]) / 2, (lod.min[1] + lod.max[1]) / 2, (lod.min[2] + lod.max[2]) / 2);
+    let radius = 0;
+    for (let i = 0; i < n; i++)
+      radius = Math.max(radius, Math.hypot(positions[i * 3] - centre.x, positions[i * 3 + 1] - centre.y, positions[i * 3 + 2] - centre.z) + radii[i] * maxGrow);
+    const sphere = new THREE.Sphere(centre, radius + SWAY_MARGIN);
+    lod.outputs = [];
+    lod.meshes = levels.map((level, l) => {
+      const capacity = lod.capacity[l];
+      if (!capacity) {
+        lod.outputs.push(null);
+        return null;
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setIndex(level.geometry.index);
+      for (const [name, attribute] of Object.entries(level.geometry.attributes)) geo.setAttribute(name, attribute);
+      const mesh = new THREE.InstancedMesh(geo, lodMaterial, capacity);
+      const live = (array, size) => new THREE.InstancedBufferAttribute(array, size).setUsage(THREE.DynamicDrawUsage);
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      const out = { matrix: mesh.instanceMatrix.array };
+      const attach = (name, size) => {
+        const attribute = live(new Float32Array(capacity * size), size);
+        geo.setAttribute(name, attribute);
+        out[name] = attribute.array;
+      };
+      attach("anchorHeight", 1);
+      attach("bendNormal", 3);
+      attach("canopyShade", 1);
+      if (taper) attach("taper", 1);
+      attach("lodFade", 4);
+      out.fade = out.lodFade;
+      if (color) {
+        mesh.instanceColor = live(new Float32Array(capacity * 3), 3);
+        out.color = mesh.instanceColor.array;
+      }
+      lod.outputs.push(out);
+      mesh.count = 0;
+      mesh.visible = false;
+      mesh.castShadow = shadows;
+      if (depthMaterial) mesh.customDepthMaterial = depthMaterial;
+      mesh.receiveShadow = true;
+      mesh.boundingSphere = sphere;
+      scene.add(mesh);
+      return mesh;
+    });
+    registry.push(lod);
   }
+}
+
+// Re-packs the chunks whose instances have moved between levels, nearest
+// first, within a per-frame budget. `eye` is the camera in world space;
+// `group` the land group the instances live in.
+function packLod(group, eye, bias) {
+  const chunks = group.userData.lodChunks;
+  if (!chunks) return;
+  LOD_EYE.value.copy(eye);
+  group.updateWorldMatrix(true, false);
+  const local = group.worldToLocal(eye.clone());
+  const at = [local.x, local.y, local.z];
+  const state = (group.userData.lodState ??= { eye: null });
+  // A jump (home, a teleport) or the first frame packs everything now.
+  const jump = !state.eye || Math.hypot(at[0] - state.eye[0], at[1] - state.eye[1], at[2] - state.eye[2]) > 15;
+  state.eye = at;
+  const due = [];
+  for (const chunk of chunks) if (packDue(chunk, at, bias)) due.push(chunk);
+  if (!due.length) return;
+  if (!jump) due.sort((a, b) => chunkRange(a, at)[0] - chunkRange(b, at)[0]);
+  let budget = jump ? Infinity : LOD_PACK_BUDGET;
+  for (const chunk of due) {
+    if (budget <= 0) break;
+    budget -= chunk.count;
+    const counts = packChunk(chunk, at, bias);
+    chunk.meshes.forEach((mesh, level) => {
+      if (!mesh) return;
+      const count = counts[level];
+      mesh.count = count;
+      mesh.visible = count > 0;
+      if (!count) return;
+      const attributes = [mesh.instanceMatrix, mesh.instanceColor, ...["anchorHeight", "bendNormal", "canopyShade", "taper", "lodFade"].map((name) => mesh.geometry.attributes[name])];
+      for (const attribute of attributes) {
+        if (!attribute) continue;
+        attribute.clearUpdateRanges();
+        attribute.addUpdateRange(0, count * attribute.itemSize);
+        attribute.needsUpdate = true;
+      }
+    });
+  }
+}
+
+// The vertex stage of the fade (instance-lod.js fadeScale): by its centre's
+// distance from the eye, an instance shrinks toward a level that drops it,
+// or grows toward the size a coarser level draws it at. A mesh without the
+// attribute reads (0, 0, 0, 1): scale 1.
+const LOD_FADE_GLSL = /* glsl */ `
+#include <begin_vertex>
+#ifdef USE_INSTANCING
+{
+  vec3 lodOrigin = ( modelMatrix * vec4( instanceMatrix[3].xyz, 1.0 ) ).xyz;
+  float lodT = clamp( ( distance( lodOrigin, lodEye ) - lodFade.x ) / max( lodFade.y, 1e-3 ), 0.0, 1.0 );
+  transformed *= mix( lodFade.z, lodFade.w, lodT * lodT * ( 3.0 - 2.0 * lodT ) );
+}
+#endif
+`;
+function lodVertex(source, after = "") {
+  return "attribute vec4 lodFade;\nuniform vec3 lodEye;\n" + source.replace("#include <begin_vertex>", LOD_FADE_GLSL + after);
+}
+
+// Chains the fade onto a material's own patch (patchMaterial), once.
+function withLodFade(material) {
+  if (material.userData.lodFade) return material;
+  material.userData.lodFade = true;
+  const compile = material.onBeforeCompile;
+  const key = material.customProgramCacheKey;
+  material.onBeforeCompile = (shader, renderer) => {
+    compile.call(material, shader, renderer);
+    shader.uniforms.lodEye = LOD_EYE;
+    shader.vertexShader = lodVertex(shader.vertexShader);
+  };
+  material.customProgramCacheKey = () => `${key.call(material)}|lod`;
+  return material;
 }
 
 // A crown of shoots is mostly gaps at leaf scale, and a real crown's many
@@ -2509,17 +2639,16 @@ function addInstances(scene, geometry, material, instances, shadows, far = null,
 // veil instead of shade lit by the blue sky. The shadow pass draws each
 // shoot larger about its base so the crown's shadow closes up; the map only
 // re-renders when the sun or the cat moves on, so this costs no frames.
+// lod: the shadow pass fades instances as the colour pass does (LOD_EYE).
 const grownDepth = new Map();
-function grownDepthMaterial(grow) {
+function lodDepthMaterial(grow) {
   if (!grownDepth.has(grow)) {
     const material = new THREE.MeshDepthMaterial({ side: THREE.DoubleSide });
     material.onBeforeCompile = (shader) => {
-      shader.vertexShader = shader.vertexShader.replace(
-        "#include <begin_vertex>",
-        `#include <begin_vertex>\ntransformed *= ${grow.toFixed(3)};`,
-      );
+      shader.uniforms.lodEye = LOD_EYE;
+      shader.vertexShader = lodVertex(shader.vertexShader, grow !== 1 ? `transformed *= ${grow.toFixed(3)};\n` : "");
     };
-    material.customProgramCacheKey = () => `grown-${grow}`;
+    material.customProgramCacheKey = () => `lod-grown-${grow}`;
     grownDepth.set(grow, material);
   }
   return grownDepth.get(grow);
@@ -2573,13 +2702,13 @@ function addRocks(scene, random, shared, rocks = rockLayout(random)) {
   for (let v = 0; v < ROCK_VARIANTS; v++) {
     const own = rocks.filter((r) => r.variant === v);
     addInstances(scene, rockGeometry(12, v), material, own.filter((r) => r.cluster !== undefined && r.scale.x > 0.6), true, [
-      { geometry: rockGeometry(7, v), distance: 4 },
-      { geometry: rockGeometry(4, v), distance: 20 },
-      { geometry: rockGeometry(2, v), distance: 50 },
+      { geometry: rockGeometry(7, v), distance: 10 },
+      { geometry: rockGeometry(4, v), distance: 26 },
+      { geometry: rockGeometry(2, v), distance: 55 },
     ]);
     addInstances(scene, rockGeometry(5, v), material, own.filter((r) => r.cluster === undefined || r.scale.x <= 0.6), true, [
-      { geometry: rockGeometry(3, v), distance: 12 },
-      { geometry: rockGeometry(1, v), distance: 40 },
+      { geometry: rockGeometry(3, v), distance: 18 },
+      { geometry: rockGeometry(1, v), distance: 45 },
     ]);
   }
   scene.traverse((o) => { if (o.material === material) o.renderOrder = SOLID_ORDER; }); // solid:
