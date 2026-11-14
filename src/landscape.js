@@ -316,6 +316,8 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         .addScaledVector(lookUp, (pointer[1] - 0.5) * 0.009);
       camera.lookAt(lookTarget);
       camera.updateMatrixWorld();
+      // lod: vegetation detail by each instance's distance (quality: bias).
+      forest.updateLod(camera.position, quality?.lodBias ?? 1);
       boat?.render({ time, night, camera }); // boat: before the cat (its lantern lights it)
       const far = archipelago.camera;
       far.position.copy(camera.position);
