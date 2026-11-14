@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { HEAD } from "./cat-rig.js";
-import { LOFT } from "./cat-body.js";
+import { LOFT, MUZZLE, NOSE, NOSE_RADII } from "./cat-body.js";
 
 // The coat: a brown mackerel tabby painted per pixel in the bind pose (so
 // the markings ride the skin as it moves), lit as fur rather than plastic.
@@ -272,13 +272,13 @@ Coat coatAt( vec3 p, vec4 region, vec3 n, vec3 flow, float nose, float mouth ) {
     hd = max( hd, max( mascara, swirl * 0.85 ) );
     // Pale goggles round the eyes, the muzzle, chin and throat cream.
     float goggle = band( length( vec2( ax - 0.018, ( h.y - 0.006 ) * 1.3 ) ) - 0.0118, 0.0028 ) * front;
-    float muzzle = smoothstep( -0.012, -0.022, h.y ) * smoothstep( 0.022, 0.035, h.z );
+    float muzzle = smoothstep( -0.012, -0.022, h.y ) * smoothstep( 0.022, 0.035, h.z - ${MUZZLE.toFixed(4)} );
     float chin = smoothstep( -0.022, -0.03, h.y );
     float hp = max( goggle * 0.45, max( muzzle, chin ) );
     // Rows of dark whisker spots on the pads.
     vec2 pad = vec2( ax - 0.004, h.y + 0.018 );
-    float spot = 1.0 - smoothstep( 0.00055, 0.0009, length( vec2( fract( ( h.z - 0.03 ) * 360.0 ) - 0.5, fract( pad.y * 360.0 + 0.5 ) - 0.5 ) / 360.0 ) );
-    spot *= smoothstep( 0.0, 0.003, ax - 0.003 ) * smoothstep( -0.024, -0.02, h.y ) * smoothstep( -0.013, -0.017, h.y ) * smoothstep( 0.034, 0.038, h.z );
+    float spot = 1.0 - smoothstep( 0.00055, 0.0009, length( vec2( fract( ( h.z - 0.03 - ${MUZZLE.toFixed(4)} ) * 360.0 ) - 0.5, fract( pad.y * 360.0 + 0.5 ) - 0.5 ) / 360.0 ) );
+    spot *= smoothstep( 0.0, 0.003, ax - 0.003 ) * smoothstep( -0.024, -0.02, h.y ) * smoothstep( -0.013, -0.017, h.y ) * smoothstep( 0.034, 0.038, h.z - ${MUZZLE.toFixed(4)} );
     hd = max( hd, spot * 0.7 );
     // The lips are lined in black.
     hd = max( hd, smoothstep( 0.55, 0.9, mouth ) * 0.75 );
@@ -326,9 +326,9 @@ Coat coatAt( vec3 p, vec4 region, vec3 n, vec3 flow, float nose, float mouth ) {
   col = mix( col, lin( vec3( 0.2, 0.13, 0.12 ) ), c.pad );
   // Nose leather: brick red, rimmed in black, with nostrils.
   {
-    vec3 h = p - ${HEAD_GLSL} - vec3( 0.0, -0.0064, 0.0452 );
+    vec3 h = p - ${HEAD_GLSL} - vec3( ${NOSE.map((v) => v.toFixed(4)).join(", ")} );
     // (Its primitive's radii plus the loft it carries, cat-body.js.)
-    vec3 hn = h / ( vec3( 0.0058, 0.0042, 0.0032 ) + ${(0.15 * LOFT).toFixed(5)} );
+    vec3 hn = h / ( vec3( ${NOSE_RADII.map((v) => v.toFixed(4)).join(", ")} ) + ${(0.15 * LOFT).toFixed(5)} );
     // A rounded triangle, wide at the top: narrower toward the bottom.
     hn.x *= 1.0 + smoothstep( 0.3, -0.9, hn.y ) * 0.6;
     float rim = smoothstep( 1.05, 1.35, length( hn ) );

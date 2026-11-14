@@ -8,7 +8,7 @@ import * as THREE from "three";
 // ears, a breathing ribcage, the loose belly pouch, and a jointed tail.
 
 export const STAND_HEIGHT = 0.2;
-export const PAW_LIFT = 0.015;
+export const PAW_LIFT = 0.0162;
 export const TAIL_BONES = 14;
 export const TAIL_LENGTH = 0.3;
 export const TAIL_ROOT = [0, 0.04, -0.165];
@@ -20,10 +20,10 @@ export const CAT_SCALE = 1.4;
 // three bones (humerus/forearm/pastern, thigh/shin/hock), and `lean`: how far
 // the last bone tilts so the joint above it sits behind the paw.
 export const LEGS = [
-  { name: "lf", side: 1, hip: [0.033, -0.02, 0.115], bones: [0.066, 0.086, 0.034], lean: 0.2, front: true },
-  { name: "rf", side: -1, hip: [-0.033, -0.02, 0.115], bones: [0.066, 0.086, 0.034], lean: 0.2, front: true },
-  { name: "lh", side: 1, hip: [0.036, 0.0, -0.125], bones: [0.085, 0.086, 0.068], lean: 0.12, front: false },
-  { name: "rh", side: -1, hip: [-0.036, 0.0, -0.125], bones: [0.085, 0.086, 0.068], lean: 0.12, front: false },
+  { name: "lf", side: 1, hip: [0.029, -0.022, 0.13], bones: [0.085, 0.09, 0.036], lean: 0.2, front: true },
+  { name: "rf", side: -1, hip: [-0.029, -0.022, 0.13], bones: [0.085, 0.09, 0.036], lean: 0.2, front: true },
+  { name: "lh", side: 1, hip: [0.027, 0.0, -0.125], bones: [0.1, 0.105, 0.07], lean: 0.12, front: false },
+  { name: "rh", side: -1, hip: [-0.027, 0.0, -0.125], bones: [0.1, 0.105, 0.07], lean: 0.12, front: false },
 ];
 
 // Pivots in the body frame (bind pose).
@@ -33,7 +33,7 @@ const CHEST = [0, 0.02, 0.005];
 const RIBS = [0, 0.012, 0.06];
 const POUCH = [0, -0.03, -0.075];
 const NECK = [0, 0.045, 0.158];
-export const HEAD = [0, 0.102, 0.228];
+export const HEAD = [0, 0.102, 0.24];
 const JAW = [0, -0.017, -0.012]; // head-local
 const EAR = [0.024, 0.03, -0.004]; // head-local, mirrored
 const SCAPULA = [0.027, 0.058, 0.088]; // top of the blade, mirrored
@@ -43,7 +43,7 @@ const SCAPULA = [0.027, 0.058, 0.088]; // top of the blade, mirrored
 export function neutralFoot(spec) {
   // The point of the shoulder sits forward: a cat stands on its front paws
   // under the elbow, well behind it.
-  return [spec.hip[0] * 0.72, spec.hip[2] + (spec.front ? -0.038 : -0.004)];
+  return [spec.hip[0] * 0.72, spec.hip[2] + (spec.front ? -0.062 : -0.004)];
 }
 
 export function createRig() {
@@ -98,7 +98,9 @@ export function createRig() {
   for (const leg of legs) {
     const [fx, fz] = neutralFoot(leg.spec);
     const below = -STAND_HEIGHT + PAW_LIFT - leg.spec.hip[1];
-    solveLeg(leg, fx - leg.spec.hip[0], fz - leg.spec.hip[2], below, 0);
+    // The rest angle of the upper bone: the shoulder blade swings with the
+    // arm's departure from it (cat.js).
+    leg.restUpper = solveLeg(leg, fx - leg.spec.hip[0], fz - leg.spec.hip[2], below, 0).upperAngle;
   }
   spine.updateMatrixWorld(true);
   return { root: spine, bones, list, legs, tail };

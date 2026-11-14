@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { CAT_SCALE, PAW_LIFT, STAND_HEIGHT, TAIL_BONES, TAIL_LENGTH, TAIL_ROOT, createRig, neutralFoot, solveLeg } from "./cat-rig.js";
-import { buildCatGeometry } from "./cat-body.js";
+import { buildCatGeometry, MUZZLE } from "./cat-body.js";
 import { bakeShellColours, catUniforms, coatMaterial, ghostMaterial, CAT_SEA } from "./cat-coat.js";
 import { createContactShadow, createDust, createPawPrints, createSpray, SPLASH } from "./cat-ground.js";
 
@@ -52,10 +52,6 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
   const skeleton = new THREE.Skeleton(rig.list);
   const b = rig.bones;
   const bind = Object.fromEntries(rig.list.map((bone) => [bone.name, bone.position.clone()]));
-  // Proportions tuned after binding: a cat's head and paws are big for
-  // its body.
-  b.head.scale.setScalar(1.1);
-  for (const leg of rig.legs) leg.paw.scale.setScalar(1.05);
 
   const root = new THREE.Group();
   root.name = "cat";
@@ -607,7 +603,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
           const weight = leg.stance ? 1 : 0;
           leg.scapLift = (leg.scapLift ?? 0) + (weight - (leg.scapLift ?? 0)) * Math.min(1, step * 10);
           // (At a gallop the blade swings with the arm, adding to its reach.)
-          leg.scapula.rotation.x = -(leg.lastUpper ?? 0) * lerp(0.3, 0.5, gallop);
+          leg.scapula.rotation.x = -((leg.lastUpper ?? leg.restUpper) - leg.restUpper) * lerp(0.3, 0.5, gallop);
           leg.scapula.position.copy(bind[leg.scapula.name]).setY(bind[leg.scapula.name].y + (leg.scapLift - 0.5) * 0.006 * amp);
           leg.scapula.updateMatrixWorld(true);
         }
@@ -1020,7 +1016,7 @@ function whiskers() {
       for (let k = 0; k < 3; k++)
         strands.push({
           side,
-          root: new THREE.Vector3(side * (0.0105 + k * 0.0022), -0.0158 - row * 0.0026, 0.0435 - k * 0.0025),
+          root: new THREE.Vector3(side * (0.0105 + k * 0.0022), -0.0158 - row * 0.0026, 0.0435 + MUZZLE - k * 0.0025),
           spread: 0.85 + row * 0.12 + k * 0.05,
           droop: -0.1 - row * 0.1 + k * 0.03,
           length: 0.068 - row * 0.005 - k * 0.004,
