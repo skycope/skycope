@@ -80,7 +80,8 @@ if ( magicOn > 0.0 ) {
     float ring = exp( -dd * dd * 0.3 ) + 0.18 * exp( min( dd, 0.0 ) * 0.08 ) * step( dd, 0.0 );
     mLight += magicPulseColour * ( magicPulse.w * ring );
     // Its leading edge glows of itself, so it reads even under the sun.
-    mEdge = magicPulseColour * ( magicPulse.w * exp( -dd * dd * 1.2 ) * 0.22 );
+    // (Albedo-free, so kept faint: it whitened pale foliage.)
+    mEdge = magicPulseColour * ( magicPulse.w * exp( -dd * dd * 1.2 ) * 0.1 );
   }
   vec3 mSheen = vec3( 0.0 );
   if ( magicSheen.w > 0.0 ) {
@@ -301,7 +302,10 @@ export function createLandMagic({ shared, lamps = [], beacon = null, light = fal
         const reach = pulse.reach ?? 150;
         if (r >= 0 && r < reach) {
           const fade = (1 - THREE.MathUtils.smoothstep(r, reach * 0.55, reach)) * THREE.MathUtils.smoothstep(r, 0, 4);
-          u.magicPulse.value.set(pulse.x, -pulse.z, r, fade * (0.7 - 0.25 * night));
+          // solid: by night the land's own light is a few hundredths of the
+          // day's; the ring at day strength washed the milkwood's canopy
+          // lime and the summit's plants white. Scaled to the night.
+          u.magicPulse.value.set(pulse.x, -pulse.z, r, fade * (0.7 - 0.58 * night));
           // Saturated beyond the gift's own colour: the night tonemap
           // greys dim light toward blue, and the ring must stay its colour.
           const c = pulse.colour ?? [1, 1, 1];
