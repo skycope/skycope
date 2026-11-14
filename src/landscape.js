@@ -53,6 +53,9 @@ const MOON_KEY = new THREE.Color(0.62, 0.74, 1.0);
 // zenith, a camera's daylight white balance), which is why open shade
 // photographs blue-violet and wet sand peach at golden hour.
 const ENVIRONMENT = { chroma: 0.5, lowChroma: 1.35, violet: 0.3, hide: 0.6, lowHide: 0.25, sunHide: 0.05 };
+// grade: the blue hour's white balance on the sky light, unit luminance
+// (see buildEnvironment).
+const TWILIGHT_TINT = [0.797, 1.036, 1.245];
 
 // Geometry shares the sky shader's 315° heading, 6° pitch, and projection.
 // WebGL handles mesh depth/shadows; WebGPU handles the sky and water behind it.
@@ -686,7 +689,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     if (key !== environmentKey && domeRatio && now - environmentTime >= 250) {
       environmentKey = key;
       environmentTime = now;
-      buildEnvironment(skyUnit, bounceUnit, uniform, celestial.sun, night);
+      buildEnvironment(skyUnit, bounceUnit, uniform, celestial.sun, night, cover);
     }
     forest.updateSkySH(skySH.coefficients, exposure * nightFill);
     CAT_SKY.value.setRGB(sky[0] * Math.PI, sky[1] * Math.PI, sky[2] * Math.PI).multiplyScalar(nightFill);
@@ -733,7 +736,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
 
   // Sky above the horizon from the dome ratio (CIE overcast when cloudy or
   // at night), ground bounce below it, joined through a thin horizon band.
-  function buildEnvironment(sky, bounce, uniform, sunDirection, night) {
+  function buildEnvironment(sky, bounce, uniform, sunDirection, night, cover = 0) {
     const width = envWidth;
     const height = width / 2;
     const rows = width / 4;
@@ -746,7 +749,14 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     // the dome keeps half its chroma, so noon shade stays blue-grey, not cyan.
     const [sx, sy, sz] = sunDirection;
     const low = (1 - THREE.MathUtils.smoothstep(sy, 0.17, 0.42)) * (1 - night);
-    const chroma = ENVIRONMENT.chroma + (ENVIRONMENT.lowChroma - ENVIRONMENT.chroma) * low;
+    // grade: civil twilight is the blue hour. Once the sun is a few
+    // degrees down, the light on the land is the deep, ozone-blue dome
+    // (measured twilight irradiance runs 9000-12000 K); the single-
+    // scattering model leaves that blue out and its sunset band, pushed
+    // by the low-sun chroma, turned the whole island maroon at dusk.
+    const twilight = THREE.MathUtils.smoothstep(-sy, 0.01, 0.08) * (1 - night);
+    const chroma = (ENVIRONMENT.chroma + (ENVIRONMENT.lowChroma - ENVIRONMENT.chroma) * low) * (1 - 0.3 * twilight);
+    const blueHour = TWILIGHT_TINT.map((t) => 1 + (t - 1) * twilight);
     // The sun's bearing in this map's frame (see updateDirection).
     const sunX = (sx + sz) * Math.SQRT1_2;
     const sunZ = (sx - sz) * Math.SQRT1_2;
@@ -780,12 +790,18 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         const lowHide = ENVIRONMENT.lowHide + (ENVIRONMENT.sunHide - ENVIRONMENT.lowHide) * sunward;
         const hide = hideRow * (ENVIRONMENT.hide + (lowHide - ENVIRONMENT.hide) * low);
         for (let c = 0; c < 3; c++) {
-          const sky1 = sky[c] * (domeRatio[k + c] * (1 - uniform) + cie * uniform);
+          // grade: under cloud the clear dome's blaze round a low sun (up
+          // to 12x the zenith) is behind the deck: keep its direction, not
+          // its hot spot. Even at 28% it mirrored in the wet sand as a
+          // saturated gold band beside a grey sea.
+          const clearRatio = domeRatio[k + c] / (1 + Math.max(domeRatio[k + c] - 1, 0) * cover * 0.6);
+          const sky1 = sky[c] * (clearRatio * (1 - uniform) + cie * uniform);
           const seen = sky1 + (bounce[c] * 1.2 - sky1) * hide;
           rgb[c] = seen + (bounce[c] - seen) * ground;
         }
         // Shade lit by a blue sky reads blue in a photograph, but not the
         // saturated cyan of the raw dome: part of its chroma, about luminance.
+        for (let c = 0; c < 3; c++) rgb[c] *= blueHour[c];
         const luma = rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
         // Blue sky toward violet with the sun low: red lifted by the blue
         // excess, green lowered to keep the luminance.
