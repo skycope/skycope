@@ -160,6 +160,12 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
   // The outcrop's stones (and any nearby) are what they walk round.
   const near = domes.filter((d) => Math.hypot(d.x - cluster.x, d.z - cluster.z) < 26);
   const surface = surfaceOf(near);
+  // Moves a standing bird to (x, z) unless that is up on a rock.
+  const easeTo = (q, x, z) => {
+    if (surface(x, z) - groundHeight(x, z) > 0.3) return;
+    q.x = x;
+    q.z = z;
+  };
   // Whether a stride toward heading h climbs a flank (see update).
   const steepAhead = (b, here, h) => {
     const ax = b.x + Math.sin(h) * 0.25, az = b.z + Math.cos(h) * 0.25;
@@ -622,6 +628,21 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
         if (dc < bestD) {
           bestD = dc;
           best = b;
+        }
+      }
+      // solid: no two standing penguins in one place: pairs closer than a
+      // body's width are eased apart (not onto a rock).
+      for (let i = 0; i < birds.length; i++) {
+        const b = birds[i];
+        if (b.swim > 0.5) continue;
+        for (let j = i + 1; j < birds.length; j++) {
+          const o = birds[j];
+          if (o.swim > 0.5) continue;
+          const dx = b.x - o.x, dz = b.z - o.z, d = Math.hypot(dx, dz);
+          if (d >= 0.34 || d < 1e-5) continue;
+          const push = (0.34 - d) / 2 / d;
+          easeTo(b, b.x + dx * push, b.z + dz * push);
+          easeTo(o, o.x - dx * push, o.z - dz * push);
         }
       }
       if (outing && outing.party.every((b) => b.mode !== "outing")) outing = null;
