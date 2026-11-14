@@ -399,7 +399,11 @@ export function buildLighthouse(p, materials, { light = false } = {}) {
     // open yard by the gables, where a cat stood "inside" it and no lens
     // could see it.
     const c = W(cu, cv);
-    solids.push(box(c.x, c.z, φ, depth / 2 + overhang + 0.05, width / 2 + 0.35, lowest - 0.6, wallTop + Math.max(rise, 1.7) + 0.1, { body: false }));
+    // (The walls to the eaves, and the roof with its overhang above them:
+    // one box to the roof's edge took in the sills under the eaves, so a
+    // cat on a sill was "inside" and the lens went into the house.)
+    solids.push(box(c.x, c.z, φ, depth / 2 + 0.02, width / 2 + 0.02, lowest - 0.6, wallTop, { body: false }));
+    solids.push(box(c.x, c.z, φ, depth / 2 + overhang + 0.05, width / 2 + 0.35, eave - 0.05, wallTop + Math.max(rise, 1.7) + 0.1, { body: false, above: true }));
     const s = W(front + stoepDepth / 2, cv);
     solids.push(box(s.x, s.z, φ, stoepDepth / 2, width / 2 - 0.1, stoep.lo - 0.6, stoepTop, { body: false }));
     const l = W(front + (stoepDepth + 0.15) / 2, cv);
