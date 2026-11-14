@@ -110,6 +110,9 @@ for (const [weather, times] of [["clear", [NOON, NIGHT]], ["storm", [NOON]]]) {
 
 // ---- The launch: the gift wakes (or the cat pushes), frame by frame.
 if (want("launch")) {
+  // A first visit: no gifts remembered from earlier runs in this profile.
+  await load(`weather=clear`);
+  await js("localStorage.clear()");
   await load(`weather=clear`);
   await js(`__b.time(${NOON})`);
   // The cat beside the hull on its logs, facing it.
@@ -118,18 +121,31 @@ if (want("launch")) {
   if (lm?.x !== undefined) {
     const fx = Math.sin(lm.facing ?? 0), fz = Math.cos(lm.facing ?? 0);
     await js(`(() => { const w = skycope.walker, c = w.cat; c.x = ${lm.x + fz * 1.6}; c.z = ${lm.z - fx * 1.6}; c.y = w.surface(c.x, c.z); c.heading = Math.atan2(${-fz}, ${fx}); c.speed = 0; })()`);
-    const mx = (lm.x + lm.cove.x) / 2, mz = (lm.z + lm.cove.z) / 2;
+    // From the side of its slide, back up the beach: the logs at the right
+    // of the picture, the water at the left.
     const dx = lm.cove.x - lm.x, dz = lm.cove.z - lm.z, L = Math.hypot(dx, dz);
-    const cx = mx - (dz / L) * 9, cz = mz + (dx / L) * 9;
-    await js(`__b.look(${cx}, 2.6, ${cz}, ${mx}, 0.2, ${mz})`);
+    const ux = dx / L, uz = dz / L;
+    const side = process.env.SIDE === "-1" ? -1 : 1;
+    const cx = lm.x + ux * 2.5 - uz * 6.5 * side, cz = lm.z + uz * 2.5 + ux * 6.5 * side;
+    const gy = await js(`skycope.walker.surface(${cx}, ${cz})`);
+    const ly = await js(`skycope.walker.surface(${lm.x + ux * 3.5}, ${lm.z + uz * 3.5})`);
+    await js(`__b.look(${cx}, ${Math.max(gy, 0) + 2.6}, ${cz}, ${lm.x + ux * 2.5}, ${ly + 0.2}, ${lm.z + uz * 2.5})`);
     await sleep(1500);
     await snap("launch-0-ashore", "launch: ashore, before");
-    await js(`(${process.env.LAUNCH ?? "() => skycope.magic.wake('boat')"})()`);
-    for (let k = 1; k <= 8; k++) {
-      await sleep(1000);
-      await snap(`launch-${k}`, `launch: ${k} s`);
-    }
+    // The gift wakes (the ceremony); the boat waits on its logs until the
+    // cat pushes at it.
+    await js("skycope.magic.wake('boat')");
     await sleep(3000);
+    await snap("launch-0b-woken", "launch: woken, still on its logs");
+    await js("skycope.boat.ride.launch()");
+    let at = 0;
+    for (const t of [0.4, 1.2, 2.0, 2.8, 4, 5.5, 7, 8.5, 10, 11.5, 13]) {
+      await sleep((t - at) * 1000);
+      at = t;
+      const p = await js("(({ phase, y }) => phase + ' y ' + y.toFixed(2))(skycope.boat.ride.ride.pose)");
+      await snap(`launch-${String(t).replace('.', '_')}`, `launch: ${t} s after the push (${p})`);
+    }
+    await sleep(4000);
     await snap(`launch-9-settled`, "launch: settled");
   }
 }

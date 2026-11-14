@@ -142,7 +142,7 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
   }
 
   function afloat() {
-    return ride.state !== "asleep" && ride.state !== "launching";
+    return ride.state !== "asleep" && ride.state !== "ready" && ride.state !== "launching";
   }
 
   const api = {
