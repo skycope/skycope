@@ -86,8 +86,9 @@ export function between(a, b, width = 1, depth = width, roll = 0) {
 // A generalized cylinder along a polyline: rings of `radial` vertices, each
 // ring's radius from `radii` (or `[rx, ry]` pairs for an oval section), the
 // frame carried along by parallel transport so it never twists. `cap` closes
-// the far end. Returns an indexed geometry with smooth normals.
-export function sweep(points, radii, radial = 6, { cap = true, roll = 0, oval = null } = {}) {
+// the far end. Returns an indexed geometry with smooth normals, or with
+// `flat` faceted ones (sawn timber, not a log).
+export function sweep(points, radii, radial = 6, { cap = true, roll = 0, oval = null, flat = false } = {}) {
   const n = points.length;
   const positions = [];
   const index = [];
@@ -144,7 +145,11 @@ export function sweep(points, radii, radial = 6, { cap = true, roll = 0, oval = 
   g.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   g.setIndex(index);
   g.computeVertexNormals();
-  return g;
+  if (!flat) return g;
+  const faceted = g.toNonIndexed();
+  g.dispose();
+  faceted.computeVertexNormals();
+  return faceted;
 }
 
 // Lathe: profile [[r, y], …] round y. Smooth normals (three's LatheGeometry).
@@ -386,7 +391,7 @@ export function createMaterials(shared) {
         diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.2, 0.18, 0.16 ) * ( 0.8 + grain * 0.4 ), flake * 0.8 );
         // Bare timber above the tide bleaches silver-grey.
         float dryWood = ( 1.0 - painted ) * smoothstep( 0.15, 0.6, vPlace.y + ( blotch - 0.5 ) * 0.3 );
-        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.26, 0.25, 0.23 ) * ( 0.75 + grain * 0.4 + ( blotch - 0.5 ) * 0.3 ), dryWood * 0.6 );
+        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.36, 0.35, 0.32 ) * ( 0.72 + grain * 0.4 + ( blotch - 0.5 ) * 0.3 ), dryWood * 0.75 );
         float y = vPlace.y + ( blotch - 0.5 ) * 0.3;
         float marine = ( 1.0 - smoothstep( 0.35, 0.9, y ) ) * ( 1.0 - painted );
         diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.8, 0.82, 0.74 ), marine );

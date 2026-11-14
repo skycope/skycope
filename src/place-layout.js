@@ -172,7 +172,7 @@ export function placesLayout(seed) {
         id: "wreck", title: `Wreck of the ${WRECK_NAMES[Math.floor(random() * WRECK_NAMES.length)]}`, kind: "wreck",
         x: centre.x, z: centre.z, y: terrainHeight(centre.x, centre.z), r: 10, theta,
         heading: Math.atan2(dx, dz), bow, stern, list: (random() - 0.5) * 0.3 + (turn > 0 ? 0.12 : -0.12),
-        zone: { ax: bow.x, az: bow.z, bx: stern.x, bz: stern.z, clear: 4.8, bare: 4.2 },
+        zone: { ax: bow.x, az: bow.z, bx: stern.x, bz: stern.z, clear: 7.2, bare: 6.4 },
       };
     }
     places.push(wreck);

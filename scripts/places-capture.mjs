@@ -9,6 +9,8 @@ import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { placesLayout } from "../src/place-layout.js";
 import { groundHeight } from "../src/terrain.js";
+import * as places from "../src/places.js";
+import { createMaterials } from "../src/place-kit.js";
 
 const out = process.argv[2] ?? "/tmp/places-capture";
 const port = process.argv[3] ?? "5331";
@@ -39,8 +41,10 @@ const from = (p, bearing, d) => [p.x + Math.sin(bearing) * d, p.z + Math.cos(bea
   const p = P.wreck, inland = Math.atan2(58 - p.x, 70 - p.z);
   look("wreck-wide", ...from(p, inland + 0.4, 13), p.x, p.z, { el: 0.4, dist: 6 });
   look("wreck-close", ...from(p, inland - 0.2, 5), p.x, p.z, { el: 0.3, dist: 3.4 });
-  // Where the cat was drawn twice (handover QA).
-  look("wreck-cat", -6.4, 45.0, p.x, p.z, { el: 0.18, dist: 2.4 });
+  // Among the ribs, on the keel, looking to the bow (the handover saw the
+  // cat drawn twice at (-6.4, 45.0) on the old layout: this is that spot,
+  // in the hull, on the current one).
+  look("wreck-cat", p.x + Math.sin(p.heading) * 0.6, p.z + Math.cos(p.heading) * 0.6, p.x + Math.sin(p.heading) * 4, p.z + Math.cos(p.heading) * 4, { el: 0.18, dist: 2.4 });
 }
 {
   const p = P.milkwood;
@@ -61,6 +65,19 @@ const from = (p, bearing, d) => [p.x + Math.sin(bearing) * d, p.z + Math.cos(bea
   const p = P.pool, inland = Math.atan2(58 - p.x, 70 - p.z);
   look("pool-wide", ...from(p, inland + 1.3, 8), p.x, p.z, { el: 0.5, dist: 6 });
   look("pool-close", ...from(p, inland + 0.9, 3.8), p.x, p.z, { el: 0.6, dist: 3 });
+}
+// Affordance spots (the prop contract), where the build has them: look at
+// each from 3.5 m out along its facing.
+{
+  const materials = places.BUILDERS ? createMaterials({}) : null;
+  for (const p of materials ? Object.values(P) : []) {
+    const b = places.BUILDERS[p.kind](p, materials, { seed: SEED });
+    for (const a of b.affordances ?? []) {
+      if (!["wreck-boiler", "cottage-sill", "beacon-top", "milkwood-fork", "boat-hull", "pool-rim"].includes(a.id)) continue;
+      const f = a.facing ?? 0;
+      look(`${p.id}-${a.id.split("-")[1]}`, a.x + Math.sin(f) * 3.5, a.z + Math.cos(f) * 3.5, a.x, a.z, { el: 0.2, dist: 2.5 });
+    }
+  }
 }
 // Boulders: the stacked stones the audit names, and seal rock.
 look("boulders-stack", 47.5, 31.5, 51.3, 28.9, { el: 0.4, dist: 5 });
@@ -109,7 +126,13 @@ for (const t of TIMES)
       c.heading = ${v.yaw};
       cam.yaw = ${v.yaw}; cam.elevation = ${v.el}; cam.distance = ${v.dist}; cam.targetY = c.y;
     })()`);
-    await sleep(2600);
+    // Arriving wakes a keepsake: its ceremony takes the camera. A touch
+    // hands the view back (thread.js); then the camera is set again.
+    for (let k = 0; k < 3; k++) {
+      await sleep(900);
+      await evaluate(`(() => { const s = skycope, w = s.walker, cam = w.camera; s.thread?.input(); cam.yaw = ${v.yaw}; cam.elevation = ${v.el}; cam.distance = ${v.dist}; })()`);
+    }
+    await sleep(1200);
     const name = `${v.name}-${t}`;
     const d = await evaluate("({ ...document.querySelector('#landscape').dataset, cat: [skycope.walker.cat.x, skycope.walker.cat.z].map((v) => +v.toFixed(2)) })");
     counts[name] = { triangles: Number(d?.triangles), drawCalls: Number(d?.drawCalls), cat: d?.cat };
