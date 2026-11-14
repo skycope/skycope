@@ -427,7 +427,8 @@ void RE_Direct_Fur( const in IncidentLight directLight, const in vec3 geometryPo
   float nl = dot( N, L );
   // Thin parts pass light through: ears, the fringe at the silhouette.
   float back = pow( clamp( dot( V, -L ), 0.0, 1.0 ), 3.0 );
-  reflectedLight.directDiffuse += lit.color * furTrans * back * furThin * material.diffuseContribution * 2.0;
+  // (Kept modest: backlit ears glow, they do not light up like lamps.)
+  reflectedLight.directDiffuse += lit.color * furTrans * back * furThin * material.diffuseContribution * 1.3;
   if ( furGloss > 0.5 ) {
     RE_Direct_Physical( lit, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );
     // The cornea is a lens: sunlight focuses into a bright crescent on the
@@ -719,7 +720,7 @@ const COMMON_COLOUR = /* glsl */ `
     skin = mix( skin, lin( vec3( 0.88, 0.84, 0.76 ) ), smoothstep( 0.3, 0.7, tuft ) );
     coatColour = mix( back, skin, inner );
     furThin = mix( 0.35, 1.1, inner ) * ( 1.0 - v * 0.3 );
-    furTrans = vec3( 1.0, 0.55, 0.42 );
+    furTrans = vec3( 1.0, 0.62, 0.52 );
     furSheen = 1.0 - inner;
     furVelvet = 1.0 - inner;
     furAO *= mix( 1.0, mix( 0.45, 1.0, v ), inner );
