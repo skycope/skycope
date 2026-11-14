@@ -27,6 +27,10 @@ const AWARE = 7;
 const SHY = 2.7;
 const HOME_CALM = 5;
 
+// solid: grown in and out over the last 20 m before the hide radius, so
+// the herd never pops in or out of view.
+const grownAt = (d, radius) => 1 - Math.min(1, Math.max(0, (d - (radius - 20)) / 20)) ** 2;
+
 export function penguinGeometry({ light = false } = {}) {
   const prims = [
     ellipsoid("body", [0, 0.265, -0.005], [0.112, 0.2, 0.1], { k: 0 }),
@@ -251,6 +255,7 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
   const interest = { x: 0, y: 0, z: 0, kind: "penguin", near: false, d: 0 };
   const say = (type, b, d, gain) => events.push({ type, x: b.x, z: b.z, d, gain: gain * clamp(1 - d / 45, 0, 1) });
 
+  let grow = 1;
   return {
     pois: [{ id: "penguins", title: "Penguin colony", x: centre.x, z: centre.z, r: 6 }],
     events,
@@ -263,6 +268,7 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
       const catD = Math.hypot(pose.x - centre.x, pose.z - centre.z);
       // Far off (and no-one at sea) the colony costs nothing.
       const away = catD > 95 && atSea === 0;
+      grow = atSea ? 1 : grownAt(catD, 95);
       mesh.visible = !away && geometry.userData.ready;
       if (away) return null;
       atSea = 0;
@@ -578,7 +584,7 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
         // the bird's middle is where it is.
         const back = Math.sin(b.pitch) * 0.28 * b.size;
         const bob = b.swim < 0.5 ? Math.abs(Math.cos(b.gait)) * 0.012 * b.gaitAmp : 0;
-        placeInstance(mesh, b.i, b.x - Math.sin(b.heading) * back, y + bob, b.z - Math.cos(b.heading) * back, b.heading + yawWobble, b.pitch, roll, b.size);
+        placeInstance(mesh, b.i, b.x - Math.sin(b.heading) * back, y + bob, b.z - Math.cos(b.heading) * back, b.heading + yawWobble, b.pitch, roll, b.size * grow);
         bounds.add(b.x - Math.sin(b.heading) * back, y + bob, b.z - Math.cos(b.heading) * back, 0.5);
         attrs.pose.setXYZW(b.i, b.headYaw, b.headPitch, b.flipper, b.gait);
         attrs.pose2.setXYZW(b.i, b.gaitAmp * Math.min(1, b.speed / 0.2 + 0.3), b.beat, b.jitter ?? 0, 0);

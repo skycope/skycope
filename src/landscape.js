@@ -14,6 +14,7 @@ import { createArchipelago } from "./archipelago.js";
 import { createLens } from "./lens.js";
 import { createPlaces } from "./places.js"; // places:
 import { createWisp } from "./wisp.js"; // wisp: the little light that leads the cat
+import { surfaceOf } from "./walker.js"; // solid: boulder tops for the fireflies
 import { createLandMagic, lightWithMagic, finaleBlaze } from "./land-magic.js"; // land-magic:
 import { createFireflies } from "./fireflies.js"; // land-magic:
 import { groundHeight } from "./terrain.js"; // land-magic:
@@ -120,7 +121,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   const motes = createMotes(scene, seed);
   // land-magic: the milkwood's fireflies (one draw of points, hidden asleep).
   const summitPoi = places.pois.find((q) => q.id === "beacon");
-  const fireflies = createFireflies(scene, seed, { light, crown: places.crown, summit: summitPoi ? { x: summitPoi.x, y: groundHeight(summitPoi.x, summitPoi.z), z: summitPoi.z } : null });
+  const fireflies = createFireflies(scene, seed, { light, crown: places.crown, summit: summitPoi ? { x: summitPoi.x, y: groundHeight(summitPoi.x, summitPoi.z), z: summitPoi.z } : null, surface: surfaceOf(forest.obstacles) }); // solid: surface
   let flyPixels = 600, magicScan = 0, starLevel = 0;
   // The distant islands: their own scene and depth range, drawn first.
   const archipelago = createArchipelago(seed, { light });

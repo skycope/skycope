@@ -752,6 +752,13 @@ export function createWalker(obstacles, sea = null, wake = null) {
   }
 }
 
+// solid: the ground and every boulder and landmark top on it, for things
+// that must stay above them (fireflies.js); no walker needed.
+export function surfaceOf(obstacles) {
+  const grid = spatialGrid({ trunks: [], domes: obstacles.domes ?? [] });
+  return (x, z) => Math.max(groundHeight(x, z), grid.domeHeight(x, z));
+}
+
 // Trunks and boulder domes bucketed in 4 m cells.
 function spatialGrid({ trunks, domes }) {
   const cell = 4;

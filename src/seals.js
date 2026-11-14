@@ -26,6 +26,10 @@ const AWARE = 9;
 const FLEE = 4.5;
 const CALM = 12;
 
+// solid: grown in and out over the last 20 m before the hide radius, so
+// the herd never pops in or out of view.
+const grownAt = (d, radius) => 1 - Math.min(1, Math.max(0, (d - (radius - 20)) / 20)) ** 2;
+
 export function sealGeometry({ light = false } = {}) {
   const prims = [
     ellipsoid("body", [0, 0.19, 0.02], [0.23, 0.19, 0.5], { k: 0 }),
@@ -268,6 +272,7 @@ export function createSeals(group, { seed, domes, cluster, light = false, blobs 
   const interest = { x: 0, y: 0, z: 0, kind: "seal", near: false, d: 0 };
   const say = (type, s, d, gain) => events.push({ type, x: s.x, z: s.z, d, gain: gain * clamp(1 - d / 60, 0, 1) });
 
+  let grow = 1;
   return {
     pois: [{ id: "seals", title: "Seal rock", x: rockCentre.x, z: rockCentre.z, r: 7 }],
     events,
@@ -279,6 +284,7 @@ export function createSeals(group, { seed, domes, cluster, light = false, blobs 
       sea0 = water;
       const catD = Math.hypot(pose.x - rockCentre.x, pose.z - rockCentre.z);
       const far = catD > 110 && atSea === 0;
+      grow = atSea ? 1 : grownAt(catD, 110);
       mesh.visible = !far && geometry.userData.ready;
       if (far) return null;
       atSea = 0;
@@ -572,7 +578,7 @@ export function createSeals(group, { seed, domes, cluster, light = false, blobs 
           const fz = Math.cos(s.heading) * 0.55;
           slope = Math.atan2(surface(s.x - fx, s.z - fz) - surface(s.x + fx, s.z + fz), 1.1);
         }
-        placeInstance(mesh, s.i, s.x, s.y, s.z, s.heading, clamp(s.pitch + slope, -1.3, 1.3), s.roll, s.size);
+        placeInstance(mesh, s.i, s.x, s.y, s.z, s.heading, clamp(s.pitch + slope, -1.3, 1.3), s.roll, s.size * grow);
         bounds.add(s.x, s.y, s.z, 1.2);
         attrs.pose.setXYZW(s.i, s.headYaw, s.headPitch, s.lift, s.bend);
         attrs.pose2.setXYZW(s.i, s.fore, s.scratch, s.gait, s.gaitAmp);

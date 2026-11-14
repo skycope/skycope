@@ -313,6 +313,13 @@ export function createWisp(group, { light = false } = {}) {
     blendSrcAlpha: THREE.ZeroFactor,
     blendDstAlpha: THREE.OneFactor,
     toneMapped: false,
+    // solid: through leaves, not through rock, walls or the hull: those
+    // mark stencil bit 2 where they are the nearest surface (cat-coat.js).
+    stencilWrite: true,
+    stencilRef: 0,
+    stencilFuncMask: 2,
+    stencilWriteMask: 0,
+    stencilFunc: THREE.EqualStencilFunc,
   });
   const through = new THREE.Mesh(geometry, veiled);
   through.frustumCulled = false;

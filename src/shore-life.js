@@ -24,6 +24,11 @@ export const SHORE_EVENTS = ["hiss", "pipe", "flush"];
 // ---------------------------------------------------------------------------
 // Tortoise: shell ~26 cm long, facing +z, plastron on the ground.
 
+// solid: grown in and out over the last 20 m before the hide radius, so
+// the herd never pops in or out of view.
+const grownAt = (d, radius) => 1 - Math.min(1, Math.max(0, (d - (radius - 20)) / 20)) ** 2;
+let tortoiseGrow = 1, pairGrow = 1;
+
 export function tortoiseGeometry({ light = false } = {}) {
   const prims = [
     ellipsoid("shell", [0, 0.07, 0], [0.095, 0.075, 0.13], { k: 0 }),
@@ -171,6 +176,7 @@ export function createTortoise(group, { seed, flowers, light = false, blobs = nu
       const dz = t.z - pose.z;
       const dc = Math.hypot(dx, dz);
       mesh.visible = dc < 60 && geometry.userData.ready;
+      tortoiseGrow = grownAt(dc, 60);
       if (dc > 60) return null;
       const startled = dc < 1.3 || (dc < 2.6 && (pose.air > 0.05 || Math.abs(pose.speed) > 2));
       if (startled) {
@@ -230,7 +236,7 @@ export function createTortoise(group, { seed, flowers, light = false, blobs = nu
       const slope = Math.atan2(groundHeight(t.x - fx, t.z - fz) - groundHeight(t.x + fx, t.z + fz), 0.24);
       const sway = Math.sin(t.gait) * 0.03 * t.gaitAmp;
       bounds.begin();
-      placeInstance(mesh, 0, t.x, y - t.in * 0.012, t.z, t.heading, slope, sway, 1.25);
+      placeInstance(mesh, 0, t.x, y - t.in * 0.012, t.z, t.heading, slope, sway, 1.25 * tortoiseGrow);
       bounds.add(t.x, y - t.in * 0.012, t.z, 0.3);
       attrs.pose.setXYZW(0, t.in, t.yaw, t.pitch, t.gait);
       attrs.pose2.setXYZW(0, t.gaitAmp, t.chew, 0, 0);
@@ -389,6 +395,7 @@ export function createOystercatchers(group, { seed, theta, light = false, blobs 
       const dcPair = Math.hypot(birds[0].x - pose.x, birds[0].z - pose.z);
       // They roost at night, and cost nothing when far away.
       mesh.visible = night < 0.7 && dcPair < 90 && geometry.userData.ready;
+      pairGrow = grownAt(dcPair, 90);
       if (!mesh.visible) return null;
       let best = null;
       let bestD = 6;
@@ -481,7 +488,7 @@ export function createOystercatchers(group, { seed, theta, light = false, blobs 
         b.gaitAmp += ((b.state !== "fly" && b.speed > 0.05 ? 1 : 0) - b.gaitAmp) * Math.min(1, dt * 8);
         b.pitch += (pitch - b.pitch) * Math.min(1, dt * 8);
         b.yaw += (yaw - b.yaw) * Math.min(1, dt * 6);
-        placeInstance(mesh, b.i, b.x, b.y + (b.state === "fly" ? 0 : Math.abs(Math.sin(b.gait)) * 0.005 * b.gaitAmp), b.z, b.heading, b.state === "fly" ? -0.1 : 0, 0, 1.1);
+        placeInstance(mesh, b.i, b.x, b.y + (b.state === "fly" ? 0 : Math.abs(Math.sin(b.gait)) * 0.005 * b.gaitAmp), b.z, b.heading, b.state === "fly" ? -0.1 : 0, 0, 1.1 * pairGrow);
         bounds.add(b.x, b.y + (b.state === "fly" ? 0 : Math.abs(Math.sin(b.gait)) * 0.005 * b.gaitAmp), b.z, 0.8);
         attrs.pose.setXYZW(b.i, b.pitch, b.yaw, b.gait, b.gaitAmp);
         attrs.pose2.setXYZW(b.i, b.fly, 0, 0, 0);
