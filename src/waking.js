@@ -1,0 +1,167 @@
+// The waking light: the moment a gift wakes, as light behaving like light
+// (docs/design/waking-light.md). "A lamp is lit, and you watch its light
+// arrive": one real point of light at the keepsake catches like a wick,
+// reaches outward as a decelerating front (the world behind it stays lit,
+// nothing ahead of it is), glints where it passes, lingers, and resolves
+// into the gift's small steady light.
+//
+// Pure: no three.js, no DOM. The land (land-magic.js), the sea
+// (sea-sky-magic.js), the kindled point (kindle.js) and the ceremony
+// (journey.js) all read the same curves from here, so they cannot drift.
+//
+// The record (magic.waking, magic.js): null, or the one waking in progress
+//   { gift, x, y, z,     source, coast metres (re-read each frame from `follow`)
+//     age,               WALL seconds since the gift woke (a ceremony slows
+//                        scene time; the light must not crawl)
+//     follow,            null | () => [x, y, z]  (the boat's lantern moves)
+//     frozen }           QA: age does not advance
+
+export const WAKING = { start: 0.35, tau: 1.5, hold: 3.0, fade: 3.0, end: 16 };
+
+// One row per gift. tint: the light's own colour (linear RGB; surfaces
+// multiply it by their albedo). core: its soft-core radius (m). reach: how
+// far the front runs on land (m). night/day: the body light's peak, in the
+// land shader's exposed units (the scale of magicGlowColour). front /
+// frontDay: the front's glints. glint: the lingering glints. rest: what is
+// left in this term once settled (0: the practical takes over). sea: how far
+// it runs on the water (0: not at all), seaHold: how long the lit water
+// keeps glinting. catch: the catch curve's speed (lamp 1: its real 4 s
+// catch; others 2). tau: the front's time constant. up: light from above
+// (the stars). ripple: light from under moving water (seafolk).
+export const WAKE_LIGHT = {
+  fireflies: { tint: [1.0, 0.74, 0.28], core: 1.8, reach: 24, night: 0.85, day: 0.22, front: 0.5, frontDay: 0.25, glint: 0.5, rest: 0, sea: 0 },
+  tideglow: { tint: [0.1, 0.55, 1.0], core: 1.6, reach: 30, night: 0.7, day: 0.12, front: 0.7, frontDay: 0.35, glint: 0.8, rest: 0, sea: 120, seaHold: 8 },
+  lamp: { tint: [1.0, 0.66, 0.26], core: 5.0, reach: 46, night: 1.1, day: 0.2, front: 0.45, frontDay: 0.2, glint: 0.3, rest: 0, sea: 150, catch: 1, tau: 2.2 },
+  stars: { tint: [0.62, 0.72, 1.0], core: 1.2, reach: 60, night: 0.3, day: 0.05, front: 0.35, frontDay: 0.3, glint: 1.0, rest: 0, sea: 0, up: 1 },
+  seafolk: { tint: [0.2, 0.8, 0.6], core: 1.4, reach: 14, night: 0.6, day: 0.12, front: 0.4, frontDay: 0.2, glint: 0.4, rest: 0, sea: 90, ripple: 0.4 },
+  boat: { tint: [1.0, 0.5, 0.16], core: 1.5, reach: 26, night: 0.8, day: 0.18, front: 0.5, frontDay: 0.25, glint: 0.4, rest: 0, sea: 80 },
+  finale: { tint: [1.0, 0.9, 0.72], core: 3.0, reach: 60, night: 0.9, day: 0.2, front: 0.5, frontDay: 0.3, glint: 0.6, rest: 0, sea: 150 },
+};
+
+// The one colour table: each gift's light (the wisp's ribbon, the field
+// notes' marks and the waking all use it).
+export const GIFT_COLOURS = Object.fromEntries(Object.entries(WAKE_LIGHT).map(([g, s]) => [g, s.tint]));
+
+const smooth = (x, a, b) => {
+  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+
+// How a wick catches: s seconds after lighting, its light (0…1). A spark,
+// two gutters (about 3 Hz: inside photosensitivity guidance, do not raise
+// it), then the light swells and holds.
+export function lampCatch(s) {
+  if (!(s >= 0)) return s < 0 ? 0 : 1;
+  if (s > 4) return 1;
+  const spark = Math.min(1, s / 0.25) * 0.35;
+  const gutter = s < 1.6 ? 0.55 + 0.45 * Math.abs(Math.sin(s * 9.5)) * (1 - s / 1.6) : 1;
+  const swell = smooth(s, 1.0, 3.6);
+  return Math.min(1, spark * gutter + swell * 0.9 + 0.1 * swell * swell);
+}
+
+// The lighthouse beams' angular speed s seconds after waking: still while
+// the lamp catches, then the clockwork takes up.
+export function lampSpin(s) {
+  if (!(s >= 0)) return s < 0 ? 0 : 1;
+  return smooth(s, 2.2, 7.5);
+}
+
+export const ZERO = Object.freeze({ radius: 0, width: 0, inside: 0, front: 0, glint: 0, caught: 0 });
+
+// The curves at s wall seconds. spec: a row of WAKE_LIGHT. night 0…1.
+// reduced (prefers-reduced-motion): no travelling front, no flicker; the
+// light eases up in place.
+//   radius  how far the light has reached (m)
+//   width   the front's half-width (m)
+//   inside  I, the body light behind the front
+//   front   F, the front's glint strength
+//   glint   G, the lingering glints
+//   caught  the catch alone (0…1, with its flicker), for the kindled point
+export function wakingAt(s, spec, night = 0, reduced = false) {
+  if (!spec || !(s >= 0) || s > WAKING.end) return ZERO;
+  const k = spec.catch ?? 2;
+  const caught = reduced ? smooth(s, 0, 1.5) : lampCatch(s * k);
+  const settle = spec.rest + (1 - spec.rest) * Math.exp(-Math.max(s - WAKING.hold, 0) / WAKING.fade);
+  // The last second eases to exactly nothing, so the end is not a step.
+  const tail = 1 - smooth(s, WAKING.end - 1.5, WAKING.end);
+  const peak = spec.day + (spec.night - spec.day) * night;
+  const radius = reduced ? spec.reach : spec.reach * (1 - Math.exp(-Math.max(s - WAKING.start, 0) / (spec.tau ?? WAKING.tau)));
+  const spent = 1 - radius / spec.reach;
+  const frontPeak = spec.frontDay + (spec.front - spec.frontDay) * night;
+  return {
+    radius,
+    width: 0.6 + 0.05 * radius,
+    inside: peak * caught * settle * tail,
+    front: reduced ? 0 : frontPeak * smooth(s, WAKING.start, WAKING.start + 0.3) * spent ** 1.5,
+    glint: spec.glint * smooth(s, 0.8, 2.2) * Math.exp(-Math.max(s - 4, 0) / 4) * tail,
+    caught,
+  };
+}
+
+// When the front reaches a point d metres from the source (wall seconds;
+// Infinity if it never does). The inverse of wakingAt's radius.
+export function frontArrival(d, spec) {
+  if (!spec || !(d >= 0)) return Infinity;
+  if (d >= spec.reach) return Infinity;
+  return WAKING.start - (spec.tau ?? WAKING.tau) * Math.log(1 - d / spec.reach);
+}
+
+// The waking on the sea: its own reach (spec.sea) and a longer tail
+// (spec.seaHold): the lit water keeps glinting after the land has gone dark.
+//   radius  m; 0 when this gift does not reach the sea
+//   inside  the lit water's strength
+//   front   the front's crest-glints
+export function wakingSea(s, spec, night = 0, reduced = false) {
+  if (!spec || !spec.sea || !(s >= 0) || s > WAKING.end) return { radius: 0, inside: 0, front: 0 };
+  const k = spec.catch ?? 2;
+  const caught = reduced ? smooth(s, 0, 1.5) : lampCatch(s * k);
+  const u = Math.max(s - WAKING.start, 0) / (spec.tau ?? WAKING.tau);
+  const radius = reduced ? spec.sea : spec.sea * (1 - Math.exp(-u));
+  const tail = 1 - smooth(s, WAKING.end - 1.5, WAKING.end);
+  const peak = spec.day + (spec.night - spec.day) * night;
+  const inside = peak * caught * Math.exp(-Math.max(s - (spec.seaHold ?? 3), 0) / 3) * tail;
+  const frontPeak = spec.frontDay + (spec.front - spec.frontDay) * night;
+  const front = reduced ? 0 : frontPeak * smooth(s, WAKING.start, WAKING.start + 0.3) * (1 - radius / spec.sea) ** 1.5;
+  return { radius: Math.max(radius, 1e-3), inside, front };
+}
+
+// The practical a waking hands over to: its level s seconds after waking
+// (crossfades with the body light, which decays from WAKING.hold, so the
+// sum never dips to dark and never doubles).
+export function practicalLevel(s) {
+  if (!Number.isFinite(s)) return s > 0 ? 1 : 0;
+  return smooth(s, 3, 8);
+}
+
+// Where each gift's light is kindled (coast metres), from what places.js
+// exposes: pois [{ id, x, z }], crown { x, z, ground, top }, beacon (the
+// lighthouse lamp { x, y, z }). surface(x, z): ground height.
+// Until the prop contract gives every keepsake a `lights[0]`, these are the
+// places' existing anchors.
+export const SOURCE_POI = { fireflies: "milkwood", tideglow: "wreck", lamp: "lighthouse", stars: "beacon", seafolk: "pool", boat: "boat" };
+export function wakingSource(gift, { pois = [], crown = null, beacon = null, surface = () => 0 } = {}) {
+  const poi = pois.find((p) => p.id === SOURCE_POI[gift]);
+  if (gift === "fireflies" && crown) return [crown.x, crown.ground + 1.6, crown.z];
+  if (gift === "lamp" && beacon) return [beacon.x, beacon.y, beacon.z];
+  if (!poi) return null;
+  const ground = surface(poi.x, poi.z);
+  const lift = { fireflies: 1.6, tideglow: 0.6, lamp: 16.4, stars: 2.0, seafolk: -0.15, boat: 0.9 }[gift] ?? 1;
+  return [poi.x, ground + lift, poi.z];
+}
+
+// A new waking record.
+export function createWaking(gift, at, { follow = null, age = 0, frozen = false } = {}) {
+  if (!WAKE_LIGHT[gift] || !at) return null;
+  return { gift, x: at[0], y: at[1], z: at[2], age, follow, frozen };
+}
+
+// Per frame: advance (wall seconds), follow a moving source; null once spent.
+export function stepWaking(waking, realDt) {
+  if (!waking) return null;
+  if (!waking.frozen) waking.age += Math.max(0, Number.isFinite(realDt) ? realDt : 0);
+  if (waking.follow) {
+    const p = waking.follow();
+    if (p && p.every(Number.isFinite)) [waking.x, waking.y, waking.z] = p;
+  }
+  return waking.age > WAKING.end ? null : waking;
+}

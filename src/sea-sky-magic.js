@@ -9,9 +9,11 @@
 //               draw themselves over FIGURE_DRAW_SECONDS from then; a gift
 //               awake at load draws from load), y seconds since the latest
 //               meow (0 = none yet), z seafolk, w boat (levels).
-//   pulse       the latest waking's wave of light: x, z (coast metres), its
-//               ring radius in metres now, w strength (0 = none).
-//   pulseColour rgb its gift's colour (GIFT_COLOURS), w its `reach`.
+//   pulse       a waking's kindled light on the water (waking.js): x, z
+//               the source (coast metres), how far its light has reached
+//               on the water (m; 0 = none), w the front's glints.
+//   pulseColour rgb its tint × the lit water's strength, w the source's
+//               height (m).
 //   lamp        the lighthouse lamp: x, y, z (coast metres) and its beam
 //               bearing in w (radians, see lampAngle). Zero while asleep.
 //   wisp        the guiding light: x, y, z (coast metres), w glow (0 hidden).
@@ -26,7 +28,7 @@
 //     mirrors coast z). The sea's beam uses the same angle from `lamp.w`.
 //   TIDEGLOW: the tideglow colour and how long the glow lingers on wet sand
 //     where the swash and the cat's paws stirred it (see its comment).
-import { GIFT_COLOURS, PULSE } from "./magic.js";
+import { WAKE_LIGHT, wakingSea } from "./waking.js";
 
 export const MAGIC_FIELDS = ["magic", "magic2", "pulse", "pulseColour", "lamp", "wisp", "wispColour", "lantern"];
 
@@ -44,10 +46,6 @@ export const FIGURE_DRAW_SECONDS = 14;
 // at night scaled by its agitation), and the e-folding seconds a stirred
 // patch of wet sand keeps glowing after the swash or a paw leaves it.
 export const TIDEGLOW = { colour: [0.08, 0.62, 1.0], sandSeconds: 2.5 };
-
-// After `reach` the sea lets the ring run on toward the horizon, fading
-// out by this many reaches.
-export const PULSE_SEA_REACH = 1.3;
 
 // The finale is a ceremony: full for its first minute, then it settles to
 // a quiet share of itself (magic.w carries the settled strength).
@@ -73,7 +71,7 @@ export function magicVariant(source, awake) {
 export function magicPasses(uniforms) {
   const on = (field, i) => (uniforms[field]?.[i] ?? 0) !== 0;
   const sky = on("magic", 1) || on("magic", 3);
-  const water = [0, 1, 2, 3].some((i) => on("magic", i)) || on("pulse", 3) || on("wisp", 3) || on("lantern", 3);
+  const water = [0, 1, 2, 3].some((i) => on("magic", i)) || on("pulse", 2) || on("wisp", 3) || on("lantern", 3);
   return { sky, water };
 }
 export function magicActive(uniforms) {
@@ -87,7 +85,7 @@ export function quietMagicUniforms() {
 
 // magic: the shared record (createMagic); lamp: { x, y, z } of the lamp in
 // coast metres, or null; time: the scene clock (state.time = magic.clock).
-export function magicUniforms(magic, { time = magic?.clock ?? 0, lamp = null, lantern = null } = {}) {
+export function magicUniforms(magic, { time = magic?.clock ?? 0, lamp = null, lantern = null, night = 0, reduced = false } = {}) {
   const u = quietMagicUniforms();
   if (!magic) return u;
   const level = (g) => {
@@ -109,18 +107,16 @@ export function magicUniforms(magic, { time = magic?.clock ?? 0, lamp = null, la
   if (call && Number.isFinite(call.at) && clock >= call.at) u.magic2[1] = clock - call.at + 1e-3;
   u.magic2[2] = level("seafolk");
   u.magic2[3] = level("boat");
-  const pulse = magic.pulse;
-  if (pulse && Number.isFinite(pulse.at) && clock >= pulse.at) {
-    const speed = pulse.speed ?? PULSE.speed;
-    const reach = pulse.reach ?? PULSE.reach;
-    const radius = (clock - pulse.at) * speed;
-    // Up to full strength in its first metres; spent at `reach` on land, on
-    // the sea it runs on, fading, toward the horizon.
-    const strength = Math.min(1, radius / 3) * (radius < reach ? 1 : Math.max(0, 1 - (radius - reach) / (reach * (PULSE_SEA_REACH - 1))));
-    if (strength > 0.001) {
-      u.pulse = [pulse.x, pulse.z, radius, strength];
-      const colour = pulse.colour ?? GIFT_COLOURS[pulse.gift] ?? GIFT_COLOURS.finale;
-      u.pulseColour = [colour[0], colour[1], colour[2], reach];
+  // waking: the kindled light on the water, with the sea's own reach and
+  // longer tail (waking.js wakingSea). Zero for a gift whose light does not
+  // reach the sea.
+  const waking = magic.waking;
+  const spec = waking ? WAKE_LIGHT[waking.gift] : null;
+  if (spec?.sea) {
+    const w = wakingSea(waking.age, spec, night, reduced);
+    if (w.inside + w.front > 1e-4) {
+      u.pulse = [waking.x, waking.z, w.radius, w.front];
+      u.pulseColour = [spec.tint[0] * w.inside, spec.tint[1] * w.inside, spec.tint[2] * w.inside, waking.y];
     }
   }
   // land-magic: when the land's lamp state is passed (landscape.lamp: its
@@ -140,15 +136,15 @@ export function magicUniforms(magic, { time = magic?.clock ?? 0, lamp = null, la
   return u;
 }
 
-// `?perf&magic=…&pulse=x,z` etc. are QA only; fixtures build a record with
+// `?perf&magic=…` etc. are QA only; fixtures build a record with
 // this (render-sky.mjs): levels for the given gifts, figures drawn `age`
 // seconds ago.
-export function magicFixture({ gifts = [], clock = 24, age = 60, pulse = null, call = null, wisp = null } = {}) {
+export function magicFixture({ gifts = [], clock = 24, age = 60, waking = null, call = null, wisp = null } = {}) {
   const levels = {};
   const wakeAt = {};
   for (const g of ["fireflies", "tideglow", "lamp", "stars", "seafolk", "boat", "finale"]) {
     levels[g] = gifts.includes(g) ? 1 : 0;
     wakeAt[g] = gifts.includes(g) ? clock - age : Infinity;
   }
-  return { levels, wakeAt, clock, pulse, call, wisp: wisp ?? { position: [0, -100, 0], glow: 0, colour: [1, 1, 1], visible: false } };
+  return { levels, wakeAt, clock, waking, call, wisp: wisp ?? { position: [0, -100, 0], glow: 0, colour: [1, 1, 1], visible: false } };
 }

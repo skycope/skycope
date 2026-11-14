@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { PRINT_MAGIC } from "./cat-ground.js";
+import { WAKE_LIGHT, wakingAt, lampCatch, lampSpin } from "./waking.js";
 
 // The island's gifts as light on the land. magic.js records which gifts are
 // awake; this turns the levels into a handful of uniforms every patched
@@ -14,9 +15,16 @@ import { PRINT_MAGIC } from "./cat-ground.js";
 //   magicLamp        the lighthouse lamp (Three world xyz, strength)
 //   magicBeam        the beams' bearing (cos a, sin a in Three world x, z),
 //                    reach (m), unused
-//   magicPulse       a waking's ring (Three world x, z, radius m, strength)
-//   magicPulseColour its gift's colour
 //   magicSheen       starlight on the land (rgb × strength), w: dew glints
+//
+// and, while a gift is waking (waking.js; all zero otherwise), the kindled
+// light: one point light at the keepsake whose light reaches outward.
+//   wakeSource  the source (Three world xyz), w its soft-core radius (m)
+//   wakeFront   x how far its light has reached (m), y the front's
+//               half-width (m), z the front's glints F, w lingering glints G
+//   wakeColour  its tint × the body light I
+//   wakeTint    its tint
+//   wakeShape   x ripple (light from under water), y light from above
 //
 // No new passes, no lights: a few multiply-adds per fragment, and nothing
 // at all while every gift sleeps (a uniform branch the GPU skips whole).
@@ -28,9 +36,15 @@ uniform vec4 magicGlow[ 4 ];
 uniform vec3 magicGlowColour[ 4 ];
 uniform vec4 magicLamp;
 uniform vec4 magicBeam;
-uniform vec4 magicPulse;
-uniform vec3 magicPulseColour;
 uniform vec4 magicSheen;
+uniform vec4 wakeSource;
+uniform vec4 wakeFront;
+uniform vec3 wakeColour;
+uniform vec3 wakeTint;
+uniform vec4 wakeShape;
+#ifndef WAKE_WRAP
+  #define WAKE_WRAP 0.85
+#endif
 float magicHash( vec3 p ) {
   p = fract( p * 0.1031 );
   p += dot( p, p.zyx + 31.32 );
@@ -44,7 +58,6 @@ if ( magicOn > 0.0 ) {
   vec3 mWorld = cameraPosition + ( vec4( -vViewPosition, 0.0 ) * viewMatrix ).xyz;
   vec3 mN = normalize( ( vec4( normal, 0.0 ) * viewMatrix ).xyz );
   vec3 mLight = vec3( 0.0 );
-  vec3 mEdge = vec3( 0.0 );
   for ( int i = 0; i < 4; i++ ) {
     vec3 d = magicGlow[ i ].xyz - mWorld;
     float r = magicGlow[ i ].w;
@@ -74,14 +87,28 @@ if ( magicOn > 0.0 ) {
     float face = clamp( dot( mN, -toP ) * inversesqrt( dot( toP, toP ) + 1e-4 ) * 0.7 + 0.3, 0.0, 1.0 );
     mLight += vec3( 1.0, 0.72, 0.4 ) * ( magicLamp.w * cone * reach * face );
   }
-  if ( magicPulse.w > 0.0 ) {
-    // A ring of light running out across the land, a glow lingering inside.
-    float dd = length( mWorld.xz - magicPulse.xy ) - magicPulse.z;
-    float ring = exp( -dd * dd * 0.3 ) + 0.18 * exp( min( dd, 0.0 ) * 0.08 ) * step( dd, 0.0 );
-    mLight += magicPulseColour * ( magicPulse.w * ring );
-    // Its leading edge glows of itself, so it reads even under the sun.
-    // (Albedo-free, so kept faint: it whitened pale foliage.)
-    mEdge = magicPulseColour * ( magicPulse.w * exp( -dd * dd * 1.2 ) * 0.1 );
+  // The kindled light (waking.js): a point at the keepsake whose light has
+  // reached wakeFront.x metres. Behind the front the world is lit as by a
+  // lamp (inverse square, by which way it faces, times albedo); nothing
+  // ahead of it is.
+  vec3 mWake = vec3( 0.0 );
+  if ( wakeFront.x > 0.0 ) {
+    vec3 wd = wakeSource.xyz - mWorld;
+    float d2 = dot( wd, wd );
+    float d = sqrt( d2 );
+    if ( d < wakeFront.x + 3.0 * wakeFront.y ) {
+      vec3 wl = wd / max( d, 1e-3 );
+      float a2 = wakeSource.w * wakeSource.w;
+      float fall = a2 / ( d2 + a2 );
+      float reached = 1.0 - smoothstep( wakeFront.x - wakeFront.y, wakeFront.x, d );
+      float ndl = dot( mN, wl );
+      // Solids take it as a lamp's light; thin leaves let it round. The
+      // stars' light falls from above.
+      float lam = clamp( mix( ndl, mN.y, wakeShape.y ) * WAKE_WRAP + ( 1.0 - WAKE_WRAP ), 0.0, 1.0 );
+      // Seafolk: light from under moving water.
+      float ripple = 1.0 + wakeShape.x * sin( dot( mWorld.xz, vec2( 5.1, 3.7 ) ) + magicBeam.w * 2.3 ) * sin( dot( mWorld.xz, vec2( -2.9, 4.6 ) ) - magicBeam.w * 1.7 );
+      mWake = wakeColour * ( fall * lam * reached * ripple );
+    }
   }
   vec3 mSheen = vec3( 0.0 );
   if ( magicSheen.w > 0.0 ) {
@@ -101,8 +128,8 @@ if ( magicOn > 0.0 ) {
       * ( 0.5 + 0.5 * sin( magicHash( cell + 3.1 ) * 40.0 + magicBeam.w * 2.0 + dot( mView, vec3( 30.0 ) ) ) );
     mSheen = magicSheen.rgb * ( skyward * ( 0.25 + rim * 0.9 ) ) + magicSheen.rgb * dew * magicSheen.w * 2.5;
   }
-  reflectedLight.directDiffuse += mLight * diffuseColor.rgb;
-  reflectedLight.directSpecular += mLight * 0.035 + mSheen + mEdge;
+  reflectedLight.directDiffuse += ( mLight + mWake ) * diffuseColor.rgb;
+  reflectedLight.directSpecular += mLight * 0.035 + mSheen;
 }
 `;
 
@@ -114,9 +141,12 @@ export function magicUniforms() {
     magicGlowColour: { value: Array.from({ length: 4 }, () => new THREE.Color(0, 0, 0)) },
     magicLamp: { value: new THREE.Vector4(0, 0, 0, 0) },
     magicBeam: { value: new THREE.Vector4(1, 0, 70, 0) },
-    magicPulse: { value: new THREE.Vector4(0, 0, 0, 0) },
-    magicPulseColour: { value: new THREE.Color(1, 1, 1) },
     magicSheen: { value: new THREE.Vector4(0, 0, 0, 0) },
+    wakeSource: { value: new THREE.Vector4(0, -1000, 0, 1) },
+    wakeFront: { value: new THREE.Vector4(0, 1, 0, 0) },
+    wakeColour: { value: new THREE.Color(0, 0, 0) },
+    wakeTint: { value: new THREE.Color(0, 0, 0) },
+    wakeShape: { value: new THREE.Vector4(0, 0, 0, 0) },
   };
 }
 
@@ -136,9 +166,9 @@ export function lightWithMagic(root, shared) {
       const key = m.customProgramCacheKey;
       m.onBeforeCompile = function (shader, renderer) {
         before.call(this, shader, renderer);
-        for (const name in shared) if (name.startsWith("magic")) shader.uniforms[name] = shared[name];
+        for (const name in shared) if (name.startsWith("magic") || name.startsWith("wake")) shader.uniforms[name] = shared[name];
         shader.fragmentShader = shader.fragmentShader
-          .replace("void main() {", `${MAGIC_LIGHT_DECLARATIONS}\nvoid main() {`)
+          .replace("void main() {", `#define WAKE_WRAP 0.7\n${MAGIC_LIGHT_DECLARATIONS}\nvoid main() {`)
           .replace("#include <aomap_fragment>", `${MAGIC_LIGHT_GLSL}\n#include <aomap_fragment>`);
       };
       m.customProgramCacheKey = function () {
@@ -149,25 +179,6 @@ export function lightWithMagic(root, shared) {
   });
 }
 
-const GIFT_LIST = ["fireflies", "tideglow", "lamp", "stars", "seafolk", "boat"];
-const STEP_COLOURS = {
-  fireflies: [0.75, 1.0, 0.2], tideglow: [0.2, 0.75, 1.0], lamp: [1.0, 0.68, 0.22],
-  stars: [0.66, 0.6, 1.0], seafolk: [0.3, 1.0, 0.7], boat: [1.0, 0.5, 0.38],
-};
-// The colour of the gifts awake, weighted by level (a warm gold-green
-// before any: the island's own hint), saturated against the night tonemap.
-export function mixGiftColour(levels, out, night = 0) {
-  let r = 0, g = 0, b = 0, w = 0;
-  for (const gift of GIFT_LIST) {
-    const k = levels[gift] ?? 0;
-    if (k <= 0) continue;
-    const c = STEP_COLOURS[gift];
-    r += c[0] * k; g += c[1] * k; b += c[2] * k; w += k;
-  }
-  if (w < 1e-3) { r = 0.9; g = 0.95; b = 0.4; w = 1; }
-  out.setRGB(r / w, g / w, b / w);
-  return out;
-}
 
 // The finale's blaze belongs to its ceremony: full for about a minute after
 // it wakes, then settling to a little more than the fireflies alone. A
@@ -183,23 +194,9 @@ export function finaleBlaze(magic) {
 const ASLEEP = { fireflies: 0, tideglow: 0, lamp: 0, stars: 0, seafolk: 0, boat: 0, finale: 0 };
 const LAMP_PERIOD = 12;
 
-// How the lamp catches when it wakes: s seconds after waking, its light
-// (0…1). A wick catches, gutters twice, then the light swells and holds.
-export function lampCatch(s) {
-  if (!(s >= 0)) return s < 0 ? 0 : 1;
-  if (s > 4) return 1;
-  const spark = Math.min(1, s / 0.25) * 0.35;
-  const gutter = s < 1.6 ? 0.55 + 0.45 * Math.abs(Math.sin(s * 9.5)) * (1 - s / 1.6) : 1;
-  const swell = THREE.MathUtils.smoothstep(s, 1.0, 3.6);
-  return Math.min(1, spark * gutter + swell * 0.9 + 0.1 * swell * swell);
-}
-
-// The beams' angular speed s seconds after waking: still while the lamp
-// catches, then the clockwork takes up and the first sweep begins.
-export function lampSpin(s) {
-  if (!(s >= 0)) return s < 0 ? 0 : 1;
-  return THREE.MathUtils.smoothstep(s, 2.2, 7.5);
-}
+// How the lamp catches and its beams take up: the one catch curve every
+// waking uses (waking.js).
+export { lampCatch, lampSpin };
 
 // Which `count` of the island's lamps lie nearest (x, z): indices into
 // `lights`, written into `out` (no allocation).
@@ -231,10 +228,12 @@ export function createLandMagic({ shared, lamps = [], beacon = null, light = fal
     // (cos a, sin a) in world x, z = coast (cos a, −sin a)), and the pair.
     lamp: { lit: 0, angle: 0, strength: 0, x: beacon?.x ?? 0, y: beacon?.y ?? 0, z: beacon?.z ?? 0 },
     lampLights: 0,
+    // This frame's waking curves (waking.js wakingAt), or null.
+    waking: null,
   };
   return {
     state,
-    update({ magic = null, time = 0, dt = 0, night = 0, pose = null, flies = null }) {
+    update({ magic = null, time = 0, dt = 0, night = 0, pose = null, flies = null, reduced = false }) {
       const levels = magic?.levels ?? ASLEEP;
       const clock = magic?.clock ?? time;
       const step = lastClock === null ? 0 : Math.max(0, Math.min(0.25, clock - lastClock));
@@ -245,7 +244,9 @@ export function createLandMagic({ shared, lamps = [], beacon = null, light = fal
 
       // The lamp: dark until its gift wakes; then it catches, and the
       // clockwork takes the beams round once every 12 s.
-      const since = clock - (magic?.wakeAt?.lamp ?? Infinity);
+      // (While the lamp's own waking plays, on its wall clock: the same
+      // catch as its kindled light.)
+      const since = magic?.waking?.gift === "lamp" ? magic.waking.age : clock - (magic?.wakeAt?.lamp ?? Infinity);
       const caught = lampLevel > 0 ? lampCatch(since) * Math.min(1, lampLevel * 1.6) : 0;
       beamAngle = (beamAngle + step * ((Math.PI * 2) / LAMP_PERIOD) * lampSpin(since) * (lampLevel > 0 ? 1 : 0)) % (Math.PI * 2);
       const lamp = state.lamp;
@@ -294,36 +295,27 @@ export function createLandMagic({ shared, lamps = [], beacon = null, light = fal
         on = 1;
       } else colours[3].setRGB(0, 0, 0);
 
-      // A waking's ring (magic.pulse: radius (clock − at) × speed, spent
-      // past reach), in its gift's colour.
-      const pulse = magic?.pulse;
-      if (pulse) {
-        const r = (clock - pulse.at) * (pulse.speed ?? 18);
-        const reach = pulse.reach ?? 150;
-        if (r >= 0 && r < reach) {
-          const fade = (1 - THREE.MathUtils.smoothstep(r, reach * 0.55, reach)) * THREE.MathUtils.smoothstep(r, 0, 4);
-          // solid: by night the land's own light is a few hundredths of the
-          // day's; the ring at day strength washed the milkwood's canopy
-          // lime and the summit's plants white. Scaled to the night.
-          u.magicPulse.value.set(pulse.x, -pulse.z, r, fade * (0.7 - 0.58 * night));
-          // Saturated beyond the gift's own colour: the night tonemap
-          // greys dim light toward blue, and the ring must stay its colour.
-          const c = pulse.colour ?? [1, 1, 1];
-          const luma = c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
-          const k = 1 + 1.2 * night;
-          u.magicPulseColour.value.setRGB(...c.map((v) => Math.max(0.02, luma + (v - luma) * k)));
-          on = 1;
-        } else u.magicPulse.value.w = 0;
-      } else u.magicPulse.value.w = 0;
+      // The kindled light of a waking (magic.waking, waking.js).
+      const waking = magic?.waking;
+      const spec = waking ? WAKE_LIGHT[waking.gift] : null;
+      const w = spec ? wakingAt(waking.age, spec, night, reduced) : null;
+      state.waking = w;
+      if (w && w.radius > 0 && w.inside + w.front + w.glint > 1e-4) {
+        u.wakeSource.value.set(waking.x, waking.y, -waking.z, spec.core);
+        u.wakeFront.value.set(w.radius, w.width, w.front, w.glint);
+        u.wakeColour.value.setRGB(spec.tint[0] * w.inside, spec.tint[1] * w.inside, spec.tint[2] * w.inside);
+        u.wakeTint.value.setRGB(spec.tint[0], spec.tint[1], spec.tint[2]);
+        u.wakeShape.value.set(spec.ripple ?? 0, spec.up ?? 0, 0, 0);
+        on = 1;
+      } else {
+        u.wakeFront.value.set(0, 1, 0, 0);
+        u.wakeColour.value.setRGB(0, 0, 0);
+      }
 
-      // The cat's steps: a hint of glow from the start, more with every
-      // gift awake, and brightest at the finale (cat-ground.js prints).
-      let awake = 0;
-      for (const g of GIFT_LIST) awake += levels[g] ?? 0;
-      PRINT_MAGIC.level.value = (0.05 * night + 0.4 * (awake / GIFT_LIST.length)) * (1 + finale * 0.3);
+      // The cat's steps answer the tideglow alone: blue, on wet sand.
+      PRINT_MAGIC.level.value = 0.4 * (levels.tideglow ?? 0) * (1 + finale * 0.3);
       PRINT_MAGIC.night.value = night;
-      // The step glow takes on the colours of the gifts awake.
-      mixGiftColour(levels, PRINT_MAGIC.colour.value, night);
+      PRINT_MAGIC.colour.value.setRGB(...WAKE_LIGHT.tideglow.tint);
 
       // Starlight (the beacon's gift): a cool sheen on the night land.
       const stars = (levels.stars ?? 0) * THREE.MathUtils.smoothstep(night, 0.3, 0.9);

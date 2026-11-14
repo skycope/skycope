@@ -236,6 +236,8 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     pois: places.pois,
     places: perf ? places : null, // places: `?perf` QA
     landMagic: perf ? landMagic : null, // land-magic: `?perf` QA
+    // waking: the places a gift's light is kindled from (waking.js wakingSource).
+    wakingPlaces: { crown: places.crown, beacon: places.beacon },
     nightLand: perf ? NIGHT_LAND : null, // land-look: `?perf` tuning
     shadows: perf ? shadows : null, // shadow: `?perf` QA of the sliced refresh
     // land-magic: the lighthouse lamp this frame (coast metres; `angle` is
@@ -291,7 +293,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       // land-magic: the fireflies fly, then every gift's light is set.
       const levels = magic?.levels;
       const flies = fireflies.update({ dt, time, pose, night, level: levels?.fireflies ?? 0, finale: finaleBlaze(magic), call: magic?.call ?? null, eye: camera.position, pixelScale: flyPixels });
-      const gifts = landMagic.update({ magic, time, dt, night, pose, flies }); // land-magic:
+      const gifts = landMagic.update({ magic, time, dt, night, pose, flies, reduced: reducedMotion }); // land-magic: (waking: reduced motion)
       starLevel = levels?.stars ?? 0; // land-look: the stars gift lifts the night
       // The cat's coat and the animals take the same light (their
       // materials are built lazily: wrapped at load and once more later).

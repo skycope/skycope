@@ -1,12 +1,15 @@
 import * as THREE from "three";
 import { GIFTS, GIFT_COLOURS } from "./magic.js";
+import { WAKE_LIGHT, wakingAt } from "./waking.js";
+
+const smoothstep = THREE.MathUtils.smoothstep;
 
 // The wisp, drawn: a small warm lantern-light. A soft core whose light falls
 // off as real glow does (a long 1/(1+r²) tail; after dark, four faint glints
 // turning slowly); a short ribbon of light tapering behind it, touched after
 // dark with the gifts it has woken; embers that slip off it and drift up as
-// they fade; at each waking a sphere of light blooming out from the keepsake
-// in the gift's colour. Never large on screen: its quads are clamped in
+// they fade; at each waking the kindled point it re-lights in the keepsake
+// (waking.js), in the gift's colour. Never large on screen: its quads are clamped in
 // pixels and it fades out close to the lens. Its light on the ground after
 // dark is the land's own shading (land-magic.js glow 2), which lights the
 // real sand, rock and grass.
@@ -20,8 +23,7 @@ import { GIFTS, GIFT_COLOURS } from "./magic.js";
 const TRAIL = 14;
 const EMBERS = 6;
 // Slots: what each vertex belongs to (the ribbon's are RIBBON + index).
-const SLOT = { halo: 0, core: 1, burst: 2, ember: 3, ribbon: 100 };
-const BURST_SECONDS = 2.2;
+const SLOT = { halo: 0, core: 1, kindle: 2, ember: 3, ribbon: 100 };
 
 export function createWisp(group, { light = false } = {}) {
   const corners = [];
@@ -33,7 +35,7 @@ export function createWisp(group, { light = false } = {}) {
     }
   };
   // Drawn back to front-ish (all additive, so order barely matters).
-  quad(SLOT.burst);
+  quad(SLOT.kindle);
   quad(SLOT.halo);
   // The ribbon: a strip through the trail's points, two vertices per point.
   for (let i = 0; i < TRAIL - 1; i++)
@@ -56,8 +58,8 @@ export function createWisp(group, { light = false } = {}) {
     trail: { value: trail },
     palette: { value: palette },
     paletteCount: { value: 0 },
-    burst: { value: new THREE.Vector4(0, -100, 0, 99) },
-    burstColour: { value: new THREE.Color(1, 1, 1) },
+    kindle: { value: new THREE.Vector4(0, -100, 0, 0) },
+    kindleColour: { value: new THREE.Color(1, 1, 1) },
     time: { value: 0 },
     night: { value: 0 },
     viewHeight: { value: 800 },
@@ -84,7 +86,7 @@ export function createWisp(group, { light = false } = {}) {
       attribute float slot;
       uniform vec4 core;
       uniform vec4 trail[TRAIL];
-      uniform vec4 burst;
+      uniform vec4 kindle;
       uniform float time;
       uniform float night;
       uniform float viewHeight;
@@ -142,16 +144,15 @@ export function createWisp(group, { light = false } = {}) {
           maxPx = 28.0;
           vBright = core.w;
           lift = 0.8;
-        } else if ( slot < ${SLOT.burst + 0.5} ) {
-          // A waking's bloom: a sphere of light swelling out and fading.
+        } else if ( slot < ${SLOT.kindle + 0.5} ) {
+          // waking: the kindled point, a few centimetres of light in the
+          // keepsake's recess (its quad is four times that, for the halo).
           vKind = 3.0;
-          centre = burst.xyz;
-          float age = burst.w / ${BURST_SECONDS.toFixed(2)};
-          size = 0.6 + 5.5 * ( 1.0 - pow( 1.0 - clamp( age, 0.0, 1.0 ), 3.0 ) );
-          minPx = 0.0;
-          vBright = age < 1.0 ? pow( 1.0 - age, 1.5 ) : 0.0;
-          vAlong = age;
-          lift = 0.0;
+          centre = kindle.xyz;
+          size = ( 0.06 + 0.08 * kindle.w ) * 4.0;
+          minPx = 12.0;
+          vBright = kindle.w;
+          lift = 0.8;
         } else {
           // Embers: slip off the trail and drift up, turning, as they fade.
           vKind = 5.0;
@@ -170,7 +171,7 @@ export function createWisp(group, { light = false } = {}) {
         vec4 mv = modelViewMatrix * vec4( centre, 1.0 );
         float px = pxPerMetre( -mv.z );
         float world = clamp( size * px, minPx, maxPx ) / px;
-        if ( vKind != 3.0 ) vBright *= lens( -mv.z );
+        vBright *= lens( -mv.z );
         // Lift halo and core toward the eye so the ground does not cut them.
         mv.z += world * lift;
         mv.xy += corner * world;
@@ -181,7 +182,7 @@ export function createWisp(group, { light = false } = {}) {
       uniform vec3 colour;
       uniform vec3 palette[6];
       uniform float paletteCount;
-      uniform vec3 burstColour;
+      uniform vec3 kindleColour;
       uniform float time;
       uniform float night;
       varying vec2 vUv;
@@ -208,9 +209,6 @@ export function createWisp(group, { light = false } = {}) {
       // own (the last gift it woke).
       vec3 lampTint() {
         return mix( vec3( 1.0, 0.8, 0.46 ), colour, 0.35 * night );
-      }
-      vec3 prism( float h ) {
-        return 0.55 + 0.45 * cos( 6.2831853 * ( h + vec3( 0.0, 0.33, 0.67 ) ) );
       }
       vec3 gifts( float t ) {
         if ( paletteCount < 0.5 ) return colour;
@@ -247,24 +245,19 @@ export function createWisp(group, { light = false } = {}) {
           vec3 tint = mix( lampTint(), gifts( vAlong * 0.9 - time * 0.12 ), 0.4 * night * smoothstep( 0.0, 0.25, vAlong ) );
           c = tint * across * fade * vBright * mix( 0.3, 1.0, night );
         } else if ( vKind < 3.5 ) {
-          // The waking's bloom: a bright rim with colour at its edge, filled
-          // softly, swelling out and fading.
+          // waking: the kindled point, a white-hot centre in its own colour
+          // and a small halo of lit air.
           if ( r2 > 1.0 ) discard;
-          float r = sqrt( r2 );
-          float rim = exp( -pow( ( r - 0.84 ) / 0.11, 2.0 ) );
-          float fill = exp( -r2 * 2.2 ) * 0.3;
-          // Its rim carries every gift woken so far, round its circle.
-          vec3 edge = mix( mix( burstColour, gifts( atan( vUv.y, vUv.x ) * 0.159 + vAlong * 0.25 ), 0.55 ), prism( r * 2.0 - vAlong ), 0.18 );
-          // By day a faint ring of light, by night a brighter one.
-          c = ( edge * rim * 0.8 + burstColour * fill * mix( 0.35, 1.0, night ) ) * vBright * mix( 0.45, 1.0, night );
+          float hot = exp( -r2 * 40.0 );
+          float halo = ( 1.0 / ( 1.0 + r2 * 22.0 ) - 1.0 / 23.0 ) * ( 1.0 - r2 );
+          c = ( mix( kindleColour, vec3( 1.0 ), 0.6 ) * hot * 3.0 + kindleColour * halo * mix( 0.25, 0.6, night ) ) * vBright;
         } else {
           // Embers: tiny soft points.
           if ( r2 > 1.0 ) discard;
           c = mix( mix( lampTint(), gifts( vAlong ), 0.4 * night ), vec3( 1.0 ), 0.45 ) * exp( -r2 * 5.0 ) * vBright * 1.4;
         }
         #ifdef VEILED
-          // Seen through leaves: a fifth of the light, none of the bloom.
-          if ( vKind > 2.5 && vKind < 3.5 ) discard;
+          // Seen through leaves: a fifth of the light.
           c *= 0.2;
         #endif
         // The night scene is dim (its light is a few hundredths of the day's):
@@ -335,11 +328,18 @@ export function createWisp(group, { light = false } = {}) {
     // Per frame, before the scene renders.
     update(time, night, viewHeight) {
       const w = state;
-      const pulse = magic?.pulse;
-      const burstAge = pulse ? magic.clock - pulse.at : Infinity;
-      const bursting = burstAge >= 0 && burstAge < BURST_SECONDS;
-      mesh.visible = (Boolean(w?.visible) && w.glow > 0.004) || bursting;
-      through.visible = mesh.visible && w.visible;
+      // waking: the kindled point at the keepsake (waking.js), for its
+      // first eight seconds; then the gift's own steady light has it.
+      const waking = magic?.waking;
+      const spec = waking ? WAKE_LIGHT[waking.gift] : null;
+      let kindled = 0;
+      if (spec && waking.age < 8) {
+        const peak = spec.day + (spec.night - spec.day) * night;
+        kindled = peak > 0 ? (wakingAt(waking.age, spec, night).inside / peak) * (1 - smoothstep(waking.age, 6, 8)) : 0;
+      }
+      const kindling = kindled > 0.004;
+      mesh.visible = (Boolean(w?.visible) && w.glow > 0.004) || kindling;
+      through.visible = mesh.visible && (w.visible || kindling);
       if (!mesh.visible) return;
       const [x, y, z] = w.position;
       uniforms.core.value.set(x, y, z, w.visible ? w.glow : 0);
@@ -347,11 +347,10 @@ export function createWisp(group, { light = false } = {}) {
       uniforms.time.value = time;
       uniforms.night.value = night;
       uniforms.viewHeight.value = viewHeight;
-      if (bursting) {
-        uniforms.burst.value.set(pulse.x, pulse.y, pulse.z, burstAge);
-        const c = pulse.colour ?? GIFT_COLOURS[pulse.gift] ?? [1, 1, 1];
-        uniforms.burstColour.value.setRGB(c[0], c[1], c[2]);
-      } else uniforms.burst.value.w = 99;
+      if (kindling) {
+        uniforms.kindle.value.set(waking.x, waking.y, waking.z, kindled);
+        uniforms.kindleColour.value.setRGB(spec.tint[0], spec.tint[1], spec.tint[2]);
+      } else uniforms.kindle.value.w = 0;
       // The woken gifts' colours, for the ribbon and embers.
       if (magic) {
         let key = "";

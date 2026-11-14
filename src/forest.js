@@ -380,8 +380,9 @@ uniform vec4 catTrail[ 3 ];
 // the lens; w 0 off) and the eye it is seen from.
 uniform vec4 sightLine;
 uniform vec3 sightEye;
-// land-magic: a waking's ring (Three world x, z, radius, strength).
-uniform vec4 magicPulse;
+// waking: the kindled light's source (Three world) and front (land-magic.js).
+uniform vec4 wakeSource;
+uniform vec4 wakeFront;
 varying float vGlint;
 // Height of the plant's base (per instance): wind bends from there, so a trunk
 // or stem is rooted wherever it stands. Zero for non-instanced meshes.
@@ -411,16 +412,16 @@ vec3 windOffset(vec3 p) {
     offset.xz += push;
     offset.y -= dot( push, push ) / max( h, 0.05 ) * 0.5;
   #endif
-  // land-magic: as a waking's ring of light passes, everything that grows
-  // bows away from the keepsake and rises again behind it.
-  if ( magicPulse.w > 0.0 ) {
-    vec2 pd = p.xz - vec2( magicPulse.x, -magicPulse.y );
+  // waking: a breath of air runs out with the kindled light's front (a few
+  // centimetres, inside its reach only). Land-group positions are coast
+  // space, so the source's mirrored z is turned back.
+  if ( wakeFront.z > 0.0 ) {
+    vec2 pd = p.xz - vec2( wakeSource.x, -wakeSource.z );
     float pl = length( pd ) + 1e-3;
-    float dd = pl - magicPulse.z;
-    float wave = exp( -dd * dd * 0.08 ) * min( magicPulse.w, 1.0 );
-    float bow = wave * h / ( 0.5 + h ) * ( 0.12 + 0.05 * min( h, 4.0 ) );
+    float fb = ( pl - wakeFront.x ) / ( wakeFront.y * 2.5 );
+    float bow = exp( -fb * fb ) * min( wakeFront.z * 2.0, 1.0 ) * h / ( 0.5 + h ) * 0.045;
     offset.xz += pd / pl * bow;
-    offset.y -= bow * 0.35;
+    offset.y -= bow * 0.25;
   }
   return offset;
 }
@@ -1537,7 +1538,8 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
   material.userData.magicLit = true; // land-magic: already carries the light
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, shared);
-    const defines = (pliant ? "#define PLIANT\n" : "") + (rooted ? `#define ROOTED ${rooted.toFixed(3)}\n` : "") + `#define SHEEN ${sheen.toFixed(2)}\n`;
+    const defines = (pliant ? "#define PLIANT\n" : "") + (rooted ? `#define ROOTED ${rooted.toFixed(3)}\n` : "") + `#define SHEEN ${sheen.toFixed(2)}\n` +
+      `#define WAKE_WRAP ${foliage ? "0.6" : "0.85"}\n`; // waking: thin leaves let the kindled light round
     shader.vertexShader = defines + OCCLUSION_VERTEX_GLSL + WIND_GLSL +
       shader.vertexShader.replace(
         "#include <begin_vertex>",
