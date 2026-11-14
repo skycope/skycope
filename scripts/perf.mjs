@@ -124,7 +124,7 @@ async function openTab(browser, { log = true } = {}) {
   // Counts every WebGL and WebGPU object created and destroyed (leak hunting).
   await send("Page.addScriptToEvaluateOnNewDocument", { source: `(${installCounters})()` });
   const evaluate = async (expression) => {
-    const r = await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });
+    const r = await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true, replMode: true });
     if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description ?? r.result.exceptionDetails.text);
     return r.result?.result?.value;
   };
@@ -180,9 +180,10 @@ function pageHelper({ island }) {
   let queue = [], paused = false, clock = 0;
   const realRaf = window.requestAnimationFrame;
   const stamps = [];
-  let recording = false;
+  let recording = false, rendered = 0;
   const render = s.renderFrame;
   s.renderFrame = (f) => {
+    rendered++;
     if (recording) stamps.push(performance.now());
     return render(f);
   };
@@ -241,11 +242,16 @@ function pageHelper({ island }) {
       cam.yaw = v.yaw; cam.elevation = v.el; cam.distance = v.dist; cam.targetY = c.y;
       return name;
     },
-    pause() {
-      if (paused) return;
-      paused = true;
-      clock = performance.now();
-      window.requestAnimationFrame = (cb) => { queue.push(cb); return 0; };
+    // Holds the app's rAF loop: resolves once its next callback is captured
+    // (the one already scheduled has to fire first), so steps really render.
+    async pause() {
+      if (!paused) {
+        paused = true;
+        window.requestAnimationFrame = (cb) => { queue.push(cb); return 0; };
+      }
+      for (let i = 0; i < 200 && !queue.length; i++) await new Promise((r) => setTimeout(r, 5));
+      clock = Math.max(clock, performance.now(), s.lastFrame ?? 0);
+      if (!queue.length) throw new Error("pause: the render loop was not captured");
     },
     resume() {
       if (!paused) return;
@@ -255,13 +261,16 @@ function pageHelper({ island }) {
       for (const cb of q) realRaf(cb);
     },
     // n frames, each a rendered one (timestamps clear the pacing gate).
+    // n frames; returns how many rendered (each should).
     step(n = 1) {
+      const before = rendered;
       for (let i = 0; i < n; i++) {
         s.lastInput = performance.now();
         clock += 1000 / 30 + 1;
         const q = queue; queue = [];
         for (const cb of q) cb(clock);
       }
+      return rendered - before;
     },
     async sync() {
       gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
@@ -271,8 +280,9 @@ function pageHelper({ island }) {
     async bench(k) {
       await helper.sync();
       const t0 = performance.now();
-      helper.step(k);
+      const n = helper.step(k);
       await helper.sync();
+      if (n !== k) throw new Error(`bench: ${n} of ${k} frames rendered`);
       return (performance.now() - t0) / k;
     },
     // Steady-state counts: a frame with no shadow refresh in it.
@@ -374,13 +384,13 @@ async function measureView(tab, view, minutes) {
   await e("__perf.record(true)");
   await sleep(QUICK ? 1500 : 3000);
   const intervals = await e("__perf.record(false)");
-  await e(`__perf.pause(); __perf.place(${JSON.stringify(view)}, ${minutes}); __perf.step(12)`);
+  await e(`await __perf.pause(); __perf.place(${JSON.stringify(view)}, ${minutes}); __perf.step(12)`);
   const counts = await e("__perf.counts()");
   const refresh = await e("__perf.refreshCounts()");
   const ms = [];
   for (let r = 0; r < ROUNDS; r++) {
     await e(`__perf.place(${JSON.stringify(view)}, ${minutes})`);
-    ms.push(await e(`__perf.bench(${K})`));
+    ms.push(await e(`await __perf.bench(${K})`));
   }
   const alloc = await allocation(tab);
   const quality = await e("__perf.quality()");
@@ -510,7 +520,7 @@ async function ab() {
           await tab.activate();
           await tab.evaluate(`__perf.resume(); skycope.budget.pin(0); __perf.place(${JSON.stringify(view)}, ${minutes})`);
           await sleep(1200);
-          await tab.evaluate(`__perf.pause(); __perf.place(${JSON.stringify(view)}, ${minutes}); __perf.step(12)`);
+          await tab.evaluate(`await __perf.pause(); __perf.place(${JSON.stringify(view)}, ${minutes}); __perf.step(12)`);
           counts[name] = await tab.evaluate("__perf.counts()");
           counts[name].alloc = await allocation(tab);
         }
@@ -520,7 +530,7 @@ async function ab() {
           for (const [tab, list] of r % 2 ? [[B, head], [A, base]] : [[A, base], [B, head]]) {
             await tab.activate();
             await tab.evaluate(`__perf.place(${JSON.stringify(view)}, ${minutes})`);
-            const ms = await tab.evaluate(`__perf.bench(${K})`);
+            const ms = await tab.evaluate(`await __perf.bench(${K})`);
             list.push(ms);
             pair.push(ms);
           }
@@ -569,16 +579,16 @@ async function toggle() {
         const e = tab.evaluate;
         await e(`__perf.resume(); skycope.budget.pin(0); __perf.place(${JSON.stringify(view)}, ${minutes})`);
         await sleep(1200);
-        await e(`__perf.pause(); __perf.place(${JSON.stringify(view)}, ${minutes}); __perf.step(12)`);
+        await e(`await __perf.pause(); __perf.place(${JSON.stringify(view)}, ${minutes}); __perf.step(12)`);
         const ratios = [], onMs = [], offMs = [];
         const counts = {};
         for (const [name, js] of [["on", on], ["off", off]]) { await e(js); await e("__perf.step(4)"); counts[name] = await e("__perf.counts()"); }
         for (let r = 0; r < ROUNDS; r++) {
           await e(`__perf.place(${JSON.stringify(view)}, ${minutes})`);
           await e(on); await e("__perf.step(2)");
-          const a = await e(`__perf.bench(${K})`);
+          const a = await e(`await __perf.bench(${K})`);
           await e(off); await e("__perf.step(2)");
-          const b = await e(`__perf.bench(${K})`);
+          const b = await e(`await __perf.bench(${K})`);
           onMs.push(a); offMs.push(b); ratios.push(b / a);
         }
         await e(on);
