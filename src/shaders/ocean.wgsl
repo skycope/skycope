@@ -522,7 +522,7 @@ const LAND_COARSE: f32 = 32.0;
 // Nothing on the island stands higher than this (hilltop crowns reach ~22 m).
 const LAND_TOP: f32 = 23.0;
 // Unit-luminance chromaticities of sand and leaves; keep equal to land-field.js.
-const SAND_TINT: vec3f = vec3f(1.24, 0.97, 0.6);
+const SAND_TINT: vec3f = vec3f(1.125, 0.992, 0.714);
 const LEAF_TINT: vec3f = vec3f(0.56, 1.21, 0.31);
 
 fn land_sample(q: vec2f, land: texture_2d<f32>, filtering: sampler) -> vec4f {
