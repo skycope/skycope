@@ -83,7 +83,6 @@ export function createContactShadow(parent, uniforms) {
   const local = {
     catBody: { value: new THREE.Vector4() },
     catPaws: { value: Array.from({ length: 4 }, () => new THREE.Vector4()) },
-    sunShare: { value: 0.6 },
     shadowSpan: { value: 0.9 },
     catScale: { value: 1 },
   };
@@ -97,7 +96,6 @@ export function createContactShadow(parent, uniforms) {
       uniform float catShadowOn;
       uniform vec4 catBody;
       uniform vec4 catPaws[ 4 ];
-      uniform float sunShare;
       uniform float shadowSpan;
       uniform float catScale;
       varying vec4 vCatShadow;
@@ -125,7 +123,7 @@ export function createContactShadow(parent, uniforms) {
             // The sun is half a degree across; haze softens it further.
             // Depth spans the shadow camera's 10 m (cat.js).
             float gap = ( c.z - blocker ) * 10.0;
-            float radius = clamp( gap * 0.018 / shadowSpan, 0.0015, 0.03 );
+            float radius = clamp( gap * 0.018 / shadowSpan, 0.004, 0.03 );
             for ( int i = 0; i < 12; i++ )
               shadow += step( texture2D( catShadowMap, c.xy + POISSON[ i ] * radius ).r, c.z - 0.0008 );
             shadow /= 12.0;
@@ -138,21 +136,32 @@ export function createContactShadow(parent, uniforms) {
           shadow *= smoothstep( 0.0, 0.08, min( m.x, m.y ) ) * smoothstep( 0.0, 0.12, min( e.x, e.y ) );
         }
       }
-      // Contact occlusion: the body's shadow from the sky, and each paw's.
+      // Contact occlusion: the body's shadow from the sky, and each paw's:
+      // a dark core where the pads press the ground and a soft skirt round
+      // it, gone as the paw lifts.
       vec2 rel = vCoast.xz - catBody.xy;
       float cs = cos( catBody.z ), sn = sin( catBody.z );
       vec2 along = vec2( rel.x * sn + rel.y * cs, rel.x * cs - rel.y * sn );
-      vec2 bodyR = along / ( vec2( 0.2, 0.075 ) * catScale );
+      vec2 bodyR = along / ( vec2( 0.2, 0.07 ) * catScale );
       float body = exp( -dot( bodyR, bodyR ) ) * catBody.w;
       float paws = 0.0;
+      float s2 = catScale * catScale;
       for ( int i = 0; i < 4; i++ ) {
-        float d = length( vCoast.xz - catPaws[ i ].xy );
-        paws += exp( -d * d / ( 0.00025 * catScale * catScale ) ) * ( 1.0 - smoothstep( 0.0, 0.04 * catScale, catPaws[ i ].z ) );
+        float d2 = dot( vCoast.xz - catPaws[ i ].xy, vCoast.xz - catPaws[ i ].xy );
+        float touch = 1.0 - smoothstep( 0.0, 0.035 * catScale, catPaws[ i ].z );
+        paws += ( exp( -d2 / ( 0.00012 * s2 ) ) * 0.65 + exp( -d2 / ( 0.0006 * s2 ) ) * 0.35 ) * touch;
       }
-      float ao = clamp( body * 0.45 + paws * 0.5, 0.0, 0.8 );
-      float direct = sunShare * sunVis;
+      float ao = clamp( body * 0.45 + paws * 0.6, 0.0, 0.8 );
+      // The share of the light here that comes straight from the sun (the
+      // same sun and sky the land is lit by, as for the prints): what the
+      // body takes away, as a tree's shadow takes it from the sand beside
+      // it. What is left is skylight.
+      float flatLit = max( dot( normal, sunDir ), 0.0 );
+      float sunPart = sunLum * flatLit * sunVis;
+      float direct = catShadowOn * sunPart / max( 1e-4, sunPart + skyLum );
       float lit = 1.0 - shadow * direct;
-      lit *= 1.0 - ao * ( 1.0 - direct * 0.6 );
+      // Contact occlusion is skylight blocked: strongest in the shade.
+      lit *= 1.0 - ao * ( 1.0 - direct * 0.5 );
       // What's left in the shadow is skylight: a little bluer.
       vec3 tint = mix( vec3( 1.0 ), vec3( 0.94, 0.97, 1.06 ), shadow * direct );
       gl_FragColor = vec4( tint * lit, 1.0 );`,

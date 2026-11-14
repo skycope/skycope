@@ -11,6 +11,9 @@ import { CAT_SCALE as S } from "../src/cat-rig.js";
 function pose(extra = {}) {
   return { x: 0, z: 0, y: 0, heading: 0, speed: 0, turn: 0, gaitAmp: 0, running: false, vy: 0, air: 0, airPitch: 0, sit: 0, sleepy: 0, idle: 0, look: 0, lookUp: 0, tilt: 0, swish: 0, meowing: 0, waterY: -Infinity, water: 0, wade: 0, swim: 0, waterSlope: [0, 0], flow: [0, 0], rising: 0, soak: -1, shake: 0, ...extra };
 }
+// No triangle low on the legs may stretch past this (model metres) in any
+// gait: longer means skin webbing between paws that touched in the bind pose.
+const STRETCH = 0.025;
 const LIGHT = { night: 0, direct: 1, sunX: 0.3, sunZ: 0.4, sun: new THREE.Vector3(0.3, 0.85, 0.4).normalize() };
 
 // One cat for the whole file (meshing it takes a second); each check
@@ -46,7 +49,18 @@ function sample(p) {
     const at = cat.root.getObjectByName(`${name}Paw`).getWorldPosition(v);
     return [(at.x - p.x) / S, (at.z - p.z) / S];
   });
-  return { paws, points };
+  // The longest triangle edge low on the legs (below 6 cm): skin stretched
+  // into a web between paws that touched in the bind pose. (The inner
+  // thighs share skin under the belly by design; that stretch is hidden.)
+  const index = g.index.array;
+  let stretch = 0;
+  for (let t = 0; t < index.length; t += 3)
+    for (let e = 0; e < 3; e++) {
+      const a = points[index[t + e]], b = points[index[t + ((e + 1) % 3)]];
+      if (a.y > 0.06 || b.y > 0.06) continue;
+      stretch = Math.max(stretch, Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z));
+    }
+  return { paws, points, stretch };
 }
 const span = (list, k) => {
   let lo = Infinity, hi = -Infinity;
@@ -83,7 +97,7 @@ test("the standing cat has a shorthair's proportions", () => {
   const haunch = widest(-0.2, -0.06);
   const shoulders = widest(0.09, 0.12);
   within(ribs, [0.1, 0.125], "ribcage width");
-  assert.ok(waist < ribs * 0.88, `a waist (${(waist * 100).toFixed(1)} cm) behind the ribs (${(ribs * 100).toFixed(1)} cm)`);
+  assert.ok(waist < ribs * 0.8, `a waist (${(waist * 100).toFixed(1)} cm) behind the ribs (${(ribs * 100).toFixed(1)} cm)`);
   assert.ok(shoulders < ribs, "shoulders narrower than the ribcage");
   assert.ok(haunch <= ribs + 0.003, `haunches (${(haunch * 100).toFixed(1)} cm) no wider than the chest`);
   // Slender legs and a tail that tapers.
@@ -112,6 +126,7 @@ test("the cat's paws reach the ground in every pose", () => {
   for (const speed of [0.55, 1.5, 3.2])
     for (const frame of posed(150, (i, p) => { p.speed = speed; p.gaitAmp = 1; p.running = speed > 2; p.z += speed / 60; }, [119, 126, 132, 140, 149])) {
       const s = soles(frame);
+      assert.ok(frame.stretch < STRETCH, `${speed} m/s: no skin web (longest edge ${(frame.stretch * 100).toFixed(1)} cm)`);
       for (const y of s) assert.ok(y > -0.006, `${speed} m/s: no paw through the ground (${(y * 100).toFixed(1)} cm)`);
       assert.ok(Math.min(...s) < 0.004, `${speed} m/s: some paw on the ground`);
     }
