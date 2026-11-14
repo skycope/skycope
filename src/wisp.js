@@ -1,13 +1,13 @@
 import * as THREE from "three";
 import { GIFTS, GIFT_COLOURS } from "./magic.js";
 
-// The wisp, drawn. A soft luminous core whose light falls off as real glow
-// does (a long 1/(1+r²) tail, the colours parting very slightly at its rim as
-// light through a dewdrop, four faint glints turning slowly); a silky
-// ribbon of light tapering behind it, its colour running through the gifts
-// it has woken; embers that slip off it and drift up as they fade; at each
-// waking a sphere of light blooming out from the keepsake in the gift's
-// colour. Its light on the ground after dark is the land's own shading
+// The wisp, drawn: a small warm lantern-light. A soft core whose light falls
+// off as real glow does (a long 1/(1+r²) tail; after dark, four faint glints
+// turning slowly); a short ribbon of light tapering behind it, warm by day
+// and after dark running through the gifts it has woken; embers that slip
+// off it and drift up as they fade; at each waking a sphere of light
+// blooming out from the keepsake in the gift's colour. Never large on
+// screen: its quads are clamped in pixels and it fades out close to the lens. Its light on the ground after dark is the land's own shading
 // (land-magic.js glow 2), which lights the real sand, rock and grass.
 //
 // Where it is and how bright comes from the shared record (magic.wisp, kept
@@ -16,12 +16,10 @@ import { GIFTS, GIFT_COLOURS } from "./magic.js";
 // per-frame allocation or buffer upload). It lives in the z-mirrored `land`
 // group, so positions are coast metres.
 
-const TRAIL = 40;
+const TRAIL = 14;
 const EMBERS = 6;
-const POOL = 7;
-const POOL_RADIUS = 2.6;
 // Slots: what each vertex belongs to (the ribbon's are RIBBON + index).
-const SLOT = { halo: 0, core: 1, burst: 2, ember: 3, pool: 40, ribbon: 100 };
+const SLOT = { halo: 0, core: 1, burst: 2, ember: 3, ribbon: 100 };
 const BURST_SECONDS = 2.2;
 
 export function createWisp(group, { light = false } = {}) {
@@ -44,17 +42,12 @@ export function createWisp(group, { light = false } = {}) {
     }
   for (let i = 0; i < EMBERS; i++) quad(SLOT.ember + i);
   quad(SLOT.core);
-  // solid: no draped pool sheet. A 7×7 grid hung on walker.surface sampled
-  // 0.87 m apart, it rose from the sand to a boulder's top as a lit tent
-  // through the rock: the yellow-green "spotlight cone" on the home beach
-  // at night. land-magic.js glow 2 lights the surfaces themselves.
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(slots.length * 3), 3));
   geometry.setAttribute("corner", new THREE.Float32BufferAttribute(corners, 2));
   geometry.setAttribute("slot", new THREE.Float32BufferAttribute(slots, 1));
 
   const trail = new Float32Array(TRAIL * 4);
-  const heights = new Float32Array(POOL * POOL);
   const palette = new Float32Array(6 * 3);
   const uniforms = {
     core: { value: new THREE.Vector4(0, -100, 0, 0) },
@@ -62,8 +55,6 @@ export function createWisp(group, { light = false } = {}) {
     trail: { value: trail },
     palette: { value: palette },
     paletteCount: { value: 0 },
-    pool: { value: heights },
-    poolOrigin: { value: new THREE.Vector2() },
     burst: { value: new THREE.Vector4(0, -100, 0, 99) },
     burstColour: { value: new THREE.Color(1, 1, 1) },
     time: { value: 0 },
@@ -88,13 +79,10 @@ export function createWisp(group, { light = false } = {}) {
     toneMapped: false,
     vertexShader: /* glsl */ `
       #define TRAIL ${TRAIL}
-      #define POOL ${POOL}
       attribute vec2 corner;
       attribute float slot;
       uniform vec4 core;
       uniform vec4 trail[TRAIL];
-      uniform float pool[POOL * POOL];
-      uniform vec2 poolOrigin;
       uniform vec4 burst;
       uniform float time;
       uniform float night;
@@ -105,6 +93,10 @@ export function createWisp(group, { light = false } = {}) {
       varying float vAlong;
       float pxPerMetre( float depth ) {
         return projectionMatrix[1][1] * 0.5 * viewHeight / max( depth, 0.05 );
+      }
+      // Close to the lens it fades to nothing rather than fill the frame.
+      float lens( float depth ) {
+        return smoothstep( 1.5, 2.5, depth );
       }
       void main() {
         vUv = corner;
@@ -125,36 +117,28 @@ export function createWisp(group, { light = false } = {}) {
           float width = max( 0.034 * pow( f, 1.6 ) * ( 0.6 + 0.4 * min( core.w, 1.5 ) ), ( 0.4 + 2.2 * f * f ) / px );
           here.xy += n * corner.x * width;
           vAlong = 1.0 - f;
-          vBright = a.w * f * min( core.w, 1.4 );
+          vBright = a.w * f * min( core.w, 1.4 ) * lens( depth );
           gl_Position = projectionMatrix * vec4( here, 1.0 );
-          return;
-        }
-        if ( slot > ${SLOT.pool - 0.5} ) {
-          // The pool of light on the ground under the wisp.
-          vKind = 4.0;
-          vec2 g = corner / float( POOL - 1 ) * 2.0 - 1.0;
-          int k = int( corner.y ) * POOL + int( corner.x );
-          vec3 p = vec3( poolOrigin.x + g.x * ${POOL_RADIUS.toFixed(2)}, pool[k] + 0.05, poolOrigin.y + g.y * ${POOL_RADIUS.toFixed(2)} );
-          vUv = g;
-          float above = max( core.y - pool[( POOL / 2 ) * POOL + POOL / 2], 0.2 );
-          vBright = core.w * night / ( 1.0 + above * above * 0.35 );
-          gl_Position = projectionMatrix * modelViewMatrix * vec4( p, 1.0 );
           return;
         }
         vec3 centre = core.xyz;
         float size;
         float minPx;
+        float maxPx = 1e4;
         float lift = 0.0;
         if ( slot < ${SLOT.halo + 0.5} ) {
+          // By day a small halo; after dark a lantern's wider one (dim).
           vKind = 0.0;
-          size = mix( 0.5, 1.1, night ) * clamp( core.w, 0.0, 2.0 );
-          minPx = 40.0 * clamp( core.w, 0.0, 1.0 );
+          size = mix( 0.12, 1.1, night ) * clamp( core.w, 0.0, 2.0 );
+          minPx = mix( 10.0, 40.0, night ) * clamp( core.w, 0.0, 1.0 );
+          maxPx = mix( 84.0, 336.0, night );
           vBright = core.w;
           lift = 0.7;
         } else if ( slot < ${SLOT.core + 0.5} ) {
           vKind = 1.0;
           size = 0.2 * ( 0.8 + 0.2 * min( core.w, 1.8 ) );
           minPx = 20.0 * clamp( core.w * 1.5, 0.0, 1.0 );
+          maxPx = 28.0;
           vBright = core.w;
           lift = 0.8;
         } else if ( slot < ${SLOT.burst + 0.5} ) {
@@ -184,7 +168,8 @@ export function createWisp(group, { light = false } = {}) {
         }
         vec4 mv = modelViewMatrix * vec4( centre, 1.0 );
         float px = pxPerMetre( -mv.z );
-        float world = max( size * px, minPx ) / px;
+        float world = clamp( size * px, minPx, maxPx ) / px;
+        if ( vKind != 3.0 ) vBright *= lens( -mv.z );
         // Lift halo and core toward the eye so the ground does not cut them.
         mv.z += world * lift;
         mv.xy += corner * world;
@@ -218,6 +203,11 @@ export function createWisp(group, { light = false } = {}) {
         }
         return color;
       }
+      // The colour it is seen in: a warm lamp by day; after dark, its own
+      // (the last gift it woke).
+      vec3 lampTint() {
+        return mix( vec3( 1.0, 0.8, 0.46 ), colour, night );
+      }
       vec3 prism( float h ) {
         return 0.55 + 0.45 * cos( 6.2831853 * ( h + vec3( 0.0, 0.33, 0.67 ) ) );
       }
@@ -235,26 +225,26 @@ export function createWisp(group, { light = false } = {}) {
           // Halo: glow with a long soft tail, as light in hazy air.
           if ( r2 > 1.0 ) discard;
           float g = ( 1.0 / ( 1.0 + r2 * 22.0 ) - 1.0 / 23.0 ) * ( 1.0 - r2 );
-          vec3 tint = mix( colour, gifts( time * 0.05 ), 0.35 );
+          vec3 tint = mix( lampTint(), gifts( time * 0.05 ), 0.35 * night );
           c = tint * g * vBright * mix( 0.3, 0.6, night );
         } else if ( vKind < 1.5 ) {
-          // Core: white-hot, the colours parting faintly at its edge, and
-          // four faint glints turning slowly.
+          // Core: a warm hot centre in a soft body; after dark, four faint
+          // glints turning slowly.
           if ( r2 > 1.0 ) discard;
-          vec3 hot = vec3( exp( -r2 * 34.0 ), exp( -r2 * 40.0 ), exp( -r2 * 31.0 ) );
+          vec3 tint = lampTint();
+          vec3 hot = mix( tint, vec3( 1.0 ), 0.55 ) * exp( -r2 * 34.0 );
           float body = exp( -r2 * 9.0 );
           float a = atan( vUv.y, vUv.x ) + time * 0.15;
           float r = sqrt( r2 );
-          float glint = pow( abs( cos( a * 2.0 ) ), 80.0 ) * exp( -r * 4.0 ) * ( 1.0 - r );
-          vec3 rim = prism( r * 1.3 - time * 0.07 ) * exp( -r2 * 14.0 ) * smoothstep( 0.05, 0.3, r );
-          c = ( hot * 3.4 + colour * body * 1.1 + rim * 0.35 + mix( colour, vec3( 1.0 ), 0.6 ) * glint * 0.9 ) * vBright;
+          float glint = pow( abs( cos( a * 2.0 ) ), 80.0 ) * exp( -r * 4.0 ) * ( 1.0 - r ) * night;
+          c = ( hot * mix( 0.9, 3.4, night ) + tint * body * 1.1 + mix( tint, vec3( 1.0 ), 0.6 ) * glint * 0.9 ) * vBright;
         } else if ( vKind < 2.5 ) {
-          // Ribbon: soft across, fading along, its colour running through the gifts.
+          // Ribbon: soft across, fading along; faint by day, and after dark
+          // its colour running through the gifts.
           float across = exp( -vUv.x * vUv.x * 3.0 );
           float fade = pow( 1.0 - vAlong, 1.4 );
-          vec3 tint = mix( gifts( vAlong * 0.9 - time * 0.12 ), prism( vAlong * 0.7 - time * 0.1 ), 0.22 );
-          tint = mix( vec3( 1.0, 0.97, 0.92 ), tint, smoothstep( 0.0, 0.25, vAlong ) );
-          c = tint * across * fade * vBright * 1.0;
+          vec3 tint = mix( lampTint(), gifts( vAlong * 0.9 - time * 0.12 ), night * smoothstep( 0.0, 0.25, vAlong ) );
+          c = tint * across * fade * vBright * mix( 0.3, 1.0, night );
         } else if ( vKind < 3.5 ) {
           // The waking's bloom: a bright rim with colour at its edge, filled
           // softly, swelling out and fading.
@@ -266,19 +256,14 @@ export function createWisp(group, { light = false } = {}) {
           vec3 edge = mix( mix( burstColour, gifts( atan( vUv.y, vUv.x ) * 0.159 + vAlong * 0.25 ), 0.55 ), prism( r * 2.0 - vAlong ), 0.18 );
           // By day a faint ring of light, by night a brighter one.
           c = ( edge * rim * 0.8 + burstColour * fill * mix( 0.35, 1.0, night ) ) * vBright * mix( 0.45, 1.0, night );
-        } else if ( vKind < 4.5 ) {
-          // The pool: its light on the ground, falling off from the middle.
-          float r = sqrt( r2 );
-          float g = exp( -r2 * 3.2 ) * ( 1.0 - smoothstep( 0.8, 1.0, r ) );
-          c = colour * g * vBright * 0.9;
         } else {
           // Embers: tiny soft points.
           if ( r2 > 1.0 ) discard;
-          c = mix( gifts( vAlong ), vec3( 1.0 ), 0.45 ) * exp( -r2 * 5.0 ) * vBright * 1.4;
+          c = mix( mix( lampTint(), gifts( vAlong ), night ), vec3( 1.0 ), 0.45 ) * exp( -r2 * 5.0 ) * vBright * 1.4;
         }
         #ifdef VEILED
-          // Seen through leaves: a fifth of the light, none of the bloom or pool.
-          if ( vKind > 2.5 && vKind < 4.5 ) discard;
+          // Seen through leaves: a fifth of the light, none of the bloom.
+          if ( vKind > 2.5 && vKind < 3.5 ) discard;
           c *= 0.2;
         #endif
         // The night scene is dim (its light is a few hundredths of the day's):
@@ -298,7 +283,7 @@ export function createWisp(group, { light = false } = {}) {
   group.add(mesh);
   // A second, faint pass without the depth test: a bright light behind
   // leaves still glows through them, so the wisp can be found in a thicket
-  // (its bloom and pool are left out). The same uniforms, shared.
+  // (its bloom is left out). The same uniforms, shared.
   const veiled = new THREE.ShaderMaterial({
     uniforms: { ...uniforms },
     vertexShader: material.vertexShader,
@@ -403,7 +388,6 @@ export function createWisp(group, { light = false } = {}) {
       trail[3] = 1;
       const fade = Math.exp(-dt * 2.6);
       for (let i = 1; i < TRAIL; i++) trail[i * 4 + 3] *= fade;
-      uniforms.poolOrigin.value.set(x, z);
     },
     dispose() {
       geometry.dispose();
