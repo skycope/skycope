@@ -806,7 +806,6 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
         const p = leg.pawWorld;
         contact.local.catPaws.value[i].set(p.x, p.z, pose.air > 0.01 ? 1 : Math.max(0, p.y - ground(p.x, p.z) - PAW_LIFT * S * 0.5));
       });
-      contact.local.sunShare.value = clamp(direct * 0.75, 0, 0.8) * uniforms.catShadowOn.value;
       contact.local.shadowSpan.value = reach * 2;
 
       // Fewer shells as the cat gets smaller on screen.
