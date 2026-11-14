@@ -126,11 +126,11 @@ for (const gift of gifts) {
     const info = await evaluate(`window.__waking.setup('${gift}')`);
     console.log(gift, minutes, JSON.stringify(info));
     await freeze(gift, -1);
-    await sleep(3500);
+    await sleep(5000);
     for (const age of AGES) {
       await evaluate("window.__waking.hold()");
       await freeze(gift, age);
-      await sleep(age < 0 ? 400 : 1300);
+      await sleep(age < 0 ? 600 : 1600);
       const data = await grab();
       await writeFile(`${frames}/${gift}-${minutes}-${age}-${label}.jpg`, Buffer.from(data, "base64"));
       row.push({ age, data });

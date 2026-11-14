@@ -96,13 +96,12 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   forest.groundContact(land, [places.group]);
   // land-magic: the gifts' light on the land (uniforms in forest.js shared).
   // waking: each keepsake's small steady light, what its waking resolves
-  // into (waking-light.md 3.7): the furnace ember, the pool lit from below,
-  // the boat's lantern ashore. (The milkwood's is its crown; the lamp's, the
-  // lamps and beams.)
+  // into (waking-light.md 3.7): the furnace ember and the pool lit from below.
+  // (The milkwood's is its crown; the lamp's, the lamps and beams; the boat's,
+  // its own lantern, which leaves the logs with the hull.)
   const practicals = [
     ["tideglow", WAKE_LIGHT.tideglow.tint, 1.6, 0.35],
     ["seafolk", WAKE_LIGHT.seafolk.tint, 2.2, 0.45],
-    ["boat", WAKE_LIGHT.boat.tint, 2.6, 0.6],
   ].map(([gift, colour, reach, power]) => {
     const at = wakingSource(gift, { pois: places.pois, blockers: places.blockers, surface: gift === "seafolk" ? surfaceOf(forest.obstacles) : groundHeight });
     return at && { x: at[0], y: at[1] + (gift === "seafolk" ? 0.25 : 0), z: at[2], colour, reach, power, gift };

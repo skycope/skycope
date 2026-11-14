@@ -1,7 +1,7 @@
 // sea-sky-magic: what the island's awakened gifts (src/magic.js) do to the
 // sea and the sky, packed into eight Atmosphere fields (the eighth, `lantern`, is the boat's) at the end of the
 // struct (src/shaders/view.wgsl). Filled in main.js createUniforms and
-// scripts/render-sky.mjs. ALL ZERO = every gift asleep, no pulse, no wisp:
+// scripts/render-sky.mjs. ALL ZERO = every gift asleep, no waking, no wisp:
 // every shader branch gates on these before doing any work.
 //
 //   magic       x tideglow, y stars, z lamp, w finale: eased levels 0…1.
@@ -9,10 +9,10 @@
 //               draw themselves over FIGURE_DRAW_SECONDS from then; a gift
 //               awake at load draws from load), y seconds since the latest
 //               meow (0 = none yet), z seafolk, w boat (levels).
-//   pulse       a waking's kindled light on the water (waking.js): x, z
+//   waking      a waking's kindled light on the water (waking.js): x, z
 //               the source (coast metres), how far its light has reached
 //               on the water (m; 0 = none), w the front's glints.
-//   pulseColour rgb its tint × the lit water's strength, w the source's
+//   wakingLight rgb its tint × the lit water's strength, w the source's
 //               height (m).
 //   lamp        the lighthouse lamp: x, y, z (coast metres) and its beam
 //               bearing in w (radians, see lampAngle). Zero while asleep.
@@ -30,7 +30,7 @@
 //     where the swash and the cat's paws stirred it (see its comment).
 import { WAKE_LIGHT, wakingSea } from "./waking.js";
 
-export const MAGIC_FIELDS = ["magic", "magic2", "pulse", "pulseColour", "lamp", "wisp", "wispColour", "lantern"];
+export const MAGIC_FIELDS = ["magic", "magic2", "waking", "wakingLight", "lamp", "wisp", "wispColour", "lantern"];
 
 export const LAMP_PERIOD = 12;
 export function lampAngle(time) {
@@ -71,7 +71,7 @@ export function magicVariant(source, awake) {
 export function magicPasses(uniforms) {
   const on = (field, i) => (uniforms[field]?.[i] ?? 0) !== 0;
   const sky = on("magic", 1) || on("magic", 3);
-  const water = [0, 1, 2, 3].some((i) => on("magic", i)) || on("pulse", 2) || on("wisp", 3) || on("lantern", 3);
+  const water = [0, 1, 2, 3].some((i) => on("magic", i)) || on("waking", 2) || on("wisp", 3) || on("lantern", 3);
   return { sky, water };
 }
 export function magicActive(uniforms) {
@@ -115,8 +115,8 @@ export function magicUniforms(magic, { time = magic?.clock ?? 0, lamp = null, la
   if (spec?.sea) {
     const w = wakingSea(waking.age, spec, night, reduced);
     if (w.inside + w.front > 1e-4) {
-      u.pulse = [waking.x, waking.z, w.radius, w.front];
-      u.pulseColour = [spec.tint[0] * w.inside, spec.tint[1] * w.inside, spec.tint[2] * w.inside, waking.y];
+      u.waking = [waking.x, waking.z, w.radius, w.front];
+      u.wakingLight = [spec.tint[0] * w.inside, spec.tint[1] * w.inside, spec.tint[2] * w.inside, waking.y];
     }
   }
   // land-magic: when the land's lamp state is passed (landscape.lamp: its

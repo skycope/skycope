@@ -34,8 +34,8 @@ export struct OceanSettings {
   pointer: vec2f,
   // sea-sky-magic: the Atmosphere fields of the same names (view.wgsl).
   magic: vec4f,
-  pulse: vec4f,
-  pulse_colour: vec4f,
+  waking: vec4f,
+  waking_light: vec4f,
   lamp: vec4f,
   wisp: vec4f,
   wisp_colour: vec4f,
@@ -526,7 +526,7 @@ fn ocean(
 
   // ---- sea-sky-magic: the awakened gifts on the water (sea-magic.wgsl). ----
   // All zero while every gift sleeps: one uniform test, no work.
-  if (MAGIC_AWAKE && (any(settings.magic.xzw > vec3f(0.0)) || settings.pulse.z > 0.0 || settings.wisp.w > 0.0 || settings.lantern.w > 0.0)) {
+  if (MAGIC_AWAKE && (any(settings.magic.xzw > vec3f(0.0)) || settings.waking.z > 0.0 || settings.wisp.w > 0.0 || settings.lantern.w > 0.0)) {
     let point = SeaPoint(p, metrics, ray, normal, sea.phase, sea.breaking, sea.height, foam, rock.edge, stir,
       pixel, depth, fresnel);
     if (settings.magic.x > 0.0) {
@@ -536,10 +536,10 @@ fn ocean(
     if (settings.magic.z > 0.0 && settings.lamp.y > 0.0) {
       color += lamp_on_sea(point, settings.lamp, settings.magic.z, night);
     }
-    // waking: a gift's kindled light reaching the water (pulse = x, z,
-    // radius, front; pulse_colour = tint × strength, source height).
-    if (settings.pulse.z > 0.0) {
-      color += waking_on_sea(point, settings.pulse, settings.pulse_colour, settings.time,
+    // waking: a gift's kindled light reaching the water (waking = x, z,
+    // radius, front; waking_light = tint × strength, source height).
+    if (settings.waking.z > 0.0) {
+      color += waking_on_sea(point, settings.waking, settings.waking_light, settings.time,
         clamp(dot(settings.skylight, vec3f(0.2126, 0.7152, 0.0722)) * 2.5, 0.0, 1.0));
     }
     if (settings.wisp.w > 0.0) {
