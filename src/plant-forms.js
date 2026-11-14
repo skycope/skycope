@@ -306,6 +306,110 @@ export function succulentGeometry(detail = 1) {
   return m.finish();
 }
 
+// A fynbos shrub as one rounded mass of foliage (renosterbos, blombos,
+// pelargonium, a sour-fig mat when squashed flat): a lumpy dome of leafy
+// surface, darker toward its foot and in the folds between lumps, with
+// leafy sprigs standing out of it so the outline is broken, not smooth.
+// Unit size: radius 1 across, 1 tall, the base ring a little below y = 0 so
+// it sits in sloping ground. Normals are bent to the mass (radial from a
+// point low in the dome), so it shades as one soft volume, not as cards;
+// the sprigs carry the mass's normal where they leave it. Vertex colour
+// bakes the occlusion (foot and folds) and each sprig's midrib, edge and
+// tip; `leafFlutter` lets only the sprigs' tips flutter. `detail` 2, 1, 0:
+// 150, 60 and 18 triangles.
+export function shrubMassGeometry(detail = 2) {
+  const m = mesher();
+  const random = seededRandom(67 + detail);
+  const [sectors, rings, sprigs, sprigTris] = [[10, 3, 20, 4], [8, 2, 10, 2], [6, 1, 0, 0]][2 - detail];
+  const centre = new THREE.Vector3(0, 0.12, 0);
+  // Lumps: a few low-frequency bulges, the same at every detail level.
+  const lump = (a, e) => 1 + 0.11 * Math.sin(a * 3 + 0.7) * Math.cos(e * 2.2) + 0.07 * Math.sin(a * 5 + 2.1 + e * 3) + 0.05 * Math.cos(a * 2 - e * 4.1);
+  const at = (a, e) => {
+    const r = lump(a, e);
+    return new THREE.Vector3(Math.cos(a) * Math.cos(e) * r, Math.sin(e) * r * 1.0, Math.sin(a) * Math.cos(e) * r);
+  };
+  // Occlusion baked in: the foot sees little sky, the crown a lot; folds
+  // between lumps a little less than the bulges either side.
+  const occlusion = (p, a, e) => {
+    const foot = 0.38 + 0.62 * Math.pow(Math.min(1, Math.max(0, (p.y + 0.06) / 0.85)), 0.7);
+    const fold = 0.86 + 0.14 * Math.min(1, Math.max(0, (lump(a, e) - 0.9) / 0.2));
+    return foot * fold;
+  };
+  const normals = [];
+  const vertex = (p, shade, tint = [1, 1, 1], phase = 0, hinge = 0, normal = null) => {
+    normals.push(normal ?? p.clone().sub(centre).normalize());
+    return m.vertex(p, [shade * tint[0], shade * tint[1], shade * tint[2]], phase, hinge);
+  };
+  // The dome: rings from just under the ground (e = -0.12) to near the top,
+  // then a cap vertex.
+  const grid = [];
+  for (let r = 0; r <= rings; r++) {
+    const e = -0.12 + (r / (rings + 0.6)) * (Math.PI / 2 + 0.12);
+    const row = [];
+    for (let s = 0; s < sectors; s++) {
+      const a = (s / sectors) * Math.PI * 2 + r * 0.37;
+      const p = at(a, e);
+      // Leaf-scale mottling per vertex (the shader adds finer speckle).
+      const mottle = 0.88 + random() * 0.24;
+      const hue = (random() - 0.5) * 0.12;
+      row.push(vertex(p, occlusion(p, a, e) * mottle, [1 + hue, 1, 1 - hue * 1.4]));
+    }
+    grid.push(row);
+  }
+  const top = at(0, Math.PI / 2);
+  const cap = vertex(top, 1.02);
+  for (let r = 0; r < rings; r++)
+    for (let s = 0; s < sectors; s++) {
+      const s1 = (s + 1) % sectors;
+      m.tri(grid[r][s], grid[r + 1][s], grid[r][s1]);
+      m.tri(grid[r][s1], grid[r + 1][s], grid[r + 1][s1]);
+    }
+  for (let s = 0; s < sectors; s++) m.tri(grid[rings][s], cap, grid[rings][(s + 1) % sectors]);
+  // Sprigs: leafy shoots leaving the surface up and out, most on the upper
+  // half where they break the skyline. Folded along the midrib (4 triangles)
+  // or a flat diamond (2); the midrib is lighter than the edges, a few tips
+  // are dry.
+  for (let i = 0; i < sprigs; i++) {
+    const a = i * GOLDEN_ANGLE + random() * 0.6;
+    const e = 0.15 + Math.pow((i + 0.5) / sprigs, 0.8) * 1.15;
+    const base = at(a, e).multiplyScalar(0.9);
+    const outward = base.clone().sub(centre).normalize();
+    const dir = outward.clone().lerp(new THREE.Vector3(0, 1, 0), 0.35 + random() * 0.2).normalize();
+    const side = new THREE.Vector3().crossVectors(dir, outward).normalize();
+    if (side.lengthSq() < 0.5) side.set(-Math.sin(a), 0, Math.cos(a));
+    const lift = new THREE.Vector3().crossVectors(side, dir).normalize();
+    const length = 0.34 + random() * 0.22;
+    const width = length * (0.3 + random() * 0.14);
+    const dry = random() < 0.14;
+    const phase = random();
+    const shade = occlusion(base, a, e) * (0.95 + random() * 0.15);
+    const hue = (random() - 0.5) * 0.14;
+    const leafTint = [1 + hue, 1, 1 - hue * 1.4];
+    const tipTint = dry ? [1.55, 1.2, 0.62] : [1.06 + hue, 1.06, 0.9];
+    const point = (t, across) => base.clone().addScaledVector(dir, length * t).addScaledVector(side, across * width * Math.sin(Math.PI * Math.min(1, t * 1.1)))
+      .addScaledVector(lift, Math.abs(across) * width * 0.25 - length * 0.12 * t * t);
+    const n = outward;
+    const b = vertex(base, shade * 0.8, leafTint, phase, 0, n);
+    const l = vertex(point(0.45, -1), shade * 0.88, leafTint, phase, 0.45, n);
+    const r = vertex(point(0.45, 1), shade * 0.88, leafTint, phase, 0.45, n);
+    const tip = vertex(point(1, 0), shade * 1.04, tipTint, phase, 1, n);
+    if (sprigTris === 4) {
+      const mid = vertex(point(0.45, 0).addScaledVector(lift, -width * 0.12), shade * 1.12, leafTint, phase, 0.45, n);
+      m.tri(b, l, mid);
+      m.tri(b, mid, r);
+      m.tri(l, tip, mid);
+      m.tri(mid, tip, r);
+    } else {
+      m.tri(b, l, r);
+      m.tri(l, tip, r);
+    }
+  }
+  const geometry = m.finish();
+  const normal = geometry.attributes.normal;
+  normals.forEach((n, i) => normal.setXYZ(i, n.x, n.y, n.z));
+  return geometry;
+}
+
 // A heath shoot (erica, fine-leaved fynbos): needle leaves in a tight spiral
 // up a short twig, splayed at the base and hugging it toward the tip.
 export function needleGeometry(count = 26) {

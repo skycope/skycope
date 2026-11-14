@@ -10,6 +10,7 @@ import {
 } from "./terrain.js";
 import { seededRandom } from "./random.js";
 import { createVegetation } from "./vegetation.js";
+import { graniteAt } from "./habitat.js";
 import { createSurf, SWASH_GLSL } from "./surf.js";
 import { swellUniform } from "./swell.js";
 import { rockLayout, rockGeometry, shoreRockData, ROCK_VARIANTS } from "./rocks.js";
@@ -538,6 +539,9 @@ gl_Position = projectionMatrix * mvPosition;
 // Sky occlusion (canopyShade: 0 open sky, 1 buried in foliage), per vertex
 // for the ground and per instance for plants. Unset attributes read as 0.
 const OCCLUSION_VERTEX_GLSL = /* glsl */ `
+#ifdef MASS
+varying vec3 vMassP;
+#endif
 attribute float canopyShade;
 uniform vec3 shadowCentre;
 varying float vShade;
@@ -642,6 +646,40 @@ const FOLIAGE_GLSL = /* glsl */ `
     reflectedLight.indirectDiffuse *= rootShade;
     reflectedLight.directDiffuse *= mix( 0.6, 1.0, rootShade );
   #endif
+}
+`;
+
+// A shrub mass is one smooth dome of geometry; its surface is drawn as
+// leaves per pixel: small leaves with dark gaps between them (the shade
+// inside the bush), each leaf a little lighter or yellower than the next.
+// World-space and footprint-filtered: where a leaf would be under a pixel
+// the pattern fades to its mean, so far shrubs do not shimmer.
+const MASS_LEAF_GLSL = /* glsl */ `
+varying vec3 vMassP;
+float massHash( vec3 p ) {
+  p = fract( p * 0.3183099 + 0.1 );
+  p *= 17.0;
+  return fract( p.x * p.y * p.z * ( p.x + p.y + p.z ) );
+}
+float massNoise( vec3 p ) {
+  vec3 i = floor( p );
+  vec3 f = fract( p );
+  f = f * f * ( 3.0 - 2.0 * f );
+  return mix(
+    mix( mix( massHash( i ), massHash( i + vec3( 1, 0, 0 ) ), f.x ), mix( massHash( i + vec3( 0, 1, 0 ) ), massHash( i + vec3( 1, 1, 0 ) ), f.x ), f.y ),
+    mix( mix( massHash( i + vec3( 0, 0, 1 ) ), massHash( i + vec3( 1, 0, 1 ) ), f.x ), mix( massHash( i + vec3( 0, 1, 1 ) ), massHash( i + vec3( 1, 1, 1 ) ), f.x ), f.y ),
+    f.z );
+}
+void massLeaves( inout vec3 albedo ) {
+  vec3 q = vMassP * 21.0;
+  float fw = length( fwidth( q ) );
+  float near = 1.0 - smoothstep( 0.5, 1.4, fw );
+  if ( near <= 0.0 ) return;
+  float leaf = massNoise( q );
+  float tone = massNoise( q * 0.37 + 11.3 );
+  float gaps = smoothstep( 0.28, 0.62, leaf );
+  vec3 shaded = albedo * ( 0.58 + 0.56 * gaps ) * vec3( 1.0 + ( tone - 0.5 ) * 0.22, 1.0, 1.0 - ( tone - 0.5 ) * 0.3 );
+  albedo = mix( albedo, shaded, near );
 }
 `;
 
@@ -1534,16 +1572,16 @@ export function groundAnimals(root, shared) {
 
 // places: exported so the landmarks (place-kit.js) share fog, haze and light.
 // `grounded`: the shared grounding (groundShader), with the sea's reach.
-export function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = false, ground = false, rock = false, bark = false, bent = 0, fade = false, taper = false, pliant = false, rooted = 0, sheen = 0.6, grounded = false } = {}) {
+export function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = false, ground = false, rock = false, bark = false, bent = 0, fade = false, taper = false, pliant = false, rooted = 0, sheen = 0.6, grounded = false, mass = false } = {}) {
   // three caches programs by onBeforeCompile's source text, which is the same
   // for every patched material: key them by their options, or a material
   // silently runs another's shader (blades with the clusters' flutter).
-  const key = JSON.stringify({ sway, flutter, foliage, ground, rock, bark, bent, fade, taper, pliant, rooted, sheen, grounded });
+  const key = JSON.stringify({ sway, flutter, foliage, ground, rock, bark, bent, fade, taper, pliant, rooted, sheen, grounded, mass });
   material.customProgramCacheKey = () => key;
   material.userData.magicLit = true; // land-magic: already carries the light
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, shared);
-    const defines = (pliant ? "#define PLIANT\n" : "") + (rooted ? `#define ROOTED ${rooted.toFixed(3)}\n` : "") + `#define SHEEN ${sheen.toFixed(2)}\n`;
+    const defines = (mass ? "#define MASS\n" : "") + (pliant ? "#define PLIANT\n" : "") + (rooted ? `#define ROOTED ${rooted.toFixed(3)}\n` : "") + `#define SHEEN ${sheen.toFixed(2)}\n`;
     shader.vertexShader = defines + OCCLUSION_VERTEX_GLSL + WIND_GLSL +
       shader.vertexShader.replace(
         "#include <begin_vertex>",
@@ -1601,6 +1639,9 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
         #endif
         shadeWorld = modelMatrix * shadeWorld;
         vShade = canopyShade;
+        #ifdef MASS
+          vMassP = shadeWorld.xyz;
+        #endif
         vShadowFar = smoothstep( 24.0, 30.0, length( shadeWorld.xyz - shadowCentre ) );
       }`,
     );
@@ -1726,6 +1767,10 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
         )
         .replace("#include <lights_fragment_begin>", LEAF_LIGHTS_GLSL)
         .replace("#include <lights_fragment_end>", FOLIAGE_GLSL);
+    if (mass)
+      shader.fragmentShader = shader.fragmentShader
+        .replace("void main() {", `${MASS_LEAF_GLSL}\nvoid main() {`)
+        .replace("#include <color_fragment>", "#include <color_fragment>\n  massLeaves( diffuseColor.rgb );");
     if (bent) {
       // Bent normals: blend each leaf's normal toward its foliage mass's
       // outward direction, so a crown shades like a soft volume while each
@@ -2160,7 +2205,7 @@ function addGround(scene, shared, occluders, cover, rocks = []) {
     const upness = 1 / Math.sqrt(1 + gx * gx + gz * gz);
     const steep = smoothstep(0.8, 0.55, upness + (noise2(x * 0.4, z * 0.4) - 0.5) * 0.12);
     const { grass, humus } = cover(x, z);
-    const rocky = Math.max(steep, smoothstep(0.62, 0.76, fbm(x * 0.13 + 4, z * 0.13)) * smoothstep(14, 24, inland));
+    const rocky = Math.max(steep, graniteAt(x, z, inland));
     masks[i * 4] = fbm(x * 0.9, z * 0.9);
     masks[i * 4 + 1] = rocky * (1 - humus * 0.6) * (1 - grass * 0.5);
     // Litter where plants shed it, patchy at the metre scale.
