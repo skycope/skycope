@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "skycope",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["node_modules/vite/bin/vite.js", "--port", "5321", "--strictPort", "--host", "127.0.0.1"],
+      "port": 5321
+    }
+  ]
+}
