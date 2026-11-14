@@ -394,3 +394,40 @@ test("on its painter the boat swings to the wind but stays by its post", async (
     assert.ok(far < RIDE.painter + 0.35, `seed ${seed} wind ${wind}: the stem within its painter of the post (${far.toFixed(2)} m)`);
   }
 });
+
+// The upturned hull ashore (places' prop) is the afloat boat's own form in
+// the pose the launch starts from: at the push nothing changes shape or
+// jumps (it was a lower, flatter hull, pitched 0.09 rad less), and the
+// gunwale sits on the logs.
+test("ashore and at the push the hull is one boat in one pose, on its logs", async () => {
+  const { placesLayout } = await import("../src/place-layout.js");
+  const { buildBoat, boatLogs } = await import("../src/place-shore.js");
+  const { createMaterials } = await import("../src/place-kit.js");
+  const { createLaunch, restPose, bareSand } = await import("../src/boat-launch.js");
+  const { hullPoint, HULL } = await import("../src/boat-forms.js");
+  for (const seed of SEEDS) {
+    const p = placesLayout(seed).find((q) => q.kind === "boat");
+    const b = buildBoat(p, createMaterials({}), { seed });
+    const launch = createLaunch({ landmark: p, to: { x: p.x + 10, z: p.z }, bed: bareSand, water: () => -Infinity });
+    const pose = launch.pose(0, {});
+    const rest = restPose(p);
+    assert.ok(Math.abs(pose.y - rest.y) < 1e-9 && Math.abs(pose.pitch - rest.pitch) < 1e-9, `seed ${seed}: the launch starts where the prop lies`);
+    const m = new THREE.Matrix4().compose(new THREE.Vector3(pose.x, pose.y, pose.z), new THREE.Quaternion().setFromEuler(new THREE.Euler(-pose.pitch, pose.heading, -pose.roll, "YXZ")), new THREE.Vector3(1, 1, 1));
+    const at = (s, t, side) => new THREE.Vector3(...hullPoint(s, t, side)).applyMatrix4(m);
+    // The prop's standing tile follows the launched hull's keel.
+    const tile = b.surfaces.tiles[0];
+    const tileAt = (x, z) => tile.heights[Math.round((z - tile.z0) / tile.cell) * tile.nx + Math.round((x - tile.x0) / tile.cell)];
+    for (const s of [-0.6, 0, 0.5]) {
+      const k = at(s, 0, 1);
+      assert.ok(Math.abs(tileAt(k.x, k.z) - 0.02 - k.y) < 0.06, `seed ${seed}: the keel at ${s} stands where the launched hull's is (${(tileAt(k.x, k.z) - 0.02).toFixed(3)} vs ${k.y.toFixed(3)})`);
+    }
+    // The gunwale on the logs: each log's top just under it.
+    const logs = boatLogs(p);
+    for (const [i, s] of [-0.62, 0.55].entries()) {
+      const g = Math.min(at(s, 1, -1).y, at(s, 1, 1).y);
+      const top = Math.max(...logs[i].slice(1, 3).map((q) => q.y)) + 0.12;
+      assert.ok(g - top > -0.005 && g - top < 0.04, `seed ${seed}: gunwale ${(g - top).toFixed(3)} m over log ${i}`);
+    }
+    assert.equal(HULL.half * 2, 4.6);
+  }
+});

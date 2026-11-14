@@ -1,4 +1,6 @@
 import { HULL, hullPoint, keel, sheer, halfBreadth } from "./boat-forms.js";
+import { shoreDistance, groundHeight } from "./terrain.js";
+import { seabedDepth, shoreAlong } from "./sea-surface.js";
 
 // The launch, without any drawing: the boat lies upturned on its two logs
 // (places' prop) until the cat pushes at it or hops onto it; then it rocks
@@ -42,6 +44,40 @@ for (let s = -0.98; s <= 0.92; s += 0.05)
 // (along, height) pairs a hull over a log may bear on; reused.
 const support = new Float64Array(2 * (KEEL.length + BOTTOM.length));
 
+// The bare sand and seabed: what the launch slides on (not the hull's own
+// walk tile).
+export function bareSand(x, z) {
+  const inland = shoreDistance(x, z);
+  return inland < 0 ? Math.max(groundHeight(x, z), -seabedDepth(-inland, shoreAlong(x, z))) : groundHeight(x, z);
+}
+
+// The lowest point of the midship section rolled by `roll` (hull frame).
+function lowest(roll) {
+  const c = Math.cos(roll), s = Math.sin(roll);
+  let low = Infinity;
+  for (const [v, y] of SECTION) low = Math.min(low, y * c - v * s);
+  return low;
+}
+
+// Upturned on its two logs (landmark { x, z, facing }; bed: bareSand):
+// each end's gunwale LAUNCH.logs above the highest sand under that end,
+// the gunwale straight between them. The pose the places prop draws its
+// hull in (place-shore.js) and the launch starts from, so nothing jumps
+// when the cat pushes it: { x, y, z, heading, pitch, roll, logY } (y the
+// hull frame's origin; boat.js's euler (−pitch, heading, −roll), YXZ).
+export function restPose(landmark, bed = bareSand) {
+  const fx = Math.sin(landmark.facing), fz = Math.cos(landmark.facing);
+  const endRest = (s0, s1) => {
+    let g = -Infinity;
+    for (let s = s0; s <= s1 + 1e-6; s += 0.125)
+      for (const v of [-0.8, 0, 0.8]) g = Math.max(g, bed(landmark.x + fx * s * H + fz * v, landmark.z + fz * s * H - fx * v));
+    return g;
+  };
+  const sternRest = endRest(-1, -0.4), bowRest = endRest(0.4, 1);
+  const logY = (sternRest + bowRest) / 2;
+  return { x: landmark.x, y: logY + LAUNCH.logs - lowest(Math.PI), z: landmark.z, heading: landmark.facing, pitch: Math.atan2(bowRest - sternRest, 2 * H), roll: Math.PI, logY };
+}
+
 // landmark { x, z, facing }; to { x, z } where it is going (the cove);
 // bed(x, z): the sand, seabed or a boulder's top; water(x, z): the sea's
 // surface as drawn (−∞ on dry land).
@@ -57,26 +93,11 @@ export function createLaunch({ landmark, to, bed, water, logs = null }) {
   const bowFirst = Math.cos(down - landmark.facing) >= 0;
   const slideHeading = bowFirst ? down : down + Math.PI;
   const turn = wrap(slideHeading - landmark.facing);
-  // Upturned on its logs: each end's gunwale on the sand under it, plus the
-  // logs (as places' prop lies, place-shore.js).
-  const fx0 = Math.sin(landmark.facing), fz0 = Math.cos(landmark.facing);
-  const endRest = (s0, s1) => {
-    let g = -Infinity;
-    for (let s = s0; s <= s1 + 1e-6; s += 0.125)
-      for (const v of [-0.8, 0, 0.8]) g = Math.max(g, bed(landmark.x + fx0 * s * H + fz0 * v, landmark.z + fz0 * s * H - fx0 * v));
-    return g;
-  };
-  const sternRest = endRest(-1, -0.4), bowRest = endRest(0.4, 1);
-  const logPitch = Math.atan2(bowRest - sternRest, 1.4 * H);
-  const logY = (sternRest + bowRest) / 2;
-
-  // The lowest point of the midship section rolled by `roll`.
-  function lowest(roll) {
-    const c = Math.cos(roll), s = Math.sin(roll);
-    let low = Infinity;
-    for (const [v, y] of SECTION) low = Math.min(low, y * c - v * s);
-    return low;
-  }
+  // Upturned on its logs, as the places prop lies (restPose; the pitch
+  // was steeper here than the prop's, so the hull jumped at the push).
+  const rest0 = restPose(landmark, bed);
+  const logPitch = rest0.pitch;
+  const logY = rest0.logY;
   // Resting on its keel at (x, z, heading): height and pitch from the sand
   // under its keel stations (and the logs while it is still on them).
   const rest = { y: 0, pitch: 0 };
