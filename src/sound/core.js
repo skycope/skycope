@@ -403,6 +403,10 @@ export function createCore(ctx, mix, { seed = 1 } = {}) {
     bubble,
     voiced,
     bed,
+    // Where a source sits from the listener (space.js placeSource).
+    place(at, ref = 10) {
+      return placeSource(listener, at, ref);
+    },
     get listener() {
       return listener;
     },

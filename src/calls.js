@@ -9,15 +9,20 @@
 const SPEED_OF_SOUND = 343;
 
 // Every call's typical distance (metres) when none is given.
-const NEAR = { discover: 0, thunder: 3000, "penguin-bray": 25, "seal-bark": 30, "whale-blow": 90, owl: 35, "splash-big": 25, wisp: 4, wake: 0 };
+const NEAR = { discover: 0, thunder: 3000, "penguin-bray": 25, "seal-bark": 25, "whale-blow": 90, owl: 25, "splash-big": 25, wisp: 4 };
 // Calls heard the same wherever they come from (music-like, not of the place).
-const EVERYWHERE = new Set(["discover", "thunder", "wake"]);
+const EVERYWHERE = new Set(["discover", "thunder"]);
+// Which bus each call plays on (src/sound/mix.js).
+export const CALL_BUS = { discover: "magic", wisp: "magic", thunder: "weather" };
+// Seeded when the sound engine passes `io.random` (repeatable renders).
+let random = Math.random;
 
 export const CALLS = Object.keys(NEAR);
 
 export function playCall(io, name, options = {}) {
   const make = SYNTHS[name];
   if (!make || !io?.ctx) return false;
+  random = io.random ?? Math.random;
   const ctx = io.ctx;
   const distance = Math.max(0, Number.isFinite(options.distance) ? options.distance : NEAR[name]);
   const delay = name === "thunder" ? Math.min(20, distance / SPEED_OF_SOUND) : 0;
@@ -25,11 +30,13 @@ export function playCall(io, name, options = {}) {
   const chain = outChain(io, {
     t,
     pan: Math.max(-1, Math.min(1, options.pan ?? 0)),
-    // Inverse distance past a reference, gentler than 1/r so far calls stay audible.
-    gain: (options.gain ?? 1) * (EVERYWHERE.has(name) ? 1 : Math.min(1, (NEAR[name] / Math.max(1, distance)) ** 0.8)),
+    // Inverse distance past a reference, gentler than 1/r so far calls
+    // stay audible. The wisp is silent beyond 25 m: a reply you cannot
+    // see is confusing.
+    gain: (options.gain ?? 1) * (EVERYWHERE.has(name) ? 1 : Math.min(1, (NEAR[name] / Math.max(1, distance)) ** 0.8)) * (name === "wisp" ? Math.max(0, 1 - Math.max(0, distance - 15) / 10) : 1),
     // Air takes the highs first.
-    cutoff: name === "discover" || name === "wake" ? 18000 : Math.max(500, 16000 * Math.exp(-distance / 450)),
-    reverb: name === "discover" || name === "wisp" ? 0.6 : name === "wake" ? 0.8 : Math.min(0.7, 0.12 + distance / 400),
+    cutoff: name === "discover" ? 18000 : Math.max(500, 16000 * Math.exp(-distance / 450)),
+    reverb: name === "discover" || name === "wisp" ? 0.4 : Math.min(0.5, 0.05 + distance / 300),
   });
   const length = make(io, chain.input, t, distance, options);
   chain.release(t + length + 0.3);
@@ -72,7 +79,7 @@ function noise(io, buffer, t, length) {
   const source = io.ctx.createBufferSource();
   source.buffer = buffer;
   source.loop = true;
-  source.start(t, Math.random() * 2);
+  source.start(t, random() * 1.8);
   source.stop(t + length + 0.05);
   return source;
 }
@@ -105,7 +112,7 @@ function voiced(io, out, { t, length, contour, formants, gain, rough = 0, roughR
   const nodes = [osc];
   if (vibrato) {
     const lfo = ctx.createOscillator();
-    lfo.frequency.value = 5 + Math.random() * 2;
+    lfo.frequency.value = 5 + random() * 2;
     const depth = ctx.createGain();
     depth.gain.value = vibrato;
     lfo.connect(depth).connect(osc.frequency);
@@ -169,7 +176,7 @@ function tone(io, out, { t, hz, to = null, length, gain, attack = 0.01, type = "
   osc.onended = () => [osc, env].forEach((n) => n.disconnect());
 }
 
-const rand = (a, b) => a + Math.random() * (b - a);
+const rand = (a, b) => a + random() * (b - a);
 
 const SYNTHS = {
   // The wisp answering a meow: three glassy notes skipping up (D, A, D,
@@ -179,43 +186,11 @@ const SYNTHS = {
     notes.forEach((midi, i) => {
       const hz = 440 * 2 ** ((midi - 69) / 12);
       const at = t + i * 0.07 + rand(0, 0.015);
-      tone(io, out, { t: at, hz, length: 0.55 - i * 0.1, gain: 0.065 * (1 - i * 0.15), attack: 0.004 });
+      tone(io, out, { t: at, hz, length: 0.55 - i * 0.1, gain: 0.045 * (1 - i * 0.15), attack: 0.004 });
       tone(io, out, { t: at, hz: hz * 2.01, length: 0.18, gain: 0.008, attack: 0.003 });
     });
     burst(io, out, { buffer: io.noise, t, type: "highpass", frequency: 6500, q: 0.4, gain: 0.012, attack: 0.03, length: 0.3 });
     return 0.9;
-  },
-
-  // A gift waking, the wave of light running out across the island: a low
-  // bloom that swells and fades, air rising through it, and a slow
-  // cluster of bells (D, A, E) ringing out. `gift` shifts the bells' octave.
-  wake(io, out, t, _d, { gift = "" } = {}) {
-    const high = gift === "stars" || gift === "fireflies" ? 12 : gift === "seafolk" ? -12 : 0;
-    const { ctx } = io;
-    // The bloom: D2 and A2, swelling in over a second and dying over four.
-    for (const [hz, g] of [[73.42, 0.13], [110, 0.055], [146.83, 0.03]]) {
-      const osc = ctx.createOscillator();
-      osc.type = "sine";
-      osc.frequency.value = hz;
-      const env = ctx.createGain();
-      env.gain.setValueAtTime(0, t);
-      env.gain.linearRampToValueAtTime(g, t + 1.1);
-      env.gain.setTargetAtTime(0, t + 1.3, 1.3);
-      osc.connect(env).connect(out);
-      osc.start(t);
-      osc.stop(t + 7);
-      osc.onended = () => [osc, env].forEach((n) => n.disconnect());
-    }
-    // Air rising through it, like a wave running up a beach.
-    burst(io, out, { buffer: io.pink, t, type: "bandpass", frequency: 900, to: 7000, q: 1.2, gain: 0.05, attack: 0.9, length: 2.6 });
-    // Bells, a little apart, ringing long.
-    [74, 81, 88, 86].forEach((midi, i) => {
-      const hz = 440 * 2 ** ((midi + high - 69) / 12);
-      const at = t + 0.35 + i * 0.32;
-      tone(io, out, { t: at, hz, length: 3.4 - i * 0.4, gain: 0.05 * (1 - i * 0.12), attack: 0.006 });
-      tone(io, out, { t: at, hz: hz * 2.76, length: 0.5, gain: 0.006, attack: 0.004 });
-    });
-    return 6.5;
   },
 
   // A soft glass chime: three notes rising through the fifth, in every mode
@@ -224,7 +199,7 @@ const SYNTHS = {
     notes.forEach((midi, i) => {
       const hz = 440 * 2 ** ((midi - 69) / 12);
       const at = t + i * 0.13;
-      const g = 0.11 * (1 - i * 0.18);
+      const g = 0.06 * (1 - i * 0.18);
       tone(io, out, { t: at, hz, length: 2.6, gain: g, attack: 0.008 });
       tone(io, out, { t: at, hz: hz * 2, length: 1.1, gain: g * 0.22, attack: 0.006 });
       tone(io, out, { t: at, hz: hz * 2.76, length: 0.35, gain: g * 0.08, attack: 0.004 });
@@ -235,13 +210,13 @@ const SYNTHS = {
   // Thunder: near, a ripping crack and then rolls; far, only a low grumble.
   thunder(io, out, t, distance) {
     const near = Math.exp(-distance / 1200);
-    const level = 0.42 / (1 + distance / 2500);
+    const level = 0.3 / (1 + distance / 2500);
     const top = 120 + 3800 * Math.exp(-distance / 1400);
     if (near > 0.2) {
       burst(io, out, { buffer: io.noise, t, type: "highpass", frequency: 1200, q: 0.5, gain: level * near * 0.9, attack: 0.003, length: 0.35 });
       burst(io, out, { buffer: io.pink, t: t + 0.02, type: "lowpass", frequency: top, to: top * 0.4, q: 0.6, gain: level * near, attack: 0.01, length: 0.9 });
     }
-    const rolls = 3 + Math.floor(Math.random() * 4);
+    const rolls = 3 + Math.floor(random() * 4);
     let at = t + 0.1 + (1 - near) * 0.4;
     for (let i = 0; i < rolls; i++) {
       const g = level * (0.9 - i * 0.12) * rand(0.6, 1);
@@ -259,7 +234,7 @@ const SYNTHS = {
     const f0 = rand(270, 330);
     const formants = [[750, 4, 1.4], [1350, 5, 0.9], [2600, 6, 0.35]];
     let at = t;
-    const honks = 3 + Math.floor(Math.random() * 3);
+    const honks = 3 + Math.floor(random() * 3);
     for (let i = 0; i < honks; i++) {
       // Alternating in-breath (higher, thinner) and out-breath honks.
       const inhale = i % 2 === 1;
@@ -277,7 +252,7 @@ const SYNTHS = {
   "seal-bark"(io, out, t) {
     const f0 = rand(150, 210);
     const formants = [[520, 4, 1.5], [1150, 5, 0.8], [2300, 6, 0.3]];
-    const barks = 2 + Math.floor(Math.random() * 3);
+    const barks = 2 + Math.floor(random() * 3);
     let at = t;
     for (let i = 0; i < barks; i++) {
       const length = rand(0.22, 0.34);
