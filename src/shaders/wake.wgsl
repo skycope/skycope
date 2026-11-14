@@ -180,7 +180,7 @@ const BOAT_HALF: f32 = 2.3;
 // The waterline's half-breadth along the hull (boat-forms.js WATERPLANE).
 fn hull_breadth(s: f32) -> f32 {
   if (s <= 0.0) { return 0.606 - 0.23 * s * s; }
-  return 0.606 * pow(max(1.0 - s * s, 0.0), 0.9);
+  return 0.606 * pow(max(1.0 - s * s, 1e-5), 0.9);
 }
 
 export struct Hull {
@@ -246,7 +246,7 @@ export fn boat_sea(p: vec2f, pixel: f32, time: f32, wake: texture_2d<f32>, hull:
     // amidships, and the quarter wave rising off the transom.
     let push = min(speed, 2.5);
     let fore = smoothstep(0.15, 0.95, s);
-    let aft = smoothstep(-0.6, -1.0, s);
+    let aft = 1.0 - smoothstep(-1.0, -0.6, s);
     let reach = 0.15 + 0.14 * push;
     let falloff = exp(-oe / reach);
     let heap = (fore * 0.026 - (1.0 - fore) * (1.0 - aft) * 0.008 + aft * 0.012) * push * push * falloff;
@@ -306,7 +306,7 @@ export fn boat_sea(p: vec2f, pixel: f32, time: f32, wake: texture_2d<f32>, hull:
     }
     // Beyond the last point astern the wake has gone.
     let u = max(strength * 1.5, 0.05);
-    let fade = exp(-age / 6.0) * min(strength * 1.4, 1.2) * smoothstep(walked + 0.5, walked - 1.5, a);
+    let fade = exp(-age / 6.0) * min(strength * 1.4, 1.2) * (1.0 - smoothstep(walked - 1.5, walked + 0.5, a));
     if (fade > 0.002) {
       let x = abs(d);
       let wedge = 0.354 * a + 0.35;
@@ -314,8 +314,9 @@ export fn boat_sea(p: vec2f, pixel: f32, time: f32, wake: texture_2d<f32>, hull:
       // Divergent crests at 50° to the track: k = g / (U cos θ)².
       let kd = clamp(9.81 / (u * u * 0.413), 2.0, 9.0);
       let phase_d = kd * (a * 0.643 + x * 0.766);
-      let cusp = exp(-pow((x - 0.354 * a) / (0.25 + 0.09 * a), 2.0)) * smoothstep(0.0, 0.6, a);
-      let amp_d = 0.03 * fade * min(u / 1.2, 1.4) / sqrt(1.0 + a * 0.25);
+      let cq = (x - 0.354 * a) / (0.25 + 0.09 * a);
+      let cusp = exp(-cq * cq) * smoothstep(0.0, 0.6, a);
+      let amp_d = 0.045 * fade * min(u / 1.2, 1.4) / sqrt(1.0 + a * 0.25);
       let keep_d = exp(-0.65 * (kd * pixel) * (kd * pixel));
       out.height += amp_d * cusp * cos(phase_d) * keep_d;
       out.slope -= (dir * 0.643 + cross * 0.766) * (amp_d * cusp * kd * sin(phase_d) * keep_d);
@@ -330,16 +331,18 @@ export fn boat_sea(p: vec2f, pixel: f32, time: f32, wake: texture_2d<f32>, hull:
       out.slope -= dir * (amp_t * between * kt * sin(phase_t) * keep_t);
       // The churned band astern: bubbles and foam widening and thinning,
       // and a little white on the divergent crests close behind at speed.
-      let w = 0.55 + 0.1 * a;
-      let band = exp(-(x / w) * (x / w)) * exp(-age / 4.0) * min(strength * 1.5, 1.0);
-      foam = max(foam, band * (0.5 - 0.2 * smoothstep(0.3, 0.8, x / w)));
+      let w = 0.6 + 0.12 * a;
+      let band = exp(-(x / w) * (x / w)) * exp(-age / 5.0) * min(strength * 1.5, 1.0);
+      foam = max(foam, band * (0.75 - 0.3 * smoothstep(0.3, 0.8, x / w)));
       bubbles = max(bubbles, band * 0.9);
-      let caps = pow(max(cos(phase_d), 0.0), 6.0) * cusp * smoothstep(1.0, 2.2, u) * exp(-a / 4.0) * fade;
+      let caps = pow(max(cos(phase_d), 1e-4), 6.0) * cusp * smoothstep(1.0, 2.2, u) * exp(-a / 4.0) * fade;
       foam = max(foam, caps * 0.5);
       // The bow wave's foam trailing out along the arms of the V, broken
       // into crests and thinning as it spreads.
-      let arm = exp(-pow((x - 0.354 * a) / (0.1 + 0.035 * a), 2.0)) * pow(max(cos(phase_d), 0.0), 2.0);
-      foam = max(foam, arm * fade * smoothstep(0.4, 1.2, u) * exp(-age / 5.0) * 0.45);
+      let aq = (x - 0.354 * a) / (0.1 + 0.035 * a);
+      let crest = max(cos(phase_d), 0.0);
+      let arm = exp(-aq * aq) * crest * crest;
+      foam = max(foam, arm * fade * smoothstep(0.4, 1.2, u) * exp(-age / 6.0) * 0.8);
       bubbles = max(bubbles, arm * fade * exp(-age / 3.0) * 0.5);
     }
   }
@@ -371,7 +374,7 @@ export fn hull_mirror(p: vec3f, r: vec3f, hull: Hull) -> vec4f {
   if (rise > free) { return vec4f(0.0); }
   let n = normalize(hit / axes);
   let normal = n.x * fwd + n.y * side;
-  return vec4f(smoothstep(free, free - 0.03, rise), clamp(rise / free, 0.0, 1.0), normal);
+  return vec4f(1.0 - smoothstep(free - 0.03, free, rise), clamp(rise / free, 0.0, 1.0), normal);
 }
 
 // The topsides' light: blue paint, a cream boot-top at the water, the
