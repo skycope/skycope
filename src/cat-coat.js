@@ -40,6 +40,10 @@ export function bakeShellColours(renderer, geometry) {
       in vec4 furInfo;
       in vec3 comb;
       out vec3 colour;
+      // One sample per vertex (7-12 mm apart): only the markings, not the
+      // hair-sized ticking, or it aliases into contour rings that follow the
+      // mesh's vertex rows round every bulge (shoulders, haunches).
+      #define COAT_FILTERED
       ${PATTERN_GLSL}
       void main() {
         int x = gl_VertexID % ${BAKE_WIDTH};
@@ -198,8 +202,10 @@ Coat coatAt( vec3 p, vec4 region, vec3 n, vec3 flow, float nose, float mouth ) {
   // Pigment borders break along hairs; identical coordinates feed the bake
   // and close shader, so a distance switch does not repaint the markings.
   vec3 lie = normalize( flow + vec3( 1e-5 ) );
+  #ifndef COAT_FILTERED
   float feather = cNoise( ( p - lie * dot( p, lie ) * 0.82 ) * 850.0 ) - 0.5;
   p += lie * feather * 0.0014 * ( 1.0 - clamp( nose, 0.0, 1.0 ) );
+  #endif
   Coat c;
   // Agouti: every hair is banded black and warm ochre, so the ground colour
   // is a warm brown flecked finely with dark tips, redder low on the flanks.
@@ -209,7 +215,12 @@ Coat coatAt( vec3 p, vec4 region, vec3 n, vec3 flow, float nose, float mouth ) {
   vec3 agoutiDark = lin( vec3( 0.41, 0.35, 0.27 ) );
   vec3 stripe = lin( vec3( 0.19, 0.145, 0.1 ) );
   vec3 cream = lin( vec3( 0.88, 0.8, 0.64 ) );
+  #ifdef COAT_FILTERED
+  // (Their average.)
+  float tick = 0.5;
+  #else
   float tick = cNoise( p * 1400.0 ) * 0.35 + cNoise( p * 520.0 ) * 0.35 + cNoise( p * 90.0 ) * 0.3;
+  #endif
   vec3 base = mix( agoutiDark, agoutiLight, 0.5 + ( smoothstep( 0.2, 0.8, tick ) - 0.5 ) * 0.4 );
   float head = region.x;
   float leg = region.y;
@@ -322,7 +333,11 @@ Coat coatAt( vec3 p, vec4 region, vec3 n, vec3 flow, float nose, float mouth ) {
   dark = clamp( dark, 0.0, 1.0 );
   pale = clamp( pale, 0.0, 1.0 );
   // Banded hairs fleck the markings too: nothing is solid black.
+  #ifdef COAT_FILTERED
+  dark *= 0.965;
+  #else
   dark *= 1.0 - 0.3 * smoothstep( 0.5, 0.85, tick );
+  #endif
   vec3 col = mix( base, stripe * ( 0.8 + tick * 0.45 ), dark );
   col = mix( col, cream * ( 0.9 + tick * 0.15 ), pale );
   // Paw pads: dark, faintly pink-brown leather.
@@ -412,7 +427,8 @@ void RE_Direct_Fur( const in IncidentLight directLight, const in vec3 geometryPo
   float nl = dot( N, L );
   // Thin parts pass light through: ears, the fringe at the silhouette.
   float back = pow( clamp( dot( V, -L ), 0.0, 1.0 ), 3.0 );
-  reflectedLight.directDiffuse += lit.color * furTrans * back * furThin * material.diffuseContribution * 2.0;
+  // (Kept modest: backlit ears glow, they do not light up like lamps.)
+  reflectedLight.directDiffuse += lit.color * furTrans * back * furThin * material.diffuseContribution * 1.3;
   if ( furGloss > 0.5 ) {
     RE_Direct_Physical( lit, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );
     // The cornea is a lens: sunlight focuses into a bright crescent on the
@@ -517,7 +533,11 @@ export function coatMaterial(uniforms, { shell = false, baked = false } = {}) {
         // Depth under the local surface, which wobbles with little ripples.
         vWaterP = vec3( catWorld.xz, min( catWater.x + dot( catWater.yz, catWorld.xz - catWaterAt ) - catWorld.y
           + 0.005 * sin( dot( catWorld.xz, vec2( 23.0, 17.0 ) ) - catTime * 5.1 ) + 0.004 * sin( dot( catWorld.xz, vec2( -13.0, 29.0 ) ) - catTime * 3.7 ), catWaterDepth - ( catWorld.y - catGroundY ) + 0.02 ) );
-        vCatShadow = catShadowMatrix * catWorld;
+        // Looked up a shadow texel and a half out along the normal (5 mm
+        // texels): at a low sun the 4-tap lookup otherwise caught the coarse
+        // caster's own facets on every bulge, contour rings round the
+        // shoulders and haunches (shadow acne).
+        vCatShadow = catShadowMatrix * ( catWorld + vec4( normalize( ( vec4( transformedNormal, 0.0 ) * viewMatrix ).xyz ) * 0.008, 0.0 ) );
         vGroundH = catWorld.y - catGroundY;
         ${shell ? `{
           vec3 sc = vCatShadow.xyz / vCatShadow.w;
@@ -672,7 +692,9 @@ const COMMON_COLOUR = /* glsl */ `
     // The lid margins are black; a wet line of tears sits on the lower one.
     float rim = band( e.y - upper, 0.032 ) + band( e.y - lower, 0.03 );
     eyeWet += band( e.y - lower - 0.05, 0.05 ) * 1.5;
-    coatColour = mix( coatColour, lin( vec3( 0.5, 0.43, 0.34 ) ), lid );
+    // The lid over the globe is the dark skin of its margin running into
+    // the coat's own colour, never a pale ring round the iris.
+    coatColour = mix( coatColour, lin( vec3( 0.27, 0.21, 0.16 ) ), lid );
     coatColour *= 1.0 - clamp( rim, 0.0, 1.0 ) * 0.88;
     furGloss *= 1.0 - lid;
     eyeWet *= 1.0 - lid;
@@ -698,7 +720,7 @@ const COMMON_COLOUR = /* glsl */ `
     skin = mix( skin, lin( vec3( 0.88, 0.84, 0.76 ) ), smoothstep( 0.3, 0.7, tuft ) );
     coatColour = mix( back, skin, inner );
     furThin = mix( 0.35, 1.1, inner ) * ( 1.0 - v * 0.3 );
-    furTrans = vec3( 1.0, 0.55, 0.42 );
+    furTrans = vec3( 1.0, 0.62, 0.52 );
     furSheen = 1.0 - inner;
     furVelvet = 1.0 - inner;
     furAO *= mix( 1.0, mix( 0.45, 1.0, v ), inner );

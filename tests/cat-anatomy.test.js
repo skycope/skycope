@@ -86,7 +86,7 @@ test("the standing cat has a shorthair's proportions", () => {
   const chest = at(trunk, 0.03, 0.08);
   const brisket = bottom(chest, "y");
   // The chest is about half the height at the withers, the legs the rest.
-  within((withers - brisket) / withers, [0.42, 0.52], "chest depth / withers");
+  within((withers - brisket) / withers, [0.43, 0.49], "chest depth / withers");
   // A cat's head is big for its body: about a fifth of its length (nose to
   // rump), two thirds as deep as its chest, a little narrower than its
   // ribs, and it sits close to the shoulders on a short neck.
@@ -98,24 +98,29 @@ test("the standing cat has a shorthair's proportions", () => {
   // that the head's skin runs on into the throat).
   const mid = (top(head, "y") + bottom(head, "y")) / 2;
   const headLength = top(head, "z") - bottom(head.filter((p) => p.y > mid), "z");
-  within(headLength / length, [0.19, 0.235], "head length / body length");
-  within(span(head, "y") / chestDepth, [0.6, 0.78], "head depth / chest depth");
-  within(span(head, "x"), [0.09, 0.108], "head width");
+  within(headLength / length, [0.2, 0.235], "head length / body length");
+  within(span(head, "y") / chestDepth, [0.66, 0.78], "head depth / chest depth");
+  within(span(head, "x"), [0.095, 0.108], "head width");
+  // Carried a little above the back, not up on a stalk ("cat dimensions
+  // are really weird": the weasel had its crown at 1.3x the withers).
+  within(top(head, "y") / withers, [1.17, 1.28], "crown height / withers");
   // The visible neck: from the top of the shoulders to the back of the
   // skull along the top line.
   const skull = bottom(head.filter((p) => p.y > withers - 0.01), "z");
   const neck = skull - 0.1;
-  within(neck, [0.02, 0.065], "visible neck");
+  within(neck, [0.035, 0.065], "visible neck");
   // From above: shoulders, a ribcage, a waist and hips, not a log; from
   // behind, the haunches no wider than the chest.
   const ribs = widest(0.0, 0.06);
   const waist = widest(-0.045, -0.035);
   const haunch = widest(-0.2, -0.06);
   const shoulders = widest(0.09, 0.12);
-  within(ribs, [0.1, 0.125], "ribcage width");
-  assert.ok(waist < ribs * 0.8, `a waist (${(waist * 100).toFixed(1)} cm) behind the ribs (${(ribs * 100).toFixed(1)} cm)`);
+  within(ribs, [0.11, 0.125], "ribcage width");
+  assert.ok(waist < ribs * 0.78, `a waist (${(waist * 100).toFixed(1)} cm) behind the ribs (${(ribs * 100).toFixed(1)} cm)`);
   assert.ok(shoulders < ribs, "shoulders narrower than the ribcage");
+  assert.ok(shoulders > waist * 1.15, `shoulders (${(shoulders * 100).toFixed(1)} cm) wider than the waist`);
   assert.ok(haunch <= ribs + 0.003, `haunches (${(haunch * 100).toFixed(1)} cm) no wider than the chest`);
+  assert.ok(haunch > waist * 1.2, `haunches (${(haunch * 100).toFixed(1)} cm) wider than the waist`);
   // Slender legs and a tail that tapers.
   const forearm = coat.filter((p) => p.leg > 0.5 && p.x > 0 && p.z > 0.02 && p.y > 0.06 && p.y < 0.09);
   within(span(forearm, "z"), [0.022, 0.036], "forearm thickness");
@@ -158,4 +163,75 @@ test("the cat's paws reach the ground in every pose", () => {
       for (const y of s) assert.ok(y > -0.006, `${speed} m/s: no paw through the ground (${(y * 100).toFixed(1)} cm)`);
       assert.ok(Math.min(...s) < 0.004, `${speed} m/s: some paw on the ground`);
     }
+});
+
+// "Skin stretching between the inner thighs mid-stride": the skin between
+// the hind legs (under the belly, above the hocks) may not web across as
+// the thighs swing apart. The left and right legs never blend into each
+// other (cat-body.js createField) and the groin's midline skin follows the
+// pelvis. Measured as the longest edge there over a stride (it was 12 cm).
+test("no web of skin between the thighs mid-stride", () => {
+  const mesh = cat.debug.meshes[0];
+  const g = mesh.geometry;
+  const bind = g.attributes.position;
+  const inner = new Set();
+  for (let i = 0; i < bind.count; i++) {
+    const y = bind.getY(i) + 0.2;
+    if (Math.abs(bind.getX(i)) < 0.022 && bind.getZ(i) < -0.08 && bind.getZ(i) > -0.17 && y > 0.05 && y < 0.15) inner.add(i);
+  }
+  const edges = [];
+  const index = g.index.array;
+  for (let t = 0; t < index.length; t += 3)
+    for (let e = 0; e < 3; e++) {
+      const i = index[t + e], j = index[t + ((e + 1) % 3)];
+      if (inner.has(i) && inner.has(j)) edges.push([i, j]);
+    }
+  const a = new THREE.Vector3(), b = new THREE.Vector3();
+  for (const speed of [0.55, 1.5, 3.2]) {
+    const p = pose({ speed, gaitAmp: 1, running: speed > 2 });
+    let longest = 0;
+    for (let f = 0; f < 150; f++) {
+      p.z += speed / 60;
+      cat.update(p, 1 / 60, f / 60, () => 0, () => 0, LIGHT);
+      if (f < 90 || f % 4) continue;
+      // (Skinned, in the cat's own model metres.)
+      for (const [i, j] of edges) longest = Math.max(longest, mesh.getVertexPosition(i, a).distanceTo(mesh.getVertexPosition(j, b)));
+    }
+    assert.ok(longest < 0.075, `${speed} m/s: longest inner-thigh edge ${(longest * 100).toFixed(1)} cm`);
+  }
+});
+
+// Paws never skate: in stance a paw stays where it landed, at a walk, trot
+// and gallop and turning on the spot (where planted paws used to be dragged
+// round at 3.6 m/s), and a cat that stops steps its paws home rather than
+// sliding them.
+test("planted paws do not slide", () => {
+  const names = ["lfPaw", "rfPaw", "lhPaw", "rhPaw"].map((n) => cat.root.getObjectByName(n));
+  const v = new THREE.Vector3();
+  const slide = (step, frames = 240) => {
+    const p = pose();
+    let last = null;
+    let total = 0;
+    for (let f = 0; f < frames; f++) {
+      step(f, p);
+      cat.update(p, 1 / 60, f / 60, () => 0, () => 0, LIGHT);
+      cat.root.updateMatrixWorld(true);
+      const now = names.map((b, i) => {
+        const at = b.getWorldPosition(v);
+        const leg = cat.debug.legs[i];
+        return { x: at.x, z: at.z, down: leg.stance && !leg.settle };
+      });
+      if (last && f > 60) now.forEach((q, i) => q.down && last[i].down && (total += Math.hypot(q.x - last[i].x, q.z - last[i].z)));
+      last = now;
+    }
+    return total / S;
+  };
+  for (const speed of [0.3, 0.55, 1, 1.5, 2.4, 3.2]) {
+    const total = slide((f, p) => { p.speed = speed; p.gaitAmp = 1; p.running = speed > 2; p.z += speed / 60; });
+    assert.ok(total < 0.01, `${speed} m/s: paws slid ${(total * 100).toFixed(1)} cm in stance`);
+  }
+  const turning = slide((f, p) => { p.turn = 2; p.heading = (f / 60) * 2; p.gaitAmp = 0.5; });
+  assert.ok(turning < 0.01, `turning on the spot: paws slid ${(turning * 100).toFixed(1)} cm`);
+  const stopping = slide((f, p) => { const s = f < 120 ? 0.55 : 0; p.speed = s; p.gaitAmp = f < 120 ? 1 : Math.max(0, 1 - (f - 120) / 20); p.z += s / 60; });
+  assert.ok(stopping < 0.03, `stopping: paws slid ${(stopping * 100).toFixed(1)} cm`);
 });

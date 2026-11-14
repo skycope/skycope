@@ -50,3 +50,38 @@ test("the cat's body meshes are skinned and budgeted", async () => {
   assert.ok(lods.mid.index.count / 3 < 40000, `body ${lods.mid.index.count / 3} triangles`);
   assert.ok(lods.far.index.count * 2.5 < lods.mid.index.count, "coarse mesh is much lighter");
 });
+
+// "Sometimes parts of the cat go invisible": a swimming cat whose water
+// went away (a wave drawn back, or walking out up a steep beach) was
+// floated at −∞ for a frame. The springs that carry state between frames
+// (tail, belly pouch, the shoulder blades' feedback into the front legs,
+// whiskers) kept the NaN for good, so those parts were never drawn again.
+// Every bone must be finite after such a frame, and after any bad frame.
+test("no frame can leave the cat's rig non-finite", () => {
+  const land = new THREE.Group();
+  land.scale.z = -1;
+  const forest = createForest(land, 1847);
+  const cat = createCat(land);
+  const walker = createWalker(forest.obstacles);
+  const light = { night: 0, direct: 1, sunX: 0, sunZ: 0 };
+  const finite = () => {
+    land.updateMatrixWorld(true);
+    const bad = [];
+    cat.root.traverse((o) => {
+      if (o.isBone && !o.matrixWorld.elements.every(Number.isFinite)) bad.push(o.name);
+    });
+    return bad;
+  };
+  let pose = walker.update(1 / 60, { move: [0, 1], run: false, jump: false }, null);
+  for (let i = 0; i < 60; i++) cat.update(pose, 1 / 60, i / 60, walker.surface, () => 0, light);
+  // Afloat, then the water is gone under it while `swim` eases out.
+  const swimming = { ...pose, waterY: pose.y + 0.05, water: 0.3, swim: 1, wade: 1 };
+  for (let i = 0; i < 30; i++) cat.update(swimming, 1 / 60, 1 + i / 60, walker.surface, () => 0, light);
+  const dry = { ...pose, waterY: -Infinity, water: 0, swim: 0.4, wade: 0.3 };
+  cat.update(dry, 1 / 60, 1.5, walker.surface, () => 0, light);
+  assert.deepEqual(finite(), [], "finite while swim eases out over dry ground");
+  // One poisoned frame of input heals on the next.
+  cat.update({ ...pose, turn: NaN, speed: NaN }, 1 / 60, 1.6, walker.surface, () => 0, light);
+  for (let i = 0; i < 3; i++) cat.update(pose, 1 / 60, 1.7 + i / 60, walker.surface, () => 0, light);
+  assert.deepEqual(finite(), [], "finite again after a bad frame");
+});

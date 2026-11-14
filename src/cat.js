@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { CAT_SCALE, HEAD_SCALE, PAW_LIFT, STAND_HEIGHT, TAIL_BONES, TAIL_LENGTH, TAIL_ROOT, createRig, neutralFoot, solveLeg } from "./cat-rig.js";
 import { buildCatGeometry, MUZZLE } from "./cat-body.js";
 import { bakeShellColours, catUniforms, coatMaterial, ghostMaterial, CAT_SEA } from "./cat-coat.js";
-import { createContactShadow, createDust, createPawPrints, createSpray, SPLASH } from "./cat-ground.js";
+import { CAT_SKY, createContactShadow, createDust, createPawPrints, createSpray, SPLASH } from "./cat-ground.js";
 
 export { SPLASH };
 
@@ -37,13 +37,15 @@ const POSTURE = {
   stand: { height: STAND_HEIGHT, pitch: 0 },
   // Sitting: haunches on the ground, the back rounded (pelvis steep, chest
   // upright), front legs straight under the shoulders.
-  sit: { height: 0.152, pitch: 0.8, chest: 0.18, hips: 0.3, front: [0.026, 0.15], hind: [0.05, 0.045] },
+  sit: { height: 0.138, pitch: 0.72, chest: 0.16, hips: 0.32, front: [0.026, 0.155], hind: [0.05, 0.045] },
   // Lying (a sphinx): belly on the ground, forearms flat along it with the
   // paws under the chin, hind legs folded beside the belly.
   lie: { height: 0.062, pitch: 0.03, front: [0.024, 0.19], hind: [0.045, -0.07] },
   // Stalking: low, the rump a touch higher than the shoulders.
   crouch: { height: 0.15, pitch: -0.07 },
 };
+// How far ahead of its standing place a forepaw's stride is centred (model m).
+const GAIT_CENTRE = 0.045;
 const lerp = THREE.MathUtils.lerp;
 const smooth = THREE.MathUtils.smoothstep;
 const clamp = THREE.MathUtils.clamp;
@@ -84,6 +86,11 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
   fur.depthWrite = false;
   const depth = new THREE.MeshDepthMaterial({ side: THREE.DoubleSide });
   const meshes = [];
+  // Dev: the lab's benchmark toggles parts to attribute cost; QA captures
+  // can hold the lids open (blink: 0) and find it from the scene graph
+  // (scripts/cat-qa.mjs; `healed` counts frames the springs were reset).
+  const debug = { meshes, shells: null, blink: null, healed: 0, uniforms, legs: rig.legs };
+  root.userData.debug = debug;
   let shellGeometry = null;
   const maxShells = light ? 4 : 5;
 
@@ -94,6 +101,8 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
   let still = false;
   function attach(geometries) {
     lods = geometries;
+    debug.lods = lods;
+    debug.materials = { coat, coatFar, coatFarthest, fur };
     const bindMatrix = new THREE.Matrix4();
     const skinned = (g, material, order) => {
       const mesh = new THREE.SkinnedMesh(g, material);
@@ -187,6 +196,10 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
     dipV: 0,
     lastAir: 0,
     airVel: 0,
+    lastAirVel: 0,
+    lastSpeed: 0,
+    weight: 0,
+    weightV: 0,
     lastHeight: 0,
     lastLift: 0,
     lastPitch: 0,
@@ -216,15 +229,65 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
     surge: 0,
     hitCool: 0,
     dunked: 99,
+    // The last water level the cat was in: it floats on this while `swim`
+    // eases out, after the water under it has gone (a wave drawn back, or
+    // walking out up a steep beach), when pose.waterY is already −∞.
+    waterLevel: 0,
   };
+  // Springs and integrators that carry state from frame to frame. A single
+  // non-finite input (once: the float height on −∞ water) used to poison
+  // them for good: the tail, the belly pouch and the front legs (through the
+  // shoulder blades' feedback) vanished for the rest of the visit. Anything
+  // non-finite is put back to rest at the start of every frame.
+  const SPRINGS = { lastSpeed: 0, weight: 0, weightV: 0, dip: 0, dipV: 0, lastAir: 0, airVel: 0, lastAirVel: 0, lastHeight: 0, lastLift: 0, lastPitch: 0, breath: 0, exertion: 0, pouch: 0, pouchV: 0, wet: 0, stroke: 0, gait: 0, lie: 0, crouch: 0, bow: 0, drip: 0, surge: 0 };
+  function heal() {
+    let healed = false;
+    for (const key in SPRINGS)
+      if (!Number.isFinite(state[key])) {
+        state[key] = SPRINGS[key];
+        healed = true;
+      }
+    for (const key in state.settle) if (!Number.isFinite(state.settle[key])) delete state.settle[key];
+    for (let i = 0; i < TAIL_BONES; i++)
+      if (!(Number.isFinite(state.tailElev[i]) && Number.isFinite(state.tailSide[i]) && Number.isFinite(state.tailElevV[i]) && Number.isFinite(state.tailSideV[i]))) {
+        state.tailElev[i] = -0.3;
+        state.tailSide[i] = state.tailElevV[i] = state.tailSideV[i] = 0;
+        healed = true;
+      }
+    for (const ear of state.ears)
+      if (!(Number.isFinite(ear.swivel) && Number.isFinite(ear.flick))) {
+        ear.swivel = ear.flick = 0;
+        healed = true;
+      }
+    if (!(Number.isFinite(state.gaze.x) && Number.isFinite(state.gaze.y))) state.gaze.set(0, 0);
+    for (const leg of rig.legs) {
+      if (leg.lastUpper !== undefined && !Number.isFinite(leg.lastUpper)) leg.lastUpper = undefined;
+      if (leg.scapLift !== undefined && !Number.isFinite(leg.scapLift)) leg.scapLift = 0;
+      if (leg.plant && !(Number.isFinite(leg.plant.x) && Number.isFinite(leg.plant.z) && Number.isFinite(leg.plant.fromX) && Number.isFinite(leg.plant.fromZ))) leg.plant = null;
+    }
+    if (healed) debug.healed++;
+  }
   const tailP = Array.from({ length: TAIL_BONES + 1 }, () => new THREE.Vector3());
   const tailN = Array.from({ length: TAIL_BONES + 1 }, () => new THREE.Vector3(1, 0, 0));
   const tailRoot = new THREE.Vector3(...TAIL_ROOT).sub(b.spine.position).sub(b.hips.position);
   let firstFrame = true;
-  // Dev: the lab's benchmark toggles parts to attribute cost; QA captures
-  // can hold the lids open (blink: 0) and find it from the scene graph.
-  const debug = { meshes, shells: null, blink: null };
-  root.userData.debug = debug;
+
+  // Whiskers are unlit lines: lit here as fine pale hairs under the same
+  // sun and sky as the coat (irradiance × albedo / π, the sun at a glancing
+  // half). By moonlight they had shone at a third of noon's brightness.
+  let sunLight = null;
+  const lum = (c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+  function whiskerLight(light) {
+    if (!sunLight) {
+      let top = parent;
+      while (top.parent) top = top.parent;
+      top.traverse((o) => {
+        if (!sunLight && o.isDirectionalLight) sunLight = o;
+      });
+    }
+    const sun = sunLight ? lum(sunLight.color) * sunLight.intensity : 3;
+    return (0.8 / Math.PI) * (sun * light.direct * 0.5 + lum(CAT_SKY.value));
+  }
 
   return {
     root,
@@ -243,6 +306,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
         firstFrame = false;
       }
       uniforms.catTime.value = time;
+      heal();
       const step = Math.min(dt, 1 / 30);
       still = pose.gaitAmp < 0.02 && pose.air === 0 && Math.abs(pose.turn) < 0.05;
       const speed = Math.abs(pose.speed);
@@ -253,6 +317,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       // Water: afloat (swim), how deep the legs are in it (wade), and the
       // shake that throws it off afterwards.
       const inWater = Number.isFinite(pose.waterY);
+      if (inWater) state.waterLevel = pose.waterY;
       const swim = pose.swim ?? 0;
       const wade = (pose.wade ?? 0) * (1 - swim);
       const shaking = pose.shake ?? 0;
@@ -308,9 +373,15 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       const gallop = smooth(speed, 2.3, 3.2);
       // A galloping cat takes quick strides (~3 a second) its legs can
       // reach: the spine's flexing lengthens them, not longer legs.
-      const stride = lerp(lerp(0.34, 0.62, trot), 0.8, gallop) * S * lerp(1, 0.75, crouch);
+      // Turning on the spot, the paws travel round the body at the turn
+      // rate times their distance from its middle: that sets the pace, in
+      // short steps, so a planted paw is never dragged round (it was, at
+      // up to 3.6 m/s).
+      const pivotSpeed = Math.abs(pose.turn) * 0.13 * S;
+      const pivot = smooth(pivotSpeed - speed, 0, 0.15);
+      const stride = lerp(lerp(0.34, 0.62, trot), 0.8, gallop) * S * lerp(1, 0.75, crouch) * lerp(1, 0.55, pivot);
       const duty = lerp(lerp(0.64, 0.46, trot), 0.34, gallop);
-      const pace = Math.max(speed, Math.abs(pose.turn) * 0.1);
+      const pace = Math.max(speed, pivotSpeed);
       state.gait = (state.gait + (pace / stride) * dt) % 1;
       const cycle = state.gait * Math.PI * 2;
       // The gallop's spine: stretched long as the front paws reach to land
@@ -356,7 +427,17 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       // Nose up as the hind legs drive, down as the front legs take the weight.
       const rock = Math.sin((state.gait - 0.05) * Math.PI * 2) * 0.07 * gallop * amp;
       const posturePitch = POSTURE.sit.pitch * sitW + POSTURE.lie.pitch * lieW + POSTURE.crouch.pitch * crouch;
-      let pitch = slopePitch * (1 - sitW * 0.6) + posturePitch + pose.airPitch + rock;
+      // A sitting cat holds itself upright whatever it sits on (a slope, the
+      // edge of a thwart with its forepaws on the boards below).
+      // Stopping, the body's weight carries on a moment over the forelegs
+      // and settles back; setting off, it sits back on the haunches as the
+      // hind legs drive. A damped spring on the change of speed: a few
+      // hundredths of a radian, quiet.
+      const speedRate = step > 0 ? clamp((speed - state.lastSpeed) / step, -6, 6) : 0;
+      state.lastSpeed = speed;
+      state.weightV += (-90 * state.weight - 11 * state.weightV - speedRate * 0.6 * standW) * step;
+      state.weight = clamp(state.weight + state.weightV * step, -0.05, 0.05);
+      let pitch = slopePitch * (1 - sitW * 0.9) + posturePitch + pose.airPitch + rock - state.weight;
       const bodyHeight = lerp(lerp(STAND_HEIGHT, POSTURE.crouch.height, crouch), 0, pose.sit) + POSTURE.sit.height * sitW + POSTURE.lie.height * lieW;
       const baseGround = support - pose.air;
       let height = baseGround + (bodyHeight + bob + state.dip) * S + pose.air;
@@ -369,7 +450,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
         const slopeZ = pose.waterSlope?.[1] ?? 0;
         const along = Math.atan(slopeX * sin + slopeZ * cos) * 0.7;
         const across = Math.atan(slopeX * cos - slopeZ * sin) * 0.7;
-        const floatY = pose.waterY - 0.045 * S + Math.sin(strokeC * 2) * 0.004 * S + pose.air;
+        const floatY = state.waterLevel - 0.045 * S + Math.sin(strokeC * 2) * 0.004 * S + pose.air;
         height = lerp(height, floatY, swim);
         pitch = lerp(pitch, 0.2 - effort * 0.05 + along, swim);
         bodyRoll = lerp(bodyRoll, across + Math.sin(strokeC) * 0.05 + lean * 0.5, swim);
@@ -384,7 +465,8 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       bodyRoll += shakeWave(0.03) * 0.09 * shakeBody;
       // Sitting settles back onto the haunches; the front paws stay put.
       const shift = (0.03 * sitW - 0.005 * lieW) * S;
-      root.position.set(x + sin * shift, height, z + cos * shift);
+      const lunge = shift + state.weight * 0.25 * S;
+      root.position.set(x + sin * lunge, height, z + cos * lunge);
       root.rotation.set(-pitch, heading, bodyRoll);
 
       // Spine: bends into turns (a cat turns its whole length), flexes and
@@ -471,7 +553,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
         turn: b.neck.rotation.y + heading,
         height: height + b.neck.rotation.x * 0.05,
         sniff: pose.swish * (1 - amp),
-        light: 0.03 + light.direct * 0.6 + (1 - light.night) * 0.3,
+        light: whiskerLight(light),
       });
 
       // Eyes: blink every few seconds (twice now and then), slow-blink
@@ -548,15 +630,50 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
         let wx, wz;
         let lift = 0;
         leg.swing = 0;
-        if (amp < 0.04 || pose.air > 0.01) {
-          // Standing still (or airborne): settle toward the neutral stance.
-          const k = Math.min(1, step * (pose.sit > 0.05 ? 3 : 6));
+        if (pose.air > 0.01) {
+          // Airborne: the paws hang toward the neutral stance.
+          const k = Math.min(1, step * 6);
           leg.plant.x += (nx - leg.plant.x) * k;
           leg.plant.z += (nz - leg.plant.z) * k;
           wx = leg.plant.x;
           wz = leg.plant.z;
           leg.stance = true;
+          leg.settle = null;
+        } else if (amp < 0.04) {
+          // Stopped (or sitting down): a paw left out of place is picked up
+          // and set down where it belongs, one paw at a time, the farthest
+          // first, rather than slid across the ground.
+          // (A paw caught mid-swing finishes its step from where it is.)
+          if (!leg.stance && !leg.settle && leg.lastW) leg.settle = { t: 0.3, fromX: leg.lastW.x, fromZ: leg.lastW.z };
+          leg.settleDist = Math.hypot(nx - leg.plant.x, nz - leg.plant.z);
+          if (!leg.settle && leg.settleDist > 0.009 * S && !rig.legs.some((l) => l.settle) && rig.legs.every((l) => (l.settleDist ?? 0) <= leg.settleDist)) {
+            leg.settle = { t: 0, fromX: leg.plant.x, fromZ: leg.plant.z };
+          }
+          if (leg.settle) {
+            const st = leg.settle;
+            st.t = Math.min(1, st.t + step / (pose.sit > 0.05 ? 0.3 : 0.2));
+            const e = st.t * st.t * (3 - 2 * st.t);
+            leg.plant.x = st.fromX + (nx - st.fromX) * e;
+            leg.plant.z = st.fromZ + (nz - st.fromZ) * e;
+            lift = Math.sin(Math.PI * st.t) * 0.016 * S;
+            leg.swing = Math.sin(Math.PI * st.t) * 0.5;
+            leg.stance = st.t >= 1;
+            if (st.t >= 1) leg.settle = null;
+          } else if (leg.settleDist > 0.009 * S) {
+            // Waiting its turn: planted where it is.
+            leg.stance = true;
+          } else {
+            // (Within a centimetre: eased, too little to read as a slide.)
+            const k = Math.min(1, step * 1.5);
+            leg.plant.x += (nx - leg.plant.x) * k;
+            leg.plant.z += (nz - leg.plant.z) * k;
+            leg.stance = true;
+          }
+          wx = leg.plant.x;
+          wz = leg.plant.z;
         } else if (stance) {
+          leg.settle = null;
+          leg.settleDist = 0;
           if (!leg.stance) {
             // Touchdown: a print, a footstep, perhaps a spray of sand.
             leg.stance = true;
@@ -577,10 +694,23 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
             leg.plant.fromZ = leg.plant.z;
             leg.stance = false;
           }
+          leg.settle = null;
+          leg.settleDist = 0;
           const t = (q - duty) / (1 - duty);
-          const ahead = stanceReach * amp;
-          leg.plant.x = nx + sin * ahead;
-          leg.plant.z = nz + cos * ahead;
+          // Set down ahead of where the neutral paw will be at mid-stance:
+          // along the body's travel, and round it in a turn.
+          const ahead = (stanceReach * amp) / Math.max(pace, 1e-3);
+          const omega = pose.turn;
+          const vx = sin * speed + omega * (cos * footZ - sin * footX);
+          const vz = cos * speed + omega * (-sin * footZ - cos * footX);
+          // Standing, a forepaw rests behind the shoulder, under the elbow;
+          // walking, its stance is centred under the shoulder joint, so it
+          // reaches ahead of it and leaves the ground before the leg is
+          // stretched past its length (it used to drag forward, half lifted,
+          // at the end of every stance).
+          const centre = spec.front ? GAIT_CENTRE * S * amp * standW : 0;
+          leg.plant.x = nx + vx * ahead + sin * centre;
+          leg.plant.z = nz + vz * ahead + cos * centre;
           if (!spec.front && trot < 0.3) {
             const front = rig.legs.find((l) => l.spec.front && l.spec.side === spec.side);
             const print = front.lastPrint;
@@ -599,6 +729,9 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
           lift = Math.sin(Math.PI * Math.pow(t, 0.8)) * lerp(lerp(0.028, 0.055, trot), spec.front ? 0.085 : 0.07, gallop) * S * Math.min(1, amp * 2) * (1 + smooth(wade, 0.05, 0.5) * 1.8);
           leg.swing = Math.sin(Math.PI * Math.min(1, t * 1.3)) * Math.min(1, amp * 2);
         }
+        leg.lastW = leg.lastW ?? { x: 0, z: 0 };
+        leg.lastW.x = wx;
+        leg.lastW.z = wz;
         const gy = ground(wx, wz);
         // The shoulder blade rides the swing of the arm, and rises over the
         // leg that bears weight.
@@ -622,7 +755,15 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
           local.set(0, reachDown, reachFwd);
           flexLeg = spec.front ? (rising ? 1.3 : 0.2) : rising ? -0.1 : 0.6;
         } else {
-          local.set(wx, gy + PAW_LIFT * S + lift, wz).applyMatrix4(parent.matrixWorld).applyMatrix4(inverse).sub(leg.upper.position);
+          temp.set(wx, gy + PAW_LIFT * S + lift, wz);
+          // A paw left behind past the leg's reach peels straight up where it
+          // stands (heel first) instead of being dragged after the body.
+          const [a, b, c] = spec.bones;
+          const reach = 0.9 * (a + b + c) * S;
+          leg.upper.getWorldPosition(worldPoint).applyMatrix4(toCoast);
+          const flat = (temp.x - worldPoint.x) ** 2 + (temp.z - worldPoint.z) ** 2;
+          if (amp > 0.04 && standW > 0.5 && flat + (temp.y - worldPoint.y) ** 2 > reach * reach && flat < reach * reach) temp.y = Math.max(temp.y, worldPoint.y - Math.sqrt(reach * reach - flat));
+          local.copy(temp).applyMatrix4(parent.matrixWorld).applyMatrix4(inverse).sub(leg.upper.position);
         }
         // Paddling: each paw circles under the body, pulling down and back
         // with the toes spread, then curling up and forward to reach again.
@@ -1091,6 +1232,9 @@ function whiskers() {
         }
         twitch[key] *= Math.exp(-dt * 3.5);
       }
+      // (Never let one bad frame stick: see heal() in createCat.)
+      if (!Number.isFinite(mood.turn) || !Number.isFinite(mood.height)) return;
+      if (![lag, bounce.x, bounce.v, swing.x, swing.v, lastRise].every(Number.isFinite)) lag = bounce.x = bounce.v = swing.x = swing.v = lastRise = 0;
       if (lastTurn === null) lastTurn = mood.turn;
       if (lastHeight === null) lastHeight = mood.height;
       const turnRate = dt > 0 ? Math.atan2(Math.sin(mood.turn - lastTurn), Math.cos(mood.turn - lastTurn)) / dt : 0;
