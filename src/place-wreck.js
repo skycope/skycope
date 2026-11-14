@@ -3,7 +3,7 @@ import { groundHeight } from "./terrain.js";
 import { capsule } from "./blockers.js";
 import { seededRandom } from "./random.js";
 import { part, merge, sweep, place, smooth01, srgb, hash, staticMesh } from "./place-kit.js";
-import { heightTile } from "./place-lighthouse.js";
+import { heightTile, timberTile } from "./place-lighthouse.js";
 import { hurricaneLantern } from "./place-shore.js"; // land-magic:
 
 // The bones of a wooden coaster, driven bow-first up the beach and half
@@ -56,6 +56,7 @@ export function buildWreck(p, materials, { light = false, seed = 1 } = {}) {
   const wood = { near: [], far: [] };
   const iron = { near: [], far: [] };
   const trunks = [];
+  let boilerTile = null;
   // solid: the timbers the camera keeps out of (blockers.js).
   const blockers = [];
   const C = (q) => ({ x: p.x + q.x, y: q.y, z: p.z + q.z });
@@ -172,10 +173,12 @@ export function buildWreck(p, materials, { light = false, seed = 1 } = {}) {
       iron.near.push(part(new THREE.CylinderGeometry(0.09, 0.09, 0.08, 8), {
         matrix: m.clone().multiply(new THREE.Matrix4().makeTranslation(Math.cos(a) * r, 1.06, Math.sin(a) * r + 0.05)), colour: srgb("#1c120c"),
       }));
-    trunks.push({ x: p.x + centre.x, z: p.z + centre.z, r: 0.55 });
+    // solid: the drum lies half sunk; a cat hops onto it (it was a wall).
     // Its axis: the cylinder's y turned by the roll, then the yaw.
     const ax = -Math.cos(yaw) * 0.75, az = Math.sin(yaw) * 0.75;
     blockers.push(capsule(C({ x: centre.x - ax, y: centre.y, z: centre.z - az }), C({ x: centre.x + ax, y: centre.y, z: centre.z + az }), 0.64, { body: false }));
+    const ex = -Math.cos(yaw) * 1.02, ez = Math.sin(yaw) * 1.02;
+    boilerTile = timberTile([C({ x: centre.x - ex, y: centre.y, z: centre.z - ez }), C({ x: centre.x + ex, y: centre.y, z: centre.z + ez })], 0.62);
   }
   // Drift bolts and an iron knee standing proud of the keel.
   for (let k = 0; k < 7; k++) {
@@ -203,7 +206,7 @@ export function buildWreck(p, materials, { light = false, seed = 1 } = {}) {
     const q = hull(u / (L / 2), 0, 1);
     return q.y + 0.12 + 0.17;
   };
-  const domes = [heightTile(p.x, p.z, L / 2 + 0.5, 0.12, (x, z) => keelTop(x - p.x, z - p.z))];
+  const domes = [heightTile(p.x, p.z, L / 2 + 0.5, 0.12, (x, z) => keelTop(x - p.x, z - p.z)), boilerTile];
   return {
     near: nearGroup, far: farGroup, farDistance: 40, obstacles: { trunks, domes }, blockers,
     halos: [{ x: p.x + lantern.x, y: lantern.y, z: p.z + lantern.z, size: 1.5, colour: [1.0, 0.62, 0.28], flicker: true, reach: 4 }],

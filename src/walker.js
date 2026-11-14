@@ -491,7 +491,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
     if (cat.air > 0 ? rise > 0.02 : tall && rise > 0.003 && rise / run > 1.6) return false;
     if (!drift && !bodyClear(nx, nz, next - rise)) return false;
     // solid: walls, the tank, the stem and the milkwood's resting limbs.
-    if (solids.touches(nx, next + 0.17, nz, CAT_RADIUS)) {
+    if (solids.touches(nx, (cat.air > 0 ? Math.max(cat.y, next) : next) + 0.17, nz, CAT_RADIUS)) {
       const h = solids.hit;
       // Only what the step runs into: free to back away from it.
       if ((nx - cat.x) * h.nx + (nz - cat.z) * h.nz < 0) {
