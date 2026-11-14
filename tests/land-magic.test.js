@@ -9,12 +9,12 @@ import { PRINT_MAGIC } from "../src/cat-ground.js";
 const pose = (x, z, extra = {}) => ({ x, z, y: 0, air: 0, sleepy: 0, ...extra });
 
 test("firefly traits are deterministic by seed and split into the three flocks", () => {
-  const a = fireflyTraits(1847, 600), b = fireflyTraits(1847, 600), c = fireflyTraits(7, 600);
+  const a = fireflyTraits(1847, 500), b = fireflyTraits(1847, 500), c = fireflyTraits(7, 500);
   assert.deepEqual(a.traits, b.traits);
   assert.notDeepEqual(a.traits, c.traits);
   const counts = [0, 0, 0];
-  for (let i = 0; i < 600; i++) counts[a.kinds[i * 2]]++;
-  assert.equal(counts[FLY_KIND.escort], 132);
+  for (let i = 0; i < 500; i++) counts[a.kinds[i * 2]]++;
+  assert.equal(counts[FLY_KIND.escort], 25, "a few with the cat, not a cloud");
   assert.ok(counts[FLY_KIND.home] > 200 && counts[FLY_KIND.roam] > 200);
   for (const v of a.traits) assert.ok(Number.isFinite(v) && v >= 0 && v < 2.5);
 });

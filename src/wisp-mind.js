@@ -73,6 +73,9 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
   let reroute = 0;
   let tryingAt = -Infinity;
   let beckon = 0;
+  // Pinned: pressing on and going nowhere (a trunk, a keel), since when.
+  const pinAt = { x: 0, z: 0 };
+  let pinned = 0;
   const tugFrom = { x: 0, z: 0 };
   // The way to the current target (routes.find), and how far along the cat is.
   const routes = createRoutes({ obstacles: obstacles ?? { trunks: [], domes: [] }, surface, reach });
@@ -129,7 +132,7 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
       vel.x = vel.z = 0;
       vel.y = 1.6;
       visible = true;
-      flare = 0.6;
+      flare = 0.35;
       set("greet");
     },
     // The ceremony: dive into the keepsake at (x, y, z); `end()` lets it go.
@@ -207,6 +210,11 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
       const sitting = cat.sit > 0.85;
       sitFor = sitting ? sitFor + dt : 0;
       if (ctx.trying || Math.abs(cat.speed) > 0.05) tryingAt = clock;
+      if (Math.abs(cat.speed) < 0.3 || Math.hypot(cat.x - pinAt.x, cat.z - pinAt.z) > 0.4) {
+        pinAt.x = cat.x;
+        pinAt.z = cat.z;
+        pinned = 0;
+      } else pinned += dt;
       // A cat that has sat a while (not one that has only just stopped).
       const settled = sitFor > (ctx.sunset ? 3 : 10);
       let hover = WISP.float;
@@ -218,7 +226,7 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
       const free = mode !== "dive" && mode !== "soar";
       if (free && ctx.call) {
         set("answer");
-        flare = Math.max(flare, 0.9);
+        flare = Math.max(flare, 0.25);
       }
       if (free && mode !== "answer" && ctx.meteor && mode !== "gaze") set("gaze");
       if (free && mode !== "answer" && mode !== "gaze" && ctx.interest && isAnimal(ctx.interest.kind) && clock - lastPeek > 40 && mode !== "peek") {
@@ -262,6 +270,16 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
             lastTug = clock;
             best = toTarget;
             bestAt = clock - 10;
+            break;
+          }
+          if (pinned > 1.5) {
+            // The cat is stuck: it comes back, low, to the cat's free side
+            // (behind it, away from what it is pushing on) and holds still.
+            goal.x = cat.x - Math.sin(cat.heading) * 1.1 + Math.cos(cat.heading) * 0.5;
+            goal.z = cat.z - Math.cos(cat.heading) * 1.1 - Math.sin(cat.heading) * 0.5;
+            goal.y = catY + 0.45;
+            speedCap = 3;
+            perch.set = false;
             break;
           }
           const running = cat.running || Math.abs(cat.speed) > 2;
@@ -333,7 +351,8 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
             }
             // Far off, a slow brightening now and then, so it can be found.
             if (nowToPerch > 6) flare = Math.max(flare, 0.3 * Math.max(0, Math.sin(clock * 1.1 + phase[2])) ** 14);
-            nextHide -= dt;
+            // Hide-and-seek is a game for once it is known (a gift awake).
+            if ((ctx.gifts ?? 0) > 0) nextHide -= dt;
             if (nextHide <= 0 && shoreDistance(perch.x, perch.z) > 6 && toTarget > 9) {
               nextHide = 20 + random() * 25;
               set("hide");
@@ -445,7 +464,7 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
           break;
         }
         case "hide": {
-          // Down into the grass, dim… and out again with a flare.
+          // Down into the grass, dim… and out again, a little brighter.
           const t = since();
           goal.x = perch.x;
           goal.z = perch.z;
@@ -453,7 +472,7 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
           rest *= t < 0.5 ? 1 : t < 2.2 ? 0.12 : 1;
           speedCap = t < 2.2 ? 2.5 : 8;
           stiff = t < 2.2 ? 1 : 2.5;
-          if (t > 2.2 && t - dt <= 2.2) flare = 1.1;
+          if (t > 2.2 && t - dt <= 2.2) flare = 0.35;
           if (t > 3 || Math.hypot(perch.x - cat.x, perch.z - cat.z) < WISP.near) set("lead");
           break;
         }

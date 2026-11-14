@@ -54,7 +54,7 @@ test("the Atmosphere struct ends with the magic fields", () => {
   assert.match(main, /magicUniforms/);
 });
 
-test("the stars gift brings meteors and answers a meow with a falling star", async () => {
+test("the stars gift keeps the real meteor rate and answers a meow with a falling star", async () => {
   const { skyEventFrame, skyConditions, CALL_ANSWER } = await import("../src/sky-events.js");
   const { skyAt } = await import("../src/astronomy.js");
   const date = new Date("2026-09-10T19:30:00Z");
@@ -68,7 +68,7 @@ test("the stars gift brings meteors and answers a meow with a falling star", asy
     for (let t = 0; t < 600; t += 0.5) if (skyEventFrame({ ...base, time: t, magic }).uniforms.meteor[3] > 0) n++;
     return n;
   };
-  assert.ok(count({ stars: 1 }) > count(null) * 1.4);
+  assert.equal(count({ stars: 1 }), count(null), "no extra meteors");
   // Asleep, a meow brings nothing; awake, a star falls after the delay.
   const callAt = 500.3;
   const at = callAt + CALL_ANSWER.delay + 0.15;

@@ -1,0 +1,13 @@
+{
+  "wisp-noon": { "drawCalls": 140, "triangles": 616241 },
+  "wisp-lens-noon": { "drawCalls": 140, "triangles": 616410 },
+  "wisp-dusk": { "drawCalls": 140, "triangles": 610785 },
+  "wisp-lens-dusk": { "drawCalls": 141, "triangles": 618103 },
+  "wisp-night": { "drawCalls": 135, "triangles": 608186 },
+  "wisp-lens-night": { "drawCalls": 132, "triangles": 579871 },
+  "notes": { "drawCalls": 139, "triangles": 611092 },
+  "sky-stars": { "drawCalls": 45, "triangles": 353678 },
+  "sky-finale": { "drawCalls": 50, "triangles": 353810 },
+  "meadow-dusk": { "drawCalls": 379, "triangles": 1464340 },
+  "meadow-night-gift": { "drawCalls": 358, "triangles": 1227192 }
+}

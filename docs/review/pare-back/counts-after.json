@@ -1,0 +1,23 @@
+{
+  "note": "Whole-frame #landscape draw calls and triangles at the same camera and time as counts-before.json (seed 1847, headless Chrome 1440x900). They move by a few calls between runs with shadow-refresh frames and LOD; the cuts below are the exact ones.",
+  "exact": {
+    "ambient fireflies (critters.js)": { "before": "40 instanced spheres, 1 draw call at dusk and night", "after": "none" },
+    "gift fireflies (fireflies.js) desktop": { "before": "600 points: escort 132, home 240, roam 228", "after": "500 points: escort 25, home 240, roam 235" },
+    "gift fireflies (fireflies.js) light/phone": { "before": "260 points: escort 57", "after": "216 points: escort 11" },
+    "wisp geometry (wisp.js)": { "before": "288 vertices (96 triangles), trail[40] vec4 + pool[49] float + poolOrigin uniforms", "after": "132 vertices (44 triangles), trail[14] vec4, no pool uniforms" },
+    "meteors under the stars gift (sky-events.js)": { "before": "2x the real rate, every meteor with a glowing train", "after": "the real rate, trains only on fireballs" }
+  },
+  "frames": {
+    "wisp-noon": { "drawCalls": 139, "triangles": 616449 },
+    "wisp-lens-noon": { "drawCalls": 138, "triangles": 609737 },
+    "wisp-dusk": { "drawCalls": 141, "triangles": 618376 },
+    "wisp-lens-dusk": { "drawCalls": 141, "triangles": 618326 },
+    "wisp-night": { "drawCalls": 135, "triangles": 607609 },
+    "wisp-lens-night": { "drawCalls": 137, "triangles": 615958 },
+    "notes": { "drawCalls": 139, "triangles": 610239 },
+    "sky-stars": { "drawCalls": 45, "triangles": 359202 },
+    "sky-finale": { "drawCalls": 49, "triangles": 352266 },
+    "meadow-dusk": { "drawCalls": 378, "triangles": 1462370 },
+    "meadow-night-gift": { "drawCalls": 381, "triangles": 1462068 }
+  }
+}

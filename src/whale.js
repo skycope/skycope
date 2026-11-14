@@ -186,7 +186,8 @@ export function createWhale(group, { seed, theta, light = false, spray = null })
   let showZ = 0;
 
   return {
-    pois: [{ id: "whale-point", title: "Whale lookout", x: viewpoint.x, z: viewpoint.z, r: 8 }],
+    // No marked lookout: the point is a place to sit, not a name.
+    pois: [],
     events,
     whale,
     update({ dt, time, night, wind, pose, water, eye }) {

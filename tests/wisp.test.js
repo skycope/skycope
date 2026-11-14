@@ -274,3 +274,24 @@ test("routes go round a fence through its gate, never through a post", () => {
   assert.ok(crossed !== null && Math.abs(crossed - 52) < 2.5, `crossed at x=${crossed}`);
   for (let i = 0; i < path.length; i += 2) for (const t of trunks) assert.ok(Math.hypot(path[i] - t.x, path[i + 1] - t.z) > t.r);
 });
+
+test("a cat pinned on a trunk gets the light back beside it, holding still", () => {
+  const mind = makeWisp();
+  const cat = makeCat();
+  mind.appear(cat);
+  const target = place("milkwood");
+  for (let i = 0; i < 30 * 6; i++) {
+    walkCat(cat, mind.position, DT, 1.6);
+    mind.update(DT, { cat, target, trying: true });
+  }
+  // Running on the spot: pressing on, going nowhere.
+  cat.speed = 1.6;
+  const at = [];
+  for (let i = 0; i < 30 * 9; i++) {
+    mind.update(DT, { cat, target, trying: true });
+    if (i > 30 * 7) at.push([mind.body.x, mind.body.z]);
+  }
+  assert.ok(mind.distanceTo(cat.x, cat.z) < 2, `beside the cat (${mind.distanceTo(cat.x, cat.z).toFixed(2)} m)`);
+  const spread = Math.max(...at.map(([x, z]) => Math.hypot(x - at[0][0], z - at[0][1])));
+  assert.ok(spread < 0.3, `holding still (${spread.toFixed(2)} m)`);
+});

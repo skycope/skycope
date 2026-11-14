@@ -36,14 +36,15 @@ test("checks are throttled to a few times a second", () => {
   assert.deepEqual(found, ["a"]);
 });
 
-test("a boulder top needs the cat up on it", () => {
+test("an animal is found face to face, not by passing its home", () => {
   const found = [];
   const d = createDiscoveries({ seed: 1, storage: fakeStorage(), onFind: (f) => found.push(f.id) });
-  d.add([{ id: "rock", title: "the rock", x: 0, z: 0, r: 2, above: 1.2 }]);
-  d.update(pose(0, 0, { y: 0.3 }), 0);
-  assert.deepEqual(found, []);
-  d.update(pose(0, 0, { y: 1.3 }), 1);
-  assert.deepEqual(found, ["rock"]);
+  d.add([{ id: "tortoise", title: "tortoise", kind: "creature", x: 0, z: 0, r: 4 }]);
+  d.update(pose(1, 1), 0, { interest: null });
+  d.update(pose(1, 1), 1, { interest: { kind: "butterfly", near: true } });
+  assert.deepEqual(found, [], "in range, but nothing face to face");
+  d.update(pose(1, 1), 2, { interest: { kind: "tortoise", near: true } });
+  assert.deepEqual(found, ["tortoise"]);
 });
 
 test("moments must hold for their time", () => {
@@ -115,13 +116,12 @@ test("unfound titles are never exposed", () => {
   ]);
   d.update(pose(0, 0), 0);
   const list = d.list();
-  assert.equal(list.length, 3);
+  assert.equal(list.length, 1, "only the found");
   assert.deepEqual(list[0], { id: "wreck", found: true, title: "the old wreck", kind: "place", at: list[0].at });
   const text = JSON.stringify(list) + JSON.stringify(d.nearest()) + JSON.stringify(d.counts);
   assert.ok(!text.includes("secret"), "unfound place title leaked");
   assert.ok(!text.includes("rainbow"), "unfound moment title/id leaked");
   assert.ok(!text.includes("cave"), "unfound id leaked");
-  assert.deepEqual(list[1], { found: false });
   // The nearest unfound place is a direction, not a name.
   assert.deepEqual(Object.keys(d.nearest()).sort(), ["distance", "x", "z"]);
 });
@@ -137,22 +137,12 @@ test("invalid entries and duplicates are ignored; find() marks directly", () => 
   assert.equal(found[0].title, "a");
 });
 
-test("the island seeds its own discoveries, inside the island and apart", () => {
-  const domes = [
-    { x: 30, z: 20, r: 1.2, heights: new Float32Array([0.5, 1.4, -Infinity]) },
-    { x: 40, z: 25, r: 2.1, heights: new Float32Array([0.2, 2.3, 2.0]) },
-  ];
-  const pois = islandDiscoveries({ obstacles: { domes, trunks: [] }, swimLimit: 24 });
+test("the island seeds its own discoveries, and none for empty places", () => {
+  const pois = islandDiscoveries();
   const ids = pois.map((p) => p.id);
-  for (const id of ["hilltop", "far-shore", "long-point", "deep-cove", "big-rock", "kelp", "sunset", "moonrise", "rain", "nap", "crab", "butterfly"])
-    assert.ok(ids.includes(id), id);
-  const rock = pois.find((p) => p.id === "big-rock");
-  assert.equal(rock.x, 40);
-  assert.ok(Math.abs(rock.above - 2.05) < 1e-6);
-  const places = pois.filter((p) => Number.isFinite(p.x) && p.scope === "island");
-  for (let i = 0; i < places.length; i++)
-    for (let j = i + 1; j < places.length; j++)
-      assert.ok(Math.hypot(places[i].x - places[j].x, places[i].z - places[j].z) > 15, `${places[i].id} too close to ${places[j].id}`);
+  for (const id of ["hilltop", "sunset", "moonrise", "rain", "nap", "crab", "butterfly"]) assert.ok(ids.includes(id), id);
+  // Nothing that names an empty stretch of shore or sea, or an effect.
+  for (const id of ["far-shore", "long-point", "deep-cove", "big-rock", "kelp", "fireflies"]) assert.ok(!ids.includes(id), id);
   // A nap, as the cat curls up.
   const d = createDiscoveries({ seed: 1, storage: fakeStorage() });
   d.add(pois);

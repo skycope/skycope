@@ -7,10 +7,10 @@ import { rockLayout } from "./rocks.js";
 // matrices a frame) with wingbeats and leg scuttles in the vertex shader:
 // - butterflies (cabbage whites, painted ladies, blues) visiting fynbos
 //   flowers by day, scattering when the cat comes close;
-// - fireflies drifting and blinking over the scrub at night;
 // - ghost crabs on the beach that sidle about, then bolt and burrow;
 // - kelp gulls standing about at the swash edge, pecking and pacing, that
 //   walk off from a cat and take wing if it keeps coming.
+// (No fireflies of their own: the milkwood's gift is the island's only ones.)
 // `interest` is the nearest one, for the cat's head (and tail) to follow.
 // `rocks`: the final rock list (forest.js, with the landmarks' stones).
 export function createCritters(group, seed, flowers, rocks = null) {
@@ -45,27 +45,6 @@ export function createCritters(group, seed, flowers, rocks = null) {
     };
   });
   group.add(flyMesh);
-
-  // Fireflies: tiny unlit spheres, additive, blinking.
-  const glowCount = 40;
-  const glowMesh = new THREE.InstancedMesh(
-    new THREE.SphereGeometry(0.012, 6, 4),
-    new THREE.MeshBasicMaterial({
-      color: new THREE.Color(0.7, 1, 0.35).multiplyScalar(3),
-      blending: THREE.AdditiveBlending,
-      transparent: true,
-      depthWrite: false,
-      toneMapped: false,
-      fog: false,
-    }),
-    glowCount,
-  );
-  glowMesh.frustumCulled = false;
-  const glows = Array.from({ length: glowCount }, () => {
-    const spot = spots[Math.floor(random() * spots.length)];
-    return { spot, phase: random() * 100, rate: 0.3 + random() * 0.5, blink: random() * 10 };
-  });
-  group.add(glowMesh);
 
   // Ghost crabs.
   const crabCount = 9;
@@ -196,23 +175,6 @@ export function createCritters(group, seed, flowers, rocks = null) {
           consider(f.x, f.y, f.z, "butterfly");
         }
         flyMesh.instanceMatrix.needsUpdate = true;
-      }
-
-      // Fireflies at dusk and night.
-      glowMesh.visible = night > 0.35;
-      if (glowMesh.visible) {
-        for (let i = 0; i < glowCount; i++) {
-          const g = glows[i];
-          const t = time * g.rate + g.phase;
-          const x = g.spot.x + Math.sin(t) * 2.2 + Math.sin(t * 2.7) * 0.5;
-          const z = g.spot.z + Math.cos(t * 0.8) * 2.2;
-          const y = groundHeight(x, z) + 0.4 + Math.sin(t * 1.3) * 0.3 + g.spot.h * 0.3;
-          const pulse = Math.max(0, Math.sin(time * 1.6 + g.blink)) ** 6 * night;
-          euler.set(0, 0, 0);
-          place(glowMesh, i, x, y, z, euler, pulse);
-          if (pulse > 0.3) consider(x, y, z, "firefly");
-        }
-        glowMesh.instanceMatrix.needsUpdate = true;
       }
 
       // Crabs: sidle, pause, and bolt for a burrow when the cat is close.
@@ -367,7 +329,7 @@ export function createCritters(group, seed, flowers, rocks = null) {
       }
     },
     dispose() {
-      for (const m of [flyMesh, glowMesh, crabMesh, gullMesh]) {
+      for (const m of [flyMesh, crabMesh, gullMesh]) {
         m.geometry.dispose();
         m.material.dispose();
         m.dispose();
