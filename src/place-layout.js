@@ -56,6 +56,10 @@ function pick(list, weights, random) {
 // The keeper's cottage, in the lighthouse's frame (u seaward, v to the side).
 export const COTTAGE = { u: -1.4, v: 9.4 };
 
+// (Chosen so seed 1847, the island everyone knows, keeps its boat and pool
+// where they were.)
+const SHORE_SALT = 107;
+
 const WRECK_NAMES = ["Seaflower", "Kowie Lass", "Good Intent", "Thistle", "Maria Stella", "Albatross", "Star of Hope", "Wanderer"];
 
 // The landmarks: [{ id, title, kind, x, z, y, r, zone, … }], coast metres.
@@ -178,28 +182,32 @@ export function placesLayout(seed) {
     places.push(wreck);
   }
 
+  // The shore places draw from their own stream, so that moving or
+  // reworking a landmark above does not move the boat and the pool.
+  const shore = seededRandom(((seed ^ SHORE_SALT) >>> 0) || 1);
   // The fisherman's boat: drawn up in a cove above the tide line.
   {
-    const order = coves.map((c) => ({ ...c, key: random() })).sort((a, b) => a.key - b.key);
+    const order = coves.map((c) => ({ ...c, key: shore() })).sort((a, b) => a.key - b.key);
     let boat = null;
     for (const c of order) {
-      const theta = c.theta + (random() - 0.5) * 0.04;
+      const theta = c.theta + (shore() - 0.5) * 0.04;
       const p = islandPoint(theta, 6.5);
       if (!farFrom(p.x, p.z, 30)) continue;
       boat = {
         id: "boat", title: "The fisherman's boat", kind: "boat",
         x: p.x, z: p.z, y: terrainHeight(p.x, p.z), r: 6, theta,
         // Hauled up stern first, the bow toward the sea it came out of.
-        facing: Math.atan2(Math.cos(theta), Math.sin(theta)) + (random() - 0.5) * 0.6,
+        facing: Math.atan2(Math.cos(theta), Math.sin(theta)) + (shore() - 0.5) * 0.6,
         zone: circle(p.x, p.z, 5.5, 4.2),
+        lane: launchLane(p.x, p.z),
       };
       break;
     }
     if (!boat) {
-      const theta = random() * TAU;
+      const theta = shore() * TAU;
       const p = islandPoint(theta, 6.5);
       boat = { id: "boat", title: "The fisherman's boat", kind: "boat", x: p.x, z: p.z, y: terrainHeight(p.x, p.z), r: 6, theta,
-        facing: Math.atan2(Math.cos(theta), Math.sin(theta)), zone: circle(p.x, p.z, 5.5, 4.2) };
+        facing: Math.atan2(Math.cos(theta), Math.sin(theta)), zone: circle(p.x, p.z, 5.5, 4.2), lane: launchLane(p.x, p.z) };
     }
     places.push(boat);
   }
@@ -209,12 +217,12 @@ export function placesLayout(seed) {
   {
     let pool = null;
     for (let i = 0; i < 80 && !pool; i++) {
-      const theta = random() * TAU;
+      const theta = shore() * TAU;
       const p = islandPoint(theta, 1.4);
       if (!farFrom(p.x, p.z, 28 - Math.min(10, i * 0.2))) continue;
       pool = {
         id: "pool", title: "The rock pool", kind: "pool",
-        x: p.x, z: p.z, y: terrainHeight(p.x, p.z), r: 4.5, theta, facing: random() * TAU,
+        x: p.x, z: p.z, y: terrainHeight(p.x, p.z), r: 4.5, theta, facing: shore() * TAU,
         zone: circle(p.x, p.z, 4.6, 4.2),
       };
     }
@@ -223,18 +231,26 @@ export function placesLayout(seed) {
   return places;
 }
 
+// The boat's launch lane: no boulder between its logs and open water, out
+// along the island's radius (where boat-dynamics.js findMooring looks).
+function launchLane(x, z) {
+  const a = Math.atan2(z - ISLAND.z, x - ISLAND.x);
+  return { ax: x, az: z, bx: x + Math.cos(a) * 24, bz: z + Math.sin(a) * 24, clear: 2.6, bare: 0 };
+}
+
 // Metres outside the nearest landmark's zone (negative inside). `kind`:
 // "clear" for trees, shrubs and boulders, "bare" for grass and low plants.
 export function placeClearance(layout, x, z, kind = "clear") {
   let best = Infinity;
-  for (const p of layout) {
-    const { ax, az, bx, bz } = p.zone;
-    const vx = bx - ax, vz = bz - az;
-    const l2 = vx * vx + vz * vz;
-    const t = l2 > 1e-9 ? Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / l2)) : 0;
-    const d = Math.hypot(x - ax - vx * t, z - az - vz * t) - p.zone[kind];
-    if (d < best) best = d;
-  }
+  for (const p of layout)
+    for (const zone of p.lane ? [p.zone, p.lane] : [p.zone]) {
+      const { ax, az, bx, bz } = zone;
+      const vx = bx - ax, vz = bz - az;
+      const l2 = vx * vx + vz * vz;
+      const t = l2 > 1e-9 ? Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / l2)) : 0;
+      const d = Math.hypot(x - ax - vx * t, z - az - vz * t) - zone[kind];
+      if (d < best) best = d;
+    }
   return best;
 }
 
