@@ -687,6 +687,10 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     CAT_SKY.value.setRGB(sky[0] * Math.PI, sky[1] * Math.PI, sky[2] * Math.PI).multiplyScalar(nightFill);
     const foamLight = lighting.direct.map((v, i) => (v * Math.max(sunWorld.y, 0) * overcast) / Math.PI + sky[i] * 1.1);
     forest.updateFoamLight(foamLight);
+    // grade: a crown is a volume: a low sun lights its side as much as a
+    // high one lights its top, so the light that filters through to the
+    // floor holds up into the golden hour (forest.js occlusionGlsl).
+    forest.updateCanopyLight(lighting.direct.map((v, i) => (v * (0.35 + 0.65 * Math.max(sunWorld.y, 0)) * overcast) / Math.PI + sky[i]));
     CAT_SEA.foam.value.setRGB(...foamLight);
     // The water column's own colour, as ocean.wgsl scatters it: sun and sky
     // light times scattering over extinction.

@@ -14,7 +14,12 @@ import { terrainHeight, shoreDistance, ISLAND } from "./terrain.js";
 export const LAND_FIELD = { size: 256, span: 200, x0: ISLAND.x - 100, z0: ISLAND.z - 100 };
 
 // Shared linear material reflectances; lighting is evaluated by the water pass.
-const { sand: SAND, wetSand: WET_SAND, dune: DUNE, litter: LITTER, moss: MOSS } = MATERIAL_LINEAR;
+const { sand: SAND, wetSand: WET_SAND, dune: DUNE, moss: MOSS } = MATERIAL_LINEAR;
+// grade: the forest floor at measured reflectance (dry leaf litter over
+// sandy soil ~11%, organic topsoil ~6.5%, red/blue ~2), shared by the
+// ground mesh (forest.js), its grounding drift and this field.
+export const FLOOR_LINEAR = Object.freeze({ litter: [0.147, 0.102, 0.068], humus: [0.087, 0.061, 0.045] });
+const LITTER = FLOOR_LINEAR.litter;
 
 // Albedo is stored as luminance and a tint between two chromaticities (each
 // normalised to unit luminance), which covers sand, litter, moss and leaves.
