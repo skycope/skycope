@@ -6,7 +6,7 @@
 // Views: moored (abeam, from the beach, waterline close-up), launch strip,
 // under way (astern, abeam), aboard (the game's own camera), landing on
 // another shore; noon and night; calm and storm.
-import { mkdir, writeFile, readFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile, unlink } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const out = process.argv[2] ?? "docs/review/boat/after";
@@ -213,6 +213,7 @@ if (shots.length) {
   await sleep(1500);
   const r = await send("Page.captureScreenshot", { format: "jpeg", quality: 80, captureBeyondViewport: true });
   await writeFile(`${out}/sheet.jpg`, Buffer.from(r.result.data, "base64"));
+  await unlink(`${out}/sheet.html`);
   console.log("sheet", `${out}/sheet.jpg`);
 }
 await fetch(`${base}/json/close/${tab.id}`);
