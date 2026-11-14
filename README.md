@@ -97,6 +97,7 @@ reduced-motion mode, background/resume, and with the weather endpoint blocked.
 | `src/ground-detail.js`   | Fallen leaves, twigs, roots and pebbles; painted scrub and sour-fig cover |
 | `src/material-palette.js` | Authored material colours shared by the mesh and the reflection field   |
 | `src/forest.js`          | Instanced plants, wind and gusts, foliage/ground/bark shaders, LOD       |
+| `src/instance-lod.js`    | Vegetation level of detail per instance, with the cross-fade (no three)  |
 | `src/plant-forms.js`     | Unit plant organs: tufts, reeds, fronds, aloe leaves, heath shoots, heads |
 | `src/near-ground.js`     | Sward, sprigs, sour-fig fingers and fallen leaves round the cat (≤ 9 m)  |
 | `src/motes.js`           | Pollen and dust that catch the sun when you look toward it               |
@@ -467,15 +468,20 @@ compressed (`LINGER`) so a visitor who stays a few minutes sees one.
   cloud self-shadowing; directional light, ambient fill and haze add depth.
 - An alpha WebGL canvas composites depth-tested terrain and forest meshes over
   the water/sky canvas. Both cameras share position, heading, pitch and FOV.
-  Geometry uses instancing and no per-tree scene graph. Each 28 m chunk is a
-  `THREE.LOD`: beyond 42 m it swaps to cheaper leaf/cluster/branch/rock geometry and
-  drops unresolvable twigs, blades and flowers. The layer is vertex-bound, not
-  fill-bound (a tiny canvas costs nearly the same), so distant shoots keep a
-  stable half, then a third, grown to cover the same canopy area. Full-detail
-  shoots, tufts and fronds exist only in the chunks round the cat (a leaf is a few
-  pixels past ~17 m); sparse sets (aloes, reeds, flower heads) use 40 m chunks to
-  save draw calls. The home view draws 1.9 M triangles (2.9 M before the organ
-  rework) in the same GPU time. The mesh canvas caps at
+  Geometry uses instancing and no per-tree scene graph. Instances are bucketed
+  into 20 m chunks (40 m for sparse sets) for culling and draw calls, but each
+  instance chooses its own level of detail by its own distance
+  (`src/instance-lod.js`, tested): leafy shoots are 10 folded leaves within
+  11 m, then 7 leaf cards, 5 from 22 m and 3 from 38 m, then half and a third
+  of the shoots, grown to cover the same canopy area (from 60 and 100 m);
+  tufts, fronds, needles, branches, flowers and rocks have their own ladders.
+  Over a band before each boundary the vertex shader shrinks an instance the
+  next level drops and grows one it keeps to the next level's size, so the
+  swap itself changes only the part count: nothing pops. Chunks are re-packed
+  on the CPU (at most ~24k instances a frame, nearest first) when the eye has
+  moved enough to move instances between levels; the render budget's
+  `lodBias` pulls every level in. Per-instance levels cut the milkwood,
+  beacon and summit views from 2.2–3.3 M triangles to 1.7–2.1 M. The mesh canvas caps at
   1.6 million pixels with MSAA (0.8 million without MSAA on phones). Rendering
   is capped at 60 fps, 30 once the cat has settled, on the low-power GPU. The
   cat is ~8 draws (the old one ~63): its skinned passes are vertex-bound, so the
