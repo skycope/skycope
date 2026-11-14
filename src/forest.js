@@ -2503,6 +2503,8 @@ function shootGeometry(leafCount = 14, detail = 1) {
       // Mature leaves sit in the shoot's own shade; young ones are yellower.
       shade: (0.82 + random() * 0.3) * (0.82 + t * 0.18),
       hue: (t - 0.55) * 0.14 + (random() - 0.5) * 0.06,
+      // A few leaves on every shoot are going over: a dry, ochre tip.
+      dry: random() < 0.09,
       phase: random(),
       reach: 0.5 + t * 0.5,
     });
@@ -2510,7 +2512,7 @@ function shootGeometry(leafCount = 14, detail = 1) {
   return finish(out.positions, out.indices, out.colours, out.flutter);
 }
 
-function smallLeaf(out, { base, dir, side, lift, length, width, widest, droop, curl, fold, detail, shade, hue, phase, reach }) {
+function smallLeaf(out, { base, dir, side, lift, length, width, widest, droop, curl, fold, detail, shade, hue, dry = false, phase, reach }) {
   const { positions, colours, indices, flutter } = out;
   const first = positions.length / 3;
   const point = (t, across) => {
@@ -2524,35 +2526,41 @@ function smallLeaf(out, { base, dir, side, lift, length, width, widest, droop, c
       .addScaledVector(lift, -droop * length * t * t + fold * width * Math.abs(across))
       .addScaledVector(side, across * width * halfWidth + curl * length * t * t);
   };
-  const push = (p, t) => {
+  // `rib`: the midrib (base, middle and tip) is paler than the blade's
+  // edges, so each leaf reads as a leaf, not a flat card.
+  const push = (p, t, rib = 1) => {
     positions.push(p.x, p.y, p.z);
-    const k = shade * (0.72 + 0.28 * Math.min(1, t * 2.2));
-    colours.push(k * (1 + hue * 0.8), k * (1 + hue * 0.2), k * (1 - hue * 0.9));
+    const k = shade * (0.72 + 0.28 * Math.min(1, t * 2.2)) * rib;
+    const sere = dry ? Math.max(0, t - 0.55) / 0.45 : 0;
+    colours.push(k * (1 + hue * 0.8) * (1 + sere * 0.6), k * (1 + hue * 0.2) * (1 + sere * 0.15), k * (1 - hue * 0.9) * (1 - sere * 0.4));
     // Flutter hinges at the petiole; leaves near the twig's tip swing more.
     flutter.push(phase, t * reach);
   };
   if (detail === 0) {
-    push(point(0, 0), 0);
-    push(point(0.45, -1), 0.45);
-    push(point(0.45, 1), 0.45);
-    push(point(1, 0), 1);
-    indices.push(first, first + 1, first + 2, first + 1, first + 3, first + 2);
+    push(point(0, 0), 0, 1.08);
+    push(point(0.45, -1), 0.45, 0.9);
+    push(point(0.45, 1), 0.45, 0.9);
+    push(point(1, 0), 1, 1.06);
+    // Split along the midrib, base to tip, so it shades as a line.
+    indices.push(first, first + 1, first + 3, first, first + 3, first + 2);
     return;
   }
-  push(point(0, 0), 0);
-  push(point(0.3, -1), 0.3);
-  push(point(0.3, 0), 0.3);
-  push(point(0.3, 1), 0.3);
-  push(point(0.7, -0.85), 0.7);
-  push(point(0.7, 0.85), 0.7);
-  push(point(1, 0), 1);
+  push(point(0, 0), 0, 1.08);
+  push(point(0.3, -1), 0.3, 0.88);
+  push(point(0.3, 0), 0.3, 1.14);
+  push(point(0.3, 1), 0.3, 0.88);
+  push(point(0.7, -0.85), 0.7, 0.9);
+  push(point(0.7, 0.85), 0.7, 0.9);
+  push(point(1, 0), 1, 1.06);
   indices.push(
     first, first + 1, first + 2,
     first, first + 2, first + 3,
+    // (The outer half fans from the midrib's middle to the tip, so the
+    // midrib runs as one edge from base to tip.)
     first + 1, first + 4, first + 2,
-    first + 2, first + 4, first + 5,
+    first + 2, first + 4, first + 6,
+    first + 2, first + 6, first + 5,
     first + 2, first + 5, first + 3,
-    first + 4, first + 6, first + 5,
   );
 }
 

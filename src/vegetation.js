@@ -158,7 +158,12 @@ export function vegetationLayout(seed) {
     const { x, z } = islandPoint(theta, inland);
     const shelter = noise2(x * 0.085 + patch, z * 0.06 + patch);
     const edge = smoothstep(4, 13, inland);
-    if (random() > (0.3 + shelter * 0.8) * (0.3 + edge * 0.7)) continue;
+    // Groves and gaps: trees gather where a grove field is high (sheltered
+    // hollows and kloofs) with open fynbos between them; the odd tree stands
+    // alone in the heath. (An even scatter read as an orchard.)
+    const grove = noise2(x * 0.05 + patch * 0.7, z * 0.045 - patch * 0.3) * 0.75 + shelter * 0.25;
+    const inGrove = smoothstep(0.42, 0.6, grove);
+    if (random() > (0.3 + shelter * 0.8) * (0.3 + edge * 0.7) * (0.1 + 0.9 * inGrove)) continue;
     // A spatial habitat field selects related traits across a grove, not per-row models.
     const ecotype = Math.min(
       ecotypes.length - 1,
@@ -174,9 +179,12 @@ export function vegetationLayout(seed) {
     const form =
       roll < 0.025 ? "snag" : roll < 0.12 && interior > 0.35 ? "sapling" : "blend";
     const scale = form === "sapling" ? 0.3 + random() * 0.2 : 1;
+    // Tallest at a grove's heart, lower toward its edge and alone; each
+    // tree its own age.
     const height =
       traits.height *
-      (0.6 + random() * 0.6) *
+      (0.5 + random() * 0.8) *
+      (0.7 + 0.5 * smoothstep(0.5, 0.85, grove)) *
       (0.55 + exposure * 0.45) *
       mix(SCRUB.height, CANOPY.height, Math.min(1, interior)) *
       scale;
@@ -203,6 +211,8 @@ export function vegetationLayout(seed) {
       form,
       interior: Math.min(1, interior),
       exposure: 1 - edge,
+      // 1 at a grove's rim or alone: the crown is skirted down to the ground.
+      rim: 1 - smoothstep(0.5, 0.7, grove),
       seed: Math.max(1, Math.floor(random() * 0xffffffff)),
     };
     plants.push(plant);
@@ -546,10 +556,15 @@ function growTree(root, plant, traits, crowns, random, wood, clusters, fronds) {
   const bark = snag
     ? hslColour(0.1, 0.04, 0.4 + random() * 0.12)
     : new THREE.Color(traits.bark).multiplyScalar(0.7 + random() * 0.35);
+  // Hue families, as a hillside of mixed evergreens reads at a distance:
+  // the grove's own deep green, olive, and a silvery grey-green (wild olive,
+  // sea guarrie); each tree a little lighter or darker than its neighbour.
+  const family = random();
+  const [dh, ds, dl] = family < 0.5 ? [0, 0, 0] : family < 0.78 ? [-0.065, -0.06, 0.03] : [-0.03, -0.15, 0.06];
   const color = hslColour(
-    traits.hue + (random() - 0.5) * 0.035,
-    traits.saturation + random() * 0.1,
-    traits.light + random() * 0.04,
+    traits.hue + dh + (random() - 0.5) * 0.035,
+    Math.max(0.1, traits.saturation + ds + random() * 0.08),
+    traits.light + dl + (random() - 0.5) * 0.05,
   );
   // Flagging: crowns lean away from the prevailing onshore wind, hardest at
   // the exposed edge, plus each individual's own asymmetry.
@@ -595,14 +610,18 @@ function growTree(root, plant, traits, crowns, random, wood, clusters, fronds) {
   const crownCenter = spine[6]
     .clone()
     .addScaledVector(PREVAILING, flag * crownR * 0.4);
-  crownCenter.y = root.y + height * (habit.center ?? 0.68);
+  // A tree at a grove's rim or alone keeps its lower limbs: the crown
+  // skirts down toward the ground instead of a lollipop on a bare stem.
+  const rim = snag ? 0 : plant.rim ?? 0;
+  arche.lift *= 1 - rim * 0.55;
+  crownCenter.y = root.y + height * ((habit.center ?? 0.68) - rim * 0.12);
   const neighbours = crowns.filter(
     (c) =>
       (c.x !== plant.x || c.z !== plant.z) &&
       Math.hypot(c.x - crownCenter.x, c.z - crownCenter.z) < c.r + crownR,
   );
   colonizeCrown({
-    seeds: [spine[4], spine[6]],
+    seeds: rim > 0.5 ? [spine[2], spine[4], spine[6]] : [spine[4], spine[6]],
     crownCenter,
     crownR,
     arche,
@@ -1154,16 +1173,18 @@ function leaf(leaves, attachment, width, length, rotation, color, random) {
 function growProtea(root, plant, random, { wood, clusters, flowers }) {
   const height = plant.height;
   const pincushion = random() < 0.35;
-  const leafColour = hslColour(0.19 + random() * 0.07, 0.2, 0.2 + random() * 0.05);
+  // Stiff grey-green leaves; heads in the dusty, muted colours real bracts
+  // have in sun (old rose, blush, cream), never a saturated pink.
+  const leafColour = hslColour(0.2 + random() * 0.05, 0.15, 0.24 + random() * 0.05);
   const bark = hslColour(0.06, 0.25, 0.2);
   const heart = root.clone().add(new THREE.Vector3(0, height * 0.5, 0));
   const headColour = pincushion
-    ? hslColour(0.03 + random() * 0.07, 0.85, 0.5)
+    ? hslColour(0.06 + random() * 0.05, 0.5, 0.52)
     : [
-        hslColour(0.95 + random() * 0.03, 0.55, 0.62),
-        hslColour(0.98, 0.45, 0.72),
-        hslColour(0.1, 0.35, 0.82),
-        hslColour(0.95, 0.42, 0.5),
+        hslColour(0.96 + random() * 0.03, 0.32, 0.6),
+        hslColour(0.98, 0.26, 0.7),
+        hslColour(0.11, 0.24, 0.8),
+        hslColour(0.95, 0.24, 0.52),
       ][Math.floor(random() * 4)];
   const grow = (start, direction, length, radius, depth) => {
     // A stem bends toward the light as it grows, wandering a little.
@@ -1188,7 +1209,7 @@ function growProtea(root, plant, random, { wood, clusters, flowers }) {
         grow(point.clone().addScaledVector(dir, -length * 0.2), side, length * 0.55, radius * 0.6, depth + 1);
       }
     }
-    if (random() < 0.8) {
+    if (random() < 0.45) {
       const size = height * (pincushion ? 0.07 : 0.085) * (0.8 + random() * 0.45);
       const face = dir.clone().lerp(new THREE.Vector3(0, 1, 0), 0.4).normalize();
       head(flowers[pincushion ? "pincushion" : "protea"], point, size, face, random() * 6.28,
@@ -1247,7 +1268,7 @@ function growAloe(root, height, random, { wood, leaves, succulents, flowers }) {
     );
   }
   const spikes = 1 + Math.floor(random() * 3);
-  const flame = hslColour(0.02 + random() * 0.07, 0.9, 0.5);
+  const flame = hslColour(0.03 + random() * 0.06, 0.55, 0.5);
   for (let s = 0; s < spikes; s++) {
     const angle = s * 2.2 + random();
     const top = crown.clone().add(
@@ -1299,10 +1320,10 @@ function growErica(root, height, random, { wood, needles, flowers }) {
   const green = hslColour(0.24 + random() * 0.04, 0.32, 0.15 + random() * 0.05);
   const bark = hslColour(0.07, 0.25, 0.2);
   const bloom = [
-    hslColour(0.92, 0.7, 0.6),
-    hslColour(0.88, 0.6, 0.45),
-    hslColour(0.97, 0.75, 0.5),
-    hslColour(0.1, 0.2, 0.9),
+    hslColour(0.9, 0.32, 0.62),
+    hslColour(0.87, 0.28, 0.5),
+    hslColour(0.96, 0.3, 0.6),
+    hslColour(0.1, 0.12, 0.86),
   ][Math.floor(random() * 4)];
   const heart = root.clone().add(new THREE.Vector3(0, height * 0.4, 0));
   const sprigs = 14 + Math.floor(random() * 8);
@@ -1335,12 +1356,15 @@ function growErica(root, height, random, { wood, needles, flowers }) {
 
 // Namaqualand-style daisy drifts: many small heads on slender stems, turned
 // toward the sun, in the drift's shared colour.
+// Muted as they look in sun at a few metres: soft yellow, cream, white,
+// mauve and a dusty apricot, not the saturated pinks and oranges of a
+// seed packet.
 const DAISY_COLOURS = [
-  [0.08, 0.95, 0.52],
-  [0.13, 0.95, 0.55],
-  [0.0, 0.0, 0.95],
-  [0.87, 0.65, 0.55],
-  [0.04, 0.85, 0.5],
+  [0.13, 0.5, 0.62],
+  [0.12, 0.3, 0.8],
+  [0.1, 0.06, 0.88],
+  [0.86, 0.28, 0.64],
+  [0.07, 0.4, 0.6],
 ];
 function growDaisies(root, height, random, leaves, flowers, palette) {
   const [h, sat, l] = DAISY_COLOURS[(palette ?? Math.floor(random() * 5)) % 5];
@@ -1426,10 +1450,14 @@ function growTurf(seed, layout, turf, masses = []) {
     if (underShrub(x, z)) continue;
     const y = terrainHeight(x, z);
     const dune = 1 - smoothstep(3, 10, inland);
+    // Sward colour drifts over metres (a damp hollow greener, a dry rise
+    // olive), not tuft by tuft: neighbouring tufts agree, so the ground
+    // reads as one sward instead of a speckle of green and straw.
+    const sward = noise2(x * 0.15 + patch, z * 0.15 - patch);
     const colour = hslColour(
-      0.21 + random() * 0.08 - dune * 0.08,
-      0.38 - dune * 0.14,
-      0.15 + random() * 0.07 + dune * 0.09,
+      0.19 + sward * 0.07 + random() * 0.015 - dune * 0.07,
+      0.3 + sward * 0.06 - dune * 0.12,
+      0.16 + random() * 0.03 + (1 - sward) * 0.03 + dune * 0.08,
     );
     const size = (0.28 + random() * 0.3) * (1 - dune * 0.2);
     turf.push({

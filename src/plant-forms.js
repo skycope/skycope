@@ -61,7 +61,9 @@ export function tuftGeometry(blades = 24, levels = 3, heads = 0) {
     const height = (0.45 + random() * 0.6) * (1 - outer * 0.3);
     const width = (0.009 + random() * 0.006) * widen;
     const twist = (random() - 0.5) * 1.8;
-    const dry = random() < 0.3 ? 0.6 + random() * 0.4 : 0;
+    // Some blades going to straw at the tip (fewer and softer than before:
+    // a tuft of mostly-straw blades read as a patchy yellow thatch).
+    const dry = random() < 0.2 ? 0.4 + random() * 0.35 : 0;
     const phase = random();
     const out = new THREE.Vector3(Math.cos(azimuth), 0, Math.sin(azimuth));
     const across = new THREE.Vector3(-out.z, 0, out.x);
