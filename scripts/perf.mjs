@@ -213,7 +213,15 @@ function pageHelper({ island }) {
     beacon: () => facing(poi("beacon"), 7, 0.3, 3.6),
     "beacon-out": () => { const p = poi("beacon"); const a = Math.atan2(p.x - island.x, p.z - island.z); return { x: p.x + Math.sin(a) * 2, z: p.z + Math.cos(a) * 2, yaw: a, el: 0.35, dist: 6 }; },
     lighthouse: () => facing(poi("lighthouse"), 16, 0.25, 3.6),
+    // grade: the colour-grading sheets' views (docs/review/grade): the
+    // forest slope under trees, looking uphill into them, and the summit
+    // looking back over the island to the home beach.
+    slope: () => toward(40, 40, 58, 62, 0.15, 3.4),
+    hill: () => toward(62, 84, 12, 9, 0.6, 10),
   };
+  function toward(x, z, tx, tz, el, dist) {
+    return { x, z, yaw: Math.atan2(tx - x, tz - z), el, dist };
+  }
   function shorePoint(t, inland) {
     const exact = window.__shore?.(t, inland);
     if (exact) return exact;
