@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "three";
 import { createFlySteer, fireflyTraits, FLY_KIND } from "../src/fireflies.js";
-import { createLandMagic, magicUniforms, lampCatch, lampSpin, nearestLights, mixGiftColour } from "../src/land-magic.js";
+import { createLandMagic, magicUniforms, lampCatch, lampSpin, nearestLights } from "../src/land-magic.js";
+import { WAKE_LIGHT, createWaking, wakingAt } from "../src/waking.js";
 import { createMagic } from "../src/magic.js";
 import { PRINT_MAGIC } from "../src/cat-ground.js";
 
@@ -69,7 +70,7 @@ test("nothing is lit while the lamp sleeps; it catches, then the beams turn", ()
   }
   assert.equal(shared.magicLamp.value.w, 0);
   assert.equal(shared.magicOn.value, 0, "every gift asleep: the land's magic block is skipped");
-  assert.equal(PRINT_MAGIC.level.value, 0.05, "only a hint in the steps at night");
+  assert.equal(PRINT_MAGIC.level.value, 0, "the steps answer only the tideglow");
   magic.wake("lamp");
   const angles = [];
   for (let i = 0; i < 600; i++) {
@@ -98,31 +99,39 @@ test("the lamp's catch and spin curves are bounded and settle", () => {
   assert.equal(lampSpin(8), 1);
 });
 
-test("a waking's ring runs out at its own speed and is spent past its reach", () => {
+test("a waking's kindled light reaches out on wall time and is spent by its end", () => {
   const shared = magicUniforms();
   const land = createLandMagic({ shared });
   const magic = createMagic();
-  magic.update(0, 10);
-  magic.pulse = { x: 5, y: 0, z: 7, at: 10, gift: "stars", colour: [0.78, 0.76, 1], speed: 20, reach: 100 };
-  magic.update(0, 12);
-  land.update({ magic, time: 12, dt: 0, night: 1, pose: pose(0, 0) });
-  assert.equal(shared.magicPulse.value.z, 40);
-  assert.equal(shared.magicPulse.value.x, 5);
-  assert.equal(shared.magicPulse.value.y, -7, "Three world z is mirrored");
-  assert.ok(shared.magicPulse.value.w > 0);
-  magic.update(0, 16);
-  land.update({ magic, time: 16, dt: 0, night: 1, pose: pose(0, 0) });
-  assert.equal(shared.magicPulse.value.w, 0);
+  magic.waking = createWaking("tideglow", [5, 1, 7]);
+  // Scene time crawls (the ceremony slows it); the light does not.
+  magic.update(0.2, 0.2, 2.2);
+  land.update({ magic, time: 0.2, dt: 0, night: 1, pose: pose(0, 0) });
+  const w = wakingAt(2.2, WAKE_LIGHT.tideglow, 1);
+  assert.ok(Math.abs(shared.wakeFront.value.x - w.radius) < 1e-9);
+  assert.equal(shared.wakeSource.value.x, 5);
+  assert.equal(shared.wakeSource.value.z, -7, "Three world z is mirrored");
+  assert.equal(shared.wakeSource.value.w, WAKE_LIGHT.tideglow.core);
+  assert.ok(shared.wakeColour.value.b > shared.wakeColour.value.r, "tideglow is blue");
+  assert.equal(shared.magicOn.value, 1);
+  magic.update(0, 0.2, 14);
+  land.update({ magic, time: 0.2, dt: 0, night: 1, pose: pose(0, 0) });
+  assert.equal(magic.waking, null, "spent");
+  assert.equal(shared.wakeFront.value.x, 0);
+  assert.equal(shared.wakeFront.value.z, 0);
+  assert.equal(shared.magicOn.value, 0, "nothing lit once it is over");
 });
 
-test("lamp helpers: nearest lights and the gifts' step colour", () => {
+test("lamp helpers: nearest lights; prints answer the tideglow alone", () => {
   const out = [];
   nearestLights([{ x: 0, z: 0 }, { x: 10, z: 0 }, { x: 3, z: 0 }], 9, 0, out, 2);
   assert.deepEqual(out, [1, 2]);
-  const c = mixGiftColour({ lamp: 1 }, new THREE.Color());
-  assert.ok(c.r > c.b, "the lamp's steps are warm");
-  const none = mixGiftColour({}, new THREE.Color());
-  assert.ok(none.g > 0.5, "a hint colour before any gift");
+  const land = createLandMagic({ shared: magicUniforms() });
+  land.update({ magic: { levels: { lamp: 1, fireflies: 1 }, clock: 0, wakeAt: {} }, night: 1 });
+  assert.equal(PRINT_MAGIC.level.value, 0, "other gifts leave the steps dark");
+  land.update({ magic: { levels: { tideglow: 1 }, clock: 0, wakeAt: {} }, night: 1 });
+  assert.ok(PRINT_MAGIC.level.value > 0);
+  assert.ok(PRINT_MAGIC.colour.value.b > PRINT_MAGIC.colour.value.r, "blue");
 });
 
 test("the finale blazes for its ceremony, then settles", async () => {

@@ -60,8 +60,8 @@ export struct Atmosphere {
   magic2: vec4f,
   // The waking's wave of light: centre x, z (coast metres), ring radius (m),
   // strength; its colour (rgb) and reach (w).
-  pulse: vec4f,
-  pulseColour: vec4f,
+  waking: vec4f,
+  wakingLight: vec4f,
   // The lit lamp: position (coast metres) and beam bearing (w, radians; a
   // beam points along (cos w, -sin w) in coast x, z; the other opposite).
   lamp: vec4f,

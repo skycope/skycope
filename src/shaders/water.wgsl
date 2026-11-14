@@ -42,7 +42,7 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
     atmosphere.light.rgb, atmosphere.ambient.rgb, atmosphere.swell, atmosphere.light.w, atmosphere.rain,
     atmosphere.ocean.z, atmosphere.ocean.w, atmosphere.pointer,
     // sea-sky-magic: the awakened gifts (view.wgsl).
-    atmosphere.magic, atmosphere.pulse, atmosphere.pulseColour, atmosphere.lamp, atmosphere.wisp, atmosphere.wispColour,
+    atmosphere.magic, atmosphere.waking, atmosphere.wakingLight, atmosphere.lamp, atmosphere.wisp, atmosphere.wispColour,
     // boat: the lantern.
     atmosphere.lantern);
   var color = ocean_view(ray, light, sky, settings, cloudNoise, filtering, skyTexture,

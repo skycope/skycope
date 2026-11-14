@@ -152,11 +152,16 @@ export function lightingAt(celestial, weather = null) {
   // capped, and hand over to the twilight curve once the sun has set.
   const ground =
     luminance(sun) * Math.max(celestial.sun[1], 0) + Math.PI * 1.9 * luminance(zenith);
+  // grade: the hand-over runs on to the sun 9° down, and the cap is a
+  // little higher. Handed over by 4°, the exposure fell to 0.59 in the
+  // heart of dusk (sun 4° down) before the dark adaptation climbs from 6°,
+  // and the land went muddy just when the blue hour should open it; now
+  // 0.72-0.87 through dusk and 0.79 at sunset (was 0.70), day unchanged.
   const meter = Math.min(
-    1.5,
+    1.6,
     Math.pow(Math.max(1, GROUND_REFERENCE / Math.max(ground, 1e-6)), 0.4),
   );
-  const adapt = 1 + (meter - 1) * smoothstep(-0.07, 0.03, celestial.sun[1]);
+  const adapt = 1 + (meter - 1) * smoothstep(-0.16, 0.03, celestial.sun[1]);
   const exposure = Math.min(cap, Math.max(0.08, (target / Math.max(luminance(zenith), 1e-6)) * adapt));
   const moonK = moonScale(celestial.moon, celestial.moonPhase);
   // Moonlit surfaces a little brighter than the sky ratio alone: the eye

@@ -13,7 +13,7 @@ import { createVegetation } from "./vegetation.js";
 import { createSurf, SWASH_GLSL } from "./surf.js";
 import { swellUniform } from "./swell.js";
 import { rockLayout, rockGeometry, shoreRockData, ROCK_VARIANTS } from "./rocks.js";
-import { landFieldData } from "./land-field.js";
+import { landFieldData, FLOOR_LINEAR } from "./land-field.js";
 import { placeRocks } from "./place-rocks.js"; // places:
 import { markSolid, SOLID_ORDER } from "./cat-coat.js"; // solid:
 import { bridgeCrevices } from "./walker.js"; // solid:
@@ -45,6 +45,9 @@ export function createForest(scene, seed, { light = false } = {}) {
     sunDirView: { value: new THREE.Vector3(0, 1, 0) },
     // Lambert-lit white (sun/π + sky), set from the shared lighting model.
     foamLight: { value: new THREE.Color(1, 1, 1) },
+    // grade: what lights a crown's underside from above (sun on its
+    // sides as well as its top, plus sky), E/π; see occlusionGlsl.
+    canopyLight: { value: new THREE.Color(1, 1, 1) },
     // Night (0–1), for bioluminescence in the swash.
     nightGlow: { value: 0 },
     // The breaking swell train (src/swell.js), for swash on sand and rocks.
@@ -319,6 +322,9 @@ export function createForest(scene, seed, { light = false } = {}) {
     updateFoamLight(rgb) {
       shared.foamLight.value.setRGB(rgb[0], rgb[1], rgb[2]);
     },
+    updateCanopyLight(rgb) {
+      shared.canopyLight.value.setRGB(rgb[0], rgb[1], rgb[2]);
+    },
     updateHaze(toward, away) {
       shared.hazeToward.value.setRGB(toward[0], toward[1], toward[2]);
       shared.hazeAway.value.setRGB(away[0], away[1], away[2]);
@@ -380,8 +386,9 @@ uniform vec4 catTrail[ 3 ];
 // the lens; w 0 off) and the eye it is seen from.
 uniform vec4 sightLine;
 uniform vec3 sightEye;
-// land-magic: a waking's ring (Three world x, z, radius, strength).
-uniform vec4 magicPulse;
+// waking: the kindled light's source (Three world) and front (land-magic.js).
+uniform vec4 wakeSource;
+uniform vec4 wakeFront;
 varying float vGlint;
 // Height of the plant's base (per instance): wind bends from there, so a trunk
 // or stem is rooted wherever it stands. Zero for non-instanced meshes.
@@ -411,16 +418,16 @@ vec3 windOffset(vec3 p) {
     offset.xz += push;
     offset.y -= dot( push, push ) / max( h, 0.05 ) * 0.5;
   #endif
-  // land-magic: as a waking's ring of light passes, everything that grows
-  // bows away from the keepsake and rises again behind it.
-  if ( magicPulse.w > 0.0 ) {
-    vec2 pd = p.xz - vec2( magicPulse.x, -magicPulse.y );
+  // waking: a breath of air runs out with the kindled light's front (a few
+  // centimetres, inside its reach only). Land-group positions are coast
+  // space, so the source's mirrored z is turned back.
+  if ( wakeFront.z > 0.0 ) {
+    vec2 pd = p.xz - vec2( wakeSource.x, -wakeSource.z );
     float pl = length( pd ) + 1e-3;
-    float dd = pl - magicPulse.z;
-    float wave = exp( -dd * dd * 0.08 ) * min( magicPulse.w, 1.0 );
-    float bow = wave * h / ( 0.5 + h ) * ( 0.12 + 0.05 * min( h, 4.0 ) );
+    float fb = ( pl - wakeFront.x ) / ( wakeFront.y * 2.5 );
+    float bow = exp( -fb * fb ) * min( wakeFront.z * 2.0, 1.0 ) * h / ( 0.5 + h ) * 0.045;
     offset.xz += pd / pl * bow;
-    offset.y -= bow * 0.35;
+    offset.y -= bow * 0.25;
   }
   return offset;
 }
@@ -559,8 +566,15 @@ function occlusionGlsl(foliage) {
     ${
       foliage
         ? `vec3 canopyReflectance = vec3( 0.13, 0.20, 0.07 );
-    reflectedLight.indirectDiffuse += foamLight * canopyReflectance * diffuseColor.rgb * vShade * 0.25;`
-        : ""
+    reflectedLight.indirectDiffuse += canopyLight * canopyReflectance * diffuseColor.rgb * vShade * 0.25;`
+        : `// grade: the sky a canopy hides is not black: it is the crown's
+    // underside, lit through the leaves by the sun on the crown's top and
+    // sides (leaves pass ~10% of green, little red or blue) and by the sky.
+    // So the floor under trees fills with a dim olive light that follows
+    // the sun (gold at a low sun, cool under cloud), instead of going a
+    // flat black-brown. (Rocks hide sky too; their own lit faces return
+    // about as much, greyer: the tint is a compromise.)
+    reflectedLight.indirectDiffuse += canopyLight * vec3( 0.07, 0.10, 0.05 ) * diffuseColor.rgb * ( 1.0 - skyVisible );`
     }
   }
 `;
@@ -628,7 +642,11 @@ const FOLIAGE_GLSL = /* glsl */ `
   vec3 sparkleRay = reflect( -sunDirView, leafN );
   float sparkle = pow( clamp( dot( sparkleRay, toEye ), 0.0, 1.0 ), 64.0 ) * facing;
   float gate = 0.2 + 0.8 * smoothstep( 0.7, 0.97, fract( vGlint * 9.173 + breezeTime * 0.11 ) );
-  reflectedLight.directSpecular += leafSun * sparkle * gate * 0.2 * ( SHEEN / 0.6 );
+  // waking: as the kindled light's front passes, the crowns shimmer in the
+  // sun leaf by leaf, as when a gust turns them (land-magic.js).
+  float wk = wakeFront.z > 0.0 ? wakeBandAt( cameraPosition + ( vec4( -vViewPosition, 0.0 ) * viewMatrix ).xyz ) : 0.0;
+  gate = max( gate, min( wk * 2.0, 1.0 ) );
+  reflectedLight.directSpecular += leafSun * sparkle * gate * 0.2 * ( SHEEN / 0.6 ) * ( 1.0 + 3.0 * wk );
   #ifdef ROOTED
     // Low plants grow out of their own shade: the base of a tuft or rosette
     // sees little sky or sun, so it darkens into the soil it stands in.
@@ -652,11 +670,14 @@ reflectedLight.indirectSpecular *= 1.0 - lowCover * 0.5;
 reflectedLight.directSpecular *= 1.0 - lowCover * 0.5;
 reflectedLight.indirectDiffuse *= 1.0 + lowCover * vec3( 0.1, 0.35, 0.0 );
 reflectedLight.directDiffuse += leafSun * diffuseColor.rgb * vec3( 0.2, 0.3, 0.08 ) * lowCover * RECIPROCAL_PI;
-if ( sandGlint > 0.01 && dHash( glintCell + 0.37 ) < 0.1 ) {
+// waking: a line of sun-sparkle runs down the beach with the kindled
+// light's front (land-magic.js).
+float wk = wakeFront.z > 0.0 ? wakeBandAt( cameraPosition + ( vec4( -vViewPosition, 0.0 ) * viewMatrix ).xyz ) : 0.0;
+if ( sandGlint > 0.01 && dHash( glintCell + 0.37 ) < 0.1 + 0.25 * wk ) {
   vec3 tilt = vec3( dHash( glintCell + 1.1 ), dHash( glintCell + 2.3 ), dHash( glintCell + 3.7 ) ) - 0.5;
   vec3 facet = normalize( normal + tilt * 0.9 );
   float mirror = dot( reflect( -sunDirView, facet ), normalize( vViewPosition ) );
-  float flash = smoothstep( 0.992, 0.999, mirror ) * sandGlint * ( 1.0 - swashFilm ) * ( 1.0 - swashCover );
+  float flash = smoothstep( 0.992, 0.999, mirror ) * sandGlint * ( 1.0 - swashFilm ) * ( 1.0 - swashCover ) * ( 1.0 + 4.0 * wk );
   reflectedLight.directSpecular += leafSun * flash * 3.0;
 }
 `;
@@ -802,7 +823,7 @@ if ( rocky > 0.01 ) {
   granite = mix( granite, vec3( 0.32, 0.3, 0.12 ), smoothstep( 0.62, 0.72, dNoise( coast * 5.0 ) ) * 0.6 );
   diffuseColor.rgb = mix( diffuseColor.rgb, granite, rocky );
 }
-diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.19, 0.12, 0.06 ) * ( 0.7 + grain * 0.6 ), litter * 0.55 );
+diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.17, 0.12, 0.08 ) * ( 0.7 + grain * 0.6 ), litter * 0.55 );
 // land-look: soil is never one flat brown. Over the inland ground: patches
 // a metre or two across, darker where humus gathers and paler where it is
 // dry and stony; and up close a speckle of pale pebbles, dark crumbs and
@@ -819,7 +840,7 @@ if ( soilZone > 0.01 ) {
     float k = soilZone * speckFade;
     diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 1.5, 1.45, 1.4 ), pebble * k * 0.6 );
     diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * 0.45, crumb * k * 0.6 );
-    diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.32, 0.2, 0.08 ), leafBit * k * 0.7 );
+    diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.3, 0.2, 0.11 ), leafBit * k * 0.7 );
   }
 }
 // Sward: under and between the tufts, blades too fine and too many to model.
@@ -1141,6 +1162,7 @@ vec3 q = vec3( vWorld.x, vWorld.y, -vWorld.z );
 vec2 coast = q.xz;
 float footprint = max( max( fwidth( q.x ), fwidth( q.y ) ), fwidth( q.z ) );
 float up = max( ( vec4( normalize( vNormal ), 0.0 ) * viewMatrix ).y, 0.0 );
+float rockInland = dShore( coast );
 // One stack of noise octaves: the first two are the broad weathering tone,
 // the next two the mid-scale detail. Each fades to its mean once finer than
 // ~2 pixels.
@@ -1184,6 +1206,11 @@ diffuseColor.rgb *= mix( 0.72, 1.0, smoothstep( 0.0, 0.5, up + mid * 0.3 ) );
   float crust = smoothstep( 0.66, 0.72, mix( dNoise3( q * 12.0 + 31.0 ), 0.5, smoothstep( 0.2, 0.5, footprint * 12.0 ) ) );
   diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 1.25, 1.25, 1.18 ), crust * 0.5 * smoothstep( 0.3, 0.7, up ) );
   float skirt = 1.0 - smoothstep( 0.04, 0.5 + ( blot - 0.5 ) * 0.4, vRockAbove );
+  // grade: the skirt is damp wicked up from wet sand: a beach boulder's.
+  // Up the island a stone stands on dry soil and keeps its pale foot (a
+  // summit cairn, every stone under half a metre up, read as dark lumps
+  // at a quarter of the sand's brightness; granite is about half).
+  skirt *= 1.0 - 0.75 * smoothstep( 6.0, 14.0, rockInland );
   diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.6, 0.62, 0.56 ), skirt * 0.75 );
 }
 // Joint cracks and exfoliation seams: thin dark lines, faded with distance.
@@ -1222,7 +1249,6 @@ diffuseColor.rgb *= mix( 1.03, 1.0, grainFade );
 // The shore's zones, by height above the sea, and only where the sea
 // reaches: a boulder up the beach is above the spray, not wet granite
 // with barnacles. Inland its zones climb out of reach, leaving lichen.
-float rockInland = dShore( coast );
 float seaReach = 1.0 - smoothstep( 1.2, 4.5, rockInland + ( macro - 0.5 ) * 0.8 );
 float y = q.y + ( mid - 0.5 ) * 0.25 + ( 1.0 - seaReach ) * 1.8;
 // Lichen crusts above the spray: grey-green crusts and orange Xanthoria.
@@ -1414,7 +1440,7 @@ const chromaticity = (c) => {
   const l = c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
   return c.map((v) => v / l);
 };
-const SOIL_TINT = chromaticity(MATERIAL_LINEAR.litter);
+const SOIL_TINT = chromaticity(FLOOR_LINEAR.litter);
 const SAND_GROUND_TINT = chromaticity(MATERIAL_LINEAR.sand);
 const GROUNDING_PARS_GLSL = /* glsl */ `
 uniform sampler2D groundField;
@@ -1537,7 +1563,8 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
   material.userData.magicLit = true; // land-magic: already carries the light
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, shared);
-    const defines = (pliant ? "#define PLIANT\n" : "") + (rooted ? `#define ROOTED ${rooted.toFixed(3)}\n` : "") + `#define SHEEN ${sheen.toFixed(2)}\n`;
+    const defines = (pliant ? "#define PLIANT\n" : "") + (rooted ? `#define ROOTED ${rooted.toFixed(3)}\n` : "") + `#define SHEEN ${sheen.toFixed(2)}\n` +
+      `#define WAKE_WRAP ${foliage ? "0.6\n#define WAKE_FOLIAGE" : "0.85"}\n` + (ground ? "#define WAKE_CAT_SHADOW\n" : ""); // waking: thin leaves let the kindled light round; the cat shades the ground
     shader.vertexShader = defines + OCCLUSION_VERTEX_GLSL + WIND_GLSL +
       shader.vertexShader.replace(
         "#include <begin_vertex>",
@@ -1600,7 +1627,7 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
     );
     shader.fragmentShader = defines +
       "uniform vec3 sunDirView;\nuniform float breezeTime;\nuniform float rainWetness;\nuniform float rainFilm;\nvarying float vGlint;\n" +
-      "uniform vec3 hazeToward;\nuniform vec3 hazeAway;\nuniform vec3 foamLight;\nvarying float vShade;\nvarying float vShadowFar;\n" +
+      "uniform vec3 hazeToward;\nuniform vec3 hazeAway;\nuniform vec3 foamLight;\nuniform vec3 canopyLight;\nvarying float vShade;\nvarying float vShadowFar;\n" +
       shader.fragmentShader
         .replace("#include <fog_fragment>", FOG_GLSL)
         .replace("#include <lights_fragment_end>", `#include <lights_fragment_end>\n${occlusionGlsl(foliage)}`)
@@ -1789,7 +1816,16 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
             // Drifted sand at the foot sees the sky as the sand beside it
             // does: half hidden by the rock (the ground's baked shade).
             contact = mix( contact, max( contact, 0.6 ), drift );
-            reflectedLight.indirectDiffuse *= contact;
+            // grade: bounce from the ground the stone stands on. The sky
+            // map's lower half assumes the island's mean albedo (~0.2);
+            // Cape sand returns two or three times that, so a boulder's
+            // flanks and overhangs on the beach glow with its light
+            // (granite with sand-lit undersides, not a dark lump), and on
+            // dark soil a little less. As the landmarks' grounding does.
+            float rockGroundAlbedo = texture2D( groundField, ( vec2( vWorld.x, -vWorld.z ) - groundRect.xy ) * groundRect.zw ).b;
+            float rockDown = 0.5 - 0.5 * ( vec4( normal, 0.0 ) * viewMatrix ).y;
+            float rockBounce = 1.0 + ( clamp( rockGroundAlbedo / 0.2, 0.4, 3.0 ) - 1.0 ) * 0.6 * rockDown * ( 1.0 - smoothstep( 1.5, 4.0, vRockAbove ) );
+            reflectedLight.indirectDiffuse *= contact * rockBounce;
             reflectedLight.indirectSpecular *= contact;
           }`,
         );
@@ -2077,9 +2113,16 @@ function addGround(scene, shared, occluders, cover, rocks = []) {
   // Wet sand only a little darker: the swash film carries the rest (surf.js).
   const wetSand = new THREE.Color(MATERIAL_HEX.wetSand);
   const dune = new THREE.Color(MATERIAL_HEX.dune);
-  const litter = new THREE.Color(MATERIAL_HEX.litter);
+  // grade: the forest floor at measured reflectance. The palette's litter
+  // and humus (material-palette.js, 4.6% and 2.8% luminance, red/blue 3.2)
+  // are wet charcoal, not a floor: dry leaf litter over Cape sandy soil
+  // reflects 10-15%, organic topsoil 6-8%, both greyer than a dyed brown.
+  // So the floor stayed a near-black brown in every light, and blue sky in
+  // the shade had nothing to reflect. (The palette is the places lane's;
+  // these belong there once it is free.)
+  const litter = new THREE.Color().setRGB(...FLOOR_LINEAR.litter, THREE.LinearSRGBColorSpace);
   const moss = new THREE.Color(MATERIAL_HEX.moss);
-  const humusColour = new THREE.Color(MATERIAL_HEX.humus);
+  const humusColour = new THREE.Color().setRGB(...FLOOR_LINEAR.humus, THREE.LinearSRGBColorSpace);
   const thatch = new THREE.Color();
   const color = new THREE.Color();
   for (let i = 0; i < position.count; i++) {

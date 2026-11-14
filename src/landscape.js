@@ -16,6 +16,7 @@ import { createPlaces } from "./places.js"; // places:
 import { createWisp } from "./wisp.js"; // wisp: the little light that leads the cat
 import { surfaceOf } from "./walker.js"; // solid: boulder tops for the fireflies
 import { createLandMagic, lightWithMagic, finaleBlaze } from "./land-magic.js"; // land-magic:
+import { WAKE_LIGHT, wakingSource } from "./waking.js"; // waking:
 import { createFireflies } from "./fireflies.js"; // land-magic:
 import { groundHeight } from "./terrain.js"; // land-magic:
 import { createBoat } from "./boat.js"; // boat: the fisherman's boat afloat
@@ -37,7 +38,12 @@ THREE.ShaderChunk.tonemapping_pars_fragment =
 // land-look: night light on the land (see updateLighting), exposed linear
 // units: the moonless key, what a full moon adds, and the sky fill's lift.
 // `?perf`: landscape.nightLand tunes them live.
-const NIGHT_LAND = { key: 0.1, moon: 0.14, fill: 6 };
+// grade: more key, less fill, at about the same overall level. With the
+// fill six times the dome the night beach was one even grey-blue: a rock
+// had no lit side. Moonlight is directional (a crescent still throws
+// shadows a dark-adapted eye reads); the fill keeps the shade blue, not
+// black.
+const NIGHT_LAND = { key: 0.25, moon: 0.3, fill: 4.5 };
 const MOON_KEY = new THREE.Color(0.62, 0.74, 1.0);
 // land-look: the sky dome as the land's ambient (buildEnvironment): how much
 // of its chroma reaches the land with the sun high and with it low, and how
@@ -48,6 +54,9 @@ const MOON_KEY = new THREE.Color(0.62, 0.74, 1.0);
 // zenith, a camera's daylight white balance), which is why open shade
 // photographs blue-violet and wet sand peach at golden hour.
 const ENVIRONMENT = { chroma: 0.5, lowChroma: 1.35, violet: 0.3, hide: 0.6, lowHide: 0.25, sunHide: 0.05 };
+// grade: the blue hour's white balance on the sky light, unit luminance
+// (see buildEnvironment).
+const TWILIGHT_TINT = [0.797, 1.036, 1.245];
 
 // Geometry shares the sky shader's 315° heading, 6° pitch, and projection.
 // WebGL handles mesh depth/shadows; WebGPU handles the sky and water behind it.
@@ -94,7 +103,18 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   // land-look: the ground darkens round the landmarks' feet (forest.js).
   forest.groundContact(land, [places.group]);
   // land-magic: the gifts' light on the land (uniforms in forest.js shared).
-  const landMagic = createLandMagic({ shared: land.userData.forestShared, lamps: places.lamps, beacon: places.beacon, light });
+  // waking: each keepsake's small steady light, what its waking resolves
+  // into (waking-light.md 3.7): the furnace ember and the pool lit from below.
+  // (The milkwood's is its crown; the lamp's, the lamps and beams; the boat's,
+  // its own lantern, which leaves the logs with the hull.)
+  const practicals = [
+    ["tideglow", WAKE_LIGHT.tideglow.tint, 1.6, 0.35],
+    ["seafolk", WAKE_LIGHT.seafolk.tint, 2.2, 0.45],
+  ].map(([gift, colour, reach, power]) => {
+    const at = wakingSource(gift, { pois: places.pois, blockers: places.blockers, surface: gift === "seafolk" ? surfaceOf(forest.obstacles) : groundHeight });
+    return at && { x: at[0], y: at[1] + (gift === "seafolk" ? 0.25 : 0), z: at[2], colour, reach, power, gift };
+  }).filter(Boolean);
+  const landMagic = createLandMagic({ shared: land.userData.forestShared, lamps: places.lamps, practicals, beacon: places.beacon, light });
   const fauna = createFauna(land, seed);
   const cat = createCat(land, { light });
   const critters = createCritters(land, seed, forest.obstacles.flowers, forest.rocks); // solid: one rock list
@@ -236,6 +256,8 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     pois: places.pois,
     places: perf ? places : null, // places: `?perf` QA
     landMagic: perf ? landMagic : null, // land-magic: `?perf` QA
+    // waking: the places a gift's light is kindled from (waking.js wakingSource).
+    wakingPlaces: { crown: places.crown, beacon: places.beacon },
     nightLand: perf ? NIGHT_LAND : null, // land-look: `?perf` tuning
     shadows: perf ? shadows : null, // shadow: `?perf` QA of the sliced refresh
     // land-magic: the lighthouse lamp this frame (coast metres; `angle` is
@@ -290,8 +312,8 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       fauna.update(time, wind, night, boat?.afloatNow ?? null); // boat: the pod rides its bow
       // land-magic: the fireflies fly, then every gift's light is set.
       const levels = magic?.levels;
-      const flies = fireflies.update({ dt, time, pose, night, level: levels?.fireflies ?? 0, finale: finaleBlaze(magic), call: magic?.call ?? null, eye: camera.position, pixelScale: flyPixels });
-      const gifts = landMagic.update({ magic, time, dt, night, pose, flies }); // land-magic:
+      const flies = fireflies.update({ dt, time, pose, night, level: levels?.fireflies ?? 0, finale: finaleBlaze(magic), call: magic?.call ?? null, eye: camera.position, pixelScale: flyPixels, born: magic?.waking?.gift === "fireflies" ? magic.waking : null }); // waking: out of the hollow
+      const gifts = landMagic.update({ magic, time, dt, night, pose, flies, reduced: reducedMotion, afloat: Boolean(boat?.afloatNow) }); // land-magic: (waking: reduced motion, the boat afloat)
       starLevel = levels?.stars ?? 0; // land-look: the stars gift lifts the night
       // The cat's coat and the animals take the same light (their
       // materials are built lazily: wrapped at load and once more later).
@@ -681,12 +703,16 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     if (key !== environmentKey && domeRatio && now - environmentTime >= 250) {
       environmentKey = key;
       environmentTime = now;
-      buildEnvironment(skyUnit, bounceUnit, uniform, celestial.sun, night);
+      buildEnvironment(skyUnit, bounceUnit, uniform, celestial.sun, night, cover);
     }
     forest.updateSkySH(skySH.coefficients, exposure * nightFill);
     CAT_SKY.value.setRGB(sky[0] * Math.PI, sky[1] * Math.PI, sky[2] * Math.PI).multiplyScalar(nightFill);
     const foamLight = lighting.direct.map((v, i) => (v * Math.max(sunWorld.y, 0) * overcast) / Math.PI + sky[i] * 1.1);
     forest.updateFoamLight(foamLight);
+    // grade: a crown is a volume: a low sun lights its side as much as a
+    // high one lights its top, so the light that filters through to the
+    // floor holds up into the golden hour (forest.js occlusionGlsl).
+    forest.updateCanopyLight(lighting.direct.map((v, i) => (v * (0.35 + 0.65 * Math.max(sunWorld.y, 0)) * overcast) / Math.PI + sky[i]));
     CAT_SEA.foam.value.setRGB(...foamLight);
     // The water column's own colour, as ocean.wgsl scatters it: sun and sky
     // light times scattering over extinction.
@@ -724,7 +750,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
 
   // Sky above the horizon from the dome ratio (CIE overcast when cloudy or
   // at night), ground bounce below it, joined through a thin horizon band.
-  function buildEnvironment(sky, bounce, uniform, sunDirection, night) {
+  function buildEnvironment(sky, bounce, uniform, sunDirection, night, cover = 0) {
     const width = envWidth;
     const height = width / 2;
     const rows = width / 4;
@@ -737,7 +763,14 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     // the dome keeps half its chroma, so noon shade stays blue-grey, not cyan.
     const [sx, sy, sz] = sunDirection;
     const low = (1 - THREE.MathUtils.smoothstep(sy, 0.17, 0.42)) * (1 - night);
-    const chroma = ENVIRONMENT.chroma + (ENVIRONMENT.lowChroma - ENVIRONMENT.chroma) * low;
+    // grade: civil twilight is the blue hour. Once the sun is a few
+    // degrees down, the light on the land is the deep, ozone-blue dome
+    // (measured twilight irradiance runs 9000-12000 K); the single-
+    // scattering model leaves that blue out and its sunset band, pushed
+    // by the low-sun chroma, turned the whole island maroon at dusk.
+    const twilight = THREE.MathUtils.smoothstep(-sy, 0.01, 0.08) * (1 - night);
+    const chroma = (ENVIRONMENT.chroma + (ENVIRONMENT.lowChroma - ENVIRONMENT.chroma) * low) * (1 - 0.3 * twilight);
+    const blueHour = TWILIGHT_TINT.map((t) => 1 + (t - 1) * twilight);
     // The sun's bearing in this map's frame (see updateDirection).
     const sunX = (sx + sz) * Math.SQRT1_2;
     const sunZ = (sx - sz) * Math.SQRT1_2;
@@ -771,16 +804,24 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         const lowHide = ENVIRONMENT.lowHide + (ENVIRONMENT.sunHide - ENVIRONMENT.lowHide) * sunward;
         const hide = hideRow * (ENVIRONMENT.hide + (lowHide - ENVIRONMENT.hide) * low);
         for (let c = 0; c < 3; c++) {
-          const sky1 = sky[c] * (domeRatio[k + c] * (1 - uniform) + cie * uniform);
+          // grade: under cloud the clear dome's blaze round a low sun (up
+          // to 12x the zenith) is behind the deck: keep its direction, not
+          // its hot spot. Even at 28% it mirrored in the wet sand as a
+          // saturated gold band beside a grey sea.
+          const clearRatio = domeRatio[k + c] / (1 + Math.max(domeRatio[k + c] - 1, 0) * cover * 0.6);
+          const sky1 = sky[c] * (clearRatio * (1 - uniform) + cie * uniform);
           const seen = sky1 + (bounce[c] * 1.2 - sky1) * hide;
           rgb[c] = seen + (bounce[c] - seen) * ground;
         }
         // Shade lit by a blue sky reads blue in a photograph, but not the
         // saturated cyan of the raw dome: part of its chroma, about luminance.
+        for (let c = 0; c < 3; c++) rgb[c] *= blueHour[c];
         const luma = rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
         // Blue sky toward violet with the sun low: red lifted by the blue
         // excess, green lowered to keep the luminance.
-        const lean = Math.max(rgb[2] - luma, 0) * ENVIRONMENT.violet * low;
+        // (Less of it in the blue hour: the model's twilight is short of green
+        // already, and the lean pushed it magenta.)
+        const lean = Math.max(rgb[2] - luma, 0) * ENVIRONMENT.violet * low * (1 - 0.6 * twilight);
         rgb[0] += lean;
         rgb[1] -= (lean * 0.2126) / 0.7152;
         for (let c = 0; c < 3; c++) {

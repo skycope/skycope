@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createMagic } from "../src/magic.js";
-import { magicUniforms, quietMagicUniforms, MAGIC_FIELDS, lampAngle, magicFixture } from "../src/sea-sky-magic.js";
+import { magicUniforms, quietMagicUniforms, MAGIC_FIELDS, lampAngle, magicFixture, magicPasses } from "../src/sea-sky-magic.js";
+import { WAKE_LIGHT, wakingSea } from "../src/waking.js";
 
 test("every magic uniform is zero while every gift sleeps", () => {
   const magic = createMagic();
@@ -31,14 +32,22 @@ test("awake gifts fill their lanes", () => {
   assert.ok(Math.abs(lampAngle(15) - lampAngle(3)) < 1e-9);
 });
 
-test("the pulse runs at its own speed and fades out past its reach", () => {
-  const record = magicFixture({ gifts: ["tideglow"], clock: 12, pulse: { x: 4, y: 0, z: 9, at: 10, gift: "tideglow", colour: [0.4, 0.8, 1], speed: 18, reach: 150 } });
-  const u = magicUniforms(record);
-  assert.deepEqual(u.pulse.slice(0, 3), [4, 9, 36]);
-  assert.equal(u.pulse[3], 1);
-  assert.deepEqual(u.pulseColour, [0.4, 0.8, 1, 150]);
-  const late = magicUniforms({ ...record, clock: 10 + 600 / 18 });
-  assert.deepEqual(late.pulse, [0, 0, 0, 0]);
+test("a waking's light reaches the sea with its own reach, and only for gifts that do", () => {
+  const waking = { gift: "tideglow", x: 4, y: 0.6, z: 9, age: 2.2 };
+  const record = magicFixture({ gifts: ["tideglow"], clock: 12, waking });
+  const u = magicUniforms(record, { night: 1 });
+  const sea = wakingSea(2.2, WAKE_LIGHT.tideglow, 1);
+  assert.deepEqual(u.waking.slice(0, 2), [4, 9]);
+  assert.ok(Math.abs(u.waking[2] - sea.radius) < 1e-9 && sea.radius > 30 && sea.radius < 120);
+  assert.ok(u.waking[3] > 0, "its front");
+  assert.equal(u.wakingLight[3], 0.6, "the source's height");
+  assert.ok(u.wakingLight[2] > u.wakingLight[0], "blue");
+  assert.deepEqual(magicPasses(u).water, true);
+  // The lit water keeps glinting after the land has gone dark, then ends.
+  assert.ok(magicUniforms({ ...record, waking: { ...waking, age: 9 } }, { night: 1 }).waking[2] > 0);
+  assert.deepEqual(magicUniforms({ ...record, waking: { ...waking, age: 16.1 } }, { night: 1 }).waking, [0, 0, 0, 0]);
+  // The milkwood's light stays on the land.
+  assert.deepEqual(magicUniforms({ ...record, waking: { ...waking, gift: "fireflies" } }, { night: 1 }).waking, [0, 0, 0, 0]);
   const call = magicUniforms({ ...record, call: { at: 11, x: 0, z: 0 } });
   assert.ok(Math.abs(call.magic2[1] - 1) < 0.01);
 });
@@ -95,14 +104,14 @@ test("asleep gifts select the plain pipelines, pass by pass", async () => {
   const { magicPasses, magicUniforms, quietMagicUniforms } = await import("../src/sea-sky-magic.js");
   const quiet = quietMagicUniforms();
   assert.deepEqual(magicPasses(quiet), { sky: false, water: false });
-  // Every gift asleep in a real record (no pulse, no wisp): both plain.
+  // Every gift asleep in a real record (no waking, no wisp): both plain.
   const asleep = createMagic();
   asleep.update(1 / 60, 10);
   assert.deepEqual(magicPasses(magicUniforms(asleep, { time: 10 })), { sky: false, water: false });
   // The wisp lights the sea, not the sky: only the water wakes.
   assert.deepEqual(magicPasses({ ...quiet, wisp: [1, 2, 3, 0.5] }), { sky: false, water: true });
   assert.deepEqual(magicPasses({ ...quiet, lantern: [1, 2, 3, 0.5] }), { sky: false, water: true });
-  assert.deepEqual(magicPasses({ ...quiet, pulse: [1, 2, 3, 0.5] }), { sky: false, water: true });
+  assert.deepEqual(magicPasses({ ...quiet, waking: [1, 2, 3, 0] }), { sky: false, water: true }, "a waking lights the water through its linger (front 0, radius set)");
   // A meow alone draws nothing in either pass.
   assert.deepEqual(magicPasses({ ...quiet, magic2: [0, 4, 0, 0] }), { sky: false, water: false });
   // The stars and the finale wake both; tideglow and the lamp only the sea.

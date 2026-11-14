@@ -285,7 +285,7 @@ for (const [name, time, weather, rain, view, windOverride, skyOptions] of [
   ["overcast-dusk-away", "2026-09-08T16:35:00Z", [1, 0.85, 0.6, 1], 0, [140, 0.15, [8.3, 2.5, 1.7]]],
   ["overcast-sea", "2026-09-08T16:35:00Z", [1, 0.85, 0.6, 1], 0, [250, -0.12, [8.3, 4, 1.7]]],
   // sea-sky-magic: the gifts awake. skyOptions.magic: { gifts, age (s since
-  // they woke), pulse, call, time (the scene clock) }. MAGIC=0 renders any
+  // they woke), waking, call, time (the scene clock) }. MAGIC=0 renders any
   // of them asleep, for side-by-side A/B.
   ["tideglow", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [44, -0.12, [8.3, 2, 1.7]], null, { magic: { gifts: ["tideglow"] } }],
   ["tideglow-rocks", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [104.7, -0.6, [126, 5, 56]], null, { magic: { gifts: ["tideglow"] } }],
@@ -299,8 +299,8 @@ for (const [name, time, weather, rain, view, windOverride, skyOptions] of [
   ["stars-day", "2026-09-08T12:00:00Z", [0, 0, 0, 0], 0, [200, 0.35], null, { magic: { gifts: ["stars"], age: 40 } }],
   ["lamp", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [123.4, -0.1, [127.8, 4, 40]], null, { magic: { gifts: ["lamp"], time: 26.6 } }],
   ["lamp-far", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [60, -0.06, [8.3, 3, 1.7]], null, { magic: { gifts: ["lamp"], time: 28.3 } }],
-  ["pulse", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [292, -0.12, [8.3, 4, 1.7]], null, { magic: { gifts: [], pulse: { x: -9.4, z: 43.8, at: 22.2, gift: "tideglow", speed: 18, reach: 150 } } }],
-  ["pulse-day", "2026-09-08T15:00:00Z", [0, 0, 0, 0], 0, [292, -0.12, [8.3, 4, 1.7]], null, { magic: { gifts: [], pulse: { x: -9.4, z: 43.8, at: 22.2, gift: "lamp", speed: 18, reach: 150 } } }],
+  ["waking", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [292, -0.12, [8.3, 4, 1.7]], null, { magic: { gifts: [], waking: { gift: "tideglow", x: -9.4, y: 1.4, z: 43.8, age: 2.2, frozen: true }, night: 1 } }],
+  ["waking-day", "2026-09-08T15:00:00Z", [0, 0, 0, 0], 0, [292, -0.12, [8.3, 4, 1.7]], null, { magic: { gifts: [], waking: { gift: "lamp", x: -9.4, y: 16, z: 43.8, age: 2.2, frozen: true } } }],
   ["finale", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [200, 0.3, [8.3, 3, 1.7]], null, { magic: { gifts: ["fireflies", "tideglow", "lamp", "stars", "seafolk", "boat", "finale"], age: 40 } }],
   ["finale-sea", "2026-09-10T19:30:00Z", [0, 0, 0, 0], 0, [44, -0.15, [8.3, 6, 1.7]], null, { magic: { gifts: ["fireflies", "tideglow", "lamp", "stars", "seafolk", "boat", "finale"], age: 40 } }],
   // Every gift long awake (the finale settled): still a real night, and a
@@ -373,7 +373,7 @@ for (const [name, time, weather, rain, view, windOverride, skyOptions] of [
   const magicOptions = process.env.MAGIC === "0" ? null : skyOptions?.magic;
   if (magicOptions?.time) atmosphere.time = magicOptions.time;
   const magicRecord = magicFixture({ ...magicOptions, clock: atmosphere.time });
-  Object.assign(atmosphere, magicUniforms(magicRecord, { time: atmosphere.time, lamp: LAMP }));
+  Object.assign(atmosphere, magicUniforms(magicRecord, { time: atmosphere.time, lamp: LAMP, night: magicOptions?.night ?? 0 }));
   const awake = magicActive(atmosphere);
   shader = awake ? skyAwake : skyAsleep;
   water = awake ? waterAwake : waterAsleep;
