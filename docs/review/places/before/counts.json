@@ -1,0 +1,258 @@
+{
+ "lighthouse-wide-750": {
+  "triangles": 1046579,
+  "drawCalls": 165,
+  "cat": [
+   118.77,
+   80.47
+  ]
+ },
+ "lighthouse-close-750": {
+  "triangles": 652333,
+  "drawCalls": 120,
+  "cat": [
+   122.21,
+   66.35
+  ]
+ },
+ "cottage-close-750": {
+  "triangles": 1015987,
+  "drawCalls": 163,
+  "cat": [
+   110.75,
+   48.8
+  ]
+ },
+ "wreck-wide-750": {
+  "triangles": 829619,
+  "drawCalls": 115,
+  "cat": [
+   3.56,
+   43.41
+  ]
+ },
+ "wreck-close-750": {
+  "triangles": 662503,
+  "drawCalls": 88,
+  "cat": [
+   -5.23,
+   46.49
+  ]
+ },
+ "wreck-cat-750": {
+  "triangles": 403357,
+  "drawCalls": 59,
+  "cat": [
+   -6.4,
+   45
+  ]
+ },
+ "milkwood-wide-750": {
+  "triangles": 2003051,
+  "drawCalls": 225,
+  "cat": [
+   42.46,
+   62.72
+  ]
+ },
+ "milkwood-close-750": {
+  "triangles": 1264181,
+  "drawCalls": 158,
+  "cat": [
+   31.95,
+   70.37
+  ]
+ },
+ "beacon-wide-750": {
+  "triangles": 1786082,
+  "drawCalls": 227,
+  "cat": [
+   67.98,
+   77.99
+  ]
+ },
+ "beacon-close-750": {
+  "triangles": 2063090,
+  "drawCalls": 266,
+  "cat": [
+   59.28,
+   83.65
+  ]
+ },
+ "boat-wide-750": {
+  "triangles": 1675390,
+  "drawCalls": 264,
+  "cat": [
+   82.63,
+   45.96
+  ]
+ },
+ "boat-close-750": {
+  "triangles": 1628241,
+  "drawCalls": 276,
+  "cat": [
+   73.27,
+   39.9
+  ]
+ },
+ "pool-wide-750": {
+  "triangles": 865981,
+  "drawCalls": 138,
+  "cat": [
+   56.08,
+   125.56
+  ]
+ },
+ "pool-close-750": {
+  "triangles": 901343,
+  "drawCalls": 130,
+  "cat": [
+   60.76,
+   124.78
+  ]
+ },
+ "boulders-stack-750": {
+  "triangles": 2137027,
+  "drawCalls": 342,
+  "cat": [
+   47.5,
+   31.5
+  ]
+ },
+ "boulders-seal-750": {
+  "triangles": 889278,
+  "drawCalls": 219,
+  "cat": [
+   76.5,
+   28.5
+  ]
+ },
+ "lighthouse-wide-1320": {
+  "triangles": 716970,
+  "drawCalls": 132,
+  "cat": [
+   118.77,
+   80.47
+  ]
+ },
+ "lighthouse-close-1320": {
+  "triangles": 591131,
+  "drawCalls": 114,
+  "cat": [
+   122.21,
+   66.35
+  ]
+ },
+ "cottage-close-1320": {
+  "triangles": 1007555,
+  "drawCalls": 158,
+  "cat": [
+   110.75,
+   48.8
+  ]
+ },
+ "wreck-wide-1320": {
+  "triangles": 959361,
+  "drawCalls": 124,
+  "cat": [
+   3.56,
+   43.41
+  ]
+ },
+ "wreck-close-1320": {
+  "triangles": 549936,
+  "drawCalls": 76,
+  "cat": [
+   -5.23,
+   46.49
+  ]
+ },
+ "wreck-cat-1320": {
+  "triangles": 299576,
+  "drawCalls": 51,
+  "cat": [
+   -6.4,
+   45
+  ]
+ },
+ "milkwood-wide-1320": {
+  "triangles": 1615038,
+  "drawCalls": 219,
+  "cat": [
+   42.46,
+   62.72
+  ]
+ },
+ "milkwood-close-1320": {
+  "triangles": 1152608,
+  "drawCalls": 166,
+  "cat": [
+   31.95,
+   70.37
+  ]
+ },
+ "beacon-wide-1320": {
+  "triangles": 1281414,
+  "drawCalls": 220,
+  "cat": [
+   67.98,
+   77.99
+  ]
+ },
+ "beacon-close-1320": {
+  "triangles": 1359253,
+  "drawCalls": 224,
+  "cat": [
+   59.28,
+   83.65
+  ]
+ },
+ "boat-wide-1320": {
+  "triangles": 1277336,
+  "drawCalls": 228,
+  "cat": [
+   82.63,
+   45.96
+  ]
+ },
+ "boat-close-1320": {
+  "triangles": 1125701,
+  "drawCalls": 221,
+  "cat": [
+   73.27,
+   39.9
+  ]
+ },
+ "pool-wide-1320": {
+  "triangles": 860402,
+  "drawCalls": 284,
+  "cat": [
+   56.08,
+   125.53
+  ]
+ },
+ "pool-close-1320": {
+  "triangles": 1008113,
+  "drawCalls": 356,
+  "cat": [
+   60.76,
+   124.78
+  ]
+ },
+ "boulders-stack-1320": {
+  "triangles": 1880453,
+  "drawCalls": 237,
+  "cat": [
+   47.5,
+   31.5
+  ]
+ },
+ "boulders-seal-1320": {
+  "triangles": 738921,
+  "drawCalls": 170,
+  "cat": [
+   76.5,
+   28.5
+  ]
+ }
+}

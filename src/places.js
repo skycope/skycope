@@ -22,7 +22,7 @@ import { markSolid, SOLID_ORDER } from "./cat-coat.js";
 
 export { placesLayout, placeClearance };
 
-const BUILDERS = { lighthouse: buildLighthouse, wreck: buildWreck, milkwood: buildMilkwood, boat: buildBoat, beacon: buildBeacon, pool: buildPool };
+export const BUILDERS = { lighthouse: buildLighthouse, wreck: buildWreck, milkwood: buildMilkwood, boat: buildBoat, beacon: buildBeacon, pool: buildPool };
 
 export function createPlaces(group, seed, { light = false, shared } = {}) {
   const layout = placesLayout(seed);
