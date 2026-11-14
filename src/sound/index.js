@@ -45,17 +45,22 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
   // The world the sounds come from (setWorld): plants, roofs, places.
   const scene = { habitat: null, plants: null, roofs: [], pois: [], milkwood: null, wreck: null, boat: null, lighthouse: null, pool: null };
 
+  // The context is made on the first gesture; the graph only once sound is
+  // on (with sound off from the start, nothing is ever built).
   function start() {
-    if (ctx) {
-      if (ctx.state === "suspended" && !context && !globalThis.document?.hidden && enabled) ctx.resume();
-      return;
-    }
-    if (context) ctx = context;
-    else {
-      const AudioContext = globalThis.AudioContext || globalThis.webkitAudioContext;
-      if (!AudioContext) return;
-      ctx = new AudioContext({ latencyHint: "playback" });
-    }
+    if (!ctx) {
+      if (context) ctx = context;
+      else {
+        const AudioContext = globalThis.AudioContext || globalThis.webkitAudioContext;
+        if (!AudioContext) return;
+        ctx = new AudioContext({ latencyHint: "playback" });
+      }
+    } else if (ctx.state === "suspended" && !context && !globalThis.document?.hidden && enabled) ctx.resume();
+    if (enabled && !mix) build();
+    else if (!enabled && !context && ctx.state === "running") ctx.suspend();
+  }
+
+  function build() {
     mix = createMix(ctx, { on: enabled });
     core = createCore(ctx, mix, { seed });
     // The score: its own reverb (4.8 s), on the music bus; its ceremony
@@ -74,7 +79,7 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
     cues = createCues(core, { world, foley, call, mix, score, home: (n, gain) => score.home(n, ctx.currentTime, gain) });
   }
 
-  const live = () => ctx && enabled && (context || ctx.state === "running");
+  const live = () => ctx && mix && enabled && (context || ctx.state === "running");
 
   // A named call (calls.js) on its bus; `at` places it from the listener.
   function call(name, options = {}) {
@@ -186,10 +191,11 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
       if (!ctx) return;
       clearTimeout(suspendTimer);
       if (on) {
+        if (!mix) build();
         if (!context && !globalThis.document?.hidden) ctx.resume();
         mix.setOn(true);
       } else {
-        mix.setOn(false);
+        mix?.setOn(false);
         // Nothing runs while muted.
         if (!context) suspendTimer = setTimeout(() => !enabled && ctx?.suspend(), 400);
       }
@@ -294,7 +300,7 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
     setMusic(on) {
       musicOn = Boolean(on);
       writePref(storage, PREFS.music, musicOn);
-      if (!ctx) return;
+      if (!mix) return;
       mix.setLevel("music", musicOn ? 1 : 0, 0.6);
     },
     // A named one-shot (calls.js: "discover", "thunder", "penguin-bray",
@@ -401,7 +407,7 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
       foley.land(speed, info.exact ? surface : surfaceFor(surface, info));
     },
     setPurr(on) {
-      if (!ctx) return;
+      if (!mix) return;
       foley.setPurr(on && enabled);
     },
     // A boat event (boat.js events) with the boat's state for placing it.
@@ -414,11 +420,11 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
     },
     // Inside a place that changes how things sound ("boiler" or null).
     setInside(where) {
-      if (ctx) setInside(where);
+      if (mix) setInside(where);
     },
     // Tests and the audition page: the engine's parts.
     get _qa() {
-      return ctx ? { ctx, mix, core, beds, foley, weather, world, cues, score } : null;
+      return mix ? { ctx, mix, core, beds, foley, weather, world, cues, score } : null;
     },
     dispose() {
       if (!context) ctx?.close();

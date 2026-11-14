@@ -30,29 +30,29 @@ export const STEPS = {
   // Denser and darker, firm ground under it, now and then a suck.
   [SURFACE.wetSand]: {
     says: "dark and firm",
-    trim: 1,
+    trim: 1.88,
     layers: [
-      { noise: "pink", type: "lowpass", f: 700, q: 2, attack: 0.008, tail: 0.06, gain: 0.04 },
+      { noise: "pink", type: "bandpass", f: 480, q: 0.9, attack: 0.008, tail: 0.06, gain: 0.05 },
       { noise: "white", type: "bandpass", f: 900, q: 1, attack: 0.006, tail: 0.04, gain: 0.012 },
-      { tone: "sine", hz: 180, to: 120, attack: 0.004, tail: 0.035, gain: 0.005 },
+      { tone: "sine", hz: 180, to: 120, attack: 0.004, tail: 0.035, gain: 0.003 },
       { noise: "white", type: "bandpass", f: 2400, q: 6, attack: 0.002, tail: 0.018, gain: 0.006, at: 0.04, chance: 1 / 3 },
     ],
   },
   // Blades brushing over soft soil.
   [SURFACE.grass]: {
     says: "a light brushing",
-    trim: 4.5,
+    trim: 5.4,
     layers: [
-      { ...grain(4500, 7000), count: [2, 3], spacing: [0.008, 0.014] },
+      { ...grain(5500, 8000), count: [2, 3], spacing: [0.008, 0.014] },
       { noise: "brown", type: "lowpass", f: 300, q: 0, attack: 0.004, tail: 0.05, gain: 0.002 },
     ],
   },
   // As grass, plus one step in four a twig.
   [SURFACE.scrub]: {
     says: "brushing, a twig now and then",
-    trim: 5.2,
+    trim: 5.7,
     layers: [
-      { ...grain(3500, 6500), count: [2, 3], spacing: [0.008, 0.014] },
+      { ...grain(3500, 6000), count: [2, 3], spacing: [0.008, 0.014] },
       { noise: "brown", type: "lowpass", f: 300, q: 0, attack: 0.004, tail: 0.05, gain: 0.003 },
       { noise: "white", type: "bandpass", f: 2200, q: 9, attack: 0.001, tail: 0.012, gain: 0.016, chance: 0.25, at: 0.01 },
     ],
@@ -60,21 +60,21 @@ export const STEPS = {
   // Leaf litter: one more grain, a soft thump under it, the twig.
   [SURFACE.forest]: {
     says: "leaf litter, an occasional twig",
-    trim: 3.2,
+    trim: 5.1,
     layers: [
       { ...grain(2500, 5000, { tail: [0.03, 0.05] }), count: [3, 4], spacing: [0.008, 0.016] },
-      { noise: "brown", type: "lowpass", f: 380, q: 0, attack: 0.004, tail: 0.06, gain: 0.015 },
+      { noise: "brown", type: "lowpass", f: 380, q: 0, attack: 0.004, tail: 0.06, gain: 0.005 },
       { noise: "white", type: "bandpass", f: 2200, q: 9, attack: 0.001, tail: 0.012, gain: 0.016, chance: 0.25, at: 0.012 },
     ],
   },
   // A cat on stone is nearly silent; the tick of a claw is what you hear.
   [SURFACE.rock]: {
     says: "nearly silent, a claw tick",
-    trim: 3.3,
+    trim: 6.9,
     layers: [
-      { noise: "white", type: "bandpass", f: 2600, q: 4, attack: 0.001, tail: 0.014, gain: 0.016 },
-      { tone: "sine", hz: 420, attack: 0.001, tail: 0.025, gain: 0.0012 },
-      { noise: "white", type: "highpass", f: 5000, q: 0, attack: 0.0005, tail: 0.006, gain: 0.008, at: 0.004, chance: 0.3, running: 1 },
+      { noise: "white", type: "bandpass", f: 4200, q: 4, attack: 0.001, tail: 0.014, gain: 0.016 },
+      { tone: "sine", hz: 420, attack: 0.001, tail: 0.025, gain: 0.0004 },
+      { noise: "white", type: "highpass", f: 5000, q: 0, attack: 0.0005, tail: 0.006, gain: 0.003, at: 0.004, chance: 0.3, running: 1 },
     ],
   },
   // A knock with a body under it (the keel, a sill, a limb).
@@ -117,10 +117,10 @@ export const STEPS = {
   // Stones shifting: three clicks over 40 ms, the last with a tap.
   [SURFACE.pebbles]: {
     says: "stones shifting",
-    trim: 3.8,
+    trim: 12,
     layers: [
-      { noise: "white", type: "bandpass", f: [1800, 3600], q: 7, attack: 0.0005, tail: 0.009, gain: 0.012, count: 3, spacing: [0.012, 0.016] },
-      { tone: "sine", hz: 300, attack: 0.001, tail: 0.02, gain: 0.006, at: 0.035 },
+      { noise: "white", type: "bandpass", f: [1400, 2400], q: 7, attack: 0.0005, tail: 0.014, gain: 0.012, count: 3, spacing: [0.012, 0.016] },
+      { tone: "sine", hz: 300, attack: 0.001, tail: 0.02, gain: 0.0003, at: 0.035 },
     ],
   },
 };

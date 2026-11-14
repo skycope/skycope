@@ -29,7 +29,13 @@ export const BUS_NAMES = Object.keys(BUSES);
 
 // Bus faders (linear), set by measurement of each bus's reference scene
 // (scripts/sound-evidence.mjs prints them; tests hold them to ±2 LU).
-export const FADER = { amb: 1, weather: 1, foley: 1, voice: 1, world: 1, magic: 1, music: 1 };
+export const FADER = { amb: 0.291, weather: 3.11, foley: 3.62, voice: 0.726, world: 1.79, magic: 0.344, music: 0.54 };
+
+// The whole mix's own level: with every bus on its target the reference
+// mix (tests/audio/scenes.js MIX) measured −34.2 LUFS; the plan asks for
+// −30 ± 2, so the master lifts everything alike to about −31 (leaning
+// quiet). Bus targets are measured with this taken out ("master at 1").
+export const MASTER = 1.45;
 
 export const LIMITER = { threshold: -6, knee: 0, ratio: 20, attack: 0.002, release: 0.25, post: 0.89 };
 
@@ -52,7 +58,7 @@ export function createMix(ctx, { on = true, fader = FADER } = {}) {
   limiter.attack.value = LIMITER.attack;
   limiter.release.value = LIMITER.release;
   const master = ctx.createGain();
-  master.gain.value = on ? LIMITER.post : 0;
+  master.gain.value = on ? LIMITER.post * MASTER : 0;
   const sum = ctx.createGain();
   sum.connect(master).connect(limiter).connect(out).connect(ctx.destination);
 
@@ -88,7 +94,7 @@ export function createMix(ctx, { on = true, fader = FADER } = {}) {
     master,
     input: (name) => buses[name]?.input ?? buses.world.input,
     setOn(on, time = 0.15) {
-      master.gain.setTargetAtTime(on ? LIMITER.post : 0, ctx.currentTime, time);
+      master.gain.setTargetAtTime(on ? LIMITER.post * MASTER : 0, ctx.currentTime, time);
     },
     // A bus's own level (0…1+), e.g. music on/off.
     setLevel(name, level, time = 0.4) {
