@@ -164,6 +164,9 @@ export function buildBoatForms({ light = false } = {}) {
   // rubbing strake, gunwale): the hull's shader cuts it at the water. The
   // rest is inside a dry hull (see boat.js).
   const outer = [];
+  // The lantern's pole: inside the hull, and faded out of the way when it
+  // stands between the camera and the cat (boat.js).
+  const pole = [];
 
   // ---- Outer skin: strake by strake, lapped.
   for (const side of [-1, 1]) {
@@ -447,9 +450,9 @@ export function buildBoatForms({ light = false } = {}) {
   {
     const base = new THREE.Vector3(0, sheer(1) + 0.02, H * 0.97);
     const pts = [base, new THREE.Vector3(0, base.y + 0.3, H + 0.04), new THREE.Vector3(0, LANTERN.pivot[1] - 0.02, H + 0.16), new THREE.Vector3(0, LANTERN.pivot[1] + 0.02, LANTERN.pivot[2] - 0.04), new THREE.Vector3(0, LANTERN.pivot[1] - 0.03, LANTERN.pivot[2] + 0.02)];
-    hull.push(part(sweep(pts, [0.016, 0.014, 0.013, 0.012, 0.01], 5), { colour: IRON }));
+    pole.push(part(sweep(pts, [0.016, 0.014, 0.013, 0.012, 0.01], 5), { colour: IRON }));
     // Lashed to the stem with a few turns of line.
-    for (let k = 0; k < 4; k++) hull.push(part(new THREE.TorusGeometry(0.03, 0.007, 3, 8), { matrix: place(0, base.y + 0.02 + k * 0.025, H * 0.985, { pitch: Math.PI / 2 }), colour: ROPE }));
+    for (let k = 0; k < 4; k++) pole.push(part(new THREE.TorusGeometry(0.03, 0.007, 3, 8), { matrix: place(0, base.y + 0.02 + k * 0.025, H * 0.985, { pitch: Math.PI / 2 }), colour: ROPE }));
   }
 
   // ---- The hurricane lantern itself (its own piece: it swings). Local
@@ -479,7 +482,7 @@ export function buildBoatForms({ light = false } = {}) {
   }
 
   return {
-    hull: skins(merge(outer), merge(hull)),
+    hull: skins(merge(outer), merge(hull), merge(pole)),
     lamp: merge(lamp),
     glass: merge(glass),
   };
@@ -514,12 +517,14 @@ export function buildPost(bottom, seed = 1) {
 }
 
 // One geometry with a per-vertex `skin`: 1 outside (the sea meets it), 0
-// inside.
-function skins(outside, inside) {
-  for (const [g, v] of [[outside, 1], [inside, 0]]) g.setAttribute("skin", new THREE.BufferAttribute(new Float32Array(g.attributes.position.count).fill(v), 1));
-  const merged = mergeGeometries([outside, inside], false);
+// inside,
+// −1: inside, and fades when it would hide the cat (the lantern's pole).
+function skins(outside, inside, fading) {
+  for (const [g, v] of [[outside, 1], [inside, 0], [fading, -1]]) g.setAttribute("skin", new THREE.BufferAttribute(new Float32Array(g.attributes.position.count).fill(v), 1));
+  const merged = mergeGeometries([outside, inside, fading], false);
   outside.dispose();
   inside.dispose();
+  fading.dispose();
   merged.computeBoundingSphere();
   return merged;
 }

@@ -55,10 +55,13 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
     boatGrid: { value: new THREE.Vector3(WATER_GRID.u, WATER_GRID.v, HULL.half) },
     boatPlane: { value: Float32Array.from(WATERPLANE) },
     boatPostSea: { value: -100 },
+    // How far the lantern and its pole are faded (they stood between the
+    // camera and the cat), 0…1.
+    boatFade: { value: 0 },
   };
   const wood = boatMaterial(shared, lampUniforms, true);
   const iron = boatMaterial(shared, lampUniforms, false);
-  const glassMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, fog: false });
+  const glassMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, fog: false, transparent: true, depthWrite: true });
 
   const group = new THREE.Group();
   group.name = "boat";
@@ -85,6 +88,7 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
   const painter = painterMesh(shared);
   land.add(painter.mesh);
   let postMesh = null;
+  let walkerRef = null;
   let postBody = null;
   let seaRef = null;
   // Where only the boat goes (boat-jellies.js).
@@ -116,6 +120,59 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
   let clock = 0;
 
   const pose = { x: 0, y: 0, z: 0, heading: 0, pitch: 0, roll: 0 };
+  // The aboard camera's hints (see the api) and the pole's segment.
+  const hints = {
+    active: false,
+    // Frame the cat at the bow from astern and a little above: arm length
+    // (m) and elevation (rad) that keep the whole hull and the lantern in
+    // the picture without the pole crossing the cat.
+    arm: { distance: 4.2, elevation: 0.3, min: 2.6 },
+    // Where to look (the cat at its station) and the bow's heading.
+    target: [0, 0, 0],
+    heading: 0,
+    // Capsules that may stand between lens and cat: { a, b, r } (coast).
+    occluders: [
+      { name: "lantern-pole", a: [0, 0, 0], b: [0, 0, 0], r: 0.06 },
+      { name: "lantern", a: [0, 0, 0], b: [0, 0, 0], r: 0.12 },
+      { name: "mooring-post", a: [0, -100, 0], b: [0, -100, 0], r: 0.1 },
+    ],
+    // 0…1: how far boat.js has dissolved them this frame.
+    faded: 0,
+  };
+  const hintA = new THREE.Vector3(), hintB = new THREE.Vector3();
+  function updateHints(camera, dt) {
+    const cat = walkerRef?.cat;
+    hints.active = Boolean(ride?.aboard);
+    const [pole, lantern, post] = hints.occluders;
+    if (postMesh?.visible) {
+      post.a = [ride.post.x, ride.post.bed, ride.post.z];
+      post.b = [ride.post.x, POST.top, ride.post.z];
+    }
+    hintA.set(0, sheer(1) + 0.02, HULL.half * 0.97).applyMatrix4(group.matrix);
+    hintB.set(0, LANTERN.pivot[1], LANTERN.pivot[2]).applyMatrix4(group.matrix);
+    pole.a = [hintA.x, hintA.y, hintA.z];
+    pole.b = [hintB.x, hintB.y, hintB.z];
+    lantern.a = [hintB.x, hintB.y, hintB.z];
+    lantern.b = [flameCoast.x, flameCoast.y - 0.12, flameCoast.z];
+    hints.heading = pose.heading;
+    let want = 0;
+    if (cat && hints.active) {
+      hints.target = [cat.x, cat.y + 0.3, cat.z];
+      // The lens (coast) to the cat's head: how near it passes the pole
+      // and the lantern.
+      const ex = camera.position.x, ey = camera.position.y, ez = -camera.position.z;
+      let nearest = Infinity;
+      for (const o of hints.occluders)
+        for (let i = 0; i <= 8; i++) {
+          const t = i / 8;
+          const px = ex + (hints.target[0] - ex) * t, py = ey + (hints.target[1] - ey) * t, pz = ez + (hints.target[2] - ez) * t;
+          nearest = Math.min(nearest, segmentDistance(px, py, pz, o.a, o.b) - o.r);
+        }
+      want = 1 - smooth01(0.05, 0.3, nearest);
+    }
+    hints.faded += (want * 0.85 - hints.faded) * Math.min(1, dt * 6);
+    lampUniforms.boatFade.value = hints.faded;
+  }
 
   const api = {
     group,
@@ -139,6 +196,11 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
     get ride() {
       return ride;
     },
+    // For the follow camera aboard (walker.js owns it): where to frame,
+    // a clear arm, and what could stand in the way (coast metres). The
+    // lantern and pole already dissolve themselves when they hide the cat,
+    // and any boat timber within ~0.6 m of the lens dithers out.
+    aboardCameraHints: hints,
     // Joins the walker, the sea and the shared record (main.js, once the
     // walker exists).
     attach({ walker, sea, magic: record, wake: wakeRecord }) {
@@ -162,6 +224,7 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
       postMesh.renderOrder = SOLID_ORDER;
       land.add(postMesh);
       seaRef = sea;
+      walkerRef = walker;
       record.afloat = null;
       return api;
     },
@@ -301,6 +364,8 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
       // The globe glows amber (its form stays readable); the bright core
       // is the halo mesh's.
       glassMaterial.color.copy(LANTERN_COLOUR).multiplyScalar(0.7 * strength + 0.06);
+      // Dissolved with its lantern when it hides the cat.
+      glassMaterial.opacity = 1 - hints.faded;
       // Its flame in coast metres and in the camera's view.
       flame.set(0, -LANTERN.drop - 0.05, 0);
       glassMesh.localToWorld(flame);
@@ -315,6 +380,8 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
       // The thread: from the pole's head to the wisp.
       stemCoast.set(0, LANTERN.pivot[1] + 0.02, LANTERN.pivot[2] - 0.05).applyMatrix4(group.matrix);
       glow.update(time, flame, strength, night, stemCoast, magic?.wisp, tow, ride.ride.throttle);
+      // The lantern and its pole between the lens and the cat: fade them.
+      updateHints(camera, dt);
       // The painter: from the ring on the stem head to the post's ring or
       // down to its anchor, hanging in its slack.
       if (postMesh?.visible && seaRef?.drawn) {
@@ -364,7 +431,22 @@ function boatMaterial(shared, uniforms, water) {
       .replace("void main() {", "attribute float skin;\nvarying vec3 vBoatP;\nvarying vec3 vBoatW;\nvarying float vSkin;\nvoid main() {\n  vBoatP = position;\n  vSkin = skin;")
       .replace("#include <worldpos_vertex>", "#include <worldpos_vertex>\n  vBoatW = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;");
     shader.fragmentShader = shader.fragmentShader
-      .replace("void main() {", `${BOAT_NOISE}\n${water ? BOAT_WATER : ""}\nvarying vec3 vBoatP;\nvarying vec3 vBoatW;\nvarying float vSkin;\nuniform vec4 boatLamp;\nuniform vec3 boatLampColour;\nvoid main() {`)
+      .replace("void main() {", `${BOAT_NOISE}\n${water ? BOAT_WATER : ""}\nvarying vec3 vBoatP;\nvarying vec3 vBoatW;\nvarying float vSkin;\nuniform vec4 boatLamp;\nuniform vec3 boatLampColour;\nuniform float boatFade;\nvoid main() {`)
+      .replace(
+        "#include <clipping_planes_fragment>",
+        /* glsl */ `#include <clipping_planes_fragment>
+        {
+          // Never a wall of timber in the lens: whatever is right at the
+          // camera, and the lantern and its pole when they hide the cat,
+          // dissolve (an ordered dither, so it stays opaque and sorted).
+          float near = 1.0 - smoothstep( 0.3, 0.75, length( vBoatW - cameraPosition ) );
+          float fade = max( near, ${water ? "vSkin < -0.5 || vSkin > 1.5 ? boatFade : 0.0" : "boatFade"} );
+          vec2 cell = mod( floor( gl_FragCoord.xy ), 4.0 );
+          float bayer = mod( cell.x * 2.0 + cell.y * 3.0 + floor( cell.x * 0.5 ) * 5.0, 8.0 ) / 8.0 + 0.0625;
+          if ( fade > bayer ) discard;
+        }
+        `,
+      )
       .replace(
         "#include <clipping_planes_fragment>",
         water
@@ -400,7 +482,15 @@ function boatMaterial(shared, uniforms, water) {
           diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.16, 0.14, 0.11 ) * ( 0.8 + grain * 0.4 ), wear * 0.7 );
           // A green-brown tide line of weed at the boot-top.
           float tide = exp( -pow( ( vBoatP.y + 0.035 ) / 0.02, 2.0 ) ) * smoothstep( 0.4, 0.7, blotch );
-          diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.08, 0.1, 0.04 ), tide * 0.6 * min( vSkin, 1.0 ) );
+          float outside = clamp( vSkin, 0.0, 1.0 );
+          diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.08, 0.1, 0.04 ), tide * 0.6 * outside );
+          // Soaked timber below the line the water keeps it at (darker,
+          // a little green), and a dry crust of salt just above it where
+          // spray dries on the paint.
+          float soaked = 1.0 - smoothstep( 0.0, 0.07 + ( blotch - 0.5 ) * 0.04, vBoatP.y );
+          diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.62, 0.68, 0.6 ), soaked * outside );
+          float salt = smoothstep( 0.06, 0.1, vBoatP.y ) * ( 1.0 - smoothstep( 0.12, 0.24, vBoatP.y ) ) * smoothstep( 0.45, 0.75, fine * 0.5 + blotch * 0.7 );
+          diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.62, 0.62, 0.58 ), salt * 0.22 * outside );
           ${water ? /* glsl */ `
           // Wet just above the water it rides in: darker where it laps.
           float wet = min( vSkin, 1.0 ) * ( 1.0 - smoothstep( 0.0, 0.05, boatAbove ) );
@@ -425,7 +515,7 @@ function boatMaterial(shared, uniforms, water) {
           vec3 L = toL * inversesqrt( max( d2, 1e-4 ) );
           float ndl = clamp( dot( normal, L ) * 0.75 + 0.25, 0.0, 1.0 );
           // Inverse square beyond the lantern's own size (~0.4 m).
-          reflectedLight.directDiffuse += boatLampColour * boatLamp.w * ndl * diffuseColor.rgb * 0.31831 * 2.2 / ( 1.0 + d2 * 6.0 );
+          reflectedLight.directDiffuse += boatLampColour * boatLamp.w * ndl * diffuseColor.rgb * 0.31831 * 2.6 / ( 1.0 + d2 * 2.2 );
         }`,
       );
   };
@@ -725,6 +815,14 @@ function painterMesh(shared) {
       material.dispose();
     },
   };
+}
+
+// Distance from a point to the segment a–b (arrays).
+function segmentDistance(px, py, pz, a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
+  const l = dx * dx + dy * dy + dz * dz || 1e-9;
+  const t = Math.max(0, Math.min(1, ((px - a[0]) * dx + (py - a[1]) * dy + (pz - a[2]) * dz) / l));
+  return Math.hypot(px - a[0] - dx * t, py - a[1] - dy * t, pz - a[2] - dz * t);
 }
 
 function wrap(a) {
