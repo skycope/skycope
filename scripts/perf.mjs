@@ -213,7 +213,24 @@ function pageHelper({ island }) {
     beacon: () => facing(poi("beacon"), 7, 0.3, 3.6),
     "beacon-out": () => { const p = poi("beacon"); const a = Math.atan2(p.x - island.x, p.z - island.z); return { x: p.x + Math.sin(a) * 2, z: p.z + Math.cos(a) * 2, yaw: a, el: 0.35, dist: 6 }; },
     lighthouse: () => facing(poi("lighthouse"), 16, 0.25, 3.6),
+    // Vegetation views (docs/review/vegetation): coast metres for seed 1847,
+    // the default; other seeds get the same spots, not the same plants.
+    "forest-slope": () => uphill(73, 49, 0.22, 5),
+    meadow: () => toward(37, 82, 48, 85, 0.16, 3.6),
+    "shore-scrub": () => { const a = shorePoint(HOME - 0.7, 7), b = shorePoint(HOME - 0.45, 6); return toward(a.x, a.z, b.x, b.z, 0.22, 4); },
+    hilltop: () => toward(63, 89, 52, 70, 0.32, 6),
+    "milkwood-under": () => { const p = poi("milkwood"); if (!p) return { home: true }; const a = Math.atan2(island.x - p.x, island.z - p.z); return toward(p.x + Math.sin(a) * 2.2, p.z + Math.cos(a) * 2.2, p.x + Math.sin(a) * 12, p.z + Math.cos(a) * 12, 0.02, 2.4); },
+    "cat-plants": () => toward(44, 80, 52, 86, 0.0, 1.3),
   };
+  // The cat at (x, z) looking toward (tx, tz).
+  function toward(x, z, tx, tz, el, dist) {
+    return { x, z, yaw: Math.atan2(tx - x, tz - z), el, dist };
+  }
+  // The cat at (x, z) looking up the slope.
+  function uphill(x, z, el, dist) {
+    const f = (a, b) => s.walker.surface(a, b);
+    return toward(x, z, x + (f(x + 2, z) - f(x - 2, z)), z + (f(x, z + 2) - f(x, z - 2)), el, dist);
+  }
   function shorePoint(t, inland) {
     const exact = window.__shore?.(t, inland);
     if (exact) return exact;

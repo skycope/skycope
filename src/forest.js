@@ -109,6 +109,7 @@ export function createForest(scene, seed, { light = false } = {}) {
     color: 0xffffff,
     roughness: 1,
   });
+  woodMaterial.name = "wood";
   patchMaterial(woodMaterial, shared, { sway: true, bark: true, taper: true });
   // Unit cylinders; each instance's taper narrows the top to where the next
   // segment starts. Wind bends each short segment as a whole, so one ring of
@@ -146,6 +147,7 @@ export function createForest(scene, seed, { light = false } = {}) {
     vertexColors: true,
     side: THREE.DoubleSide,
   });
+  clusterMaterial.name = "shoots";
   patchMaterial(clusterMaterial, shared, {
     sway: true,
     flutter: 0.05,
@@ -174,6 +176,7 @@ export function createForest(scene, seed, { light = false } = {}) {
     vertexColors: true,
     side: THREE.DoubleSide,
   });
+  bladeMaterial.name = "blades";
   patchMaterial(bladeMaterial, shared, { sway: true, flutter: 0.08, foliage: true, bent: 0.45, pliant: true, rooted: 0.25, sheen: 0.3 });
   addInstances(scene, leafGeometry(1), bladeMaterial, leaves, true, [
     { geometry: leafGeometry(0), keep: (l) => l.scale.y > 0.18 || l.scale.x > 0.05, distance: 28 },
@@ -188,6 +191,7 @@ export function createForest(scene, seed, { light = false } = {}) {
     vertexColors: true,
     side: THREE.DoubleSide,
   });
+  turfMaterial.name = "turf";
   patchMaterial(turfMaterial, shared, { sway: true, flutter: 0.06, foliage: true, bent: 0.55, pliant: true, rooted: 0.12 });
   // Full tufts (5 mm blades, flowering culms) only round the cat; past
   // ~10 m a blade is under a pixel wide. The near-ground carpet thickens
@@ -202,20 +206,20 @@ export function createForest(scene, seed, { light = false } = {}) {
   addInstances(scene, reedGeometry(30, 1), turfMaterial, reeds, true, [
     { geometry: reedGeometry(14, 0), distance: 18 },
     { keep: () => false, distance: 90 },
-  ], { chunk: 40 });
+  ], { chunk: 40, label: "reeds" });
   // Fern and palm fronds: one organ per frond. Palms (tall anchors) stay
   // to the horizon; fern fronds drop out where they'd be a few pixels.
   addInstances(scene, frondGeometry(16, 2), bladeMaterial, fronds, true, [
     { geometry: frondGeometry(12, 1), distance: 13 },
     { geometry: frondGeometry(8, 0), keep: (f) => f.scale.y > 1.5 || shootShare(f) < 0.6, distance: 50 },
     { geometry: frondGeometry(6, 0), keep: (f) => f.scale.y > 1.5, distance: 95 },
-  ]);
+  ], { label: "fronds" });
   // Heath shoots: needles, on the same foliage material as leafy shoots.
   addInstances(scene, needleGeometry(26), clusterMaterial, needles, true, [
     { geometry: needleGeometry(10), grow: 1.15, distance: 16 },
     { geometry: needleGeometry(4), grow: 1.3, distance: 30 },
     { geometry: needleGeometry(4), grow: 1.5, keep: (c) => shootShare(c) < 0.5, distance: 60 },
-  ], { shadowGrow: SHADOW_GROW });
+  ], { shadowGrow: SHADOW_GROW, label: "needles" });
   // Aloe leaves are thick and waxy, not translucent: plain lit, a little
   // glossy, stiff in the wind.
   const succulentMaterial = new THREE.MeshStandardMaterial({
@@ -224,6 +228,7 @@ export function createForest(scene, seed, { light = false } = {}) {
     vertexColors: true,
     side: THREE.DoubleSide,
   });
+  succulentMaterial.name = "succulents";
   patchMaterial(succulentMaterial, shared, { sway: true });
   addInstances(scene, succulentGeometry(1), succulentMaterial, succulents, true, [
     { geometry: succulentGeometry(0), distance: 18 },
@@ -237,6 +242,7 @@ export function createForest(scene, seed, { light = false } = {}) {
     vertexColors: true,
     side: THREE.DoubleSide,
   });
+  petalMaterial.name = "flowers";
   patchMaterial(petalMaterial, shared, { sway: true, flutter: 0.04, foliage: true, bent: 0.35 });
   // Daisy and bell drifts: past ~22 m a head is a pixel or two, so half of
   // them, grown to keep the drift's colour, then none.
@@ -2217,6 +2223,7 @@ function addGround(scene, shared, occluders, cover, rocks = []) {
     transparent: true,
     clippingPlanes: [new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.12)],
   });
+  material.name = "ground";
   patchMaterial(material, shared, { ground: true, fade: true });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.receiveShadow = true;
@@ -2326,6 +2333,8 @@ function addGroundDetails(scene, shared, details, occluders) {
     for (const part of list) part.shade = (1 - visible(part.position.x, part.position.z)) * 0.65;
   const woodMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 });
   const mineralMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.88 });
+  woodMaterial.name = "ground-detail";
+  mineralMaterial.name = "ground-detail";
   for (const material of [woodMaterial, mineralMaterial]) patchMaterial(material, shared);
   const near = [{ keep: () => false, distance: 30 }];
   addInstances(scene, new THREE.CylinderGeometry(0.65, 1, 1, 3, 1, false), woodMaterial, details.twigs, false, near);
@@ -2632,7 +2641,7 @@ const LOD_PACK_BUDGET = 24000;
 // The eye in world space, for the fades in every pass (the shadow pass's
 // camera is the sun's, but plants fade by distance from the eye).
 const LOD_EYE = { value: new THREE.Vector3() };
-function addInstances(scene, geometry, material, instances, shadows, far = null, { chunk = CHUNK, shadowGrow = 0 } = {}) {
+function addInstances(scene, geometry, material, instances, shadows, far = null, { chunk = CHUNK, shadowGrow = 0, label = material.name } = {}) {
   if (!instances.length) return;
   const steps = far ? (Array.isArray(far) ? far : [far]) : [];
   const levels = [{ geometry, grow: 1, keep: null, start: 0 }, ...steps.map((level) => ({
@@ -2717,6 +2726,7 @@ function addInstances(scene, geometry, material, instances, shadows, far = null,
       geo.setIndex(level.geometry.index);
       for (const [name, attribute] of Object.entries(level.geometry.attributes)) geo.setAttribute(name, attribute);
       const mesh = new THREE.InstancedMesh(geo, lodMaterial, capacity);
+      mesh.name = label; // (perf attribution)
       const live = (array, size) => new THREE.InstancedBufferAttribute(array, size).setUsage(THREE.DynamicDrawUsage);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       const out = { matrix: mesh.instanceMatrix.array };
@@ -2856,6 +2866,7 @@ function withFlutter(geometry) {
 
 function addRocks(scene, random, shared, rocks = rockLayout(random)) {
   const material = new THREE.MeshStandardMaterial({
+    name: "rock",
     color: 0xffffff,
     roughness: 0.92,
     // Opaque, so stacked boulders get early depth rejection (drawn back to

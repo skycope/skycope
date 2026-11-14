@@ -282,7 +282,7 @@ export function clumpGeometry(blades = 3) {
 // forest calls each frame; the windows follow the camera at draw time.
 export function createNearGround(scene, field, patch, { light = false } = {}) {
   const makeMaterial = () => {
-    const material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7, vertexColors: true, side: THREE.DoubleSide });
+    const material = new THREE.MeshStandardMaterial({ name: "near-ground", color: 0xffffff, roughness: 0.7, vertexColors: true, side: THREE.DoubleSide });
     patch(material);
     const baseCompile = material.onBeforeCompile;
     const baseKey = material.customProgramCacheKey();
