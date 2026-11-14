@@ -1,4 +1,4 @@
-import { packGeometry } from "./animal-forms.js";
+import { packGeometry, buildForm } from "./animal-forms.js";
 import { penguinGeometry } from "./penguins.js";
 import { sealGeometry } from "./seals.js";
 import { whaleGeometry } from "./whale.js";
@@ -15,6 +15,6 @@ const BUILDERS = {
 };
 
 self.onmessage = ({ data }) => {
-  const { message, transfer } = packGeometry(BUILDERS[data.kind](data.options));
+  const { message, transfer } = packGeometry(buildForm(BUILDERS[data.kind], data.options));
   self.postMessage({ key: data.key, ...message }, transfer);
 };

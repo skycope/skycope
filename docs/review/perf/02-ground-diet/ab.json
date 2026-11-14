@@ -1,0 +1,541 @@
+{
+ "env": {
+  "commit": "c6290f0+dirty",
+  "date": "2026-11-14T18:20:36.912Z",
+  "load": "{ 29.33 29.94 22.23 }",
+  "size": [
+   1440,
+   900
+  ],
+  "dpr": 2,
+  "seed": 1847,
+  "headed": false
+ },
+ "base": "7a66546",
+ "results": [
+  {
+   "magic": "asleep",
+   "minutes": 750,
+   "view": "home",
+   "ratio": 0.9544,
+   "ratioIqr": 0.10529999999999999,
+   "baseMs": 25.84,
+   "headMs": 25.26,
+   "base": {
+    "triangles": 1106280,
+    "calls": 264,
+    "geometries": 355,
+    "textures": 14,
+    "programs": 56,
+    "shadowPending": false,
+    "alloc": {
+     "bytesPerFrame": 426398,
+     "top": [
+      [
+       "terrainHeight terrain.js:34",
+       47253
+      ],
+      [
+       "update cat.js:240",
+       39669
+      ],
+      [
+       "getParameters chunk-C24IFEOB.js:36175",
+       34089
+      ],
+      [
+       "update penguins.js:278",
+       27529
+      ],
+      [
+       "update critters.js:148",
+       17796
+      ],
+      [
+       "noise2 terrain.js:51",
+       17121
+      ],
+      [
+       "hypot :0",
+       15167
+      ],
+      [
+       "packDue instance-lod.js:89",
+       14684
+      ],
+      [
+       "painterSortStable chunk-C24IFEOB.js:36649",
+       10504
+      ],
+      [
+       "build cat.js:1057",
+       10482
+      ],
+      [
+       "update surf.js:273",
+       8149
+      ],
+      [
+       "chunkRange instance-lod.js:64",
+       7656
+      ]
+     ]
+    }
+   },
+   "head": {
+    "triangles": 1106280,
+    "calls": 264,
+    "geometries": 313,
+    "textures": 14,
+    "programs": 54,
+    "shadowPending": false,
+    "alloc": {
+     "bytesPerFrame": 480439,
+     "top": [
+      [
+       "update penguins.js:278",
+       49944
+      ],
+      [
+       "terrainHeight terrain.js:34",
+       46527
+      ],
+      [
+       "update cat.js:240",
+       40031
+      ],
+      [
+       "getParameters chunk-C24IFEOB.js:36175",
+       34017
+      ],
+      [
+       "update critters.js:148",
+       20369
+      ],
+      [
+       "noise2 terrain.js:51",
+       17578
+      ],
+      [
+       "hypot :0",
+       15039
+      ],
+      [
+       "packDue instance-lod.js:89",
+       14725
+      ],
+      [
+       "build cat.js:1057",
+       11178
+      ],
+      [
+       "packLod forest.js:2584",
+       10591
+      ],
+      [
+       "update surf.js:273",
+       10545
+      ],
+      [
+       "painterSortStable chunk-C24IFEOB.js:36649",
+       10248
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "magic": "asleep",
+   "minutes": 750,
+   "view": "milkwood",
+   "ratio": 1.0314,
+   "ratioIqr": 0.2029,
+   "baseMs": 45.08,
+   "headMs": 45.26,
+   "base": {
+    "triangles": 1558784,
+    "calls": 183,
+    "geometries": 687,
+    "textures": 14,
+    "programs": 61,
+    "shadowPending": false,
+    "alloc": {
+     "bytesPerFrame": 509762,
+     "top": [
+      [
+       "update penguins.js:278",
+       49318
+      ],
+      [
+       "terrainHeight terrain.js:34",
+       49177
+      ],
+      [
+       "getParameters chunk-C24IFEOB.js:36175",
+       33741
+      ],
+      [
+       "packDue instance-lod.js:89",
+       25193
+      ],
+      [
+       "hypot :0",
+       19884
+      ],
+      [
+       "noise2 terrain.js:51",
+       17984
+      ],
+      [
+       "update critters.js:148",
+       13669
+      ],
+      [
+       "copyArray chunk-C24IFEOB.js:34833",
+       13045
+      ],
+      [
+       "packLod forest.js:2566",
+       11347
+      ],
+      [
+       "chunkRange instance-lod.js:64",
+       11222
+      ],
+      [
+       "(anon) forest.js:2580",
+       11131
+      ],
+      [
+       "build cat.js:1057",
+       10889
+      ]
+     ]
+    }
+   },
+   "head": {
+    "triangles": 1513591,
+    "calls": 180,
+    "geometries": 695,
+    "textures": 14,
+    "programs": 59,
+    "shadowPending": false,
+    "alloc": {
+     "bytesPerFrame": 437068,
+     "top": [
+      [
+       "terrainHeight terrain.js:34",
+       46061
+      ],
+      [
+       "update penguins.js:278",
+       37678
+      ],
+      [
+       "getParameters chunk-C24IFEOB.js:36175",
+       31793
+      ],
+      [
+       "packDue instance-lod.js:89",
+       26043
+      ],
+      [
+       "hypot :0",
+       19357
+      ],
+      [
+       "noise2 terrain.js:51",
+       17388
+      ],
+      [
+       "copyArray chunk-C24IFEOB.js:34833",
+       13028
+      ],
+      [
+       "update surf.js:273",
+       12799
+      ],
+      [
+       "packLod forest.js:2584",
+       11081
+      ],
+      [
+       "build cat.js:1057",
+       10769
+      ],
+      [
+       "chunkRange instance-lod.js:64",
+       10707
+      ],
+      [
+       "setValueV3f chunk-C24IFEOB.js:34869",
+       8936
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "magic": "asleep",
+   "minutes": 750,
+   "view": "beacon",
+   "ratio": 0.888,
+   "ratioIqr": 0.1281,
+   "baseMs": 29.6,
+   "headMs": 26.76,
+   "base": {
+    "triangles": 1891127,
+    "calls": 226,
+    "geometries": 902,
+    "textures": 14,
+    "programs": 61,
+    "shadowPending": false,
+    "alloc": {
+     "bytesPerFrame": 418977,
+     "top": [
+      [
+       "terrainHeight terrain.js:34",
+       45547
+      ],
+      [
+       "getParameters chunk-C24IFEOB.js:36175",
+       36928
+      ],
+      [
+       "update penguins.js:278",
+       36325
+      ],
+      [
+       "packDue instance-lod.js:89",
+       24499
+      ],
+      [
+       "hypot :0",
+       18269
+      ],
+      [
+       "noise2 terrain.js:51",
+       17786
+      ],
+      [
+       "copyArray chunk-C24IFEOB.js:34833",
+       13486
+      ],
+      [
+       "build cat.js:1057",
+       11167
+      ],
+      [
+       "packLod forest.js:2566",
+       10930
+      ],
+      [
+       "chunkRange instance-lod.js:64",
+       10734
+      ],
+      [
+       "setValueV3f chunk-C24IFEOB.js:34869",
+       9773
+      ],
+      [
+       "update surf.js:273",
+       8852
+      ]
+     ]
+    }
+   },
+   "head": {
+    "triangles": 1885346,
+    "calls": 224,
+    "geometries": 857,
+    "textures": 14,
+    "programs": 61,
+    "shadowPending": false,
+    "alloc": {
+     "bytesPerFrame": 414648,
+     "top": [
+      [
+       "terrainHeight terrain.js:34",
+       48116
+      ],
+      [
+       "update penguins.js:278",
+       45391
+      ],
+      [
+       "getParameters chunk-C24IFEOB.js:36175",
+       31032
+      ],
+      [
+       "packDue instance-lod.js:89",
+       24803
+      ],
+      [
+       "hypot :0",
+       17361
+      ],
+      [
+       "noise2 terrain.js:51",
+       17139
+      ],
+      [
+       "copyArray chunk-C24IFEOB.js:34833",
+       12415
+      ],
+      [
+       "build cat.js:1057",
+       11297
+      ],
+      [
+       "packLod forest.js:2584",
+       10791
+      ],
+      [
+       "chunkRange instance-lod.js:64",
+       10273
+      ],
+      [
+       "setValueV3f chunk-C24IFEOB.js:34869",
+       9074
+      ],
+      [
+       "update surf.js:273",
+       8624
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "magic": "asleep",
+   "minutes": 750,
+   "view": "lighthouse",
+   "ratio": 0.9943000000000001,
+   "ratioIqr": 0.20120000000000002,
+   "baseMs": 20.98,
+   "headMs": 18.42,
+   "base": {
+    "triangles": 1024774,
+    "calls": 116,
+    "geometries": 1029,
+    "textures": 14,
+    "programs": 61,
+    "shadowPending": false,
+    "alloc": {
+     "bytesPerFrame": 307118,
+     "top": [
+      [
+       "terrainHeight terrain.js:34",
+       32929
+      ],
+      [
+       "getParameters chunk-C24IFEOB.js:36175",
+       31934
+      ],
+      [
+       "packDue instance-lod.js:89",
+       23329
+      ],
+      [
+       "noise2 terrain.js:51",
+       12795
+      ],
+      [
+       "copyArray chunk-C24IFEOB.js:34833",
+       12700
+      ],
+      [
+       "build cat.js:1057",
+       11453
+      ],
+      [
+       "hypot :0",
+       11371
+      ],
+      [
+       "chunkRange instance-lod.js:64",
+       9173
+      ],
+      [
+       "setValueV3f chunk-C24IFEOB.js:34869",
+       9169
+      ],
+      [
+       "update surf.js:273",
+       8547
+      ],
+      [
+       "join :0",
+       7218
+      ],
+      [
+       "getProgramCacheKeyParameters chunk-C24IFEOB.js:36418",
+       5118
+      ]
+     ]
+    }
+   },
+   "head": {
+    "triangles": 1032926,
+    "calls": 117,
+    "geometries": 981,
+    "textures": 14,
+    "programs": 61,
+    "shadowPending": false,
+    "alloc": {
+     "bytesPerFrame": 334586,
+     "top": [
+      [
+       "getParameters chunk-C24IFEOB.js:36175",
+       38182
+      ],
+      [
+       "terrainHeight terrain.js:34",
+       34009
+      ],
+      [
+       "packDue instance-lod.js:89",
+       24392
+      ],
+      [
+       "copyArray chunk-C24IFEOB.js:34833",
+       13685
+      ],
+      [
+       "noise2 terrain.js:51",
+       12287
+      ],
+      [
+       "hypot :0",
+       11422
+      ],
+      [
+       "build cat.js:1057",
+       10657
+      ],
+      [
+       "packLod forest.js:2584",
+       10556
+      ],
+      [
+       "chunkRange instance-lod.js:64",
+       9465
+      ],
+      [
+       "setValueV3f chunk-C24IFEOB.js:34869",
+       9402
+      ],
+      [
+       "update seals.js:281",
+       8798
+      ],
+      [
+       "update surf.js:273",
+       8481
+      ]
+     ]
+    }
+   }
+  }
+ ]
+}

@@ -555,7 +555,7 @@ async function ab() {
         for (const tab of [A, B]) await tab.evaluate("__perf.resume()");
         const row = {
           magic, minutes, view,
-          ratio: r2(median(ratios) * 100) / 100, ratioIqr: r2(iqr(ratios) * 100) / 100,
+          ratio: Math.round(median(ratios) * 1000) / 1000, ratioIqr: Math.round(iqr(ratios) * 1000) / 1000,
           baseMs: r2(median(base)), headMs: r2(median(head)),
           base: counts.base, head: counts.head,
         };

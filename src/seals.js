@@ -212,7 +212,8 @@ export function createSeals(group, { seed, domes, cluster, light = false, blobs 
   const shared = { time: { value: 0 } };
   const material = animalMaterial({ name: "seal", uniforms: shared, pars: SEAL_DEFORM, paint: SEAL_PAINT, roughness: 0.7, sheen: 0.22 });
   const { mesh, attrs } = animalMesh(group, geometry, material, count, { pose: 4, pose2: 4, pose3: 4 });
-  const bounds = herdBounds(mesh);
+  // lod: a 420-triangle body beyond 26 m (2,000 near).
+  const bounds = herdBounds(mesh, { coarse: formGeometry("seal", { light, coarse: 420 }, sealGeometry), far: 26 });
 
   const seals = Array.from({ length: count }, (_, i) => {
     const spot = spots[i] ?? null;
@@ -278,7 +279,7 @@ export function createSeals(group, { seed, domes, cluster, light = false, blobs 
     events,
     seals,
     rock: rockCentre,
-    update({ dt, time, night, pose, water }) {
+    update({ dt, time, night, pose, water, eye = null }) {
       clock += dt;
       shared.time.value = time;
       sea0 = water;
@@ -591,7 +592,7 @@ export function createSeals(group, { seed, domes, cluster, light = false, blobs 
           best = s;
         }
       }
-      bounds.end();
+      bounds.end(eye);
       mesh.instanceMatrix.needsUpdate = true;
       for (const a of attrList) a.needsUpdate = true;
       if (!best) return null;

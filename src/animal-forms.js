@@ -125,6 +125,7 @@ function fieldOf(prims) {
 // need a fine grid) is decimated by quadric edge collapse before painting,
 // so silhouettes keep their detail and flat flanks lose theirs.
 export function sculpt({ prims, cell, blend = 0.015, paint = () => [1, 1, 1], attributes = {}, extras = [], triangles = Infinity, aoRadius = 0.03 }) {
+  triangles = Math.min(triangles, triangleCap);
   const field = fieldOf(prims);
   const min = [Infinity, Infinity, Infinity];
   const max = [-Infinity, -Infinity, -Infinity];
@@ -375,13 +376,15 @@ export function animalMaterial({ name, uniforms = {}, pars, paint = null, roughn
 // returns an empty geometry at once and fills it when the worker answers
 // (`userData.ready`); without workers (node tests) it builds in place.
 // `kind` names a builder in animal-worker.js; `build` is the same builder.
+// `options.coarse` (a triangle count) builds the same body decimated that
+// far, for distance (herdBounds' `coarse`).
 let worker = null;
 const waiting = new Map();
 export function formGeometry(kind, options, build) {
   const geometry = new THREE.BufferGeometry();
   geometry.userData.ready = false;
   if (typeof Worker === "undefined") {
-    adopt(geometry, build(options));
+    adopt(geometry, buildForm(build, options));
     return geometry;
   }
   if (!worker) {
@@ -400,6 +403,19 @@ export function formGeometry(kind, options, build) {
   waiting.set(key, geometry);
   worker.postMessage({ key, kind, options });
   return geometry;
+}
+
+// Runs a body builder, capping every sculpt in it at `options.coarse`
+// triangles when that is set (the builders keep their own fine budgets).
+let triangleCap = Infinity;
+export function buildForm(build, options) {
+  if (!options?.coarse) return build(options);
+  triangleCap = options.coarse;
+  try {
+    return build(options);
+  } finally {
+    triangleCap = Infinity;
+  }
 }
 
 // Copy a built geometry (or the worker's arrays) into `geometry`.
@@ -448,12 +464,29 @@ export function animalMesh(parent, geometry, material, count, attributes = {}) {
 
 // Frustum culling for an instanced herd: a sphere round every instance
 // placed this frame (coast metres, the land group's frame), so a colony
-// behind the camera costs no draw. Call begin(), add() per animal, end().
-export function herdBounds(mesh) {
+// behind the camera costs no draw. Call begin(), add() per animal, end(eye).
+// lod: with `coarse` (formGeometry(kind, { coarse }) of the same body), the
+// herd draws that instead once its nearest member is more than `far` metres
+// from `eye` (coast metres). Both geometries share every instance buffer,
+// so the module writes one set and the switch costs nothing; a few metres
+// of hysteresis keep it from flickering on the boundary. At that distance
+// an animal is a few dozen pixels tall and the decimated body (its shape
+// sculpted from the same field, normals from the field) reads the same.
+export function herdBounds(mesh, { coarse = null, far = 20 } = {}) {
   mesh.frustumCulled = true;
   mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1);
+  const fine = mesh.geometry;
+  if (coarse) {
+    for (const [name, attribute] of Object.entries(fine.attributes)) if (attribute.isInstancedBufferAttribute) coarse.setAttribute(name, attribute);
+    // The module disposes the body it made; the coarse one goes with it.
+    fine.addEventListener("dispose", () => coarse.dispose());
+  }
+  let distant = false;
   let x0, x1, y0, y1, z0, z1, pad;
   return {
+    get coarse() {
+      return mesh.geometry === coarse;
+    },
     begin() {
       x0 = y0 = z0 = Infinity;
       x1 = y1 = z1 = -Infinity;
@@ -468,11 +501,16 @@ export function herdBounds(mesh) {
       if (z > z1) z1 = z;
       if (r > pad) pad = r;
     },
-    end() {
+    end(eye = null) {
       if (x0 === Infinity) return;
       const s = mesh.boundingSphere;
       s.center.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
       s.radius = Math.hypot(x1 - x0, y1 - y0, z1 - z0) / 2 + pad;
+      if (!coarse || !eye) return;
+      const dx = eye.x - s.center.x, dy = eye.y - s.center.y, dz = eye.z - s.center.z;
+      const d = Math.sqrt(dx * dx + dy * dy + dz * dz) - s.radius;
+      distant = d > (distant ? far - 3 : far);
+      mesh.geometry = distant && coarse.userData.ready ? coarse : fine;
     },
   };
 }
