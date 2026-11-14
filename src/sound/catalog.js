@@ -107,7 +107,7 @@ export const CUES = [
     scene: (t) => ({ ...base, beds: false, boat: { afloat: true, aboard: true, x: 0, z: 0, speed: Math.min(2.4, t * 0.4), roll: 0.09 * Math.sin(t * 1.6), vr: Math.cos(t * 1.6) } }) },
 
   // 9 · boiler
-  step("step-metal", SURFACE.metal, "Paw inside the boiler", "metallic, ringing, each step hangs"),
+  { ...step("step-metal", SURFACE.metal, "Paw inside the boiler", "metallic, ringing, each step hangs"), n: 9 },
   { id: "boiler-meow", n: 9, name: "Meow inside the boiler", says: "the meow comes back as one deep bell note that hangs for seconds", seconds: 5, setup: (s) => s.setInside("boiler"), play: (s) => s.meow(), teardown: (s) => s.setInside(null) },
   { id: "boiler-hum", n: 9, name: "The boiler's hollow breath (10 m)", says: "wind across the mouth, barely there", seconds: 4, play: (s) => s.boilerHum(right(10)) },
 
@@ -150,8 +150,10 @@ export const CUES = [
   { id: "pool-drip", n: 12, name: "The rock pool: drip and suck", says: "a drip, then water sucking in rock", seconds: 1.6, play: (s) => s.poolDrip(right(2)) },
   { id: "shutter", n: 12, name: "A loose shutter in wind (10 m)", says: "a wooden knock or two, irregular", seconds: 1.5, play: (s) => s.shutter(right(10)) },
   { id: "whale-near", n: 12, name: "The whale beside the boat (15 m)", says: "a deep hollow exhale with wet in it, then a long inhale", seconds: 4, play: (s) => s.whaleBlowNear(right(15)) },
-  { id: "walk", n: 13, name: "Beach → grass (a bush, a meow) → rock (a jump) → wading and a swim → the boat (scene, 60 s)", says: "the whole mix: quiet, the sea underneath, each surface answering the paws; nothing you want to turn off", seconds: 60, scene: WALK.conditions, script: WALK.script, setup: WALK.setup, music: true },
   { id: "ending-arrive", n: 12, name: "The ending's arrival", says: "one soft high bell and its octave below", seconds: 5, play: (s) => s.endingArrive() },
+
+  // 13 · everything at once
+  { id: "walk", n: 13, name: "Beach → grass (a bush, a meow) → rock (a jump) → wading and a swim → the boat (scene, 60 s)", says: "the whole mix: quiet, the sea underneath, each surface answering the paws; nothing you want to turn off", seconds: 60, scene: WALK.conditions, script: WALK.script, setup: WALK.setup, music: true },
 ];
 
 export const CUE_IDS = CUES.map((c) => c.id);

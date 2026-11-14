@@ -125,5 +125,33 @@ export function mount(root = document.body) {
     }
     main.append(ol);
   }
+  // For agents: renders cues in Chrome's own OfflineAudioContext and
+  // returns their loudness and centroid, to hold against the off-line
+  // renderer's table (docs/review/sound/README.md). A 1.5 s pre-roll: Chrome's
+  // DynamicsCompressor starts clamped and takes about half a second to open.
+  globalThis.soundCheck = async (ids = ["step-dry-sand", "step-wet-sand", "step-grass", "step-rock", "step-timber", "step-metal", "meow", "owl", "penguin-bray", "boat-knock", "hull-slap", "waking-lamp", "home-3", "wisp"]) => {
+    const A = await import("../../tests/audio/analysis.js");
+    const sr = 48000;
+    const pre = 1.5;
+    const rows = [];
+    for (const id of ids) {
+      const cue = CUES.find((c) => c.id === id);
+      if (!cue?.play) continue;
+      const ctx = new OfflineAudioContext(2, Math.ceil((cue.seconds + 0.3 + pre) * sr), sr);
+      const s = createSound({ context: ctx, storage: null, seed: 7 });
+      s.setMusic(false);
+      s.start();
+      cue.setup?.(s);
+      s.update({ ...AUDITION_BASE, beds: false });
+      ctx.suspend(pre).then(() => {
+        cue.play(s);
+        ctx.resume();
+      });
+      const b = await ctx.startRendering();
+      const ch = [b.getChannelData(0).subarray(pre * sr), b.getChannelData(1).subarray(pre * sr)];
+      rows.push({ id, maxMomentary: +A.maxMomentary(ch, sr).toFixed(1), centroid: Math.round(A.centroid(A.spectrum(A.mono(ch), sr))) });
+    }
+    return rows;
+  };
   return { play: (id) => play(list.find((c) => c.id === id), main.querySelector(`[data-cue="${id}"] button`)), stop };
 }

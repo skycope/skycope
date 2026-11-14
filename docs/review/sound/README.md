@@ -65,7 +65,6 @@ Numbered as on the audition page (`/?audition`) and in the listening checklist (
 | 2.12 | Running on rock | 0.07 | -23.9 | -23.5 | -47.9 | -47.9 | 4520 | claw ticks every step | [png](spectrograms/2.12-run-rock.png) |
 | 2.13 | Landing a jump on sand | 0.16 | -19.4 | -19.4 | -37.7 | -37.7 | 200 | a soft low thud | [png](spectrograms/2.13-land-sand.png) |
 | 2.14 | Jump | 0.21 | -33.6 | -33.5 | -50.6 | -53.3 | 715 | a short whoosh of fur | [png](spectrograms/2.14-jump.png) |
-| 2.15 | Paw inside the boiler | 0.81 | -27.9 | -27.9 | -40.7 | -43.6 | 299 | metallic, ringing, each step hangs | [png](spectrograms/2.15-step-metal.png) |
 
 ### 3. Pushing through a bush, stopping, coming out
 
@@ -132,8 +131,9 @@ Numbered as on the audition page (`/?audition`) and in the listening checklist (
 
 | # | cue | len s | peak | tp | max M | int | centroid | meant to be | spectrogram |
 |---|---|---|---|---|---|---|---|---|---|
-| 9.1 | Meow inside the boiler | 3.75 | -9.0 | -9.0 | -17.6 | -21.4 | 405 | the meow comes back as one deep bell note that hangs for seconds | [png](spectrograms/9.1-boiler-meow.png) |
-| 9.2 | The boiler's hollow breath (10 m) | 3.18 | -35.0 | -35.0 | -43.5 | -46.8 | 81 | wind across the mouth, barely there | [png](spectrograms/9.2-boiler-hum.png) |
+| 9.1 | Paw inside the boiler | 0.81 | -27.9 | -27.9 | -40.7 | -43.6 | 299 | metallic, ringing, each step hangs | [png](spectrograms/9.1-step-metal.png) |
+| 9.2 | Meow inside the boiler | 3.75 | -9.0 | -9.0 | -17.6 | -21.4 | 405 | the meow comes back as one deep bell note that hangs for seconds | [png](spectrograms/9.2-boiler-meow.png) |
+| 9.3 | The boiler's hollow breath (10 m) | 3.18 | -35.0 | -35.0 | -43.5 | -46.8 | 81 | wind across the mouth, barely there | [png](spectrograms/9.3-boiler-hum.png) |
 
 ### 10. Waking a gift
 
