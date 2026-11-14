@@ -50,7 +50,9 @@ export function createThread({ state, signal, reduced, capture, preview, light =
     panel: $("#notes-panel"),
     list: () => discoveries.list(),
     signal,
-    time: (at) => capeTime(new Date(at)),
+    // The real clock's time of each find; none while the world shows a
+    // previewed hour (they would disagree with it).
+    time: (at) => (state.debugMinutes === null ? capeTime(new Date(at)) : ""),
     gifts: () => journey.gifts(),
     onBeginAgain: () => journey.beginAgain(),
   });
