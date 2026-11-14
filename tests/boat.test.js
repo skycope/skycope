@@ -355,23 +355,30 @@ test("the launch: nothing moves until the cat touches it, and the hull always be
 test("on its painter the boat swings to the wind but stays by its post", async () => {
   const { createBoatRide, RIDE } = await import("../src/boat-ride.js");
   const { createMagic } = await import("../src/magic.js");
-  for (const wind of [[0, 0], [7, 0], [-5, 5]]) {
-    const { walker, sea, places } = world(1847);
+  for (const [seed, wind] of [1847, 1, 99999].flatMap((sd) => [[0, 0], [7, 0], [-5, 5]].map((w) => [sd, w]))) {
+    const { walker, sea, places } = world(seed);
     const landmark = places.layout.find((p) => p.id === "boat");
     const ride = createBoatRide({ landmark, sea, bed: walker.bed, solids: walker.solids, magic: createMagic({ force: ["boat"] }) });
-    const swell = (await import("../src/swell.js")).swellUniform(1847, wind);
-    const modes = createWaveModes(1847);
+    const swell = (await import("../src/swell.js")).swellUniform(seed, wind);
+    const modes = createWaveModes(seed);
     const cat = { ...walker.cat, x: landmark.x + 6, z: landmark.z + 6, y: 5, air: 0 };
-    let far = 0;
+    let far = 0, jolt = 0;
     const s = ride.state;
+    let px = s.x, pz = s.z;
     for (let t = 0; t < 120; t += 1 / 30) {
       modes.update(t, wind);
       sea.set(t, swell, wind);
       ride.update(1 / 30, { move: [0, 0] }, cat);
       const stem = { x: s.x + Math.sin(s.heading) * 2.32, z: s.z + Math.cos(s.heading) * 2.32 };
       far = Math.max(far, Math.hypot(stem.x - ride.post.x, stem.z - ride.post.z));
+      jolt = Math.max(jolt, Math.hypot(s.x - px, s.z - pz));
+      px = s.x;
+      pz = s.z;
       assert.ok(shoreDistance(s.x, s.z) < 0, "afloat");
     }
-    assert.ok(far < RIDE.painter + 0.35, `wind ${wind}: the stem within its painter of the post (${far.toFixed(2)} m)`);
+    // Set down on the sand in a trough, it sits; it is not shoved (that
+    // threw it 0.2 m in a frame, out past its painter).
+    assert.ok(jolt < 0.03, `seed ${seed} wind ${wind}: jolted ${jolt.toFixed(3)} m in a frame at its mooring`);
+    assert.ok(far < RIDE.painter + 0.35, `seed ${seed} wind ${wind}: the stem within its painter of the post (${far.toFixed(2)} m)`);
   }
 });
