@@ -14,6 +14,7 @@ import { createArchipelago } from "./archipelago.js";
 import { createLens } from "./lens.js";
 import { createPlaces } from "./places.js"; // places:
 import { createWisp } from "./wisp.js"; // wisp: the little light that leads the cat
+import { surfaceOf } from "./walker.js"; // solid: boulder tops for the fireflies
 import { createLandMagic, lightWithMagic, finaleBlaze } from "./land-magic.js"; // land-magic:
 import { createFireflies } from "./fireflies.js"; // land-magic:
 import { groundHeight } from "./terrain.js"; // land-magic:
@@ -92,6 +93,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   const critters = createCritters(land, seed, forest.obstacles.flowers, forest.rocks); // solid: one rock list
   // wildlife: encounters round the shore (see wildlife.js).
   const wildlife = createWildlife(land, seed, { obstacles: forest.obstacles, light });
+  forest.obstacles.bodies = wildlife.bodies; // solid: the animals, solid to the cat and the camera
   const wildEye = { x: 0, y: 0, z: 0 };
   const wisp = createWisp(land, { light }); // wisp: drawn from magic.wisp (thread.js follows it)
   // boat: the fisherman's boat afloat (boat.js), hidden until its gift wakes.
@@ -101,7 +103,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   const motes = createMotes(scene, seed);
   // land-magic: the milkwood's fireflies (one draw of points, hidden asleep).
   const summitPoi = places.pois.find((q) => q.id === "beacon");
-  const fireflies = createFireflies(scene, seed, { light, crown: places.crown, summit: summitPoi ? { x: summitPoi.x, y: groundHeight(summitPoi.x, summitPoi.z), z: summitPoi.z } : null });
+  const fireflies = createFireflies(scene, seed, { light, crown: places.crown, summit: summitPoi ? { x: summitPoi.x, y: groundHeight(summitPoi.x, summitPoi.z), z: summitPoi.z } : null, surface: surfaceOf(forest.obstacles) }); // solid: surface
   let flyPixels = 600, magicScan = 0, starLevel = 0;
   // The distant islands: their own scene and depth range, drawn first.
   const archipelago = createArchipelago(seed, { light });
@@ -169,6 +171,9 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   let counted = false;
   const perf = new URLSearchParams(window.location.search).has("perf");
   const profiler = createMeshProfiler(renderer, canvas, perf);
+  // quality: the render budget's settings for this layer (quality.js).
+  let quality = null;
+  const drawingBuffer = new THREE.Vector2();
 
   const sunWorld = new THREE.Vector3(0, 1, 0);
   const sunView = new THREE.Vector3();
@@ -377,22 +382,25 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     catSplashed(time, strength, level) {
       cat.splash(time, strength, level);
     },
-    // `pixels` ([w, h]) overrides the budget: the coarse grid of the reveal.
-    resize(width, height, quality = 1, pixels = null) {
+    // quality: the mesh layer's GPU time (ms, null where unmeasurable).
+    get gpuMs() {
+      return profiler.gpuMs;
+    },
+    // quality: `width`/`height` are the CSS size (the camera's aspect);
+    // `pixels` ([w, h]) is the render size quality.js decided.
+    resize(width, height, [w, h]) {
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       archipelago.camera.fov = camera.fov;
       archipelago.camera.aspect = camera.aspect;
       archipelago.camera.updateProjectionMatrix();
-      // The mesh layer is MSAA'd, so it needs fewer pixels than the sea:
-      // 1.6 MP (0.8 MP on phones), scaled down further by adaptive quality.
-      const budget = light ? 800000 : 1600000;
-      const scale =
-        Math.min(window.devicePixelRatio || 1, 1.5, Math.sqrt(budget / (width * height))) *
-        Math.max(0.6, quality);
-      const [w, h] = pixels ?? [Math.round(width * scale), Math.round(height * scale)];
-      renderer.setSize(w, h, false);
+      const size = renderer.getDrawingBufferSize(drawingBuffer);
+      if (size.x !== w || size.y !== h) renderer.setSize(w, h, false);
       archipelago.uniforms.pixelAngle.value = 1 / (0.9 * h);
+    },
+    // quality: this level's settings (quality.js baseSettings).
+    setQuality(settings) {
+      quality = settings;
     },
     dispose() {
       profiler.dispose();

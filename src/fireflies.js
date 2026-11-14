@@ -246,7 +246,9 @@ void main() {
 
 // `scene`: Three world (not the mirrored land group). `crown`: the
 // milkwood's ({ x, z, radius, top }, coast metres). `summit`: { x, y, z }.
-export function createFireflies(scene, seed, { light = false, crown = null, summit = null } = {}) {
+// `surface(x, z)`: the ground with the boulders and landmarks on it
+// (walker.js surfaceOf), so no firefly sits inside a rock.
+export function createFireflies(scene, seed, { light = false, crown = null, summit = null, surface = null } = {}) {
   // Restraint: a real night has a few hundred, not a wall of them.
   const count = light ? 260 : 600;
   const { traits, kinds } = fireflyTraits(seed, count);
@@ -259,9 +261,17 @@ export function createFireflies(scene, seed, { light = false, crown = null, summ
   // ever sinks into a slope.
   const GN = 128, span = 200, gx0 = ISLAND.x - span / 2, gz0 = ISLAND.z - span / 2;
   const heights = new Uint16Array(GN * GN);
+  // solid: the highest of the boulders over each texel too (sampled across
+  // it, the texel being wider than a small boulder): they hung inside rocks.
+  const cell = span / GN;
+  const top = surface ?? terrainHeight;
   for (let j = 0; j < GN; j++)
-    for (let i = 0; i < GN; i++)
-      heights[j * GN + i] = THREE.DataUtils.toHalfFloat(Math.max(-2, terrainHeight(gx0 + ((i + 0.5) / GN) * span, gz0 + ((j + 0.5) / GN) * span)));
+    for (let i = 0; i < GN; i++) {
+      let h = -2;
+      for (let b = 0; b < 3; b++)
+        for (let a = 0; a < 3; a++) h = Math.max(h, top(gx0 + (i + (a + 0.5) / 3) * cell, gz0 + (j + (b + 0.5) / 3) * cell));
+      heights[j * GN + i] = THREE.DataUtils.toHalfFloat(h);
+    }
   const groundTexture = new THREE.DataTexture(heights, GN, GN, THREE.RedFormat, THREE.HalfFloatType);
   groundTexture.magFilter = THREE.LinearFilter;
   groundTexture.minFilter = THREE.LinearFilter;

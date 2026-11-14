@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { terrainHeight, groundHeight } from "./terrain.js";
 import { seededRandom } from "./random.js";
 import { layoutFor, placeClearance } from "./place-layout.js";
-import { ROCK_VARIANTS } from "./rocks.js";
+import { ROCK_VARIANTS, bedHeight, bedRocks } from "./rocks.js";
 
 // The landmarks' granite, in rocks.js's layout format so the forest draws,
 // shades and collides with it like any boulder (the sea laps the waterline
@@ -16,6 +16,9 @@ export function placeRocks(seed, rocks) {
     if (p.kind === "beacon") kept.push(...cairn(p, random));
     if (p.kind === "pool") kept.push(...poolBoulders(p, random));
   }
+  // The cairn's bottom course and the pool's boulders bedded like any stone
+  // (the layout's own are already).
+  bedRocks(kept.filter((r) => !rocks.includes(r) && (r.cluster !== undefined || r.onGround)));
   return kept;
 }
 
@@ -44,12 +47,15 @@ function cairn(p, random) {
       const base = Math.max(g, groundHeight(x, z));
       const sy = size * (0.42 + random() * 0.25);
       stones.push({
-        position: new THREE.Vector3(x, g + course.y + sy * 0.2, z),
+        // The bottom course bedded in the ground under it, the rest on it.
+        position: new THREE.Vector3(x, c === 0 ? Math.min(g, bedHeight(x, z, size)) + course.y + sy * 0.2 : g + course.y + sy * 0.2, z),
         scale: new THREE.Vector3(size, sy, size * (0.75 + random() * 0.25)),
         // Laid flat, tipped slightly inward so the pile locks together.
         rotation: new THREE.Euler(Math.sin(a) * 0.12 + (random() - 0.5) * 0.25, a + (random() - 0.5) * 1.2, -Math.cos(a) * 0.12 + (random() - 0.5) * 0.25),
         color: grey(random, 0.27),
-        ground: c === 0 ? base : g + course.y - sy * 0.4,
+        ground: c === 0 ? Math.min(g, bedHeight(x, z, size)) : g + course.y - sy * 0.4,
+        // The bottom course stands on the ground (rocks.js bedRocks).
+        onGround: c === 0,
         variant: (c * 3 + i) % ROCK_VARIANTS,
       });
     }
@@ -69,7 +75,7 @@ function poolBoulders(p, random) {
     const reach = POOL.shelf + size * (0.45 + random() * 0.2);
     const x = p.x + Math.cos(a) * reach;
     const z = p.z + Math.sin(a) * reach;
-    const ground = Math.max(terrainHeight(x, z), -0.6);
+    const ground = Math.max(bedHeight(x, z, size), -0.6);
     const sy = size * (0.55 + random() * 0.25);
     out.push({
       position: new THREE.Vector3(x, ground + sy * (0.25 + random() * 0.2), z),

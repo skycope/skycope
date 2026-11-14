@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { tileHeight } from "./walker.js";
 import { SimplifyModifier } from "three/addons/modifiers/SimplifyModifier.js";
 import { groundHeight, shoreDistance, ISLAND } from "./terrain.js";
 
@@ -522,21 +523,8 @@ export function placeInstance(mesh, index, x, y, z, heading, pitch = 0, roll = 0
 // Ground: sand from groundHeight, boulders from their rasterized tops (the
 // same tiles the cat walks on, forest.obstacles.domes).
 
-export function domeHeight(d, x, z) {
-  const u = (x - d.x0) / d.cell;
-  const v = (z - d.z0) / d.cell;
-  const i = Math.floor(u);
-  const j = Math.floor(v);
-  if (i < 0 || j < 0 || i >= d.nx - 1 || j >= d.nz - 1) return -Infinity;
-  const h = d.heights;
-  const k = j * d.nx + i;
-  const h00 = h[k], h10 = h[k + 1], h01 = h[k + d.nx], h11 = h[k + d.nx + 1];
-  const fu = u - i;
-  const fv = v - j;
-  if (h00 > -Infinity && h10 > -Infinity && h01 > -Infinity && h11 > -Infinity)
-    return (h00 * (1 - fu) + h10 * fu) * (1 - fv) + (h01 * (1 - fu) + h11 * fu) * fv;
-  return Math.max(h00, h10, h01, h11);
-}
+// One implementation of a tile's surface (walker.js).
+export const domeHeight = tileHeight;
 
 // The walkable top near a place: max of the sand and the listed rocks.
 export function surfaceOf(domes) {

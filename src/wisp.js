@@ -7,7 +7,8 @@ import { GIFTS, GIFT_COLOURS } from "./magic.js";
 // ribbon of light tapering behind it, its colour running through the gifts
 // it has woken; embers that slip off it and drift up as they fade; at each
 // waking a sphere of light blooming out from the keepsake in the gift's
-// colour; and after dark a pool of its light on the ground below.
+// colour. Its light on the ground after dark is the land's own shading
+// (land-magic.js glow 2), which lights the real sand, rock and grass.
 //
 // Where it is and how bright comes from the shared record (magic.wisp, kept
 // by thread.js / journey.js); this only draws it. One draw call: a static
@@ -43,12 +44,10 @@ export function createWisp(group, { light = false } = {}) {
     }
   for (let i = 0; i < EMBERS; i++) quad(SLOT.ember + i);
   quad(SLOT.core);
-  for (let j = 0; j < POOL - 1; j++)
-    for (let i = 0; i < POOL - 1; i++)
-      for (const [di, dj] of [[0, 0], [1, 0], [1, 1], [0, 0], [1, 1], [0, 1]]) {
-        corners.push(i + di, j + dj);
-        slots.push(SLOT.pool);
-      }
+  // solid: no draped pool sheet. A 7×7 grid hung on walker.surface sampled
+  // 0.87 m apart, it rose from the sand to a boulder's top as a lit tent
+  // through the rock: the yellow-green "spotlight cone" on the home beach
+  // at night. land-magic.js glow 2 lights the surfaces themselves.
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(slots.length * 3), 3));
   geometry.setAttribute("corner", new THREE.Float32BufferAttribute(corners, 2));
@@ -315,6 +314,13 @@ export function createWisp(group, { light = false } = {}) {
     blendSrcAlpha: THREE.ZeroFactor,
     blendDstAlpha: THREE.OneFactor,
     toneMapped: false,
+    // solid: through leaves, not through rock, walls or the hull: those
+    // mark stencil bit 2 where they are the nearest surface (cat-coat.js).
+    stencilWrite: true,
+    stencilRef: 0,
+    stencilFuncMask: 2,
+    stencilWriteMask: 0,
+    stencilFunc: THREE.EqualStencilFunc,
   });
   const through = new THREE.Mesh(geometry, veiled);
   through.frustumCulled = false;
@@ -398,11 +404,6 @@ export function createWisp(group, { light = false } = {}) {
       const fade = Math.exp(-dt * 2.6);
       for (let i = 1; i < TRAIL; i++) trail[i * 4 + 3] *= fade;
       uniforms.poolOrigin.value.set(x, z);
-      // The pool's ground, only after dark.
-      if (night > 0.05 && surface)
-        for (let j = 0; j < POOL; j++)
-          for (let i = 0; i < POOL; i++)
-            heights[j * POOL + i] = Math.max(surface(x + ((i / (POOL - 1)) * 2 - 1) * POOL_RADIUS, z + ((j / (POOL - 1)) * 2 - 1) * POOL_RADIUS), 0.02);
     },
     dispose() {
       geometry.dispose();

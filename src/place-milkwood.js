@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { groundHeight } from "./terrain.js";
 import { capsule, roof } from "./blockers.js";
+import { heightTile } from "./place-lighthouse.js";
 import { seededRandom } from "./random.js";
 import { part, merge, sweep, smooth01, srgb, hsl, staticMesh } from "./place-kit.js";
 
@@ -24,7 +25,9 @@ export function buildMilkwood(p, materials, { light = false, seed = 1 } = {}) {
   const limbs = []; // { points, radii, depth }
   const spots = []; // twig ends and outer shoots, where leaves gather
   const beards = []; // where lichen hangs
-  const trunks = [{ x: p.x, z: p.z, r: 1.15 }];
+  // solid: the bole's core stops the cat; its buttress roots (out to 1.6 m,
+  // past the old 1.15 m circle the cat walked through) are a surface.
+  const trunks = [{ x: p.x, z: p.z, r: 0.95 }];
 
   // The bole: a short, buttressed column (fluted by the limbs it carries).
   const boleTop = g0 + 1.7;
@@ -48,7 +51,8 @@ export function buildMilkwood(p, materials, { light = false, seed = 1 } = {}) {
       const floor = ground(p0.x, p0.z) + 0.18 + r0 * 0.6;
       if (p0.y < floor) {
         // An elbow on the ground: the limb rests, then turns up again.
-        if (depth === 0) trunks.push({ x: p.x + p0.x, z: p.z + p0.z, r: Math.max(0.2, r0 * (1 - t) + 0.12) });
+        // (A resting limb stops the cat by its body capsule below, which a
+        // jump clears; a trunk here was a wall of no height.)
         p0.y = floor;
         d.y = Math.abs(d.y) * 0.4 + 0.35;
         d.normalize();
@@ -117,20 +121,17 @@ export function buildMilkwood(p, materials, { light = false, seed = 1 } = {}) {
   const woodNear = [];
   const woodFar = [];
   // The bole: a fluted lathe, flared at the foot into buttress roots.
+  const boleY = (t) => g0 - 0.4 + t * (boleTop - g0 + 0.6);
   {
     const rings = 9, radial = light ? 12 : 18;
     const positions = [];
     const index = [];
     for (let j = 0; j <= rings; j++) {
       const t = j / rings;
-      const y = g0 - 0.4 + t * (boleTop - g0 + 0.6);
+      const y = boleY(t);
       for (let i = 0; i < radial; i++) {
         const a = (i / radial) * Math.PI * 2;
-        const flute = 1 + 0.16 * Math.sin(a * 5 + t * 1.5) * (1 - t * 0.5) + 0.35 * Math.pow(Math.max(0, Math.sin(a * 5 + 0.7)), 4) * (1 - smooth01(0, 0.35, t));
-        // Flared at the foot; closing over at the crown, where the limbs
-        // take its girth.
-        const r = (0.95 + (1 - smooth01(0, 0.3, t)) * 0.55 - t * 0.15) * flute * (1 - smooth01(0.75, 1, t) * 0.75);
-        positions.push(Math.cos(a) * r, y, Math.sin(a) * r);
+        positions.push(Math.cos(a) * boleRadius(t, a), y, Math.sin(a) * boleRadius(t, a));
       }
     }
     for (let j = 0; j < rings; j++)
@@ -208,6 +209,18 @@ export function buildMilkwood(p, materials, { light = false, seed = 1 } = {}) {
   }
   const beardMesh = instanced(beardGeometry(), materials.lichen, strands.slice(0, light ? 500 : 1100), false);
 
+  const rootTile = heightTile(p.x, p.z, 2.4, 0.08, (x, z) => {
+    const lx = x - p.x, lz = z - p.z;
+    const r = Math.hypot(lx, lz), a = Math.atan2(lz, lx);
+    // The bole narrows upward: the highest ring still reaching out to r.
+    let top = -Infinity;
+    for (let k = 0; k <= 40; k++) if (boleRadius(k / 40, a) >= r) top = boleY(k / 40);
+    // Low root flanks are a step to stand on; higher up the bole is a wall
+    // (standing there put the cat's back inside the lowest limbs).
+    const g = ground(lx, lz);
+    if (top <= g + 0.02) return -Infinity;
+    return top - g < 0.4 ? top : g + 3;
+  });
   // solid: the camera keeps out of the limbs (capsules, a couple of metres
   // each; the cat ducks under them or meets them where they rest low) and
   // out of the leafy crown (a coarse roof: per metre cell, solid between
@@ -248,7 +261,7 @@ export function buildMilkwood(p, materials, { light = false, seed = 1 } = {}) {
     near: nearGroup,
     far: farGroup,
     farDistance: 34,
-    obstacles: { trunks, domes: [] },
+    obstacles: { trunks, domes: [rootTile] },
     blockers,
     crown: { radius: maxReach, top, ground: g0 }, // land-magic: the fireflies' home
   };
@@ -357,4 +370,12 @@ function beardGeometry() {
   g.setIndex(index);
   g.computeVertexNormals();
   return g;
+}
+
+// The bole's radius at height fraction t (0 foot … 1 crown) and angle a:
+// fluted, flared at the foot into buttress roots, closing over at the crown
+// where the limbs take its girth.
+function boleRadius(t, a) {
+  const flute = 1 + 0.16 * Math.sin(a * 5 + t * 1.5) * (1 - t * 0.5) + 0.35 * Math.pow(Math.max(0, Math.sin(a * 5 + 0.7)), 4) * (1 - smooth01(0, 0.35, t));
+  return (0.95 + (1 - smooth01(0, 0.3, t)) * 0.55 - t * 0.15) * flute * (1 - smooth01(0.75, 1, t) * 0.75);
 }

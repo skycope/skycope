@@ -8,6 +8,7 @@ import {
   storage,
   surface,
   target,
+  timer,
 } from "vgpu";
 import skyTableShader from "./shaders/sky-table.wgsl";
 import cloudShader from "./shaders/clouds.wgsl";
@@ -51,6 +52,8 @@ import { reviewFixture, applyReviewFixture } from "./review-fixtures.js";
 import { createLoadingScreen } from "./loading-screen.js";
 // thread: discoveries, score inputs, photo mode, small moments (thread.js).
 import { createThread } from "./thread.js";
+// quality: render sizes and what to shed under load (src/quality.js).
+import { baseSettings, qualityLadder, renderSizes, createQualityState, stepQuality, pinQuality, qualitySettings } from "./quality.js";
 import { previewDate } from "./moments.js";
 
 const review = reviewFixture(window.location.search);
@@ -70,15 +73,11 @@ const LIGHT =
   window.matchMedia("(pointer: coarse)").matches ||
   (navigator.hardwareConcurrency ?? 8) <= 4 ||
   Math.min(window.screen.width, window.screen.height) < 700;
-// Pixel budgets. The old free-flight camera needed 3.5 MP of sea and 1 MP of
-// sky; the follow camera frames a small cat, and the sky and sea upscale
-// smoothly, so these are 2–4× fewer pixels.
-const WATER_PIXELS = LIGHT ? 650000 : 1500000;
-const SKY_PIXELS = LIGHT ? 220000 : 450000;
-const MAX_DPR = LIGHT ? 1.25 : 1.5;
+// Pixel budgets and the order quality is shed under load: src/quality.js.
 // Frame pacing: 60 fps at most (a 120 Hz display otherwise renders twice
 // as often for no visible gain), 30 once the cat has settled and nothing is
-// being pressed. The small tolerance keeps vsync jitter from skipping frames.
+// being pressed, or lower while the budget sheds load. The small tolerance
+// keeps vsync jitter from skipping frames.
 const ACTIVE_FPS = 60;
 const IDLE_FPS = 30;
 // The reveal's resolution steps (fraction of full) and how long each holds.
@@ -169,10 +168,15 @@ const state = {
   targetFps: 0,
   renderFrame: null,
   time: 24,
+  // The interval between rendered frames (smoothed), for sky events.
   frameMs: 16.7,
-  quality: 1,
-  sampleCount: 0,
-  lastQualityChange: 0,
+  // quality.js: the governor's state, this frame's settings, and the render
+  // sizes last applied. gpuMs: the WebGPU passes' time, where measurable.
+  quality: createQualityState(qualityLadder(baseSettings({ light: LIGHT }))),
+  settings: baseSettings({ light: LIGHT }),
+  sizes: null,
+  gpuMs: null,
+  refreshHz: 0,
   disposed: false,
 };
 
@@ -181,6 +185,19 @@ state.sound = createSound({ seed: state.seed });
 
 // `?perf` QA exposes live state, e.g. to aim the camera at the sun.
 if (PERF) window.skycope = state;
+// `?perf` QA: hold a quality level (0 = full; null releases), or read it.
+if (PERF) {
+  state.budget = {
+    pin(level) {
+      state.quality = pinQuality(state.quality, level);
+      applyQuality();
+    },
+    get level() { return state.quality.level; },
+    get ladder() { return state.quality.ladder; },
+    get settings() { return state.settings; },
+    get sizes() { return state.sizes; },
+  };
+}
 
 start();
 
@@ -349,7 +366,7 @@ function connectControls() {
     options,
   );
   window.addEventListener("blur", () => state.keys.clear(), options);
-  window.addEventListener("resize", resizeAtmosphere, options);
+  window.addEventListener("resize", applySizes, options);
   document.addEventListener(
     "visibilitychange",
     () => {
@@ -545,14 +562,19 @@ function applyWeather() {
 async function startAtmosphere() {
   // Low power: the sky and sea are cheap now, and a discrete GPU would spin
   // up fans for no visible gain.
-  const gpu = await init({ powerPreference: "low-power" });
+  // quality: GPU timestamps, where the adapter has them, tell the budget
+  // what the sky and sea passes cost (not vsync-quantised frame intervals).
+  const adapter = await navigator.gpu?.requestAdapter({ powerPreference: "low-power" }).catch(() => null);
+  const timed = !!adapter?.features.has("timestamp-query");
+  const gpu = await init({ powerPreference: "low-power", ...(timed ? { requiredFeatures: ["timestamp-query"] } : {}) });
   if (state.disposed) {
     gpu.dispose();
     return;
   }
   state.gpu = gpu;
+  state.sizes = currentSizes();
   const output = surface(gpu, canvas, {
-    size: waterSize(),
+    size: state.sizes.sea,
     autoResize: false,
     dpr: 1,
     alphaMode: "opaque",
@@ -560,14 +582,14 @@ async function startAtmosphere() {
   state.output = output;
   // The resolved sky alternates between two MRT targets: colour 0 is the sky
   // the water reads, colour 1 the cloud layer the next frame reprojects.
-  const [skyWidth, skyHeight] = cloudSize();
+  const [skyWidth, skyHeight] = state.sizes.sky;
   const skyTarget = pingPong(gpu, skyWidth, skyHeight, {
     colors: [{ format: "rgba16float" }, { format: "rgba16float" }],
   });
   state.skyTarget = skyTarget;
   const skyTable = target(gpu, { size: [256, 128], format: "rgba16float" });
   state.skyTable = skyTable;
-  const cloudTarget = target(gpu, { size: quarterSize(cloudSize()), format: "rgba16float" });
+  const cloudTarget = target(gpu, { size: state.sizes.cloud, format: "rgba16float" });
   state.cloudTarget = cloudTarget;
   const noise = createCloudNoise(gpu.gpu, state.seed);
   // The wind sea: 128 modes from the CPU, summed into four 128² cascades,
@@ -689,7 +711,8 @@ async function startAtmosphere() {
   state.flight = state.walker.camera;
   state.thread.attach(); // thread: the island's discoveries, watch and dawn lapse
   joinWorld();
-  state.landscape.resize(window.innerWidth, window.innerHeight, state.quality, state.reveal < 1 ? revealSize() : null);
+  state.landscape.resize(window.innerWidth, window.innerHeight, state.sizes.land);
+  state.landscape.setQuality(state.settings);
   await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   await tablePass.compile(skyTable);
   await cloudPass.compile(cloudTarget);
@@ -731,6 +754,15 @@ async function startAtmosphere() {
     }, useFallback);
   };
   const gpuClock = clock(gpu);
+  // quality: one span per WebGPU pass; their sum is the sky and sea's cost.
+  const passTimer = timed ? timer(gpu) : null;
+  const spans = passTimer ? Object.fromEntries(["waves", "foam", "table", "clouds", "sky", "water"].map((name) => [name, passTimer.span(name)])) : null;
+  passTimer?.onResults((results) => {
+    let total = 0;
+    for (const name in results) total += results[name];
+    state.gpuMs = total;
+  });
+  const timedPass = (name, output) => (spans ? { target: output, timer: spans[name] } : output);
   state.renderFrame = (currentFrame) => {
     const cpuStarted = performance.now();
     // thread: a paused photo stops scene time (the camera keeps its own clock).
@@ -744,7 +776,6 @@ async function startAtmosphere() {
       state.sea.set(state.time, swellUniform(state.seed, weather?.wind ?? [0, 0]), weather?.wind ?? [0, 0]);
       state.wake.tick(state.time);
       updateCat(dt, realDt);
-      adaptQuality(gpuClock.deltaTime);
     }
     state.magic.update(motionPreference.matches ? 0 : dt, state.time);
     const uniforms = createUniforms();
@@ -793,12 +824,12 @@ async function startAtmosphere() {
     updateIslandTable(islandTable, state.flight, state.celestial);
     const wake = state.wake.pack();
     if (wake) gpu.gpu.queue.writeTexture({ texture: state.wakeTexture }, wake, { bytesPerRow: 64 * 16 }, [64, 1]);
-    currentFrame.pass(wavesTarget, wavesPass);
-    if (stepFoam) currentFrame.pass(foamTarget.write, foamPass);
-    currentFrame.pass(skyTable, tablePass);
-    currentFrame.pass(cloudTarget, cloudPass);
-    currentFrame.pass(skyTarget.write, skyPass);
-    currentFrame.pass(output, waterPass);
+    currentFrame.pass(timedPass("waves", wavesTarget), wavesPass);
+    if (stepFoam) currentFrame.pass(timedPass("foam", foamTarget.write), foamPass);
+    currentFrame.pass(timedPass("table", skyTable), tablePass);
+    currentFrame.pass(timedPass("clouds", cloudTarget), cloudPass);
+    currentFrame.pass(timedPass("sky", skyTarget.write), skyPass);
+    currentFrame.pass(timedPass("water", output), waterPass);
     skyTarget.swap();
     state.skyFrames++;
     if (stepFoam) {
@@ -836,9 +867,11 @@ async function startAtmosphere() {
       magic: state.magic,
       wake: state.wake,
     });
+    const cpuMs = performance.now() - cpuStarted;
+    if (!motionPreference.matches) adaptQuality(gpuClock.deltaTime, cpuMs);
     if (PERF) {
       canvas.dataset.frameIntervalMs = (gpuClock.deltaTime * 1000).toFixed(2);
-      canvas.dataset.cpuFrameMs = (performance.now() - cpuStarted).toFixed(2);
+      canvas.dataset.cpuFrameMs = cpuMs.toFixed(2);
     }
     if (!state.firstFrame) {
       state.firstFrame = true;
@@ -853,15 +886,6 @@ async function startAtmosphere() {
   syncLoop();
 }
 
-// While revealing, every layer renders at the same coarse pixel grid, so
-// sky, sea and land share their blocks as they sharpen.
-function revealSize() {
-  return [
-    Math.max(1, Math.ceil(window.innerWidth * state.reveal)),
-    Math.max(1, Math.ceil(window.innerHeight * state.reveal)),
-  ];
-}
-
 // Steps the reveal up to full resolution, one resize per step.
 function sharpen() {
   clearTimeout(state.revealTimer);
@@ -869,37 +893,9 @@ function sharpen() {
   if (state.reveal >= 1 || state.disposed) return;
   state.revealTimer = setTimeout(() => {
     state.reveal = REVEAL[REVEAL.indexOf(state.reveal) + 1] ?? 1;
-    resizeAtmosphere();
+    applySizes();
     sharpen();
   }, REVEAL_STEP_MS);
-}
-
-function cloudSize() {
-  if (state.reveal < 1) return revealSize();
-  if (state.photoPixels) return photoSize(SKY_PIXELS * 2);
-  // Clouds tolerate smooth upscaling. Water has a separate, sharper budget.
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-  const scale =
-    Math.min(1, Math.sqrt(SKY_PIXELS / (width * height))) * state.quality;
-  return [
-    Math.max(1, Math.round(width * scale)),
-    Math.max(1, Math.round(height * scale)),
-  ];
-}
-
-function waterSize() {
-  if (state.reveal < 1) return revealSize();
-  if (state.photoPixels) return state.photoPixels;
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-  const scale =
-    Math.min(window.devicePixelRatio || 1, MAX_DPR, Math.sqrt(WATER_PIXELS / (width * height))) *
-    Math.max(0.75, Math.sqrt(state.quality));
-  return [
-    Math.max(1, Math.round(width * scale)),
-    Math.max(1, Math.round(height * scale)),
-  ];
 }
 
 // Until the walker exists (the landscape builds it), shaders compile against
@@ -916,7 +912,7 @@ function createUniforms() {
     pointer: state.pointer,
     time: state.time,
     scene: sky.scene,
-    steps: LIGHT || state.quality < 0.85 ? 32 : 44,
+    steps: state.settings.cloudSteps,
     seed: (state.seed % 65536) / 65536,
     sun: sky.sun,
     moon: sky.moon,
@@ -1202,33 +1198,86 @@ function smooth(a, b, x) {
   return t * t * (3 - 2 * t);
 }
 
-function adaptQuality(deltaTime) {
-  // Settled 30fps pacing is intentional, not evidence of missed 60fps work.
-  // Exclude that cadence and development fixture captures from adaptation.
-  if (review || (state.keys.size === 0 && state.walker?.cat.idle > 6 && performance.now() - state.lastInput > 6000)) return;
-  if (deltaTime <= 0 || deltaTime > 0.12) return;
-  state.frameMs += (deltaTime * 1000 - state.frameMs) * 0.025;
-  state.sampleCount++;
-  if (state.sampleCount < 180 || state.time - state.lastQualityChange < 8)
-    return;
-  const previous = state.quality;
-  if (state.frameMs > 24) state.quality = Math.max(0.5, state.quality - 0.12);
-  else if (state.frameMs < 18)
-    state.quality = Math.min(1, state.quality + 0.06);
-  if (previous !== state.quality) {
-    state.lastQualityChange = state.time;
-    resizeAtmosphere();
+// quality.js: one measurement per frame in, settings and sizes out. The
+// cost is GPU time where the platform reports it (the mesh layer's timer
+// query plus the WebGPU passes' timestamps, or the CPU's own share if that
+// is larger); otherwise the interval between frames, which vsync quantises.
+function adaptQuality(deltaTime, cpuMs) {
+  if (deltaTime > 0 && deltaTime < 0.12) state.frameMs += (deltaTime * 1000 - state.frameMs) * 0.05;
+  // Development fixture captures and `?perf` pins hold their level.
+  if (review || state.quality.pinned) return;
+  const mesh = state.landscape?.gpuMs ?? null;
+  let sample;
+  if (mesh !== null) {
+    // Without pass timestamps the sky and sea are taken as a third of the
+    // mesh layer (they measured a fifth to a half of the frame).
+    sample = { cost: Math.max(cpuMs, mesh + (state.gpuMs ?? mesh * 0.3)), source: "gpu" };
+  } else {
+    // Settled 30 fps pacing is intentional, not evidence of missed work.
+    if (settled() || !(deltaTime > 0 && deltaTime < 0.12)) return;
+    sample = { cost: deltaTime * 1000, source: "interval" };
+  }
+  const level = state.quality.level;
+  state.quality = stepQuality(state.quality, { now: performance.now() / 1000, ...sample });
+  if (state.quality.level !== level) applyQuality();
+}
+
+function applyQuality() {
+  state.settings = qualitySettings(state.quality);
+  state.landscape?.setQuality(state.settings);
+  applySizes();
+  if (PERF) canvas.dataset.quality = String(state.quality.level);
+}
+
+function currentSizes() {
+  return renderSizes({
+    width: window.innerWidth,
+    height: window.innerHeight,
+    dpr: window.devicePixelRatio || 1,
+    light: LIGHT,
+    reveal: state.reveal,
+    photo: state.photoPixels,
+  }, state.settings);
+}
+
+// Resizes only the layers whose size changed: a land or sea step keeps the
+// cloud history; only a new sky size has to rebuild it.
+function applySizes() {
+  const sizes = currentSizes();
+  const old = state.sizes;
+  state.sizes = sizes;
+  const changed = (key) => !old || old[key][0] !== sizes[key][0] || old[key][1] !== sizes[key][1];
+  if (changed("sea")) state.output?.resize(sizes.sea);
+  if (changed("sky") || changed("cloud")) {
+    state.skyTarget?.read.resize(sizes.sky);
+    state.skyTarget?.write.resize(sizes.sky);
+    state.cloudTarget?.resize(sizes.cloud);
+    resetSkyHistory();
+  }
+  state.landscape?.resize(window.innerWidth, window.innerHeight, sizes.land);
+  renderStill();
+}
+
+// The display's refresh rate, from the first second of animation frames:
+// 40 fps is only offered where it paces evenly (120 Hz, not 60).
+function measureRefresh(timestamp) {
+  const samples = (state.refreshSamples ??= []);
+  if (state.refreshHz || samples.length > 120) return;
+  if (state.refreshLast) samples.push(timestamp - state.refreshLast);
+  state.refreshLast = timestamp;
+  if (samples.length < 90) return;
+  const sorted = samples.slice().sort((a, b) => a - b);
+  const period = sorted[Math.floor(sorted.length * 0.25)];
+  if (!(period > 2 && period < 40)) return;
+  state.refreshHz = 1000 / period;
+  if (!state.quality.pinned && state.quality.level === 0) {
+    state.quality = createQualityState(qualityLadder(baseSettings({ light: LIGHT }), { refresh: state.refreshHz }));
   }
 }
 
-function resizeAtmosphere() {
-  state.output?.resize(waterSize());
-  state.skyTarget?.read.resize(cloudSize());
-  state.skyTarget?.write.resize(cloudSize());
-  state.cloudTarget?.resize(quarterSize(cloudSize()));
-  resetSkyHistory();
-  state.landscape?.resize(window.innerWidth, window.innerHeight, state.quality, state.reveal < 1 ? revealSize() : state.photoPixels);
-  renderStill();
+function settled() {
+  const cat = state.walker?.cat;
+  return !!cat && cat.idle > 6 && performance.now() - state.lastInput > 6000 && !state.keys.size;
 }
 
 // photo-mode: a larger render of the frame, and both canvases handed back
@@ -1240,7 +1289,7 @@ function capturePhoto() {
   if (!state.gpu || !state.renderFrame || state.reveal < 1) return null;
   const pixels = photoSize(PHOTO_PIXELS, 2);
   state.photoPixels = pixels;
-  resizeAtmosphere();
+  applySizes();
   // Four frames: one per cloud jitter, so the clouds are whole.
   resetSkyHistory();
   for (let i = 0; i < 4; i++) frame(state.gpu, state.renderFrame);
@@ -1250,7 +1299,7 @@ function capturePhoto() {
     height: pixels[1],
     restore() {
       state.photoPixels = null;
-      resizeAtmosphere();
+      applySizes();
       for (let i = 0; i < 2; i++) frame(state.gpu, state.renderFrame);
     },
   };
@@ -1284,10 +1333,9 @@ function syncLoop() {
 
 function tick(timestamp) {
   state.raf = requestAnimationFrame(tick);
-  const cat = state.walker?.cat;
-  const settled =
-    cat && cat.idle > 6 && performance.now() - state.lastInput > 6000 && !state.keys.size;
-  const targetFps = settled ? IDLE_FPS : ACTIVE_FPS;
+  measureRefresh(timestamp);
+  // quality: the budget may pace below 60 under sustained load.
+  const targetFps = Math.min(settled() ? IDLE_FPS : ACTIVE_FPS, state.settings.fps);
   const interval = 1000 / targetFps;
   // (A DOM write only when the pacing changes, not every display refresh.)
   if (targetFps !== state.targetFps) {
@@ -1315,10 +1363,6 @@ function renderStill() {
 // Sub-pixel order within each 2x2 block: diagonals first, so two frames
 // already cover the block evenly.
 const JITTER = [[0, 0], [1, 1], [1, 0], [0, 1]];
-
-function quarterSize([width, height]) {
-  return [Math.ceil(width / 2), Math.ceil(height / 2)];
-}
 
 // Discontinuities (time scrubbing, new weather, a resize, returning home)
 // make last frame's clouds useless: rebuild them from fresh samples.

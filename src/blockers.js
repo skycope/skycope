@@ -6,6 +6,9 @@
 //                                      (sin yaw, cos yaw) and hv across it
 //   cylinder(x, z, r, y0, y1)       – an upright cylinder
 //   capsule(a, b, r)                – a sphere-swept segment ({ x, y, z } ends)
+// `lens: false` keeps a primitive out of the camera's way (a penguin is too
+// small to pull the arm in for).
+//
 //   roof(x0, z0, cell, n, under, over) – a coarse crown: per cell, solid
 //                                      between `under` and `over` (the
 //                                      milkwood's leaves and limbs)
@@ -111,20 +114,20 @@ export function createBlockers(list = [], bodies = []) {
         const c = cells.get(KEY(i, j));
         if (!c) continue;
         for (const p of c) {
-          if (p.mark === stamp || (bodyOnly && p.body === false)) continue;
+          if (p.mark === stamp || (bodyOnly ? p.body === false : p.lens === false)) continue;
           p.mark = stamp;
           near[count++] = p;
         }
       }
     for (const p of bodies) {
-      if (p.live === false || (bodyOnly && p.body === false)) continue;
+      if (p.live === false || (bodyOnly ? p.body === false : p.lens === false)) continue;
       if (Math.abs(p.x - (x0 + x1) / 2) > Math.abs(x1 - x0) / 2 + p.r + margin) continue;
       if (Math.abs(p.z - (z0 + z1) / 2) > Math.abs(z1 - z0) / 2 + p.r + margin) continue;
       near[count++] = p;
     }
     return count;
   };
-  const hit = { prim: null, nx: 0, nz: 0, top: Infinity };
+  const hit = { prim: null, nx: 0, nz: 0, top: Infinity, d: Infinity };
   const nearestGathered = (x, y, z) => {
     let best = Infinity;
     for (let n = 0; n < count; n++) {
@@ -151,6 +154,7 @@ export function createBlockers(list = [], bodies = []) {
       const d = nearestGathered(x, y, z);
       if (d >= radius) return false;
       const p = hit.prim;
+      hit.d = d;
       const e = 0.05;
       const nx = nearestGathered(x + e, y, z) - nearestGathered(x - e, y, z);
       const nz = nearestGathered(x, y, z + e) - nearestGathered(x, y, z - e);

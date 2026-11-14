@@ -3,7 +3,7 @@ import { groundHeight } from "./terrain.js";
 import { capsule, cylinder, setCapsule } from "./blockers.js";
 import { seededRandom } from "./random.js";
 import { part, merge, sweep, lathe, place, smooth01, srgb, staticMesh, glowMaterial } from "./place-kit.js";
-import { heightTile } from "./place-lighthouse.js";
+import { heightTile, discTile, timberTile } from "./place-lighthouse.js";
 import { CAIRN, POOL } from "./place-rocks.js";
 
 // The smaller places: a fisherman's upturned boat with its gear and a
@@ -36,6 +36,7 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
   // when the boat gift launches it (boat.js); hullFar its far level.
   const hullParts = [], hullFar = [];
   const trunks = [];
+  const lowTiles = [];
   // solid: the hull and traps the camera keeps out of (blockers.js).
   const blockers = [];
   const L = 4.6, B = 1.55, depth = 0.62;
@@ -119,6 +120,8 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
       return new THREE.Vector3(x, Math.max(ground(x, z) + 0.06, restAt(s) - 0.13), z);
     });
     wood.push(part(sweep(pts, [0.12, 0.13, 0.12, 0.1], light ? 6 : 8), { colour: DRIFTWOOD, anchor }));
+    // solid: the cat walked through the logs' ends; now it steps up on them.
+    lowTiles.push(timberTile(pts.map((q) => ({ x: p.x + q.x, y: q.y, z: p.z + q.z })), 0.12));
     woodFar.push(part(sweep(pts, [0.12, 0.13, 0.12, 0.1], 4), { colour: DRIFTWOOD, anchor }));
   }
   // Oars: one across the hull, one leaning on it.
@@ -157,7 +160,8 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
     net.push(part(lathe([[0.41, 0.05], [0.41, 0.42], [0.14, 0.44], [0.1, 0.3]], 14), { matrix: m, colour: srgb("#2c3a34") }));
     // solid: a coarse trap in the far level too: they vanished at 40 m.
     woodFar.push(part(lathe([[0.42, 0.0], [0.41, 0.42], [0.12, 0.44]], 6), { matrix: m, colour: srgb("#2c3a34"), anchor }));
-    trunks.push({ x: p.x + x, z: p.z + z, r: 0.42 });
+    // solid: a trap to hop onto or jump over (a stack of two to stop at).
+    lowTiles.push(discTile(p.x + x, p.z + z, 0.42, y + 0.45));
     if (lift === 0) blockers.push(cylinder(p.x + x, p.z + z, 0.44, y - 0.1, y + 0.95, { body: false }));
   };
   trap(-0.3, -2.0, 0, 0);
@@ -220,7 +224,7 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
     // solid: no cull. Gone at 80 m, the hull popped out of the cove in
     // plain view; its far level is one draw of a few hundred triangles.
     near, far, farDistance: 40,
-    obstacles: { trunks, domes },
+    obstacles: { trunks, domes: [...domes, ...lowTiles] },
     blockers,
     // boat: launch() takes the hull off its logs for good (boat.js then
     // draws the boat): its meshes hide, its camera solids sink out of
@@ -527,6 +531,9 @@ export function buildPool(p, materials, { light = false, seed = 1 } = {}) {
     // solid: culled where the fog has the shelf (it popped at 70 m).
     near, far, farDistance: 30, cullDistance: 115,
     obstacles: { trunks: [], domes },
+    // solid: the camera keeps above the pool's still water (it slid under
+    // the surface and saw it as a flat green board).
+    blockers: [cylinder(p.x, p.z, POOL.basin + 0.15, floor - 0.3, level + 0.05, { body: false })],
     update({ time, eye, pose }) {
       if (!eye || Math.hypot(eye[0] - p.x, eye[2] - p.z) > 22) return;
       const dt = Math.min(0.1, Math.max(0, time - last));
