@@ -206,6 +206,7 @@ test('each ceremony ends on a clear view of its place', async () => {
       return across < 0.75 && up < 0.48;
     };
     if (!inFrame({ x: cat.x, y: cat.y + 0.15, z: cat.z })) out.push('cat out of frame');
+    if (solids.trace(lens.x, lens.y, lens.z, cat.x, cat.y + 0.2, cat.z, 0.03) < 0.95) out.push('cat behind a landmark');
     if (!inFrame(top)) out.push('top out of frame');
     for (let i = 1; i < 16; i++) {
       const t = i / 16, x = lens.x + (top.x - lens.x) * t, z = lens.z + (top.z - lens.z) * t;

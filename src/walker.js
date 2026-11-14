@@ -994,7 +994,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
           // The subject seen past everything (its top counts most).
           for (let i = 0; i < points.length; i++) score += blocked(lx, ly, lz, points[i].x, points[i].y, points[i].z) * (i === 2 ? 1.2 : 0.8);
           // The cat seen too (plants on that line fold away; not trunks or rock).
-          score += Math.min(2, blocked(lx, ly, lz, tx, ty, tz) - Math.min(3, crowns(lx, ly, lz, tx, ty, tz)) * 0.6) * 0.8;
+          score += (blocked(lx, ly, lz, tx, ty, tz) - Math.min(3, crowns(lx, ly, lz, tx, ty, tz)) * 0.6) * 1.5;
           // Cat and top both in the frame: the angle between them, from the lens.
           const top = points[2];
           const toCat = Math.atan2(ty - 0.15 - ly, hyp(tx - lx, tz - lz));

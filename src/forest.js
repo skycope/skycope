@@ -488,7 +488,7 @@ const FOLD_GLSL = /* glsl */ `
     float sightLength = length( sightAxis ) + 1e-4;
     float along = dot( foldWorld - cameraPosition, sightAxis ) / sightLength;
     float across = length( foldWorld - cameraPosition - sightAxis * ( along / sightLength ) );
-    float radius = sightLine.w * mix( 1.0, 0.45, clamp( along / sightLength, 0.0, 1.0 ) );
+    float radius = sightLine.w * mix( 1.0, 0.6, clamp( along / sightLength, 0.0, 1.0 ) );
     float sight = ( 1.0 - smoothstep( radius * 0.55, radius, across ) )
       * smoothstep( 0.0, 0.3, along ) * ( 1.0 - smoothstep( sightLength - 0.5, sightLength - 0.22, along ) );
     fold = max( fold, sight );

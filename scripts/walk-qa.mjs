@@ -262,7 +262,8 @@ for (const c of CEREMONIES) {
     if (t > g) await page.sleep((t - g) * 1000);
     frames.push(await shot(page));
   }
-  const cam = await page.evaluate("(() => { const k = skycope.walker.camera, w = skycope.walker; return { x: k.x, y: k.y, z: k.z, solid: Math.min(99, w.solids.distance(k.x, k.y, k.z, 1)), ground: k.y - w.surface(k.x, k.z) }; })()");
+  // Where the cat is on screen (NDC, |x|,|y| < 1 is in frame).
+  const cam = await page.evaluate("(() => { const k = skycope.walker.camera, w = skycope.walker, c = w.cat, cam3 = skycope.landscape.camera; const p = cam3.position.clone().set(c.x, c.y + 0.2, -c.z).project(cam3); return { x: k.x, y: k.y, z: k.z, solid: Math.min(99, w.solids.distance(k.x, k.y, k.z, 1)), ground: k.y - w.surface(k.x, k.z), catOnScreen: [+p.x.toFixed(2), +p.y.toFixed(2), +p.z.toFixed(3)] }; })()");
   if (frames.length) await strip(page, frames, `${out}/${name}-${label}.jpg`);
   ceremonyOut[name] = { start, cam };
   console.log(name, JSON.stringify(cam));
