@@ -3,7 +3,7 @@ import { seededRandom } from "./random.js";
 import { groundHeight, islandPoint, shoreDistance, ISLAND } from "./terrain.js";
 import {
   sculpt, ellipsoid, capsule, animalMaterial, animalMesh, DEFORM_GLSL, placeInstance, formGeometry, herdBounds,
-  surfaceOf, domeHeight, wrap, clamp, smooth, turnToward, noise3,
+  surfaceOf, domeHeight, wrap, clamp, smooth, turnToward, noise3, WORLD_SCALE,
 } from "./animal-forms.js";
 
 // African penguins, as at Boulders Beach: a small colony on the sand among
@@ -251,7 +251,7 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
     wet: 0,
     porpoise: 0,
     pitch: 0,
-    size: 0.92 + random() * 0.14,
+    size: (0.92 + random() * 0.14) * 1.07 * WORLD_SCALE, // 0.57 m model → 0.85 m: a 0.6 m bird at the island's scale
     bold: random(),
     calm: 10,
     seaTimer: 0,
@@ -502,9 +502,9 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
           const ox = b.x - o.x;
           const oz = b.z - o.z;
           const od = Math.hypot(ox, oz);
-          if (od < 0.38 && od > 1e-4) {
-            px += (ox / od) * (0.38 - od);
-            pz += (oz / od) * (0.38 - od);
+          if (od < 0.38 * WORLD_SCALE && od > 1e-4) {
+            px += (ox / od) * (0.38 * WORLD_SCALE - od);
+            pz += (oz / od) * (0.38 * WORLD_SCALE - od);
           }
         }
         // solid: and from the cat's paws: a penguin brushed by the cat
@@ -640,8 +640,8 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
           const o = birds[j];
           if (o.swim > 0.5) continue;
           const dx = b.x - o.x, dz = b.z - o.z, d = Math.hypot(dx, dz);
-          if (d >= 0.34 || d < 1e-5) continue;
-          const push = (0.34 - d) / 2 / d;
+          if (d >= 0.34 * WORLD_SCALE || d < 1e-5) continue;
+          const push = (0.34 * WORLD_SCALE - d) / 2 / d;
           easeTo(b, b.x + dx * push, b.z + dz * push);
           easeTo(o, o.x - dx * push, o.z - dz * push);
         }

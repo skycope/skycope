@@ -30,14 +30,15 @@ test('landmarks sit where they belong: on land, at the shore, apart', () => {
     const places = Object.fromEntries(placesLayout(seed).map((p) => [p.id, p]));
     const inland = (p) => shoreDistance(p.x, p.z);
     // The light is back from its point, the milkwood and beacon deep inland.
-    assert.ok(inland(places.lighthouse) > 6 && inland(places.lighthouse) < 12, `lighthouse ${inland(places.lighthouse)}`);
+    assert.ok(inland(places.lighthouse) > 5 && inland(places.lighthouse) < 9, `lighthouse ${inland(places.lighthouse)}`);
     assert.ok(inland(places.milkwood) > 20, `milkwood ${inland(places.milkwood)}`);
     assert.ok(inland(places.beacon) > 20, `beacon ${inland(places.beacon)}`);
     // The beacon is on one of the island's highest summits.
     assert.ok(terrainHeight(places.beacon.x, places.beacon.z) > 11);
-    // Shore places: the wreck straddles the swash (bow up the beach), the
+    // Shore places: the wreck above the tide (bow up the beach), the
     // boat is above the tide line, the pool at the top of the shore.
-    assert.ok(Math.abs(inland(places.wreck)) < 3, `wreck centre ${inland(places.wreck)}`);
+    assert.ok(inland(places.wreck) > 3 && inland(places.wreck) < 6, `wreck centre ${inland(places.wreck)}`);
+    assert.ok(shoreDistance(places.wreck.stern.x, places.wreck.stern.z) > 1.2, 'the wreck lies above the tide line');
     assert.ok(shoreDistance(places.wreck.bow.x, places.wreck.bow.z) > shoreDistance(places.wreck.stern.x, places.wreck.stern.z));
     assert.ok(inland(places.boat) > 4 && inland(places.boat) < 9, `boat ${inland(places.boat)}`);
     assert.ok(inland(places.pool) > 0.5 && inland(places.pool) < 3, `pool ${inland(places.pool)}`);
@@ -65,7 +66,7 @@ test('nothing grows or lies inside a landmark', () => {
   const original = rockLayout(seededRandom(seed));
   const rocks = placeRocks(seed, original);
   const added = rocks.filter((r) => !original.includes(r));
-  assert.ok(added.length > 20, 'cairn and pool stones are added');
+  assert.ok(added.length >= 6, 'the pool boulders are added');
   for (const r of rocks) {
     assert.ok([r.position.x, r.position.y, r.position.z, r.scale.x, r.scale.y, r.scale.z, r.ground].every(finite));
   }
@@ -73,4 +74,26 @@ test('nothing grows or lies inside a landmark', () => {
   const scattered = rocks.filter((r) => original.includes(r));
   assert.ok(scattered.length > 150 && scattered.length < original.length);
   for (const r of scattered) assert.ok(placeClearance(layout, r.position.x, r.position.z, 'clear') > 0);
+});
+
+test('every landmark keeps the prop contract and its triangle budget', async () => {
+  const { BUILDERS } = await import('../src/places.js');
+  const { createMaterials } = await import('../src/place-kit.js');
+  const materials = createMaterials({});
+  // Near-level budgets (triangles): the milkwood was 178k.
+  const budget = { lighthouse: 7500, beacon: 1500, milkwood: 60000, wreck: 3500, boat: 6000, pool: 7500 };
+  for (const seed of [1847, 1, 99999]) {
+    for (const p of placesLayout(seed)) {
+      const b = BUILDERS[p.kind](p, materials, { seed });
+      for (const k of ['lod', 'surfaces', 'covers', 'lights', 'affordances']) assert.ok(b[k], `${p.id} has ${k}`);
+      for (const k of ['trunks', 'tiles', 'solids']) assert.ok(Array.isArray(b.surfaces[k]), `${p.id} surfaces.${k}`);
+      let triangles = 0;
+      b.lod.near.traverse((o) => {
+        if (!o.isMesh) return;
+        const g = o.geometry;
+        triangles += ((g.index ? g.index.count : g.attributes.position.count) / 3) * (o.isInstancedMesh ? o.count : 1);
+      });
+      assert.ok(triangles <= budget[p.id], `seed ${seed} ${p.id}: ${triangles} triangles near`);
+    }
+  }
 });

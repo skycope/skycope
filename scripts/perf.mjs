@@ -221,6 +221,11 @@ function pageHelper({ island }) {
     hilltop: () => toward(63, 89, 52, 70, 0.32, 6),
     "milkwood-under": () => { const p = poi("milkwood"); if (!p) return { home: true }; const a = Math.atan2(island.x - p.x, island.z - p.z); return toward(p.x + Math.sin(a) * 2.2, p.z + Math.cos(a) * 2.2, p.x + Math.sin(a) * 12, p.z + Math.cos(a) * 12, 0.02, 2.4); },
     "cat-plants": () => toward(44, 80, 52, 86, 0.0, 1.3),
+    // grade: the colour-grading sheets' views (docs/review/grade): the
+    // forest slope under trees, looking uphill into them, and the summit
+    // looking back over the island to the home beach.
+    slope: () => toward(40, 40, 58, 62, 0.15, 3.4),
+    hill: () => toward(62, 84, 12, 9, 0.6, 10),
   };
   // The cat at (x, z) looking toward (tx, tz).
   function toward(x, z, tx, tz, el, dist) {

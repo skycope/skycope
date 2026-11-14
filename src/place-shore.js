@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { groundHeight } from "./terrain.js";
-import { capsule, cylinder, setCapsule } from "./blockers.js";
+import { box, capsule, cylinder, setCapsule } from "./blockers.js";
 import { seededRandom } from "./random.js";
-import { part, merge, sweep, lathe, place, smooth01, srgb, staticMesh, glowMaterial } from "./place-kit.js";
-import { heightTile, discTile, timberTile } from "./place-lighthouse.js";
-import { CAIRN, POOL } from "./place-rocks.js";
+import { part, merge, sweep, lathe, place, smooth01, srgb, staticMesh, glowMaterial, prop } from "./place-kit.js";
+import { heightTile, discTile, timberTile } from "./place-kit.js";
+import { POOL } from "./place-rocks.js";
 
 // The smaller places: a fisherman's upturned boat with its gear and a
 // lantern that burns at night; the trig beacon on the summit cairn; and a
@@ -124,37 +124,20 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
     lowTiles.push(timberTile(pts.map((q) => ({ x: p.x + q.x, y: q.y, z: p.z + q.z })), 0.12));
     woodFar.push(part(sweep(pts, [0.12, 0.13, 0.12, 0.1], 4), { colour: DRIFTWOOD, anchor }));
   }
-  // Oars: one across the hull, one leaning on it.
-  const oar = (a, b, list) => {
-    const d = new THREE.Vector3().subVectors(b, a);
-    list.push(part(sweep([a, a.clone().addScaledVector(d, 0.72), b], [0.026, 0.03, 0.022], 5), { colour: srgb("#9a8a70"), anchor }));
-    const m = new THREE.Matrix4().lookAt(b, a, new THREE.Vector3(0, 1, 0)).setPosition(a.clone().addScaledVector(d, 0.88));
-    list.push(part(new THREE.BoxGeometry(0.14, 0.018, 0.55), { matrix: m, colour: srgb("#a89a80"), anchor }));
-  };
-  {
-    const [x0, z0] = at(-0.4, -1.4), [x1, z1] = at(0.6, 1.2);
-    oar(new THREE.Vector3(x0, ground(x0, z0) + 0.03, z0), new THREE.Vector3(x1, keelAt(0.25) + 0.05, z1), hullParts); // boat:
-    const [x2, z2] = at(1.2, 1.25), [x3, z3] = at(-1.3, 1.05);
-    oar(new THREE.Vector3(x2, ground(x2, z2) + 0.04, z2), new THREE.Vector3(x3, ground(x3, z3) + 0.04, z3), wood);
-  }
-  // A coil of rope on the sand.
-  {
-    const [cx, cz] = at(-1.2, -1.6);
-    const pts = [];
-    const turns = 5;
-    for (let k = 0; k <= turns * 14; k++) {
-      const a = (k / 14) * Math.PI * 2;
-      const r = 0.3 - (k / (turns * 14)) * 0.17;
-      pts.push(new THREE.Vector3(cx + Math.cos(a) * r, ground(cx, cz) + 0.025 + (k / (turns * 14)) * 0.05, cz + Math.sin(a) * r));
-    }
-    paint.push(part(sweep(pts, pts.map(() => 0.022), 4), { colour: srgb("#8f7f5e"), anchor }));
-  }
+  // (Oars, a rope coil and orange floats were cut: clutter round the boat
+  // that read as props, not gear.)
   // Crayfish traps: a slatted base ring, netting, a top hoop and the
   // entrance funnel; one stacked on another.
   const trap = (u, v, lift, tilt) => {
     const [x, z] = at(u, v);
-    const y = ground(x, z) + lift;
-    const m = place(x, y, z, { yaw: random() * Math.PI, roll: tilt });
+    // Sat on the slope of the sand, not level on its centre point (the
+    // downhill side of the ring floated a hand clear on a steep beach).
+    const gx = ground(x + 0.3, z) - ground(x - 0.3, z), gz = ground(x, z + 0.3) - ground(x, z - 0.3);
+    const up = new THREE.Vector3(-gx / 0.6, 1, -gz / 0.6).normalize();
+    const y = ground(x, z) - 0.02 + lift;
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), up)
+      .multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, random() * Math.PI, tilt)));
+    const m = new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), q, new THREE.Vector3(1, 1, 1));
     wood.push(part(new THREE.CylinderGeometry(0.42, 0.42, 0.06, 14, 1, false), { matrix: m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0.03, 0)), colour: DRIFTWOOD, anchor }));
     paint.push(part(new THREE.TorusGeometry(0.4, 0.014, 4, 18), { matrix: m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0.42, 0)).multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2)), colour: srgb("#3b3a36") }));
     net.push(part(lathe([[0.41, 0.05], [0.41, 0.42], [0.14, 0.44], [0.1, 0.3]], 14), { matrix: m, colour: srgb("#2c3a34") }));
@@ -166,12 +149,7 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
   };
   trap(-0.3, -2.0, 0, 0);
   trap(-0.3, -2.0, 0.47, 0.06);
-  trap(1.0, -2.3, 0, 0.2);
-  // Orange floats on a line.
-  for (const [u, v] of [[0.3, -1.6], [0.55, -1.75]]) {
-    const [x, z] = at(u, v);
-    paint.push(part(new THREE.SphereGeometry(0.13, 10, 7), { matrix: place(x, ground(x, z) + 0.11, z), colour: srgb("#b4532a"), anchor }));
-  }
+  trap(1.0, -2.3, 0, 0.05);
   // The lantern: a hurricane lamp hung from a driftwood post.
   const [lx, lz] = at(-1.9, 1.2);
   const postBase = new THREE.Vector3(lx, ground(lx, lz) - 0.3, lz);
@@ -191,11 +169,11 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
   pool.place(p.x, p.z);
 
   const near = new THREE.Group();
-  near.add(staticMesh(merge(wood), materials.wood), staticMesh(merge(paint), materials.paint), staticMesh(merge(net), materials.net), staticMesh(merge(glow), materials.glow, { cast: false }));
+  near.add(staticMesh(merge(wood), materials.timber), staticMesh(merge(paint), materials.limewash), staticMesh(merge(net), materials.net), staticMesh(merge(glow), materials.glow, { cast: false }));
   const far = new THREE.Group();
-  far.add(staticMesh(merge(woodFar), materials.wood));
+  far.add(staticMesh(merge(woodFar), materials.timber));
   // boat: the hull's meshes, near and far.
-  const hullNear = staticMesh(merge(hullParts), materials.wood), hullFarMesh = staticMesh(merge(hullFar), materials.wood);
+  const hullNear = staticMesh(merge(hullParts), materials.timber), hullFarMesh = staticMesh(merge(hullFar), materials.timber);
   near.add(hullNear);
   far.add(hullFarMesh);
   const hullBlockers = [];
@@ -220,12 +198,11 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
     const a = Math.asin(Math.min(1, Math.abs(v) / b));
     return keelAt(s) + 0.12 * s * s * 0.4 - depth * (1 - Math.cos(a)) - 0.12 * s * s * (a / (Math.PI / 2)) + 0.02;
   })];
-  return {
+  return prop({
     // solid: no cull. Gone at 80 m, the hull popped out of the cove in
     // plain view; its far level is one draw of a few hundred triangles.
-    near, far, farDistance: 40,
-    obstacles: { trunks, domes: [...domes, ...lowTiles] },
-    blockers,
+    lod: { near, far, farDistance: 40 },
+    surfaces: { trunks, tiles: [...domes, ...lowTiles], solids: blockers },
     // boat: launch() takes the hull off its logs for good (boat.js then
     // draws the boat): its meshes hide, its camera solids sink out of
     // reach (static blockers cannot be removed) and its standing tile goes.
@@ -236,12 +213,12 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
         domes[0].heights.fill(-Infinity);
       },
     },
-    halos: [{ x: p.x + lamp.x, y: lamp.y, z: p.z + lamp.z, size: 1.5, colour: [1.0, 0.6, 0.24], flicker: true }],
+    lights: [{ kind: "lantern", x: p.x + lamp.x, y: lamp.y, z: p.z + lamp.z, size: 1.5, colour: [1.0, 0.6, 0.24], flicker: true }],
     extra: pool.mesh,
     update({ time, lit }) {
       pool.update(time, lit);
     },
-  };
+  });
 }
 
 const POOL_VERTEX = /* glsl */ `
@@ -306,44 +283,100 @@ function lightPool(lamp, radius, ground) {
 
 // ---- The trig beacon -----------------------------------------------------------
 
-export function buildBeacon(p, materials) {
-  const g0 = groundHeight(p.x, p.z);
-  const paint = [];
-  const top = g0 + CAIRN.height;
-  // A galvanised mast out of the cairn, carrying the three-disc vane that
-  // surveyors sighted on from the hills round about: black and white.
-  paint.push(part(new THREE.CylinderGeometry(0.045, 0.06, 2.9, 8), { matrix: place(0, top + 1.1, 0), colour: srgb("#8a8d8c") }));
-  for (let k = 0; k < 3; k++) {
-    const yaw = p.facing + (k * Math.PI) / 3;
-    // Each disc painted white above, black below: it reads against sky
-    // or hillside from any side.
-    const yc = top + 2.15;
-    paint.push(part(new THREE.CylinderGeometry(0.42, 0.42, 0.025, 24), {
-      matrix: place(0, yc, 0, { yaw, pitch: Math.PI / 2 }),
-      colour: (q, n, out) => out.copy(q.y > yc ? srgb("#e1ddd2") : srgb("#151515")),
-    }));
+// A South African trig beacon: a white concrete pillar 1.2 m tall with
+// four black sheet-iron vanes on a short pole, on a cairn of angular
+// local granite laid in three steps (35 cm risers: a cat's hop each), so
+// the cairn is a staircase to the island's highest seat. It carries no
+// lamp.
+export const CAIRN = { steps: 3, rise: 0.35, base: 1.5, inset: 0.48 };
+
+export function buildBeacon(p, materials, { light = false, seed = 1 } = {}) {
+  const random = seededRandom((seed ^ 0xbeac0) >>> 0 || 1);
+  const φ = p.facing;
+  const { at } = frameOf(φ);
+  const ground = (x, z) => groundHeight(p.x + x, p.z + z);
+  let lo = Infinity, hi = -Infinity;
+  for (let i = -4; i <= 4; i++) for (let j = -4; j <= 4; j++) {
+    const g = ground(...at((i / 4) * CAIRN.base, (j / 4) * CAIRN.base));
+    lo = Math.min(lo, g); hi = Math.max(hi, g);
   }
-  // Whitewash on the cairn's crown, where it is renewed: a painted collar.
-  paint.push(part(new THREE.CylinderGeometry(0.2, 0.26, 0.35, 10), { matrix: place(0, top - 0.02, 0), colour: srgb("#d6d1c4") }));
-  // The survey bolt: a concrete block with a bronze plate, at the foot.
-  const [bx, bz] = [Math.sin(p.facing) * 1.9, Math.cos(p.facing) * 1.9];
-  const bg = groundHeight(p.x + bx, p.z + bz);
-  paint.push(part(new THREE.BoxGeometry(0.42, 0.3, 0.42), { matrix: place(bx, bg + 0.08, bz, { yaw: p.facing }), colour: srgb("#9b968c"), anchor: bg }));
-  paint.push(part(new THREE.CylinderGeometry(0.07, 0.07, 0.02, 12), { matrix: place(bx, bg + 0.235, bz), colour: srgb("#6d5428") }));
-  // land-magic: a lantern hung from a short iron arm on the mast, lit with
-  // the lighthouse's gift: the summit's point in the island's necklace.
-  const glow = [];
-  const armA = p.facing + Math.PI / 2;
-  const ax = Math.sin(armA) * 0.42, az = Math.cos(armA) * 0.42;
-  paint.push(part(new THREE.CylinderGeometry(0.012, 0.012, 0.44, 4), { matrix: place(ax / 2, top + 1.35, az / 2, { yaw: armA, pitch: Math.PI / 2 }), colour: srgb("#26241f") }));
-  const lantern = hurricaneLantern(paint, glow, ax, top + 1.35 - 0.33, az);
+  const g0 = ground(0, 0);
+  const rubble = [], rubbleFar = [], white = [], vanes = [];
+  const GRANITE = srgb("#a39a8c");
+  const tread = [];
+  // Each step: a ring of blocky stones round its edge on a core of the
+  // same, the next step set back by `inset`.
+  for (let k = 0; k < CAIRN.steps; k++) {
+    const half = CAIRN.base - k * CAIRN.inset;
+    const top = g0 + (k + 1) * CAIRN.rise;
+    const bottom = k === 0 ? lo - 0.3 : top - CAIRN.rise - 0.05;
+    tread.push({ half, top });
+    // The core: hidden but for the tread between this step's stones and
+    // the next step.
+    rubble.push(part(new THREE.BoxGeometry(half * 2 - 0.3, top - 0.02 - bottom, half * 2 - 0.3), { matrix: frame(at, 0, (top - 0.02 + bottom) / 2, 0, φ), colour: GRANITE.clone().multiplyScalar(0.92), anchor: (q) => ground(q.x, q.z) }));
+    rubbleFar.push(part(new THREE.BoxGeometry(half * 2, top - bottom, half * 2), { matrix: frame(at, 0, (top + bottom) / 2, 0, φ), colour: GRANITE }));
+    const per = Math.max(2, Math.round((half * 2) / 0.55));
+    for (let s = 0; s < 4; s++)
+      for (let i = 0; i < per; i++) {
+        const along = -half + ((i + 0.5) / per) * half * 2;
+        const [u, v] = [[along, half - 0.22], [half - 0.22, -along], [-along, -half + 0.22], [-half + 0.22, along]][s];
+        const j = random();
+        const w = (half * 2) / per - 0.04 - j * 0.09;
+        const h = top - bottom - random() * 0.07;
+        rubble.push(part(new THREE.BoxGeometry(w, h, 0.44 + random() * 0.06), {
+          matrix: frame(at, u, bottom + h / 2 + (random() - 0.5) * 0.02, v, φ + (s + 1) * Math.PI / 2 + (random() - 0.5) * 0.16, (random() - 0.5) * 0.09),
+          colour: GRANITE.clone().multiplyScalar(0.72 + random() * 0.45),
+          anchor: (q) => ground(q.x, q.z),
+        }));
+      }
+  }
+  const top = g0 + CAIRN.steps * CAIRN.rise;
+  // The pillar: tapering a little, a bronze survey disc let into its top.
+  const pillar = lathe([[0.17, top - 0.05], [0.17, top + 0.06], [0.15, top + 0.08], [0.13, top + 1.2], [0.0, top + 1.21]], 4, Math.PI / 4);
+  white.push(part(pillar, { matrix: place(0, 0, 0, { yaw: φ }), colour: srgb("#d4d0c6"), weep: (q) => 0.6 * smooth01(top + 0.6, top + 1.2, q.y) }));
+  vanes.push(part(new THREE.CylinderGeometry(0.03, 0.03, 0.9, 6), { matrix: place(0, top + 1.6, 0), colour: srgb("#1d1b1a") }));
+  for (let k = 0; k < 4; k++) {
+    const a = φ + (k * Math.PI) / 2;
+    vanes.push(part(new THREE.BoxGeometry(0.012, 0.5, 0.32), { matrix: place(Math.sin(a) * 0.19, top + 1.75, Math.cos(a) * 0.19, { yaw: a }), colour: srgb("#161514") }));
+  }
   const near = new THREE.Group();
-  near.add(staticMesh(merge(paint), materials.paint), staticMesh(merge(glow), materials.glow, { cast: false }));
-  return {
-    near,
-    obstacles: { trunks: [{ x: p.x, z: p.z, r: 0.25 }], domes: [] },
-    halos: [{ x: p.x + lantern.x, y: lantern.y, z: p.z + lantern.z, size: 1.4, colour: [1.0, 0.66, 0.3], flicker: true, reach: 3.6 }],
-  };
+  near.add(staticMesh(merge(rubble), materials.rubble), staticMesh(merge(white), materials.limewash), staticMesh(merge(vanes), materials.rust));
+  const far = new THREE.Group();
+  far.add(staticMesh(merge(rubbleFar), materials.rubble), staticMesh(part(lathe([[0.17, top], [0.13, top + 1.2], [0, top + 1.21]], 4, Math.PI / 4), { matrix: place(0, 0, 0, { yaw: φ }), colour: srgb("#d4d0c6") }), materials.limewash));
+
+  // The steps to stand on; the pillar to walk round.
+  const { fx, fz, rx, rz } = frameOf(φ);
+  const tile = heightTile(p.x, p.z, CAIRN.base * 1.5, 0.06, (x, z) => {
+    const lx = x - p.x, lz = z - p.z;
+    const u = lx * fx + lz * fz, v = lx * rx + lz * rz;
+    let h = -Infinity;
+    for (const t of tread) if (Math.abs(u) <= t.half && Math.abs(v) <= t.half) h = t.top;
+    return h;
+  });
+  const [sx, sz] = at(CAIRN.base - 2 * CAIRN.inset - 0.25, 0);
+  return prop({
+    lod: { near, far, farDistance: 45 },
+    surfaces: {
+      trunks: [{ x: p.x, z: p.z, r: 0.2 }],
+      tiles: [tile],
+      solids: [
+        box(p.x, p.z, φ, CAIRN.base, CAIRN.base, lo - 0.4, g0 + CAIRN.rise, { body: false }),
+        box(p.x, p.z, φ, CAIRN.base - CAIRN.inset, CAIRN.base - CAIRN.inset, lo - 0.4, g0 + 2 * CAIRN.rise, { body: false }),
+        box(p.x, p.z, φ, CAIRN.base - 2 * CAIRN.inset, CAIRN.base - 2 * CAIRN.inset, lo - 0.4, top, { body: false }),
+        cylinder(p.x, p.z, 0.2, top, top + 2.1, { body: false, above: true }),
+      ],
+    },
+    affordances: [
+      { id: "beacon-top", kind: "sit-near", x: p.x + sx, y: top, z: p.z + sz, r: 0.6, facing: φ, hint: "the cairn is a staircase" },
+    ],
+  });
+}
+
+// A transform in a place's (u, v) frame: `at` from frameOf, yaw about y,
+// a little roll.
+function frame(at, u, y, v, yaw, roll = 0) {
+  const [x, z] = at(u, v);
+  return place(x, y, z, { yaw, roll });
 }
 
 // ---- The rock pool ---------------------------------------------------------------
@@ -365,26 +398,50 @@ export function buildPool(p, materials, { light = false, seed = 1 } = {}) {
   const outerR = (a) => POOL.shelf + wob(a, 4.1) * 1.2;
   // Height of the shelf at (r, a): the floor, the basin wall, the worn top,
   // and the outer flank running down under the sand.
+  // The rim is not a moulded tub: two joint cracks run across it (granite
+  // splits along its sheeting joints) and on the sea side the water has
+  // worn a spill notch down nearly to its level.
+  const gsx = ground(0.5, 0) - ground(-0.5, 0), gsz = ground(0, 0.5) - ground(0, -0.5);
+  const seaward = Math.atan2(-gsz, -gsx);
+  const cracks = [seaward + 1.9 + random() * 0.4, seaward - 2.0 - random() * 0.5];
+  const angular = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+  const cut = (r, a) => {
+    const rb = basinR(a);
+    if (r < rb - 0.05) return 0;
+    let d = 0;
+    const notch = angular(a, seaward) * r;
+    d = Math.max(d, (shelf - level + 0.015) * (1 - smooth01(0.16, 0.34, notch)));
+    for (const c of cracks) d = Math.max(d, 0.13 * (1 - smooth01(0.02, 0.07, angular(a, c) * r)));
+    return d * smooth01(rb - 0.05, rb + 0.08, r);
+  };
   const height = (r, a) => {
     const rb = basinR(a), ro = outerR(a);
     if (r < rb - 0.12) return floor;
-    if (r < rb + 0.12) return floor + (shelf - floor) * smooth01(rb - 0.12, rb + 0.12, r);
-    if (r < ro - 0.5) return shelf + Math.sin(a * 7 + r * 3) * 0.04 - 0.06 * smooth01(rb, ro, r);
-    return shelf - 0.06 + (gmin - 0.35 - shelf) * smooth01(ro - 0.5, ro + 0.25, r);
+    if (r < rb + 0.12) return floor + (shelf - cut(r, a) - floor) * smooth01(rb - 0.12, rb + 0.12, r);
+    if (r < ro - 0.5) return shelf + Math.sin(a * 7 + r * 3) * 0.04 + Math.sin(a * 13 + r * 5) * 0.025 + Math.sin(a * 23 - r * 7) * 0.012 - 0.06 * smooth01(rb, ro, r) - cut(r, a);
+    return shelf - 0.06 - cut(r, a) + (gmin - 0.35 - shelf) * smooth01(ro - 0.5, ro + 0.25, r);
   };
-  // The shelf: a polar grid from the basin wall outward.
+  // The shelf: a polar grid from the basin wall outward, with extra spokes
+  // either side of each crack and the notch so they stay sharp.
   const radial = light ? 40 : 64, rings = 14;
+  const spokes = [];
+  for (let j = 0; j < radial; j++) spokes.push((j / radial) * Math.PI * 2);
+  const wrap = (a) => ((a % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  for (const c of cracks) for (const d of [-0.025, -0.012, 0, 0.012, 0.025]) spokes.push(wrap(c + d));
+  for (const d of [-0.11, -0.07, -0.035, 0, 0.035, 0.07, 0.11]) spokes.push(wrap(seaward + d));
+  spokes.sort((x, y) => x - y);
   const positions = [], index = [];
   for (let i = 0; i <= rings; i++)
-    for (let j = 0; j < radial; j++) {
-      const a = (j / radial) * Math.PI * 2;
+    for (let j = 0; j < spokes.length; j++) {
+      const a = spokes[j];
       const rb = basinR(a) - 0.2, ro = outerR(a) + 0.3;
       const r = rb + (ro - rb) * (i / rings) ** 0.9;
       positions.push(Math.cos(a) * r, height(r, a), Math.sin(a) * r);
     }
+  const n = spokes.length;
   for (let i = 0; i < rings; i++)
-    for (let j = 0; j < radial; j++) {
-      const a = i * radial + j, b = i * radial + ((j + 1) % radial), c = a + radial, d = b + radial;
+    for (let j = 0; j < n; j++) {
+      const a = i * n + j, b = i * n + ((j + 1) % n), c = a + n, d = b + n;
       index.push(a, b, c, b, d, c);
     }
   const shelfGeometry = new THREE.BufferGeometry();
@@ -505,7 +562,7 @@ export function buildPool(p, materials, { light = false, seed = 1 } = {}) {
   fishGeometry.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0.06, 0.012, 0.006, 0, -0.012, 0.006, 0, 0, 0.012, 0.005, 0, -0.004, 0.0, 0, 0, -0.05, 0.016, 0.004, -0.065, -0.016, 0.004, -0.065], 3));
   fishGeometry.setIndex([0, 1, 3, 0, 3, 2, 0, 4, 1, 0, 2, 4, 1, 5, 3, 3, 5, 2, 1, 4, 5, 2, 5, 4, 5, 6, 7, 5, 7, 6]);
   fishGeometry.computeVertexNormals();
-  const fishMaterial = materials.paint;
+  const fishMaterial = materials.limewash;
   const fish = new THREE.InstancedMesh(fishGeometry, fishMaterial, fishCount);
   fishGeometry.setAttribute("color", new THREE.Float32BufferAttribute(new Array(8).fill(0).flatMap(() => [0.34, 0.3, 0.2]), 3));
   fish.frustumCulled = false;
@@ -515,10 +572,10 @@ export function buildPool(p, materials, { light = false, seed = 1 } = {}) {
   const o = new THREE.Object3D();
 
   const near = new THREE.Group();
-  near.add(staticMesh(merge(stone), materials.stone), staticMesh(merge(life), materials.paint, { cast: false }), fish);
+  near.add(staticMesh(merge(stone), materials.rubble), staticMesh(merge(life), materials.limewash, { cast: false }), fish);
   near.add(staticMesh(water, materials.water, { cast: false, receive: false }));
   const far = new THREE.Group();
-  far.add(staticMesh(part(shelfGeometry.clone(), { colour: srgb("#6f6962"), anchor: (q) => ground(q.x, q.z) }), materials.stone));
+  far.add(staticMesh(part(shelfGeometry.clone(), { colour: srgb("#6f6962"), anchor: (q) => ground(q.x, q.z) }), materials.rubble));
 
   const domes = [heightTile(p.x, p.z, POOL.shelf + 0.9, 0.08, (x, z) => {
     const lx = x - p.x, lz = z - p.z;
@@ -527,13 +584,18 @@ export function buildPool(p, materials, { light = false, seed = 1 } = {}) {
     return height(r, a);
   })];
   let last = 0;
-  return {
+  return prop({
     // solid: culled where the fog has the shelf (it popped at 70 m).
-    near, far, farDistance: 30, cullDistance: 115,
-    obstacles: { trunks: [], domes },
+    lod: { near, far, farDistance: 30, cullDistance: 115 },
     // solid: the camera keeps above the pool's still water (it slid under
     // the surface and saw it as a flat green board).
-    blockers: [cylinder(p.x, p.z, POOL.basin + 0.15, floor - 0.3, level + 0.05, { body: false })],
+    surfaces: { tiles: domes, solids: [cylinder(p.x, p.z, POOL.basin + 0.15, floor - 0.3, level + 0.05, { body: false })] },
+    affordances: (() => {
+      // The rim on the landward side, looking into the water: where a cat
+      // sits still and the anemones and klipfish come back.
+      const a = seaward + Math.PI, r = basinR(a) + 0.35;
+      return [{ id: "pool-rim", kind: "sit-near", x: p.x + Math.cos(a) * r, y: height(r, a), z: p.z + Math.sin(a) * r, r: 0.9, facing: Math.atan2(-Math.cos(a), -Math.sin(a)), hint: "anemones close as a paw comes near" }];
+    })(),
     update({ time, eye, pose }) {
       if (!eye || Math.hypot(eye[0] - p.x, eye[2] - p.z) > 22) return;
       const dt = Math.min(0.1, Math.max(0, time - last));
@@ -561,7 +623,7 @@ export function buildPool(p, materials, { light = false, seed = 1 } = {}) {
       }
       fish.instanceMatrix.needsUpdate = true;
     },
-  };
+  });
 }
 
 // land-magic: a hurricane lantern like the boat's (a glass globe in a wire

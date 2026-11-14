@@ -3,7 +3,7 @@ import { seededRandom } from "./random.js";
 import { islandPoint, shoreDistance, ISLAND } from "./terrain.js";
 import {
   sculpt, ellipsoid, capsule, animalMaterial, animalMesh, DEFORM_GLSL, placeInstance, formGeometry, herdBounds,
-  surfaceOf, domeHeight, wrap, clamp, smooth, turnToward,
+  surfaceOf, domeHeight, wrap, clamp, smooth, turnToward, WORLD_SCALE,
 } from "./animal-forms.js";
 
 // Cape fur seals hauled out on a boulder at the waterline: they loll in the
@@ -243,7 +243,7 @@ export function createSeals(group, { seed, domes, cluster, light = false, blobs 
       gaitAmp: 0,
       scull: 0,
       wet: player ? 1 : 0.3 * random(),
-      size: player ? 0.7 : 0.88 + random() * 0.24,
+      size: (player ? 0.7 : 0.88 + random() * 0.24) * WORLD_SCALE, // 1.5 m model → 2.1 m: life size at the island's scale
       breath: random() * 6,
       vx: 0,
       vy: 0,

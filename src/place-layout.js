@@ -53,6 +53,13 @@ function pick(list, weights, random) {
   return list[list.length - 1];
 }
 
+// The keeper's cottage, in the lighthouse's frame (u seaward, v to the side).
+export const COTTAGE = { u: -1.4, v: 9.4 };
+
+// (Chosen so seed 1847, the island everyone knows, keeps its boat and pool
+// where they were.)
+const SHORE_SALT = 107;
+
 const WRECK_NAMES = ["Seaflower", "Kowie Lass", "Good Intent", "Thistle", "Maria Stella", "Albatross", "Star of Hope", "Wanderer"];
 
 // The landmarks: [{ id, title, kind, x, z, y, r, zone, … }], coast metres.
@@ -78,17 +85,33 @@ export function placesLayout(seed) {
       });
     const h = pick(eligible.slice(0, 3), [0.55, 0.3, 0.15].slice(0, Math.min(3, eligible.length)), random);
     const theta = h.theta + (random() - 0.5) * 0.03;
-    const inland = 8.5;
+    // On the first level-ish ground above the shore: the headlands climb
+    // steeply from the beach, and every metre further back is a taller
+    // cut and fill for the pad the tower stands on (place-lighthouse.js).
+    const inland = 6.5;
     const { x, z } = islandPoint(theta, inland);
     // Faces the sea: the door and the keeper's cottage are on the lee side.
     const seaward = Math.atan2(Math.cos(theta), Math.sin(theta));
-    // The compound runs inland from the tower: the keeper's cottage behind it.
-    const bx = x - Math.sin(seaward) * 6.5 + Math.cos(seaward) * 4.6;
-    const bz = z - Math.cos(seaward) * 6.5 - Math.sin(seaward) * 4.6;
+    const fx = Math.sin(seaward), fz = Math.cos(seaward), rx = Math.cos(seaward), rz = -Math.sin(seaward);
+    // The keeper's cottage stands beside the tower along the contour (behind
+    // it, up the slope, it needed a two-metre podium), on whichever side
+    // the ground is more nearly level.
+    const spread = (side) => {
+      let lo = Infinity, hi = -Infinity;
+      for (let i = -3; i <= 3; i++) for (let j = -3; j <= 3; j++) {
+        const u = COTTAGE.u + (i / 3) * 2.4, v = side * COTTAGE.v + (j / 3) * 3.8;
+        const h = terrainHeight(x + u * fx + v * rx, z + u * fz + v * rz);
+        lo = Math.min(lo, h); hi = Math.max(hi, h);
+      }
+      return hi - lo;
+    };
+    const side = spread(1) <= spread(-1) ? 1 : -1;
+    const bx = x + COTTAGE.u * fx + side * COTTAGE.v * rx;
+    const bz = z + COTTAGE.u * fz + side * COTTAGE.v * rz;
     places.push({
       id: "lighthouse", title: "The lighthouse on the point", kind: "lighthouse",
-      x, z, y: terrainHeight(x, z), r: 10, theta, inland, facing: seaward,
-      zone: { ax: x, az: z, bx, bz, clear: 9.5, bare: 7.5 },
+      x, z, y: terrainHeight(x, z), r: 10, theta, inland, facing: seaward, side,
+      zone: { ax: x, az: z, bx, bz, clear: 7, bare: 5.5 },
     });
   }
 
@@ -123,59 +146,68 @@ export function placesLayout(seed) {
     });
   }
 
-  // The wreck: on a beach across the island from the light, lying across
-  // the swash with its bow driven up the sand.
+  // The wreck: the landward bones of a coaster on a beach across the island
+  // from the light, wholly above the tide line (the sea has taken the rest),
+  // its bow driven up the sand.
   {
     const light = places[0];
     let wreck = null;
     for (let i = 0; i < 40 && !wreck; i++) {
       const theta = light.theta + Math.PI + (random() - 0.5) * (1.2 + i * 0.05);
-      const centre = islandPoint(theta, 1.6);
+      const centre = islandPoint(theta, 4.8);
       if (!farFrom(centre.x, centre.z, 32)) continue;
-      // Shore tangent, then turned 20–45° so the bow points up the beach.
-      const along = Math.atan2(-Math.sin(theta), Math.cos(theta));
-      const turn = (0.35 + random() * 0.4) * (random() < 0.5 ? -1 : 1);
+      // Shore tangent, then turned 17–34° so the bow points up the beach.
+      // The shore's own normal (the radius is not: the shore winds), from
+      // the gradient of the shore distance.
+      const turn = (0.3 + random() * 0.3) * (random() < 0.5 ? -1 : 1);
+      const gx = shoreDistance(centre.x + 0.5, centre.z) - shoreDistance(centre.x - 0.5, centre.z);
+      const gz = shoreDistance(centre.x, centre.z + 0.5) - shoreDistance(centre.x, centre.z - 0.5);
+      const gl = Math.hypot(gx, gz) || 1;
+      const nx = gx / gl, nz = gz / gl; // inland
       // Heading in the coast frame: (sin h, cos h).
-      const tx = Math.cos(along), tz = Math.sin(along);
-      const nx = -Math.cos(theta), nz = -Math.sin(theta); // inland
+      const tx = -nz, tz = nx;
       const c = Math.cos(Math.abs(turn)), s = Math.sin(Math.abs(turn));
       let dx = tx * c + nx * s, dz = tz * c + nz * s;
       if (turn < 0) { dx = -tx * c + nx * s; dz = -tz * c + nz * s; }
-      const half = 8.5;
+      const half = 4.5;
       const bow = { x: centre.x + dx * half, z: centre.z + dz * half };
       const stern = { x: centre.x - dx * half, z: centre.z - dz * half };
       wreck = {
         id: "wreck", title: `Wreck of the ${WRECK_NAMES[Math.floor(random() * WRECK_NAMES.length)]}`, kind: "wreck",
         x: centre.x, z: centre.z, y: terrainHeight(centre.x, centre.z), r: 10, theta,
         heading: Math.atan2(dx, dz), bow, stern, list: (random() - 0.5) * 0.3 + (turn > 0 ? 0.12 : -0.12),
-        zone: { ax: bow.x, az: bow.z, bx: stern.x, bz: stern.z, clear: 4.8, bare: 4.2 },
+        zone: { ax: bow.x, az: bow.z, bx: stern.x, bz: stern.z, clear: 7.2, bare: 6.4 },
       };
     }
     places.push(wreck);
   }
 
+  // The shore places draw from their own stream, so that moving or
+  // reworking a landmark above does not move the boat and the pool.
+  const shore = seededRandom(((seed ^ SHORE_SALT) >>> 0) || 1);
   // The fisherman's boat: drawn up in a cove above the tide line.
   {
-    const order = coves.map((c) => ({ ...c, key: random() })).sort((a, b) => a.key - b.key);
+    const order = coves.map((c) => ({ ...c, key: shore() })).sort((a, b) => a.key - b.key);
     let boat = null;
     for (const c of order) {
-      const theta = c.theta + (random() - 0.5) * 0.04;
+      const theta = c.theta + (shore() - 0.5) * 0.04;
       const p = islandPoint(theta, 6.5);
       if (!farFrom(p.x, p.z, 30)) continue;
       boat = {
         id: "boat", title: "The fisherman's boat", kind: "boat",
         x: p.x, z: p.z, y: terrainHeight(p.x, p.z), r: 6, theta,
         // Hauled up stern first, the bow toward the sea it came out of.
-        facing: Math.atan2(Math.cos(theta), Math.sin(theta)) + (random() - 0.5) * 0.6,
+        facing: Math.atan2(Math.cos(theta), Math.sin(theta)) + (shore() - 0.5) * 0.6,
         zone: circle(p.x, p.z, 5.5, 4.2),
+        lane: launchLane(p.x, p.z),
       };
       break;
     }
     if (!boat) {
-      const theta = random() * TAU;
+      const theta = shore() * TAU;
       const p = islandPoint(theta, 6.5);
       boat = { id: "boat", title: "The fisherman's boat", kind: "boat", x: p.x, z: p.z, y: terrainHeight(p.x, p.z), r: 6, theta,
-        facing: Math.atan2(Math.cos(theta), Math.sin(theta)), zone: circle(p.x, p.z, 5.5, 4.2) };
+        facing: Math.atan2(Math.cos(theta), Math.sin(theta)), zone: circle(p.x, p.z, 5.5, 4.2), lane: launchLane(p.x, p.z) };
     }
     places.push(boat);
   }
@@ -185,12 +217,12 @@ export function placesLayout(seed) {
   {
     let pool = null;
     for (let i = 0; i < 80 && !pool; i++) {
-      const theta = random() * TAU;
+      const theta = shore() * TAU;
       const p = islandPoint(theta, 1.4);
       if (!farFrom(p.x, p.z, 28 - Math.min(10, i * 0.2))) continue;
       pool = {
         id: "pool", title: "The rock pool", kind: "pool",
-        x: p.x, z: p.z, y: terrainHeight(p.x, p.z), r: 4.5, theta, facing: random() * TAU,
+        x: p.x, z: p.z, y: terrainHeight(p.x, p.z), r: 4.5, theta, facing: shore() * TAU,
         zone: circle(p.x, p.z, 4.6, 4.2),
       };
     }
@@ -199,18 +231,26 @@ export function placesLayout(seed) {
   return places;
 }
 
+// The boat's launch lane: no boulder between its logs and open water, out
+// along the island's radius (where boat-dynamics.js findMooring looks).
+function launchLane(x, z) {
+  const a = Math.atan2(z - ISLAND.z, x - ISLAND.x);
+  return { ax: x, az: z, bx: x + Math.cos(a) * 24, bz: z + Math.sin(a) * 24, clear: 2.6, bare: 0 };
+}
+
 // Metres outside the nearest landmark's zone (negative inside). `kind`:
 // "clear" for trees, shrubs and boulders, "bare" for grass and low plants.
 export function placeClearance(layout, x, z, kind = "clear") {
   let best = Infinity;
-  for (const p of layout) {
-    const { ax, az, bx, bz } = p.zone;
-    const vx = bx - ax, vz = bz - az;
-    const l2 = vx * vx + vz * vz;
-    const t = l2 > 1e-9 ? Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / l2)) : 0;
-    const d = Math.hypot(x - ax - vx * t, z - az - vz * t) - p.zone[kind];
-    if (d < best) best = d;
-  }
+  for (const p of layout)
+    for (const zone of p.lane ? [p.zone, p.lane] : [p.zone]) {
+      const { ax, az, bx, bz } = zone;
+      const vx = bx - ax, vz = bz - az;
+      const l2 = vx * vx + vz * vz;
+      const t = l2 > 1e-9 ? Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / l2)) : 0;
+      const d = Math.hypot(x - ax - vx * t, z - az - vz * t) - zone[kind];
+      if (d < best) best = d;
+    }
   return best;
 }
 

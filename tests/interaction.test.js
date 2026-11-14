@@ -84,7 +84,10 @@ test('a cat in the lighthouse yard is never trapped against the wall', () => {
     const p = places.layout.find((q) => q.kind === 'lighthouse');
     const fx = Math.sin(p.facing), fz = Math.cos(p.facing), rx = Math.cos(p.facing), rz = -Math.sin(p.facing);
     const at = (u, v) => ({ x: p.x + u * fx + v * rx, z: p.z + u * fz + v * rz });
-    for (const [u, v] of [[-1, 6.5], [1.5, -3], [-9, -3.5], [2.5, 5]]) {
+    // The yard between tower and cottage, the open side of the tower, inland
+    // of a garden wall, and on the beach in front of the stoep.
+    const s = p.side ?? 1;
+    for (const [u, v] of [[-0.6, 4.6 * s], [1.6, -4.6 * s], [-5.6, 3.2 * s], [3.6, 9.4 * s]]) {
       for (let k = 0; k < 8; k++) {
         // Pressed on at the wall (into a corner, it may stop there), then
         // the other way and to each side: it must always get away.
