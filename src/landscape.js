@@ -165,6 +165,12 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   sun.shadow.normalBias = 0.02;
   sun.shadow.bias = -0.0003;
   sun.target.position.set(23, 0, -35);
+  // perf: the cat's shadow pass (cat.js) renders this scene with a camera
+  // on its own layer (3). Seeing no light there, three bumped its light
+  // state twice a frame, which re-resolved every lit material's program
+  // (parameters and cache key, ~70 materials) in the main pass. On that
+  // layer too, the sun keeps the light state the same in both passes.
+  sun.layers.enable(3);
   scene.add(sun, sun.target);
   let previousLighting = "";
   // shadow: the sun's map is refreshed a slice of its casters per frame
@@ -175,10 +181,12 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   // a teleport) or the first frame renders it at once.
   const drawShadows = renderer.shadowMap.render.bind(renderer.shadowMap);
   renderer.shadowMap.render = (lights, target, eye) => {
-    if (target !== scene || !shadows.pending) return drawShadows(lights, target, eye);
+    // The cat's own shadow pass renders this scene too: a slice belongs to
+    // the frame's main render only, or two run in one frame.
+    if (target !== scene || !shadows.pending || shadows.catPass) return drawShadows(lights, target, eye);
     renderShadowSlice(() => drawShadows(lights, target, eye));
   };
-  const shadows = { key: "", anchor: null, pending: false, again: false, jump: false, slice: 0, count: 1, casters: [], cast: [], back: null, light: new THREE.Vector3(), target: new THREE.Vector3(), centre: [0, 0], matrix: new THREE.Matrix4() };
+  const shadows = { key: "", anchor: null, pending: false, again: false, jump: false, catPass: false, slice: 0, count: 1, casters: [], cast: [], back: null, light: new THREE.Vector3(), target: new THREE.Vector3(), centre: [0, 0], matrix: new THREE.Matrix4() };
   let environmentKey = "";
   let environmentTime = -Infinity;
   // Horizon haze toward and away from the sun, unexposed; see updateLighting.
@@ -203,6 +211,18 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   const lookTarget = new THREE.Vector3();
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
+
+  // perf: frozen matrices. The scene root and the island group never move,
+  // nor do the vegetation chunks or anything else flagged
+  // `userData.static`: their matrices are composed once, and the per-frame
+  // world update stops at each of them instead of re-composing and walking
+  // thousands of objects (three re-composes every auto-updating matrix,
+  // and a parent that did forces its whole subtree). Moving things (the
+  // cat, animals, the boat, the wisp) keep updating as before, under a
+  // parent whose world matrix simply no longer changes.
+  for (const chunk of land.userData.lodChunks ?? []) for (const mesh of chunk.meshes) if (mesh) mesh.userData.static = true;
+  const frozen = freezeStatic(scene, land);
+  if (perf) canvas.dataset.frozen = String(frozen);
 
   return {
     // `?perf` QA: lets the console toggle scene parts and time the mesh
@@ -401,7 +421,8 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       });
       profiler.render(() => {
         renderer.info.reset();
-        cat.renderShadow(renderer, scene);
+        shadows.catPass = true;
+        try { cat.renderShadow(renderer, scene); } finally { shadows.catPass = false; }
         // Islands kilometres out, then the near scene over them with a
         // fresh depth buffer: each gets the whole depth precision. Both
         // into the multisampled buffer (msaa), resolved onto the canvas;
@@ -776,6 +797,37 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     envTarget = pmrem.fromEquirectangular(envSource, previous ?? null);
     scene.environment = envTarget.texture;
   }
+}
+
+// Freezes the roots' own matrices, and every object under them flagged
+// `userData.static` with its whole subtree: composed now, never again, and
+// skipped by the per-frame world update unless something marks it
+// (`matrixWorldNeedsUpdate`) or a frozen root is moved and updated by hand.
+// Returns how many objects were frozen.
+export function freezeStatic(...roots) {
+  let count = 0;
+  const freeze = (object) => {
+    object.traverse((o) => {
+      o.updateMatrix();
+      o.matrixAutoUpdate = false;
+      count++;
+    });
+    object.updateMatrixWorld = frozenMatrixWorld;
+  };
+  for (const root of roots) {
+    root.updateMatrix();
+    root.matrixAutoUpdate = false;
+    root.updateMatrixWorld(true);
+  }
+  for (const root of roots)
+    root.traverse((o) => {
+      if (o.userData.static && o.updateMatrixWorld !== frozenMatrixWorld) freeze(o);
+    });
+  return count;
+}
+
+function frozenMatrixWorld(force) {
+  if (this.matrixWorldNeedsUpdate || force) THREE.Object3D.prototype.updateMatrixWorld.call(this, true);
 }
 
 // msaa: a multisampled colour + depth/stencil framebuffer that three renders

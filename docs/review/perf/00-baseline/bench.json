@@ -1,0 +1,5248 @@
+{
+ "env": {
+  "commit": "7ac1666",
+  "date": "2026-11-14T18:03:36.681Z",
+  "load": "{ 6.84 8.04 8.76 }",
+  "size": [
+   1440,
+   900
+  ],
+  "dpr": 2,
+  "seed": 1847,
+  "headed": false
+ },
+ "results": [
+  {
+   "view": "home",
+   "minutes": 750,
+   "frame": {
+    "p50": 24.3,
+    "p95": 32,
+    "n": 124
+   },
+   "bench": {
+    "median": 27.92,
+    "iqr": 5.44,
+    "rejected": true,
+    "rounds": [
+     23.76,
+     25.64,
+     29.62,
+     25.3,
+     24.46,
+     25.66,
+     30.92,
+     29.86,
+     30.78,
+     25.34,
+     27.92,
+     35.76,
+     31.56
+    ]
+   },
+   "triangles": 1113520,
+   "calls": 267,
+   "geometries": 955,
+   "textures": 14,
+   "programs": 65,
+   "shadowPending": false,
+   "refresh": {
+    "triangles": 1346909,
+    "calls": 315,
+    "frames": 3
+   },
+   "alloc": {
+    "bytesPerFrame": 354315,
+    "top": [
+     [
+      "terrainHeight terrain.js:34",
+      47529
+     ],
+     [
+      "getParameters chunk-C24IFEOB.js:36175",
+      40478
+     ],
+     [
+      "packDue instance-lod.js:89",
+      21782
+     ],
+     [
+      "noise2 terrain.js:51",
+      18010
+     ],
+     [
+      "update penguins.js:278",
+      17577
+     ],
+     [
+      "hypot :0",
+      17138
+     ],
+     [
+      "build cat.js:1057",
+      10870
+     ],
+     [
+      "painterSortStable chunk-C24IFEOB.js:36649",
+      10525
+     ],
+     [
+      "join :0",
+      8300
+     ],
+     [
+      "update surf.js:273",
+      8225
+     ],
+     [
+      "chunkRange instance-lod.js:64",
+      7372
+     ],
+     [
+      "getProgramCacheKeyParameters chunk-C24IFEOB.js:36418",
+      6557
+     ]
+    ]
+   },
+   "meshGpuMs": 44.04,
+   "sizes": {
+    "land": [
+     2160,
+     1350
+    ],
+    "sea": [
+     1549,
+     968
+    ],
+    "sky": [
+     849,
+     530
+    ],
+    "cloud": [
+     425,
+     265
+    ]
+   },
+   "magic": "asleep",
+   "governor": {
+    "final": {
+     "t": 24.3,
+     "view": "lighthouse",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    "worst": {
+     "t": 11.2,
+     "view": "milkwood",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   }
+  },
+  {
+   "view": "sea",
+   "minutes": 750,
+   "frame": {
+    "p50": 24.7,
+    "p95": 35.7,
+    "n": 107
+   },
+   "bench": {
+    "median": 13.42,
+    "iqr": 2.46,
+    "rejected": true,
+    "rounds": [
+     18.44,
+     14.96,
+     16.98,
+     17.6,
+     15.2,
+     13.1,
+     14.3,
+     12.74,
+     12.76,
+     12.64,
+     12.5,
+     13.42,
+     12.38
+    ]
+   },
+   "triangles": 453973,
+   "calls": 55,
+   "geometries": 962,
+   "textures": 14,
+   "programs": 66,
+   "shadowPending": false,
+   "refresh": {
+    "triangles": 696375,
+    "calls": 93,
+    "frames": 3
+   },
+   "alloc": {
+    "bytesPerFrame": 330794,
+    "top": [
+     [
+      "terrainHeight terrain.js:34",
+      47684
+     ],
+     [
+      "getParameters chunk-C24IFEOB.js:36175",
+      29818
+     ],
+     [
+      "packDue instance-lod.js:89",
+      22150
+     ],
+     [
+      "noise2 terrain.js:51",
+      17941
+     ],
+     [
+      "hypot :0",
+      17717
+     ],
+     [
+      "update penguins.js:278",
+      17334
+     ],
+     [
+      "build cat.js:1057",
+      11176
+     ],
+     [
+      "copyArray chunk-C24IFEOB.js:34833",
+      9601
+     ],
+     [
+      "setValueV3f chunk-C24IFEOB.js:34869",
+      8271
+     ],
+     [
+      "update surf.js:273",
+      8243
+     ],
+     [
+      "chunkRange instance-lod.js:64",
+      8037
+     ],
+     [
+      "join :0",
+      7119
+     ]
+    ]
+   },
+   "meshGpuMs": 28.81,
+   "sizes": {
+    "land": [
+     2160,
+     1350
+    ],
+    "sea": [
+     1549,
+     968
+    ],
+    "sky": [
+     849,
+     530
+    ],
+    "cloud": [
+     425,
+     265
+    ]
+   },
+   "magic": "asleep",
+   "governor": {
+    "final": {
+     "t": 24.3,
+     "view": "lighthouse",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    "worst": {
+     "t": 11.2,
+     "view": "milkwood",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   }
+  },
+  {
+   "view": "milkwood",
+   "minutes": 750,
+   "frame": {
+    "p50": 29.9,
+    "p95": 35.3,
+    "n": 59
+   },
+   "bench": {
+    "median": 29.24,
+    "iqr": 6,
+    "rejected": true,
+    "rounds": [
+     25.8,
+     23.9,
+     23.32,
+     22.18,
+     26.02,
+     29.24,
+     29.2,
+     31.8,
+     32.76,
+     29.96,
+     32.7,
+     31.82,
+     30.92
+    ]
+   },
+   "triangles": 1535681,
+   "calls": 190,
+   "geometries": 1018,
+   "textures": 14,
+   "programs": 66,
+   "shadowPending": false,
+   "refresh": {
+    "triangles": 2228247,
+    "calls": 253,
+    "frames": 3
+   },
+   "alloc": {
+    "bytesPerFrame": 376903,
+    "top": [
+     [
+      "terrainHeight terrain.js:34",
+      47451
+     ],
+     [
+      "getParameters chunk-C24IFEOB.js:36175",
+      31829
+     ],
+     [
+      "packDue instance-lod.js:89",
+      26454
+     ],
+     [
+      "hypot :0",
+      19572
+     ],
+     [
+      "update penguins.js:278",
+      18135
+     ],
+     [
+      "noise2 terrain.js:51",
+      17233
+     ],
+     [
+      "copyArray chunk-C24IFEOB.js:34833",
+      11586
+     ],
+     [
+      "chunkRange instance-lod.js:64",
+      11453
+     ],
+     [
+      "build cat.js:1057",
+      11158
+     ],
+     [
+      "setValueV3f chunk-C24IFEOB.js:34869",
+      9316
+     ],
+     [
+      "update surf.js:273",
+      8828
+     ],
+     [
+      "join :0",
+      6963
+     ]
+    ]
+   },
+   "meshGpuMs": 99.15,
+   "sizes": {
+    "land": [
+     2160,
+     1350
+    ],
+    "sea": [
+     1549,
+     968
+    ],
+    "sky": [
+     849,
+     530
+    ],
+    "cloud": [
+     425,
+     265
+    ]
+   },
+   "magic": "asleep",
+   "governor": {
+    "final": {
+     "t": 24.3,
+     "view": "lighthouse",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    "worst": {
+     "t": 11.2,
+     "view": "milkwood",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   }
+  },
+  {
+   "view": "beacon",
+   "minutes": 750,
+   "frame": {
+    "p50": 23.1,
+    "p95": 33,
+    "n": 122
+   },
+   "bench": {
+    "median": 33.92,
+    "iqr": 10.72,
+    "rejected": true,
+    "rounds": [
+     24.86,
+     37.46,
+     39.92,
+     41.04,
+     33.92,
+     25.28,
+     25.76,
+     32.88,
+     33.44,
+     29.2,
+     40.8,
+     38.78,
+     47.74
+    ]
+   },
+   "triangles": 1878543,
+   "calls": 224,
+   "geometries": 1048,
+   "textures": 14,
+   "programs": 66,
+   "shadowPending": false,
+   "refresh": {
+    "triangles": 2472373,
+    "calls": 286,
+    "frames": 3
+   },
+   "alloc": {
+    "bytesPerFrame": 391865,
+    "top": [
+     [
+      "terrainHeight terrain.js:34",
+      48893
+     ],
+     [
+      "update penguins.js:278",
+      35762
+     ],
+     [
+      "getParameters chunk-C24IFEOB.js:36175",
+      30864
+     ],
+     [
+      "packDue instance-lod.js:89",
+      24680
+     ],
+     [
+      "noise2 terrain.js:51",
+      18502
+     ],
+     [
+      "hypot :0",
+      18069
+     ],
+     [
+      "copyArray chunk-C24IFEOB.js:34833",
+      10939
+     ],
+     [
+      "build cat.js:1057",
+      10861
+     ],
+     [
+      "chunkRange instance-lod.js:64",
+      10139
+     ],
+     [
+      "update surf.js:273",
+      9418
+     ],
+     [
+      "setValueV3f chunk-C24IFEOB.js:34869",
+      8798
+     ],
+     [
+      "painterSortStable chunk-C24IFEOB.js:36649",
+      7788
+     ]
+    ]
+   },
+   "meshGpuMs": 127.17,
+   "sizes": {
+    "land": [
+     2160,
+     1350
+    ],
+    "sea": [
+     1549,
+     968
+    ],
+    "sky": [
+     849,
+     530
+    ],
+    "cloud": [
+     425,
+     265
+    ]
+   },
+   "magic": "asleep",
+   "governor": {
+    "final": {
+     "t": 24.3,
+     "view": "lighthouse",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    "worst": {
+     "t": 11.2,
+     "view": "milkwood",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   }
+  },
+  {
+   "view": "beacon-out",
+   "minutes": 750,
+   "frame": {
+    "p50": 48.6,
+    "p95": 71.6,
+    "n": 60
+   },
+   "bench": {
+    "median": 54.8,
+    "iqr": 16.68,
+    "rejected": true,
+    "rounds": [
+     70.54,
+     54.8,
+     49.32,
+     54.48,
+     58.92,
+     67.46,
+     62.88,
+     60.86,
+     64.48,
+     46.2,
+     39.96,
+     40.6,
+     34.32
+    ]
+   },
+   "triangles": 1621340,
+   "calls": 189,
+   "geometries": 1079,
+   "textures": 14,
+   "programs": 66,
+   "shadowPending": false,
+   "refresh": {
+    "triangles": 2163844,
+    "calls": 252,
+    "frames": 3
+   },
+   "alloc": {
+    "bytesPerFrame": 380021,
+    "top": [
+     [
+      "update penguins.js:278",
+      47698
+     ],
+     [
+      "terrainHeight terrain.js:34",
+      43316
+     ],
+     [
+      "getParameters chunk-C24IFEOB.js:36175",
+      30759
+     ],
+     [
+      "packDue instance-lod.js:89",
+      23923
+     ],
+     [
+      "noise2 terrain.js:51",
+      17803
+     ],
+     [
+      "hypot :0",
+      17346
+     ],
+     [
+      "build cat.js:1057",
+      11240
+     ],
+     [
+      "copyArray chunk-C24IFEOB.js:34833",
+      10904
+     ],
+     [
+      "chunkRange instance-lod.js:64",
+      9856
+     ],
+     [
+      "setValueV3f chunk-C24IFEOB.js:34869",
+      8824
+     ],
+     [
+      "update surf.js:273",
+      7808
+     ],
+     [
+      "update seals.js:281",
+      7770
+     ]
+    ]
+   },
+   "meshGpuMs": 49.15,
+   "sizes": {
+    "land": [
+     2160,
+     1350
+    ],
+    "sea": [
+     1549,
+     968
+    ],
+    "sky": [
+     849,
+     530
+    ],
+    "cloud": [
+     425,
+     265
+    ]
+   },
+   "magic": "asleep",
+   "governor": {
+    "final": {
+     "t": 24.3,
+     "view": "lighthouse",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    "worst": {
+     "t": 11.2,
+     "view": "milkwood",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   }
+  },
+  {
+   "view": "lighthouse",
+   "minutes": 750,
+   "frame": {
+    "p50": 33.2,
+    "p95": 44.8,
+    "n": 95
+   },
+   "bench": {
+    "median": 33.2,
+    "iqr": 4.08,
+    "rejected": true,
+    "rounds": [
+     26.9,
+     26.66,
+     30.2,
+     32.04,
+     35.88,
+     31.16,
+     35.34,
+     35.24,
+     33.2,
+     33.24,
+     32.46,
+     33.62,
+     36.52
+    ]
+   },
+   "triangles": 1030479,
+   "calls": 117,
+   "geometries": 1123,
+   "textures": 14,
+   "programs": 66,
+   "shadowPending": false,
+   "refresh": {
+    "triangles": 1481827,
+    "calls": 157,
+    "frames": 3
+   },
+   "alloc": {
+    "bytesPerFrame": 333518,
+    "top": [
+     [
+      "terrainHeight terrain.js:34",
+      46380
+     ],
+     [
+      "getParameters chunk-C24IFEOB.js:36175",
+      31836
+     ],
+     [
+      "packDue instance-lod.js:89",
+      23574
+     ],
+     [
+      "noise2 terrain.js:51",
+      17984
+     ],
+     [
+      "hypot :0",
+      17716
+     ],
+     [
+      "update penguins.js:278",
+      15826
+     ],
+     [
+      "build cat.js:1057",
+      11425
+     ],
+     [
+      "copyArray chunk-C24IFEOB.js:34833",
+      11155
+     ],
+     [
+      "chunkRange instance-lod.js:64",
+      9607
+     ],
+     [
+      "setValueV3f chunk-C24IFEOB.js:34869",
+      9273
+     ],
+     [
+      "update surf.js:273",
+      8424
+     ],
+     [
+      "join :0",
+      7169
+     ]
+    ]
+   },
+   "meshGpuMs": 113.56,
+   "sizes": {
+    "land": [
+     2160,
+     1350
+    ],
+    "sea": [
+     1549,
+     968
+    ],
+    "sky": [
+     849,
+     530
+    ],
+    "cloud": [
+     425,
+     265
+    ]
+   },
+   "magic": "asleep",
+   "governor": {
+    "final": {
+     "t": 24.3,
+     "view": "lighthouse",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    "worst": {
+     "t": 11.2,
+     "view": "milkwood",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   }
+  },
+  {
+   "magic": "asleep",
+   "minutes": 750,
+   "governorTrace": [
+    {
+     "t": 1,
+     "view": "home",
+     "level": 3,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1549,
+      968
+     ],
+     "sky": [
+      849,
+      530
+     ]
+    },
+    {
+     "t": 2,
+     "view": "home",
+     "level": 4,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1549,
+      968
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 3,
+     "view": "home",
+     "level": 5,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1270,
+      794
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 4,
+     "view": "home",
+     "level": 6,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 5,
+     "view": "sea",
+     "level": 7,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 6.1,
+     "view": "sea",
+     "level": 8,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 7.1,
+     "view": "sea",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 8.1,
+     "view": "sea",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 9.1,
+     "view": "milkwood",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 10.2,
+     "view": "milkwood",
+     "level": 10,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 11.2,
+     "view": "milkwood",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 12.2,
+     "view": "milkwood",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 13.2,
+     "view": "beacon",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 14.2,
+     "view": "beacon",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 15.2,
+     "view": "beacon",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 16.2,
+     "view": "beacon",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 17.2,
+     "view": "beacon-out",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 18.3,
+     "view": "beacon-out",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 19.3,
+     "view": "beacon-out",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 20.3,
+     "view": "beacon-out",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 21.3,
+     "view": "lighthouse",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 22.3,
+     "view": "lighthouse",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 23.3,
+     "view": "lighthouse",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 24.3,
+     "view": "lighthouse",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   ]
+  },
+  {
+   "view": "home",
+   "minutes": 1320,
+   "frame": {
+    "p50": 26.8,
+    "p95": 31.7,
+    "n": 113
+   },
+   "bench": {
+    "median": 18.74,
+    "iqr": 4.14,
+    "rejected": true,
+    "rounds": [
+     18.52,
+     18.74,
+     17.42,
+     18.58,
+     18.7,
+     17.22,
+     17.76,
+     18.84,
+     22.98,
+     22.66,
+     22.94,
+     24.84,
+     22.6
+    ]
+   },
+   "triangles": 1105945,
+   "calls": 261,
+   "geometries": 1131,
+   "textures": 14,
+   "programs": 66,
+   "shadowPending": false,
+   "refresh": {
+    "triangles": 1326279,
+    "calls": 303,
+    "frames": 3
+   },
+   "alloc": {
+    "bytesPerFrame": 325130,
+    "top": [
+     [
+      "terrainHeight terrain.js:34",
+      52329
+     ],
+     [
+      "getParameters chunk-C24IFEOB.js:36175",
+      29648
+     ],
+     [
+      "packDue instance-lod.js:89",
+      21320
+     ],
+     [
+      "noise2 terrain.js:51",
+      19944
+     ],
+     [
+      "hypot :0",
+      17320
+     ],
+     [
+      "update penguins.js:278",
+      16055
+     ],
+     [
+      "build cat.js:1057",
+      11306
+     ],
+     [
+      "painterSortStable chunk-C24IFEOB.js:36649",
+      10127
+     ],
+     [
+      "update surf.js:273",
+      8077
+     ],
+     [
+      "chunkRange instance-lod.js:64",
+      7913
+     ],
+     [
+      "join :0",
+      6934
+     ],
+     [
+      "map :0",
+      5318
+     ]
+    ]
+   },
+   "meshGpuMs": 68.68,
+   "sizes": {
+    "land": [
+     2160,
+     1350
+    ],
+    "sea": [
+     1549,
+     968
+    ],
+    "sky": [
+     849,
+     530
+    ],
+    "cloud": [
+     425,
+     265
+    ]
+   },
+   "magic": "asleep",
+   "governor": {
+    "final": {
+     "t": 24.3,
+     "view": "lighthouse",
+     "level": 10,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    "worst": {
+     "t": 12.3,
+     "view": "milkwood",
+     "level": 11,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   }
+  },
+  {
+   "view": "sea",
+   "minutes": 1320,
+   "frame": {
+    "p50": 16.7,
+    "p95": 18.4,
+    "n": 132
+   },
+   "bench": {
+    "median": 8.96,
+    "iqr": 0.94,
+    "rejected": true,
+    "rounds": [
+     12.62,
+     10.08,
+     8.66,
+     8.2,
+     8.5,
+     9.48,
+     8.96,
+     9.6,
+     8.74,
+     9.74,
+     8.94,
+     9.22,
+     8.52
+    ]
+   },
+   "triangles": 451674,
+   "calls": 49,
+   "geometries": 1131,
+   "textures": 14,
+   "programs": 66,
+   "shadowPending": false,
+   "refresh": {
+    "triangles": 671860,
+    "calls": 79,
+    "frames": 3
+   },
+   "alloc": {
+    "bytesPerFrame": 316275,
+    "top": [
+     [
+      "terrainHeight terrain.js:34",
+      53590
+     ],
+     [
+      "getParameters chunk-C24IFEOB.js:36175",
+      24399
+     ],
+     [
+      "packDue instance-lod.js:89",
+      21196
+     ],
+     [
+      "noise2 terrain.js:51",
+      21170
+     ],
+     [
+      "hypot :0",
+      16723
+     ],
+     [
+      "update penguins.js:278",
+      15689
+     ],
+     [
+      "build cat.js:1057",
+      11388
+     ],
+     [
+      "chunkRange instance-lod.js:64",
+      8365
+     ],
+     [
+      "update surf.js:273",
+      8015
+     ],
+     [
+      "copyArray chunk-C24IFEOB.js:34833",
+      7779
+     ],
+     [
+      "setValueV3f chunk-C24IFEOB.js:34869",
+      6104
+     ],
+     [
+      "join :0",
+      5894
+     ]
+    ]
+   },
+   "meshGpuMs": 24.88,
+   "sizes": {
+    "land": [
+     2160,
+     1350
+    ],
+    "sea": [
+     1549,
+     968
+    ],
+    "sky": [
+     849,
+     530
+    ],
+    "cloud": [
+     425,
+     265
+    ]
+   },
+   "magic": "asleep",
+   "governor": {
+    "final": {
+     "t": 24.3,
+     "view": "lighthouse",
+     "level": 10,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    "worst": {
+     "t": 12.3,
+     "view": "milkwood",
+     "level": 11,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   }
+  },
+  {
+   "view": "milkwood",
+   "minutes": 1320,
+   "frame": {
+    "p50": 26.8,
+    "p95": 35.7,
+    "n": 51
+   },
+   "bench": {
+    "median": 33.9,
+    "iqr": 3.54,
+    "rejected": true,
+    "rounds": [
+     33.9,
+     32.9,
+     37.9,
+     38.24,
+     33.56,
+     36.8,
+     34.56,
+     30.5,
+     29.52,
+     32.34,
+     34.54,
+     32.3,
+     35.88
+    ]
+   },
+   "triangles": 1538387,
+   "calls": 187,
+   "geometries": 1137,
+   "textures": 14,
+   "programs": 66,
+   "shadowPending": false,
+   "refresh": {
+    "triangles": 2246585,
+    "calls": 271,
+    "frames": 3
+   },
+   "alloc": {
+    "bytesPerFrame": 344421,
+    "top": [
+     [
+      "terrainHeight terrain.js:34",
+      51587
+     ],
+     [
+      "getParameters chunk-C24IFEOB.js:36175",
+      27723
+     ],
+     [
+      "packDue instance-lod.js:89",
+      26021
+     ],
+     [
+      "hypot :0",
+      19633
+     ],
+     [
+      "noise2 terrain.js:51",
+      19029
+     ],
+     [
+      "update penguins.js:278",
+      15871
+     ],
+     [
+      "chunkRange instance-lod.js:64",
+      11657
+     ],
+     [
+      "build cat.js:1057",
+      10908
+     ],
+     [
+      "copyArray chunk-C24IFEOB.js:34833",
+      10231
+     ],
+     [
+      "update surf.js:273",
+      8798
+     ],
+     [
+      "primitiveDistance blockers.js:54",
+      8167
+     ],
+     [
+      "setValueV3f chunk-C24IFEOB.js:34869",
+      7537
+     ]
+    ]
+   },
+   "meshGpuMs": 95.78,
+   "sizes": {
+    "land": [
+     2160,
+     1350
+    ],
+    "sea": [
+     1549,
+     968
+    ],
+    "sky": [
+     849,
+     530
+    ],
+    "cloud": [
+     425,
+     265
+    ]
+   },
+   "magic": "asleep",
+   "governor": {
+    "final": {
+     "t": 24.3,
+     "view": "lighthouse",
+     "level": 10,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    "worst": {
+     "t": 12.3,
+     "view": "milkwood",
+     "level": 11,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   }
+  },
+  {
+   "view": "beacon",
+   "minutes": 1320,
+   "frame": {
+    "p50": 34.7,
+    "p95": 40.5,
+    "n": 87
+   },
+   "bench": {
+    "median": 19.52,
+    "iqr": 3.32,
+    "rejected": true,
+    "rounds": [
+     18.32,
+     19.1,
+     18.96,
+     23.34,
+     22.3,
+     24.02,
+     23.42,
+     22.42,
+     19.18,
+     20,
+     19.52,
+     18.5,
+     19.26
+    ]
+   },
+   "triangles": 1880126,
+   "calls": 220,
+   "geometries": 1140,
+   "textures": 14,
+   "programs": 66,
+   "shadowPending": false,
+   "refresh": {
+    "triangles": 2496312,
+    "calls": 298,
+    "frames": 3
+   },
+   "alloc": {
+    "bytesPerFrame": 322942,
+    "top": [
+     [
+      "terrainHeight terrain.js:34",
+      53080
+     ],
+     [
+      "getParameters chunk-C24IFEOB.js:36175",
+      26528
+     ],
+     [
+      "packDue instance-lod.js:89",
+      23833
+     ],
+     [
+      "noise2 terrain.js:51",
+      20074
+     ],
+     [
+      "hypot :0",
+      17596
+     ],
+     [
+      "update penguins.js:278",
+      15947
+     ],
+     [
+      "build cat.js:1057",
+      10779
+     ],
+     [
+      "chunkRange instance-lod.js:64",
+      10699
+     ],
+     [
+      "copyArray chunk-C24IFEOB.js:34833",
+      9393
+     ],
+     [
+      "update surf.js:273",
+      9102
+     ],
+     [
+      "painterSortStable chunk-C24IFEOB.js:36649",
+      7511
+     ],
+     [
+      "setValueV3f chunk-C24IFEOB.js:34869",
+      7183
+     ]
+    ]
+   },
+   "meshGpuMs": 26.19,
+   "sizes": {
+    "land": [
+     2160,
+     1350
+    ],
+    "sea": [
+     1549,
+     968
+    ],
+    "sky": [
+     849,
+     530
+    ],
+    "cloud": [
+     425,
+     265
+    ]
+   },
+   "magic": "asleep",
+   "governor": {
+    "final": {
+     "t": 24.3,
+     "view": "lighthouse",
+     "level": 10,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    "worst": {
+     "t": 12.3,
+     "view": "milkwood",
+     "level": 11,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   }
+  },
+  {
+   "view": "beacon-out",
+   "minutes": 1320,
+   "frame": {
+    "p50": 32,
+    "p95": 41.5,
+    "n": 74
+   },
+   "bench": {
+    "median": 44.82,
+    "iqr": 11.64,
+    "rejected": true,
+    "rounds": [
+     48.44,
+     48.5,
+     50.54,
+     44.82,
+     42.82,
+     45.28,
+     46.2,
+     52.96,
+     35.8,
+     36.8,
+     36.54,
+     37.64,
+     35.14
+    ]
+   },
+   "triangles": 1622029,
+   "calls": 191,
+   "geometries": 1140,
+   "textures": 14,
+   "programs": 66,
+   "shadowPending": false,
+   "refresh": {
+    "triangles": 2174341,
+    "calls": 273,
+    "frames": 3
+   },
+   "alloc": {
+    "bytesPerFrame": 327809,
+    "top": [
+     [
+      "terrainHeight terrain.js:34",
+      50585
+     ],
+     [
+      "getParameters chunk-C24IFEOB.js:36175",
+      32764
+     ],
+     [
+      "packDue instance-lod.js:89",
+      24372
+     ],
+     [
+      "noise2 terrain.js:51",
+      19400
+     ],
+     [
+      "hypot :0",
+      17863
+     ],
+     [
+      "update penguins.js:278",
+      16039
+     ],
+     [
+      "build cat.js:1057",
+      11527
+     ],
+     [
+      "copyArray chunk-C24IFEOB.js:34833",
+      10473
+     ],
+     [
+      "chunkRange instance-lod.js:64",
+      9457
+     ],
+     [
+      "update surf.js:273",
+      7825
+     ],
+     [
+      "join :0",
+      7551
+     ],
+     [
+      "setValueV3f chunk-C24IFEOB.js:34869",
+      7036
+     ]
+    ]
+   },
+   "meshGpuMs": 52.94,
+   "sizes": {
+    "land": [
+     2160,
+     1350
+    ],
+    "sea": [
+     1549,
+     968
+    ],
+    "sky": [
+     849,
+     530
+    ],
+    "cloud": [
+     425,
+     265
+    ]
+   },
+   "magic": "asleep",
+   "governor": {
+    "final": {
+     "t": 24.3,
+     "view": "lighthouse",
+     "level": 10,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    "worst": {
+     "t": 12.3,
+     "view": "milkwood",
+     "level": 11,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   }
+  },
+  {
+   "view": "lighthouse",
+   "minutes": 1320,
+   "frame": {
+    "p50": 31,
+    "p95": 41.1,
+    "n": 94
+   },
+   "bench": {
+    "median": 26.9,
+    "iqr": 7.88,
+    "rejected": true,
+    "rounds": [
+     29.1,
+     29.62,
+     30.46,
+     30.02,
+     28.82,
+     28.26,
+     24.6,
+     26.9,
+     21.08,
+     23.26,
+     21.12,
+     21.22,
+     18.84
+    ]
+   },
+   "triangles": 1018937,
+   "calls": 113,
+   "geometries": 1141,
+   "textures": 14,
+   "programs": 66,
+   "shadowPending": false,
+   "refresh": {
+    "triangles": 1428323,
+    "calls": 185,
+    "frames": 3
+   },
+   "alloc": {
+    "bytesPerFrame": 264720,
+    "top": [
+     [
+      "terrainHeight terrain.js:34",
+      39137
+     ],
+     [
+      "getParameters chunk-C24IFEOB.js:36175",
+      27417
+     ],
+     [
+      "packDue instance-lod.js:89",
+      23557
+     ],
+     [
+      "noise2 terrain.js:51",
+      13452
+     ],
+     [
+      "hypot :0",
+      12195
+     ],
+     [
+      "build cat.js:1057",
+      11602
+     ],
+     [
+      "copyArray chunk-C24IFEOB.js:34833",
+      9739
+     ],
+     [
+      "chunkRange instance-lod.js:64",
+      9572
+     ],
+     [
+      "update surf.js:273",
+      8813
+     ],
+     [
+      "setValueV3f chunk-C24IFEOB.js:34869",
+      6778
+     ],
+     [
+      "join :0",
+      6523
+     ],
+     [
+      "getProgramCacheKeyParameters chunk-C24IFEOB.js:36418",
+      4451
+     ]
+    ]
+   },
+   "meshGpuMs": 44.65,
+   "sizes": {
+    "land": [
+     2160,
+     1350
+    ],
+    "sea": [
+     1549,
+     968
+    ],
+    "sky": [
+     849,
+     530
+    ],
+    "cloud": [
+     425,
+     265
+    ]
+   },
+   "magic": "asleep",
+   "governor": {
+    "final": {
+     "t": 24.3,
+     "view": "lighthouse",
+     "level": 10,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    "worst": {
+     "t": 12.3,
+     "view": "milkwood",
+     "level": 11,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   }
+  },
+  {
+   "magic": "asleep",
+   "minutes": 1320,
+   "governorTrace": [
+    {
+     "t": 1,
+     "view": "home",
+     "level": 0,
+     "land": [
+      2160,
+      1350
+     ],
+     "sea": [
+      1549,
+      968
+     ],
+     "sky": [
+      849,
+      530
+     ]
+    },
+    {
+     "t": 2.2,
+     "view": "home",
+     "level": 1,
+     "land": [
+      1973,
+      1233
+     ],
+     "sea": [
+      1549,
+      968
+     ],
+     "sky": [
+      849,
+      530
+     ]
+    },
+    {
+     "t": 3.2,
+     "view": "home",
+     "level": 2,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1549,
+      968
+     ],
+     "sky": [
+      849,
+      530
+     ]
+    },
+    {
+     "t": 4.2,
+     "view": "home",
+     "level": 3,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1549,
+      968
+     ],
+     "sky": [
+      849,
+      530
+     ]
+    },
+    {
+     "t": 5.2,
+     "view": "sea",
+     "level": 4,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1549,
+      968
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 6.2,
+     "view": "sea",
+     "level": 5,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1270,
+      794
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 7.2,
+     "view": "sea",
+     "level": 6,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 8.3,
+     "view": "sea",
+     "level": 7,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 9.3,
+     "view": "milkwood",
+     "level": 8,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 10.3,
+     "view": "milkwood",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 11.3,
+     "view": "milkwood",
+     "level": 10,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 12.3,
+     "view": "milkwood",
+     "level": 11,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 13.3,
+     "view": "beacon",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 14.3,
+     "view": "beacon",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 15.3,
+     "view": "beacon",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 16.3,
+     "view": "beacon",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 17.3,
+     "view": "beacon-out",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 18.3,
+     "view": "beacon-out",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 19.3,
+     "view": "beacon-out",
+     "level": 10,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 20.3,
+     "view": "beacon-out",
+     "level": 10,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 21.3,
+     "view": "lighthouse",
+     "level": 10,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 22.3,
+     "view": "lighthouse",
+     "level": 10,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 23.3,
+     "view": "lighthouse",
+     "level": 10,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 24.3,
+     "view": "lighthouse",
+     "level": 10,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   ]
+  },
+  {
+   "view": "home",
+   "minutes": 750,
+   "frame": {
+    "p50": 26.9,
+    "p95": 37.7,
+    "n": 109
+   },
+   "bench": {
+    "median": 33.72,
+    "iqr": 5.02,
+    "rejected": true,
+    "rounds": [
+     34.38,
+     36.12,
+     34.48,
+     42.38,
+     35.54,
+     36.08,
+     27.94,
+     30.52,
+     30.58,
+     31.32,
+     28.16,
+     24.52,
+     33.72
+    ]
+   },
+   "triangles": 1108184,
+   "calls": 272,
+   "geometries": 964,
+   "textures": 15,
+   "programs": 69,
+   "shadowPending": false,
+   "refresh": {
+    "triangles": 1318818,
+    "calls": 309,
+    "frames": 3
+   },
+   "alloc": {
+    "bytesPerFrame": 388632,
+    "top": [
+     [
+      "terrainHeight terrain.js:34",
+      49385
+     ],
+     [
+      "getParameters chunk-C24IFEOB.js:36175",
+      40243
+     ],
+     [
+      "packDue instance-lod.js:89",
+      21779
+     ],
+     [
+      "gather blockers.js:107",
+      21316
+     ],
+     [
+      "hypot :0",
+      20574
+     ],
+     [
+      "noise2 terrain.js:51",
+      17872
+     ],
+     [
+      "update penguins.js:278",
+      16610
+     ],
+     [
+      "build cat.js:1057",
+      10908
+     ],
+     [
+      "painterSortStable chunk-C24IFEOB.js:36649",
+      10317
+     ],
+     [
+      "join :0",
+      8752
+     ],
+     [
+      "update surf.js:273",
+      7889
+     ],
+     [
+      "chunkRange instance-lod.js:64",
+      7656
+     ]
+    ]
+   },
+   "meshGpuMs": 71.56,
+   "sizes": {
+    "land": [
+     2160,
+     1350
+    ],
+    "sea": [
+     1549,
+     968
+    ],
+    "sky": [
+     849,
+     530
+    ],
+    "cloud": [
+     425,
+     265
+    ]
+   },
+   "magic": "awake",
+   "governor": {
+    "final": {
+     "t": 24.1,
+     "view": "lighthouse",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    "worst": {
+     "t": 8,
+     "view": "sea",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   }
+  },
+  {
+   "view": "sea",
+   "minutes": 750,
+   "frame": {
+    "p50": 16.6,
+    "p95": 18.4,
+    "n": 179
+   },
+   "bench": {
+    "median": 11.48,
+    "iqr": 2.1,
+    "rejected": true,
+    "rounds": [
+     10.1,
+     8.74,
+     9.78,
+     8.56,
+     9.46,
+     11.76,
+     11.62,
+     11.88,
+     12,
+     11.48,
+     13.5,
+     12.56,
+     11.3
+    ]
+   },
+   "triangles": 462967,
+   "calls": 60,
+   "geometries": 965,
+   "textures": 15,
+   "programs": 70,
+   "shadowPending": false,
+   "refresh": {
+    "triangles": 703561,
+    "calls": 97,
+    "frames": 3
+   },
+   "alloc": {
+    "bytesPerFrame": 353050,
+    "top": [
+     [
+      "terrainHeight terrain.js:34",
+      51716
+     ],
+     [
+      "getParameters chunk-C24IFEOB.js:36175",
+      29509
+     ],
+     [
+      "packDue instance-lod.js:89",
+      22595
+     ],
+     [
+      "hypot :0",
+      20563
+     ],
+     [
+      "noise2 terrain.js:51",
+      18891
+     ],
+     [
+      "update penguins.js:278",
+      17041
+     ],
+     [
+      "build cat.js:1057",
+      11251
+     ],
+     [
+      "gather blockers.js:107",
+      10628
+     ],
+     [
+      "chunkRange instance-lod.js:64",
+      8170
+     ],
+     [
+      "update surf.js:273",
+      7822
+     ],
+     [
+      "setValueV3f chunk-C24IFEOB.js:34869",
+      7684
+     ],
+     [
+      "join :0",
+      6895
+     ]
+    ]
+   },
+   "meshGpuMs": 24.47,
+   "sizes": {
+    "land": [
+     2160,
+     1350
+    ],
+    "sea": [
+     1549,
+     968
+    ],
+    "sky": [
+     849,
+     530
+    ],
+    "cloud": [
+     425,
+     265
+    ]
+   },
+   "magic": "awake",
+   "governor": {
+    "final": {
+     "t": 24.1,
+     "view": "lighthouse",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    "worst": {
+     "t": 8,
+     "view": "sea",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   }
+  },
+  {
+   "view": "milkwood",
+   "minutes": 750,
+   "frame": {
+    "p50": 20.2,
+    "p95": 24.5,
+    "n": 64
+   },
+   "bench": {
+    "median": 19.92,
+    "iqr": 0.38,
+    "rejected": false,
+    "rounds": [
+     19.92,
+     18.8,
+     19.72,
+     21.84,
+     19.82,
+     20.64,
+     19.8,
+     19.92,
+     18.76,
+     19.98,
+     19.1,
+     20.1,
+     20.34
+    ]
+   },
+   "triangles": 1544556,
+   "calls": 198,
+   "geometries": 1023,
+   "textures": 15,
+   "programs": 70,
+   "shadowPending": false,
+   "refresh": {
+    "triangles": 2240882,
+    "calls": 263,
+    "frames": 3
+   },
+   "alloc": {
+    "bytesPerFrame": 371606,
+    "top": [
+     [
+      "terrainHeight terrain.js:34",
+      49868
+     ],
+     [
+      "getParameters chunk-C24IFEOB.js:36175",
+      31811
+     ],
+     [
+      "packDue instance-lod.js:89",
+      25491
+     ],
+     [
+      "hypot :0",
+      22422
+     ],
+     [
+      "noise2 terrain.js:51",
+      17267
+     ],
+     [
+      "update penguins.js:278",
+      16657
+     ],
+     [
+      "build cat.js:1057",
+      11362
+     ],
+     [
+      "chunkRange instance-lod.js:64",
+      10965
+     ],
+     [
+      "gather blockers.js:107",
+      10041
+     ],
+     [
+      "setValueV3f chunk-C24IFEOB.js:34869",
+      8858
+     ],
+     [
+      "update surf.js:273",
+      7705
+     ],
+     [
+      "join :0",
+      7127
+     ]
+    ]
+   },
+   "meshGpuMs": 41.15,
+   "sizes": {
+    "land": [
+     2160,
+     1350
+    ],
+    "sea": [
+     1549,
+     968
+    ],
+    "sky": [
+     849,
+     530
+    ],
+    "cloud": [
+     425,
+     265
+    ]
+   },
+   "magic": "awake",
+   "governor": {
+    "final": {
+     "t": 24.1,
+     "view": "lighthouse",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    "worst": {
+     "t": 8,
+     "view": "sea",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   }
+  },
+  {
+   "view": "beacon",
+   "minutes": 750,
+   "frame": {
+    "p50": 29.5,
+    "p95": 41.6,
+    "n": 72
+   },
+   "bench": {
+    "median": 28,
+    "iqr": 13.24,
+    "rejected": true,
+    "rounds": [
+     28,
+     30.04,
+     28.58,
+     31.56,
+     29.7,
+     28.52,
+     26.24,
+     29.64,
+     16.4,
+     15.6,
+     15.94,
+     15.34,
+     18.3
+    ]
+   },
+   "triangles": 1883045,
+   "calls": 230,
+   "geometries": 1048,
+   "textures": 15,
+   "programs": 70,
+   "shadowPending": false,
+   "refresh": {
+    "triangles": 2476589,
+    "calls": 292,
+    "frames": 3
+   },
+   "alloc": {
+    "bytesPerFrame": 377185,
+    "top": [
+     [
+      "terrainHeight terrain.js:34",
+      51793
+     ],
+     [
+      "getParameters chunk-C24IFEOB.js:36175",
+      30742
+     ],
+     [
+      "packDue instance-lod.js:89",
+      25264
+     ],
+     [
+      "hypot :0",
+      21083
+     ],
+     [
+      "noise2 terrain.js:51",
+      17932
+     ],
+     [
+      "update penguins.js:278",
+      17176
+     ],
+     [
+      "build cat.js:1057",
+      10983
+     ],
+     [
+      "chunkRange instance-lod.js:64",
+      10929
+     ],
+     [
+      "gather blockers.js:107",
+      10430
+     ],
+     [
+      "setValueV3f chunk-C24IFEOB.js:34869",
+      9316
+     ],
+     [
+      "painterSortStable chunk-C24IFEOB.js:36649",
+      7874
+     ],
+     [
+      "update surf.js:273",
+      7674
+     ]
+    ]
+   },
+   "meshGpuMs": 46.24,
+   "sizes": {
+    "land": [
+     2160,
+     1350
+    ],
+    "sea": [
+     1549,
+     968
+    ],
+    "sky": [
+     849,
+     530
+    ],
+    "cloud": [
+     425,
+     265
+    ]
+   },
+   "magic": "awake",
+   "governor": {
+    "final": {
+     "t": 24.1,
+     "view": "lighthouse",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    "worst": {
+     "t": 8,
+     "view": "sea",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   }
+  },
+  {
+   "view": "beacon-out",
+   "minutes": 750,
+   "frame": {
+    "p50": 34.2,
+    "p95": 43.8,
+    "n": 81
+   },
+   "bench": {
+    "median": 21.42,
+    "iqr": 0.96,
+    "rejected": false,
+    "rounds": [
+     17.8,
+     18.08,
+     21.18,
+     25.78,
+     21.48,
+     20.96,
+     21.92,
+     21.82,
+     20.74,
+     21.12,
+     21.42,
+     29.12,
+     33.56
+    ]
+   },
+   "triangles": 1618821,
+   "calls": 195,
+   "geometries": 1079,
+   "textures": 15,
+   "programs": 71,
+   "shadowPending": false,
+   "refresh": {
+    "triangles": 2140890,
+    "calls": 261,
+    "frames": 3
+   },
+   "alloc": {
+    "bytesPerFrame": 354668,
+    "top": [
+     [
+      "terrainHeight terrain.js:34",
+      47598
+     ],
+     [
+      "getParameters chunk-C24IFEOB.js:36175",
+      30786
+     ],
+     [
+      "packDue instance-lod.js:89",
+      25166
+     ],
+     [
+      "hypot :0",
+      19996
+     ],
+     [
+      "noise2 terrain.js:51",
+      18088
+     ],
+     [
+      "update penguins.js:278",
+      16936
+     ],
+     [
+      "build cat.js:1057",
+      11519
+     ],
+     [
+      "chunkRange instance-lod.js:64",
+      10379
+     ],
+     [
+      "gather blockers.js:107",
+      10222
+     ],
+     [
+      "setValueV3f chunk-C24IFEOB.js:34869",
+      8694
+     ],
+     [
+      "update surf.js:273",
+      7779
+     ],
+     [
+      "join :0",
+      7358
+     ]
+    ]
+   },
+   "meshGpuMs": 47.97,
+   "sizes": {
+    "land": [
+     2160,
+     1350
+    ],
+    "sea": [
+     1549,
+     968
+    ],
+    "sky": [
+     849,
+     530
+    ],
+    "cloud": [
+     425,
+     265
+    ]
+   },
+   "magic": "awake",
+   "governor": {
+    "final": {
+     "t": 24.1,
+     "view": "lighthouse",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    "worst": {
+     "t": 8,
+     "view": "sea",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   }
+  },
+  {
+   "view": "lighthouse",
+   "minutes": 750,
+   "frame": {
+    "p50": 32.6,
+    "p95": 47.1,
+    "n": 77
+   },
+   "bench": {
+    "median": 28.22,
+    "iqr": 2.46,
+    "rejected": false,
+    "rounds": [
+     31.16,
+     28.8,
+     29.76,
+     28.22,
+     26.58,
+     29.04,
+     27.08,
+     27.64,
+     24.94,
+     24.8,
+     25.3,
+     29.44,
+     28.54
+    ]
+   },
+   "triangles": 1023823,
+   "calls": 122,
+   "geometries": 1121,
+   "textures": 15,
+   "programs": 71,
+   "shadowPending": false,
+   "refresh": {
+    "triangles": 1488439,
+    "calls": 162,
+    "frames": 3
+   },
+   "alloc": {
+    "bytesPerFrame": 302885,
+    "top": [
+     [
+      "terrainHeight terrain.js:34",
+      35787
+     ],
+     [
+      "getParameters chunk-C24IFEOB.js:36175",
+      31873
+     ],
+     [
+      "packDue instance-lod.js:89",
+      23010
+     ],
+     [
+      "hypot :0",
+      14798
+     ],
+     [
+      "noise2 terrain.js:51",
+      12528
+     ],
+     [
+      "build cat.js:1057",
+      11816
+     ],
+     [
+      "gather blockers.js:107",
+      10214
+     ],
+     [
+      "chunkRange instance-lod.js:64",
+      9989
+     ],
+     [
+      "setValueV3f chunk-C24IFEOB.js:34869",
+      8591
+     ],
+     [
+      "update surf.js:273",
+      7643
+     ],
+     [
+      "join :0",
+      7316
+     ],
+     [
+      "base walker.js:589",
+      6303
+     ]
+    ]
+   },
+   "meshGpuMs": 50.76,
+   "sizes": {
+    "land": [
+     2160,
+     1350
+    ],
+    "sea": [
+     1549,
+     968
+    ],
+    "sky": [
+     849,
+     530
+    ],
+    "cloud": [
+     425,
+     265
+    ]
+   },
+   "magic": "awake",
+   "governor": {
+    "final": {
+     "t": 24.1,
+     "view": "lighthouse",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    "worst": {
+     "t": 8,
+     "view": "sea",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   }
+  },
+  {
+   "magic": "awake",
+   "minutes": 750,
+   "governorTrace": [
+    {
+     "t": 1,
+     "view": "home",
+     "level": 3,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1549,
+      968
+     ],
+     "sky": [
+      849,
+      530
+     ]
+    },
+    {
+     "t": 2,
+     "view": "home",
+     "level": 4,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1549,
+      968
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 3,
+     "view": "home",
+     "level": 5,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1270,
+      794
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 4,
+     "view": "home",
+     "level": 6,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 5,
+     "view": "sea",
+     "level": 7,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 6,
+     "view": "sea",
+     "level": 7,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 7,
+     "view": "sea",
+     "level": 8,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 8,
+     "view": "sea",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 9,
+     "view": "milkwood",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 10,
+     "view": "milkwood",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 11,
+     "view": "milkwood",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 12,
+     "view": "milkwood",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 13,
+     "view": "beacon",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 14,
+     "view": "beacon",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 15,
+     "view": "beacon",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 16,
+     "view": "beacon",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 17.1,
+     "view": "beacon-out",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 18.1,
+     "view": "beacon-out",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 19.1,
+     "view": "beacon-out",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 20.1,
+     "view": "beacon-out",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 21.1,
+     "view": "lighthouse",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 22.1,
+     "view": "lighthouse",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 23.1,
+     "view": "lighthouse",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 24.1,
+     "view": "lighthouse",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   ]
+  },
+  {
+   "view": "home",
+   "minutes": 1320,
+   "frame": {
+    "p50": 31.3,
+    "p95": 37.2,
+    "n": 98
+   },
+   "bench": {
+    "median": 29.38,
+    "iqr": 5.6,
+    "rejected": true,
+    "rounds": [
+     27.44,
+     25.86,
+     26.02,
+     25.08,
+     25.32,
+     34.4,
+     29.74,
+     38.16,
+     29.38,
+     33.94,
+     31.62,
+     29.66,
+     27.92
+    ]
+   },
+   "triangles": 1106093,
+   "calls": 266,
+   "geometries": 1131,
+   "textures": 15,
+   "programs": 71,
+   "shadowPending": false,
+   "refresh": {
+    "triangles": 1326427,
+    "calls": 308,
+    "frames": 3
+   },
+   "alloc": {
+    "bytesPerFrame": 361801,
+    "top": [
+     [
+      "terrainHeight terrain.js:34",
+      56050
+     ],
+     [
+      "getParameters chunk-C24IFEOB.js:36175",
+      29642
+     ],
+     [
+      "packDue instance-lod.js:89",
+      21538
+     ],
+     [
+      "noise2 terrain.js:51",
+      21204
+     ],
+     [
+      "hypot :0",
+      20524
+     ],
+     [
+      "update penguins.js:278",
+      17716
+     ],
+     [
+      "build cat.js:1057",
+      11305
+     ],
+     [
+      "painterSortStable chunk-C24IFEOB.js:36649",
+      10749
+     ],
+     [
+      "gather blockers.js:107",
+      10620
+     ],
+     [
+      "chunkRange instance-lod.js:64",
+      7807
+     ],
+     [
+      "update surf.js:273",
+      7335
+     ],
+     [
+      "projectObject chunk-C24IFEOB.js:42152",
+      6920
+     ]
+    ]
+   },
+   "meshGpuMs": 65.88,
+   "sizes": {
+    "land": [
+     2160,
+     1350
+    ],
+    "sea": [
+     1549,
+     968
+    ],
+    "sky": [
+     849,
+     530
+    ],
+    "cloud": [
+     425,
+     265
+    ]
+   },
+   "magic": "awake",
+   "governor": {
+    "final": {
+     "t": 24.1,
+     "view": "lighthouse",
+     "level": 10,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    "worst": {
+     "t": 16,
+     "view": "beacon",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   }
+  },
+  {
+   "view": "sea",
+   "minutes": 1320,
+   "frame": {
+    "p50": 17.8,
+    "p95": 24.9,
+    "n": 159
+   },
+   "bench": {
+    "median": 9.78,
+    "iqr": 0.98,
+    "rejected": true,
+    "rounds": [
+     11.22,
+     9.3,
+     9.78,
+     9.82,
+     10.32,
+     10.54,
+     9.34,
+     9.82,
+     12.02,
+     9.1,
+     9.74,
+     9.14,
+     9.36
+    ]
+   },
+   "triangles": 452140,
+   "calls": 54,
+   "geometries": 1131,
+   "textures": 15,
+   "programs": 71,
+   "shadowPending": false,
+   "refresh": {
+    "triangles": 675162,
+    "calls": 90,
+    "frames": 3
+   },
+   "alloc": {
+    "bytesPerFrame": 330570,
+    "top": [
+     [
+      "terrainHeight terrain.js:34",
+      59443
+     ],
+     [
+      "getParameters chunk-C24IFEOB.js:36175",
+      24476
+     ],
+     [
+      "packDue instance-lod.js:89",
+      21383
+     ],
+     [
+      "noise2 terrain.js:51",
+      20972
+     ],
+     [
+      "hypot :0",
+      20678
+     ],
+     [
+      "update penguins.js:278",
+      17347
+     ],
+     [
+      "build cat.js:1057",
+      11065
+     ],
+     [
+      "gather blockers.js:107",
+      10749
+     ],
+     [
+      "chunkRange instance-lod.js:64",
+      8383
+     ],
+     [
+      "update surf.js:273",
+      7510
+     ],
+     [
+      "join :0",
+      5978
+     ],
+     [
+      "base walker.js:589",
+      5949
+     ]
+    ]
+   },
+   "meshGpuMs": 22.99,
+   "sizes": {
+    "land": [
+     2160,
+     1350
+    ],
+    "sea": [
+     1549,
+     968
+    ],
+    "sky": [
+     849,
+     530
+    ],
+    "cloud": [
+     425,
+     265
+    ]
+   },
+   "magic": "awake",
+   "governor": {
+    "final": {
+     "t": 24.1,
+     "view": "lighthouse",
+     "level": 10,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    "worst": {
+     "t": 16,
+     "view": "beacon",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   }
+  },
+  {
+   "view": "milkwood",
+   "minutes": 1320,
+   "frame": {
+    "p50": 34.9,
+    "p95": 46.7,
+    "n": 40
+   },
+   "bench": {
+    "median": 18.16,
+    "iqr": 1.98,
+    "rejected": true,
+    "rounds": [
+     17,
+     17.16,
+     16.34,
+     17.26,
+     18.66,
+     17.54,
+     18.16,
+     18.1,
+     19.22,
+     19.24,
+     25.4,
+     27.06,
+     25.74
+    ]
+   },
+   "triangles": 1533511,
+   "calls": 193,
+   "geometries": 1137,
+   "textures": 15,
+   "programs": 71,
+   "shadowPending": false,
+   "refresh": {
+    "triangles": 2245239,
+    "calls": 277,
+    "frames": 3
+   },
+   "alloc": {
+    "bytesPerFrame": 351414,
+    "top": [
+     [
+      "terrainHeight terrain.js:34",
+      55213
+     ],
+     [
+      "getParameters chunk-C24IFEOB.js:36175",
+      27444
+     ],
+     [
+      "packDue instance-lod.js:89",
+      25269
+     ],
+     [
+      "hypot :0",
+      22119
+     ],
+     [
+      "noise2 terrain.js:51",
+      20410
+     ],
+     [
+      "update penguins.js:278",
+      12391
+     ],
+     [
+      "chunkRange instance-lod.js:64",
+      11266
+     ],
+     [
+      "build cat.js:1057",
+      11149
+     ],
+     [
+      "gather blockers.js:107",
+      10663
+     ],
+     [
+      "primitiveDistance blockers.js:54",
+      8677
+     ],
+     [
+      "update surf.js:273",
+      7991
+     ],
+     [
+      "join :0",
+      6599
+     ]
+    ]
+   },
+   "meshGpuMs": 61.44,
+   "sizes": {
+    "land": [
+     2160,
+     1350
+    ],
+    "sea": [
+     1549,
+     968
+    ],
+    "sky": [
+     849,
+     530
+    ],
+    "cloud": [
+     425,
+     265
+    ]
+   },
+   "magic": "awake",
+   "governor": {
+    "final": {
+     "t": 24.1,
+     "view": "lighthouse",
+     "level": 10,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    "worst": {
+     "t": 16,
+     "view": "beacon",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   }
+  },
+  {
+   "view": "beacon",
+   "minutes": 1320,
+   "frame": {
+    "p50": 23,
+    "p95": 41.6,
+    "n": 81
+   },
+   "bench": {
+    "median": 28.54,
+    "iqr": 1.8,
+    "rejected": false,
+    "rounds": [
+     29.38,
+     27.58,
+     28.3,
+     31.18,
+     31.94,
+     33,
+     22.74,
+     24.52,
+     28.9,
+     27.92,
+     28.54,
+     29.34,
+     26.64
+    ]
+   },
+   "triangles": 1891094,
+   "calls": 226,
+   "geometries": 1139,
+   "textures": 15,
+   "programs": 71,
+   "shadowPending": false,
+   "refresh": {
+    "triangles": 2511530,
+    "calls": 305,
+    "frames": 3
+   },
+   "alloc": {
+    "bytesPerFrame": 338930,
+    "top": [
+     [
+      "terrainHeight terrain.js:34",
+      56042
+     ],
+     [
+      "getParameters chunk-C24IFEOB.js:36175",
+      26519
+     ],
+     [
+      "packDue instance-lod.js:89",
+      25012
+     ],
+     [
+      "hypot :0",
+      21041
+     ],
+     [
+      "noise2 terrain.js:51",
+      20152
+     ],
+     [
+      "update penguins.js:278",
+      12373
+     ],
+     [
+      "build cat.js:1057",
+      11092
+     ],
+     [
+      "gather blockers.js:107",
+      10913
+     ],
+     [
+      "chunkRange instance-lod.js:64",
+      10841
+     ],
+     [
+      "update surf.js:273",
+      8151
+     ],
+     [
+      "painterSortStable chunk-C24IFEOB.js:36649",
+      7727
+     ],
+     [
+      "setValueV3f chunk-C24IFEOB.js:34869",
+      6596
+     ]
+    ]
+   },
+   "meshGpuMs": 43.85,
+   "sizes": {
+    "land": [
+     2160,
+     1350
+    ],
+    "sea": [
+     1549,
+     968
+    ],
+    "sky": [
+     849,
+     530
+    ],
+    "cloud": [
+     425,
+     265
+    ]
+   },
+   "magic": "awake",
+   "governor": {
+    "final": {
+     "t": 24.1,
+     "view": "lighthouse",
+     "level": 10,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    "worst": {
+     "t": 16,
+     "view": "beacon",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   }
+  },
+  {
+   "view": "beacon-out",
+   "minutes": 1320,
+   "frame": {
+    "p50": 36.2,
+    "p95": 46.2,
+    "n": 82
+   },
+   "bench": {
+    "median": 32.52,
+    "iqr": 2.92,
+    "rejected": false,
+    "rounds": [
+     29.36,
+     25.82,
+     25.44,
+     31.94,
+     32.74,
+     33.5,
+     31.14,
+     33.62,
+     34.14,
+     30.58,
+     32.52,
+     34.02,
+     32.82
+    ]
+   },
+   "triangles": 1626197,
+   "calls": 193,
+   "geometries": 1139,
+   "textures": 15,
+   "programs": 71,
+   "shadowPending": false,
+   "refresh": {
+    "triangles": 2180391,
+    "calls": 275,
+    "frames": 3
+   },
+   "alloc": {
+    "bytesPerFrame": 347007,
+    "top": [
+     [
+      "terrainHeight terrain.js:34",
+      56180
+     ],
+     [
+      "getParameters chunk-C24IFEOB.js:36175",
+      32746
+     ],
+     [
+      "packDue instance-lod.js:89",
+      24435
+     ],
+     [
+      "noise2 terrain.js:51",
+      21161
+     ],
+     [
+      "hypot :0",
+      20160
+     ],
+     [
+      "update penguins.js:278",
+      11848
+     ],
+     [
+      "build cat.js:1057",
+      11065
+     ],
+     [
+      "gather blockers.js:107",
+      10490
+     ],
+     [
+      "chunkRange instance-lod.js:64",
+      9909
+     ],
+     [
+      "join :0",
+      7556
+     ],
+     [
+      "update surf.js:273",
+      7413
+     ],
+     [
+      "setValueV3f chunk-C24IFEOB.js:34869",
+      6743
+     ]
+    ]
+   },
+   "meshGpuMs": 47.62,
+   "sizes": {
+    "land": [
+     2160,
+     1350
+    ],
+    "sea": [
+     1549,
+     968
+    ],
+    "sky": [
+     849,
+     530
+    ],
+    "cloud": [
+     425,
+     265
+    ]
+   },
+   "magic": "awake",
+   "governor": {
+    "final": {
+     "t": 24.1,
+     "view": "lighthouse",
+     "level": 10,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    "worst": {
+     "t": 16,
+     "view": "beacon",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   }
+  },
+  {
+   "view": "lighthouse",
+   "minutes": 1320,
+   "frame": {
+    "p50": 23.6,
+    "p95": 30.4,
+    "n": 126
+   },
+   "bench": {
+    "median": 20.3,
+    "iqr": 4.02,
+    "rejected": true,
+    "rounds": [
+     20.42,
+     22.96,
+     20.3,
+     21.46,
+     22.54,
+     20.64,
+     22.2,
+     17.24,
+     17.6,
+     18.14,
+     16.42,
+     17.14,
+     17.44
+    ]
+   },
+   "triangles": 1021923,
+   "calls": 119,
+   "geometries": 1142,
+   "textures": 15,
+   "programs": 71,
+   "shadowPending": false,
+   "refresh": {
+    "triangles": 1609145,
+    "calls": 187,
+    "frames": 3
+   },
+   "alloc": {
+    "bytesPerFrame": 296116,
+    "top": [
+     [
+      "terrainHeight terrain.js:34",
+      40855
+     ],
+     [
+      "getParameters chunk-C24IFEOB.js:36175",
+      33933
+     ],
+     [
+      "packDue instance-lod.js:89",
+      23643
+     ],
+     [
+      "noise2 terrain.js:51",
+      14651
+     ],
+     [
+      "hypot :0",
+      14168
+     ],
+     [
+      "build cat.js:1057",
+      11259
+     ],
+     [
+      "gather blockers.js:107",
+      10308
+     ],
+     [
+      "chunkRange instance-lod.js:64",
+      9651
+     ],
+     [
+      "update surf.js:273",
+      7733
+     ],
+     [
+      "join :0",
+      7575
+     ],
+     [
+      "setValueV3f chunk-C24IFEOB.js:34869",
+      6769
+     ],
+     [
+      "base walker.js:589",
+      6225
+     ]
+    ]
+   },
+   "meshGpuMs": 21.95,
+   "sizes": {
+    "land": [
+     2160,
+     1350
+    ],
+    "sea": [
+     1549,
+     968
+    ],
+    "sky": [
+     849,
+     530
+    ],
+    "cloud": [
+     425,
+     265
+    ]
+   },
+   "magic": "awake",
+   "governor": {
+    "final": {
+     "t": 24.1,
+     "view": "lighthouse",
+     "level": 10,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    "worst": {
+     "t": 16,
+     "view": "beacon",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   }
+  },
+  {
+   "magic": "awake",
+   "minutes": 1320,
+   "governorTrace": [
+    {
+     "t": 1,
+     "view": "home",
+     "level": 0,
+     "land": [
+      2160,
+      1350
+     ],
+     "sea": [
+      1549,
+      968
+     ],
+     "sky": [
+      849,
+      530
+     ]
+    },
+    {
+     "t": 2,
+     "view": "home",
+     "level": 0,
+     "land": [
+      2160,
+      1350
+     ],
+     "sea": [
+      1549,
+      968
+     ],
+     "sky": [
+      849,
+      530
+     ]
+    },
+    {
+     "t": 3,
+     "view": "home",
+     "level": 1,
+     "land": [
+      1973,
+      1233
+     ],
+     "sea": [
+      1549,
+      968
+     ],
+     "sky": [
+      849,
+      530
+     ]
+    },
+    {
+     "t": 4,
+     "view": "home",
+     "level": 2,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1549,
+      968
+     ],
+     "sky": [
+      849,
+      530
+     ]
+    },
+    {
+     "t": 5,
+     "view": "sea",
+     "level": 3,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1549,
+      968
+     ],
+     "sky": [
+      849,
+      530
+     ]
+    },
+    {
+     "t": 6,
+     "view": "sea",
+     "level": 4,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1549,
+      968
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 7,
+     "view": "sea",
+     "level": 5,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1270,
+      794
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 8,
+     "view": "sea",
+     "level": 6,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 9,
+     "view": "milkwood",
+     "level": 7,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 10,
+     "view": "milkwood",
+     "level": 8,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 11,
+     "view": "milkwood",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 12,
+     "view": "milkwood",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 13,
+     "view": "beacon",
+     "level": 9,
+     "land": [
+      1762,
+      1101
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 14,
+     "view": "beacon",
+     "level": 10,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 15,
+     "view": "beacon",
+     "level": 10,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 16,
+     "view": "beacon",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 17.1,
+     "view": "beacon-out",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 18.1,
+     "view": "beacon-out",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 19.1,
+     "view": "beacon-out",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 20.1,
+     "view": "beacon-out",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 21.1,
+     "view": "lighthouse",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 22.1,
+     "view": "lighthouse",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 23.1,
+     "view": "lighthouse",
+     "level": 11,
+     "land": [
+      1498,
+      936
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    },
+    {
+     "t": 24.1,
+     "view": "lighthouse",
+     "level": 10,
+     "land": [
+      1621,
+      1013
+     ],
+     "sea": [
+      1053,
+      658
+     ],
+     "sky": [
+      636,
+      398
+     ]
+    }
+   ]
+  }
+ ]
+}

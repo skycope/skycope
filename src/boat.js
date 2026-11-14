@@ -339,6 +339,7 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
       quat.setFromEuler(euler);
       pos.set(pose.x, pose.y, pose.z);
       group.matrix.compose(pos, quat, scale);
+      group.matrixWorldNeedsUpdate = true; // the island group is frozen (landscape.js freezeStatic)
       // The lantern hangs plumb, swinging behind the boat's motion.
       const dt = Math.min(0.05, Math.max(0, time - (api.lastTime ?? time)));
       api.lastTime = time;

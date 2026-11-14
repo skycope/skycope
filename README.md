@@ -36,6 +36,18 @@ pins the date, time, place and camera for before/after captures
 of a running dev server (place, camera, time, weather, motion) and saves a
 screenshot of each.
 
+`node scripts/perf.mjs <mode> --port <dev server> --cdp <port> --out <dir>` is the
+performance protocol (modes and options at the top of the script): `bench`
+(six views, noon and night, gifts asleep and awake: frame p50/p95, a paused-rAF
+whole-frame bench, triangles, draw calls, shadow-refresh counts, bytes allocated
+per frame, the render size the budget settles on), `ab --base <ref> [--head <ref>]`
+(two snapshots in two tabs, interleaved; whole-frame and CPU ratios), `shots` and
+`diff` (deterministic stills and per-view pixel differences, for before/after
+pairs), `lifetime --minutes 15` (a fresh browser plays the quest round and round;
+GC'd heap, GL/WebGPU objects and listeners each minute) and `probe --script`.
+Add `--headed` for the idle-machine protocol; under contention trust counts and
+same-tab ratios only.
+
 `ONLY=surf,rocks` renders just those fixtures; `BENCH=1` adds per-pass throughput,
 and `BASE_WATER=<other checkout>/src/shaders/water.wgsl` benches that water shader
 against this one, interleaved in the same process (robust to a busy GPU).

@@ -104,7 +104,8 @@ export function createWhale(group, { seed, theta, light = false, spray = null })
   const shared = { time: { value: 0 } };
   const material = animalMaterial({ name: "whale", uniforms: shared, pars: WHALE_DEFORM, paint: WHALE_PAINT, roughness: 0.42, sheen: 0.18 });
   const { mesh, attrs } = animalMesh(group, geometry, material, 1, { pose: 4 });
-  const bounds = herdBounds(mesh);
+  // lod: a 400-triangle body beyond 45 m (1,700 near; it is seldom closer).
+  const bounds = herdBounds(mesh, { coarse: formGeometry("whale", { light, coarse: 400 }, whaleGeometry), far: 45 });
   const viewpoint = islandPoint(theta, 1.5);
   const whale = {
     // Where along its beat it is (radians round the island) and which way.
@@ -318,7 +319,7 @@ export function createWhale(group, { seed, theta, light = false, spray = null })
         attrs.pose.setXYZW(0, w.beat, w.arch, w.flipper, 0);
         attrs.waterline.setX(0, level);
         attrs.wet.setX(0, 1);
-        bounds.end();
+        bounds.end(eye);
         mesh.instanceMatrix.needsUpdate = true;
         attrs.pose.needsUpdate = true;
         attrs.waterline.needsUpdate = true;

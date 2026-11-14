@@ -94,17 +94,21 @@ export function groundHeight(x, z) {
   return h11 + (1 - fu) * (h01 - h11) + (1 - fv) * (h10 - h11);
 }
 
-// The ground mesh's vertex heights, computed once each on first use (the
-// walker and its camera sample groundHeight hundreds of times a frame; each
-// terrainHeight is four noise lookups and allocated as it went). Exactly
-// terrainHeight's values; off the grid, computed every time.
-const VERTS = GROUND.segments + 1;
+// perf: the ground mesh's vertex heights, computed once each on first use
+// (groundHeight runs many times a frame: the cat, the camera, every animal
+// and critter). The same terrainHeight at the same vertex, so the same
+// value; off the grid it is computed every time.
+const VERTICES = GROUND.segments + 1;
 let vertexCache = null;
 function vertexHeight(i, j, x, z) {
-  if (i < 0 || j < 0 || i >= VERTS || j >= VERTS) return terrainHeight(x, z);
-  if (!vertexCache) vertexCache = new Float64Array(VERTS * VERTS).fill(NaN);
-  const k = j * VERTS + i;
+  if (i < 0 || j < 0 || i >= VERTICES || j >= VERTICES) return terrainHeight(x, z);
+  vertexCache ??= new Float64Array(VERTICES * VERTICES).fill(NaN);
+  const k = j * VERTICES + i;
   let h = vertexCache[k];
-  if (h !== h) h = vertexCache[k] = terrainHeight(x, z);
+  if (h !== h) {
+    // One position per vertex, however the cell that asks rounds it.
+    const cell = GROUND.size / GROUND.segments;
+    h = vertexCache[k] = terrainHeight(ISLAND.x - GROUND.size / 2 + i * cell, ISLAND.z - GROUND.size / 2 + j * cell);
+  }
   return h;
 }

@@ -139,7 +139,8 @@ export function createTortoise(group, { seed, flowers, light = false, blobs = nu
   const shared = { time: { value: 0 } };
   const material = animalMaterial({ name: "tortoise", uniforms: shared, pars: TORTOISE_DEFORM, paint: TORTOISE_PAINT, roughness: 0.55, sheen: 0.3 });
   const { mesh, attrs } = animalMesh(group, geometry, material, 1, { pose: 4, pose2: 4 });
-  const bounds = herdBounds(mesh);
+  // lod: a 300-triangle body beyond 16 m (1,200 near).
+  const bounds = herdBounds(mesh, { coarse: formGeometry("tortoise", { light, coarse: 300 }, tortoiseGeometry), far: 16 });
   // Its range: the flowering fynbos nearest the cat's start, in from the
   // beach (so it is met early, on the way up from the sand).
   const patch = (flowers ?? [])
@@ -170,7 +171,7 @@ export function createTortoise(group, { seed, flowers, light = false, blobs = nu
     pois: [{ id: "tortoise", title: "Tortoise", x: start.x, z: start.z, r: 4 }],
     events,
     tortoise: t,
-    update({ dt, time, pose }) {
+    update({ dt, time, pose, eye = null }) {
       shared.time.value = time;
       const dx = t.x - pose.x;
       const dz = t.z - pose.z;
@@ -240,7 +241,7 @@ export function createTortoise(group, { seed, flowers, light = false, blobs = nu
       bounds.add(t.x, y - t.in * 0.012, t.z, 0.3);
       attrs.pose.setXYZW(0, t.in, t.yaw, t.pitch, t.gait);
       attrs.pose2.setXYZW(0, t.gaitAmp, t.chew, 0, 0);
-      bounds.end();
+      bounds.end(eye);
       mesh.instanceMatrix.needsUpdate = true;
       attrs.pose.needsUpdate = true;
       attrs.pose2.needsUpdate = true;
@@ -357,7 +358,8 @@ export function createOystercatchers(group, { seed, theta, light = false, blobs 
   const shared = { time: { value: 0 } };
   const material = animalMaterial({ name: "oystercatcher", uniforms: shared, pars: OYSTERCATCHER_DEFORM, paint: OYSTERCATCHER_PAINT, roughness: 0.55, sheen: 0.3 });
   const { mesh, attrs } = animalMesh(group, geometry, material, count, { pose: 4, pose2: 4 });
-  const bounds = herdBounds(mesh);
+  // lod: a 260-triangle body beyond 16 m (900 near).
+  const bounds = herdBounds(mesh, { coarse: formGeometry("oystercatcher", { light, coarse: 260 }, oystercatcherGeometry), far: 16 });
   // A beat of shore they work, and where they go when flushed.
   let beat = theta;
   const birds = Array.from({ length: count }, (_, i) => {
@@ -389,7 +391,7 @@ export function createOystercatchers(group, { seed, theta, light = false, blobs 
     pois: [{ id: "oystercatchers", title: "Oystercatchers", x: birds[0].x, z: birds[0].z, r: 5 }],
     events,
     birds,
-    update({ dt, time, night, pose, water }) {
+    update({ dt, time, night, pose, water, eye = null }) {
       clock += dt;
       shared.time.value = time;
       const dcPair = Math.hypot(birds[0].x - pose.x, birds[0].z - pose.z);
@@ -498,7 +500,7 @@ export function createOystercatchers(group, { seed, theta, light = false, blobs 
           best = b;
         }
       }
-      bounds.end();
+      bounds.end(eye);
       mesh.instanceMatrix.needsUpdate = true;
       attrs.pose.needsUpdate = true;
       attrs.pose2.needsUpdate = true;

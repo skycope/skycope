@@ -220,7 +220,8 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
   const shared = { time: { value: 0 } };
   const material = animalMaterial({ name: "penguin", uniforms: shared, pars: PENGUIN_DEFORM, paint: PENGUIN_PAINT, roughness: 0.62, sheen: 0.25 });
   const { mesh, attrs } = animalMesh(group, geometry, material, count, { pose: 4, pose2: 4 });
-  const bounds = herdBounds(mesh);
+  // lod: a 360-triangle body beyond 18 m (2,000 near).
+  const bounds = herdBounds(mesh, { coarse: formGeometry("penguin", { light, coarse: 360 }, penguinGeometry), far: 18 });
 
   const birds = homes.map((home, i) => ({
     i,
@@ -275,7 +276,7 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
     birds,
     centre,
     entry,
-    update({ dt, time, night, pose, water }) {
+    update({ dt, time, night, pose, water, eye = null }) {
       clock += dt;
       shared.time.value = time;
       const catD = Math.hypot(pose.x - centre.x, pose.z - centre.z);
@@ -646,7 +647,7 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
         }
       }
       if (outing && outing.party.every((b) => b.mode !== "outing")) outing = null;
-      bounds.end();
+      bounds.end(eye);
       mesh.instanceMatrix.needsUpdate = true;
       attrs.pose.needsUpdate = true;
       attrs.pose2.needsUpdate = true;
