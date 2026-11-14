@@ -5,3 +5,4 @@ node_modules/
 .claude/worktrees/
 .claude/settings.local.json
 perf-base/
+perf-head/

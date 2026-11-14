@@ -626,14 +626,15 @@ float inland = dShore( coast );
 // Metres per pixel. Grain finer than ~2 pixels is replaced by its mean, not
 // sampled: sampled, it shimmered as the camera moved.
 float px = max( fwidth( coast.x ), fwidth( coast.y ) );
-float grain = mix( dNoise( coast * 38.0 ), 0.5, smoothstep( 0.2, 0.5, px * 38.0 ) ) * 0.6
-  + mix( dNoise( coast * 90.0 ), 0.5, smoothstep( 0.2, 0.5, px * 90.0 ) ) * 0.4;
+float grain = dNoiseFade( coast * 38.0, smoothstep( 0.2, 0.5, px * 38.0 ) ) * 0.6
+  + dNoiseFade( coast * 90.0, smoothstep( 0.2, 0.5, px * 90.0 ) ) * 0.4;
 float mottled = vGroundMask.x;
 float rocky = vGroundMask.y;
 float litter = vGroundMask.z;
-// Wind ripples on dry sand, crests across the prevailing south-easter.
-float ripple = sin( dot( coast, vec2( 0.44, 0.9 ) ) * 9.0 + dNoise( coast * 0.8 ) * 6.0 );
+// Wind ripples on dry sand, crests across the prevailing south-easter
+// (only ever used scaled by \`dry\`).
 float dry = smoothstep( 1.2, 3.0, inland ) * ( 1.0 - smoothstep( 6.0, 11.0, inland ) );
+float ripple = dry > 0.0 ? sin( dot( coast, vec2( 0.44, 0.9 ) ) * 9.0 + dNoise( coast * 0.8 ) * 6.0 ) : 0.0;
 float wet = 1.0 - smoothstep( 0.1, 1.6, inland + ( mottled - 0.5 ) * 0.8 );
 diffuseColor.rgb *= 0.78 + grain * mix( 0.3, 0.08, wet ) + ( mottled - 0.5 ) * 0.35;
 diffuseColor.rgb *= 1.0 + ripple * 0.06 * dry;
@@ -649,15 +650,24 @@ if ( ripFade * dry > 0.01 ) {
   diffuseColor.rgb *= 1.0 + ( fine - 0.35 ) * 0.14 * dry * ripFade;
 }
 // The damp band above the swash: darker, a little cooler, with a soft sheen.
-float damp = smoothstep( 1.0, 1.8, inland ) * ( 1.0 - smoothstep( 2.4, 4.0, inland + ( dNoise( coast * 0.45 ) - 0.5 ) * 1.6 ) );
+// (Zero below 1 m and, whatever the noise, beyond 4.8 m.)
+float damp = inland > 1.0 && inland < 4.8
+  ? smoothstep( 1.0, 1.8, inland ) * ( 1.0 - smoothstep( 2.4, 4.0, inland + ( dNoise( coast * 0.45 ) - 0.5 ) * 1.6 ) ) : 0.0;
 diffuseColor.rgb *= mix( vec3( 1.0 ), vec3( 0.8, 0.8, 0.82 ), damp );
 // The strandline: the last high tide's line of dry kelp, shell and sea-bean
 // wrack, a ragged dark band that comes and goes along the beach.
-float strand = inland - ( 4.6 + ( dNoise( coast * 0.22 ) - 0.5 ) * 2.4 );
-float strandWrack = exp( -strand * strand * 9.0 ) * smoothstep( 0.4, 0.62, dNoise( coast * 0.35 + 21.0 ) );
+// (The line wanders 3.4–5.8 m inland; beyond 0.75 m of that band the wrack
+// is under the 0.01 it is drawn from.)
+float strandWrack = 0.0;
+if ( inland > 2.65 && inland < 6.55 ) {
+  float strand = inland - ( 4.6 + ( dNoise( coast * 0.22 ) - 0.5 ) * 2.4 );
+  strandWrack = exp( -strand * strand * 9.0 ) * smoothstep( 0.4, 0.62, dNoise( coast * 0.35 + 21.0 ) );
+}
 if ( strandWrack > 0.01 ) {
-  float bits = mix( smoothstep( 0.55, 0.75, dNoise( coast * 9.0 ) ), 0.45, smoothstep( 0.01, 0.04, px ) );
-  float shells = mix( step( 0.9, dNoise( coast * 31.0 + 5.0 ) ), 0.08, smoothstep( 0.004, 0.012, px ) );
+  float bitsFade = smoothstep( 0.01, 0.04, px );
+  float bits = bitsFade < 1.0 ? mix( smoothstep( 0.55, 0.75, dNoise( coast * 9.0 ) ), 0.45, bitsFade ) : 0.45;
+  float shellsFade = smoothstep( 0.004, 0.012, px );
+  float shells = shellsFade < 1.0 ? mix( step( 0.9, dNoise( coast * 31.0 + 5.0 ) ), 0.08, shellsFade ) : 0.08;
   diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.13, 0.1, 0.06 ), strandWrack * bits * 0.8 );
   diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.78, 0.74, 0.68 ), strandWrack * shells * 0.6 );
 }
@@ -729,7 +739,7 @@ float grassy = vGroundMask.w;
 float sward = 0.0;
 if ( grassy > 0.02 ) {
   vec2 wind = vec2( dot( coast, breezeDir ), dot( coast, vec2( -breezeDir.y, breezeDir.x ) ) );
-  float strokes = mix( dNoise( wind * vec2( 55.0, 110.0 ) ), 0.5, smoothstep( 0.2, 0.5, px * 110.0 ) );
+  float strokes = dNoiseFade( wind * vec2( 55.0, 110.0 ), smoothstep( 0.2, 0.5, px * 110.0 ) );
   float tufts = dNoise( coast * 2.7 + 7.0 );
   float cover = smoothstep( 0.1, 0.6, grassy );
   sward = cover * ( 0.5 * strokes + 0.5 * tufts );
@@ -763,10 +773,10 @@ if ( scrub > 0.02 && coverNear > 0.0 ) {
   vec3 sunW = inverseTransformDirection( sunDirView, viewMatrix );
   vec2 sunC = vec2( sunW.x, -sunW.z );
   vec2 throwC = -sunC / max( sunW.y, 0.3 ) * 0.36;
-  float c1 = mix( dNoise( coast * 4.2 + 2.0 ), 0.5, smoothstep( 0.25, 0.6, px * 4.2 ) );
-  float c2 = mix( dNoise( mat2( 0.8, -0.6, 0.6, 0.8 ) * coast * 9.5 + 9.0 ), 0.5, smoothstep( 0.25, 0.6, px * 9.5 ) );
-  float c3 = mix( dNoise( coast * 21.0 + 5.0 ), 0.5, smoothstep( 0.25, 0.6, px * 21.0 ) );
-  float c4 = mix( dNoise( coast * 47.0 + 1.0 ), 0.5, smoothstep( 0.25, 0.6, px * 47.0 ) );
+  float c1 = dNoiseFade( coast * 4.2 + 2.0, smoothstep( 0.25, 0.6, px * 4.2 ) );
+  float c2 = dNoiseFade( mat2( 0.8, -0.6, 0.6, 0.8 ) * coast * 9.5 + 9.0, smoothstep( 0.25, 0.6, px * 9.5 ) );
+  float c3 = dNoiseFade( coast * 21.0 + 5.0, smoothstep( 0.25, 0.6, px * 21.0 ) );
+  float c4 = dNoiseFade( coast * 47.0 + 1.0, smoothstep( 0.25, 0.6, px * 47.0 ) );
   // Lobes: a bush's outline bulges and bites at the scale of its clumps.
   float lobe = ( dNoise( coast * 2.2 + 17.0 ) - 0.5 ) * 0.5 + ( c1 - 0.5 ) * 0.3;
   vec2 bg = coast * 0.8;
@@ -834,10 +844,12 @@ float figCover = 0.0;
 float figRelief = 0.0;
 if ( sourfig > 0.02 && coverNear > 0.0 ) {
   // Rosettes of finger leaves with dark gaps between them.
-  float f1 = mix( smoothstep( 0.35, 0.65, dNoise( coast * 16.0 + 4.0 ) ), 0.5, smoothstep( 0.2, 0.5, px * 16.0 ) );
-  float f2 = mix( smoothstep( 0.4, 0.6, dNoise( coast * 37.0 - 2.0 ) ), 0.5, smoothstep( 0.15, 0.4, px * 37.0 ) );
+  float f1Fade = smoothstep( 0.2, 0.5, px * 16.0 );
+  float f1 = f1Fade < 1.0 ? mix( smoothstep( 0.35, 0.65, dNoise( coast * 16.0 + 4.0 ) ), 0.5, f1Fade ) : 0.5;
+  float f2Fade = smoothstep( 0.15, 0.4, px * 37.0 );
+  float f2 = f2Fade < 1.0 ? mix( smoothstep( 0.4, 0.6, dNoise( coast * 37.0 - 2.0 ) ), 0.5, f2Fade ) : 0.5;
   float fingers = f1 * 0.6 + f2 * 0.4;
-  float lobes = mix( dNoise( coast * 5.0 + 1.0 ), 0.5, smoothstep( 0.25, 0.6, px * 5.0 ) );
+  float lobes = dNoiseFade( coast * 5.0 + 1.0, smoothstep( 0.25, 0.6, px * 5.0 ) );
   float matN = dNoise( coast * 0.8 + 21.0 ) * 0.62 + dNoise( coast * 2.1 + 3.0 ) * 0.26 + lobes * 0.12;
   float figEdge = mix( 0.84, 0.66, sourfig );
   float figN = matN + ( fingers - 0.5 ) * 0.08 + ( lobes - 0.5 ) * 0.06;
@@ -1248,6 +1260,12 @@ float dNoise( vec2 p ) {
   vec2 u = f * f * ( 3.0 - 2.0 * f );
   return mix( mix( dHash( i ), dHash( i + vec2( 1.0, 0.0 ) ), u.x ),
     mix( dHash( i + vec2( 0.0, 1.0 ) ), dHash( i + vec2( 1.0, 1.0 ) ), u.x ), u.y );
+}
+// perf: noise faded to its mean (0.5) by \`fade\` (1 = averaged away) is
+// only evaluated where some of it still shows: far ground skips the octaves
+// it would have blended out anyway, with the same result.
+float dNoiseFade( vec2 p, float fade ) {
+  return fade < 1.0 ? mix( dNoise( p ), 0.5, fade ) : 0.5;
 }
 float dHash3( vec3 p ) {
   p = fract( p * 0.1031 );

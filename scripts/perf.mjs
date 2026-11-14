@@ -4,13 +4,13 @@
 //   node scripts/perf.mjs bench    [options]   six views × times × gifts: frame p50/p95,
 //                                               paused-rAF whole-frame bench, triangles,
 //                                               draw calls, memory, render sizes reached
-//   node scripts/perf.mjs ab --base <git-ref>   the same views, this tree against <ref>,
+//   node scripts/perf.mjs ab --base <ref> [--head <ref>]  the same views, this tree against <ref>,
 //                                               two tabs in one Chrome, interleaved rounds:
 //                                               per-view frame-time ratio and count deltas
 //   node scripts/perf.mjs toggle --on '<js>' --off '<js>'
 //                                               one tab, a knob flipped between rounds
 //                                               (cost attribution: hide a material, …)
-//   node scripts/perf.mjs shots    --label <name>  deterministic stills of every view
+//   node scripts/perf.mjs shots    --label <name> [--base <ref>]  deterministic stills of every view
 //                                               (reduced motion, fixed clock, moving
 //                                               animals hidden): composite JPEG + land PNG
 //   node scripts/perf.mjs diff <dirA> <dirB>     per-view pixel difference of two `shots`
@@ -493,27 +493,30 @@ async function bench() {
 
 // A detached copy of <ref>'s page and src under perf-base/, served by the same
 // dev server at /perf-base/.
-async function prepareBase(ref) {
-  const dir = join(ROOT, "perf-base");
+async function prepareBase(ref, name = "perf-base") {
+  const dir = join(ROOT, name);
   await rm(dir, { recursive: true, force: true });
   await mkdir(dir, { recursive: true });
-  execFileSync("sh", ["-c", `git archive ${ref} src index.html | tar -x -C perf-base`], { cwd: ROOT });
+  execFileSync("sh", ["-c", `git archive ${ref} src index.html | tar -x -C ${name}`], { cwd: ROOT });
   const html = await readFile(join(dir, "index.html"), "utf8");
-  await writeFile(join(dir, "index.html"), html.replace('src="/src/main.js"', 'src="/perf-base/src/main.js"'));
-  return "/perf-base/";
+  await writeFile(join(dir, "index.html"), html.replace('src="/src/main.js"', `src="/${name}/src/main.js"`));
+  return `/${name}/`;
 }
 
 async function ab() {
   const ref = opt.base;
   if (!ref) throw new Error("ab needs --base <git-ref>");
   const basePath = await prepareBase(ref);
+  // `--head <ref>`: a frozen snapshot instead of the working tree, so src
+  // can change while the A/B runs.
+  const headPath = opt.head ? await prepareBase(opt.head, "perf-head") : "/";
   const browser = await launchChrome();
   const A = await openTab(browser), B = await openTab(browser);
   const results = [];
   try {
     for (const magic of MAGIC) {
       await A.activate(); await setup(A, basePath, magic);
-      await B.activate(); await setup(B, "/", magic);
+      await B.activate(); await setup(B, headPath, magic);
       for (const minutes of TIMES) for (const view of VIEWS) {
         const counts = {};
         for (const [name, tab] of [["base", A], ["head", B]]) {
@@ -550,6 +553,7 @@ async function ab() {
   } finally {
     browser.close();
     await rm(join(ROOT, "perf-base"), { recursive: true, force: true });
+    await rm(join(ROOT, "perf-head"), { recursive: true, force: true });
   }
   const env = await environment();
   await mkdir(OUT, { recursive: true });
@@ -611,11 +615,13 @@ async function shots() {
   const label = opt.label ?? "shots";
   const dir = join(OUT, label);
   await mkdir(dir, { recursive: true });
+  // `--base <ref>`: stills of that ref (served from perf-base/), for before/after pairs.
+  const path = opt.base ? await prepareBase(opt.base) : "/";
   const browser = await launchChrome();
   const tab = await openTab(browser);
   try {
     for (const magic of MAGIC) {
-      await setup(tab, "/", magic);
+      await setup(tab, path, magic);
       for (const minutes of TIMES) for (const view of VIEWS) {
         const e = tab.evaluate;
         await tab.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] });
