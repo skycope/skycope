@@ -151,6 +151,19 @@ async function openTab(browser, { log = true } = {}) {
 
 // Runs in the page before any script: tallies GL and WebGPU object lifetimes.
 function installCounters() {
+  // No hot reload in measured tabs: editing src (or extracting a snapshot)
+  // must not reload a page mid-run. Vite's client gets a socket that never
+  // opens and never closes (a close would make it poll and reload).
+  const RealSocket = window.WebSocket;
+  window.WebSocket = function (url, protocols) {
+    if (String(url).includes(location.host)) {
+      const quiet = new EventTarget();
+      return Object.assign(quiet, { readyState: 0, send() {}, close() {}, url: String(url) });
+    }
+    return new RealSocket(url, protocols);
+  };
+  window.WebSocket.prototype = RealSocket.prototype;
+  Object.assign(window.WebSocket, { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 });
   const c = (window.__counts = { gl: {}, gpu: {} });
   const wrap = (proto, name, bucket, key, delta) => {
     const f = proto?.[name];
