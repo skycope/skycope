@@ -1,12 +1,13 @@
 // Discoveries: the gentle thread through the island. Places, creatures and
 // moments are data (`{ id, title, x, z, r, kind? }`, coast metres); the cat
 // finds one by coming within r of it, or, for a moment, by `when(context)`
-// holding for `hold` seconds. Found ids persist per seed in localStorage (the
+// holding for `hold` seconds. An animal with a place is found face to face
+// (the animal is the cat's near interest), not by walking past its home. Found ids persist per seed in localStorage (the
 // island's own shape is the same on every seed, so its places and the sky's
 // moments use the shared "island" scope instead). Nothing here touches the
 // DOM: the field-notes panel only ever sees `list()`, which never carries the
 // title of something not yet found.
-import { ISLAND, islandPoint, shoreDistance, shoreRadius, terrainHeight } from "./terrain.js";
+import { ISLAND, shoreDistance, terrainHeight } from "./terrain.js";
 
 const PREFIX = "skycope.found.";
 const CHECK_SECONDS = 0.25;
@@ -52,9 +53,11 @@ export function createDiscoveries({ seed, signal, onFind = () => {}, storage = d
         const positional = Number.isFinite(poi.x) && Number.isFinite(poi.z);
         if (!positional && typeof poi.when !== "function") continue;
         const r = Number.isFinite(poi.r) && poi.r > 0 ? poi.r : 3;
+        const faceToFace = !poi.when && positional && poi.kind === "creature";
         entries.set(poi.id, {
           poi,
           positional,
+          when: faceToFace ? (c) => Boolean(c.interest?.near && c.interest.kind && poi.id.startsWith(c.interest.kind)) : poi.when,
           r2: r * r,
           held: 0,
           found: remembered[scopeOf(poi)][poi.id] ?? null,
@@ -84,11 +87,11 @@ export function createDiscoveries({ seed, signal, onFind = () => {}, storage = d
           const dx = pose.x - poi.x;
           const dz = pose.z - poi.z;
           d2 = dx * dx + dz * dz;
-          inside = d2 < entry.r2 && (poi.above === undefined || pose.y >= poi.above);
+          inside = d2 < entry.r2;
         }
-        if (inside && poi.when) {
+        if (inside && entry.when) {
           try {
-            inside = Boolean(poi.when(ctx));
+            inside = Boolean(entry.when(ctx));
           } catch {
             inside = false;
           }
@@ -170,22 +173,12 @@ function write(storage, key, value) {
 
 // ---------------------------------------------------------------------------
 // The island's own discoveries, from things that exist without any landmark
-// module: its high ground, far shore, long point and deep cove; the biggest
-// boulder's top; the kelp; and moments of sky, weather and cat.
-// `obstacles` is landscape.obstacles (for the boulders), `swimLimit`
-// walker.SWIM_LIMIT, `home` the shore angle of the home beach.
-export function islandDiscoveries({ obstacles = null, swimLimit = 24, home = Math.atan2(0 - ISLAND.z, 6 - ISLAND.x) } = {}) {
+// module: its high ground, and moments of sky, weather and cat. (Only what
+// answers or can be seen: no names for empty stretches of shore or sea.)
+export function islandDiscoveries() {
   const pois = [];
   const hill = highestGround();
   pois.push({ id: "hilltop", title: "the hilltop", kind: "place", scope: "island", x: hill.x, z: hill.z, r: 5 });
-  const far = islandPoint(home + Math.PI, 4);
-  pois.push({ id: "far-shore", title: "the far shore", kind: "place", scope: "island", x: far.x, z: far.z, r: 9 });
-  // The headland and bay furthest round from home (local extremes of the shore curve).
-  const { point, cove } = shoreExtremes(home);
-  if (point) pois.push({ id: "long-point", title: "the long point", kind: "place", scope: "island", ...islandPoint(point, 3), r: 8 });
-  if (cove) pois.push({ id: "deep-cove", title: "the deep cove", kind: "place", scope: "island", ...islandPoint(cove, 3), r: 8 });
-  const rock = biggestBoulder(obstacles?.domes ?? []);
-  if (rock) pois.push({ id: "big-rock", title: "the top of the big rock", kind: "place", x: rock.x, z: rock.z, r: rock.r, above: rock.top - 0.25 });
 
   const sitting = (c) => c.pose.sit > 0.9;
   const asleep = (c) => c.pose.sit > 0.95 && c.pose.sleepy > 0.3;
@@ -194,7 +187,6 @@ export function islandDiscoveries({ obstacles = null, swimLimit = 24, home = Mat
   const night = (c) => (c.celestial?.scene ?? 0) > 1.6;
   const near = (kind) => (c) => c.interest?.kind === kind && c.interest.near;
   pois.push(
-    { id: "kelp", title: "out among the kelp", kind: "moment", scope: "island", hold: 2, when: (c) => c.pose.swim > 0.5 && shoreDistance(c.pose.x, c.pose.z) < -Math.min(18, swimLimit - 4) },
     { id: "sunset", title: "the sun going down", kind: "moment", scope: "island", hold: 12, when: (c) => sunAlt(c) < 2 && sunAlt(c) > -3 && (c.celestial?.sunAzimuth ?? 0) > 180 && sitting(c) },
     { id: "first-light", title: "first light", kind: "moment", scope: "island", hold: 6, when: (c) => sunAlt(c) < 3 && sunAlt(c) > -2 && (c.celestial?.sunAzimuth ?? 360) < 180 && sitting(c) },
     { id: "moonrise", title: "the moon coming up", kind: "moment", scope: "island", hold: 10, when: (c) => (c.celestial?.scene ?? 0) > 1 && moonAlt(c) > -0.5 && moonAlt(c) < 8 && (c.celestial?.moon?.[0] ?? -1) > 0 && sitting(c) },
@@ -204,7 +196,6 @@ export function islandDiscoveries({ obstacles = null, swimLimit = 24, home = Mat
     { id: "nap", title: "forty winks", kind: "moment", scope: "island", hold: 3, when: asleep },
     { id: "crab", title: "a ghost crab", kind: "creature", scope: "island", when: near("crab") },
     { id: "butterfly", title: "a butterfly", kind: "creature", scope: "island", when: near("butterfly") },
-    { id: "fireflies", title: "fireflies", kind: "creature", scope: "island", when: near("firefly") },
     { id: "gulls", title: "the gulls at the tideline", kind: "creature", scope: "island", when: near("gull") },
   );
   return pois;
@@ -224,38 +215,5 @@ function highestGround() {
       const y = terrainHeight(x, z);
       if (y > best.y) best = { x, z, y };
     }
-  return best;
-}
-
-function shoreExtremes(home) {
-  const homePoint = islandPoint(home, 3);
-  let point = null;
-  let cove = null;
-  let pointR = -Infinity;
-  let coveR = Infinity;
-  const N = 720;
-  const e = (Math.PI * 2) / N;
-  for (let i = 0; i < N; i++) {
-    const t = i * e;
-    const p = islandPoint(t, 3);
-    if (Math.hypot(p.x - homePoint.x, p.z - homePoint.z) < 60) continue;
-    const r = shoreRadius(t);
-    const isMax = r > shoreRadius(t - e) && r > shoreRadius(t + e);
-    const isMin = r < shoreRadius(t - e) && r < shoreRadius(t + e);
-    if (isMax && r > pointR) [point, pointR] = [t, r];
-    if (isMin && r < coveR) [cove, coveR] = [t, r];
-  }
-  return { point, cove };
-}
-
-function biggestBoulder(domes) {
-  let best = null;
-  for (const d of domes) {
-    if (!d?.heights?.length) continue;
-    let top = -Infinity;
-    for (const h of d.heights) if (h > top) top = h;
-    if (!Number.isFinite(top)) continue;
-    if (!best || d.r > best.r) best = { x: d.x, z: d.z, r: Math.max(0.6, d.r * 0.75), top };
-  }
   return best;
 }

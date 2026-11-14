@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import * as THREE from "three";
 import { createForest } from "../src/forest.js";
 import { createWildlife } from "../src/wildlife.js";
-import { shoreDistance, groundHeight as groundHeightAt } from "../src/terrain.js";
+import { islandPoint, shoreDistance, groundHeight as groundHeightAt } from "../src/terrain.js";
 
 // The island's animals build without WebGL (geometry is meshed in place when
 // there are no workers) and behave toward a scripted cat: they notice it,
@@ -40,7 +40,7 @@ function finiteMatrices(group) {
 
 test("every encounter has a place, and the animals build within budget", () => {
   const { wild, group } = world();
-  assert.deepEqual(wild.pois.map((p) => p.id).sort(), ["oystercatchers", "penguins", "seals", "tortoise", "whale-point"]);
+  assert.deepEqual(wild.pois.map((p) => p.id).sort(), ["oystercatchers", "penguins", "seals", "tortoise"]);
   for (const p of wild.pois) for (const v of [p.x, p.z, p.r]) assert.ok(Number.isFinite(v), p.id);
   let triangles = 0;
   group.traverse((o) => {
@@ -104,8 +104,7 @@ test("seals slide into the sea from a cat and haul out after", () => {
 test("the whale stays offshore and blows", () => {
   const { wild, pose, run, events, group } = world();
   const w = wild.whale.whale;
-  pose.x = wild.pois.find((p) => p.id === "whale-point").x;
-  pose.z = wild.pois.find((p) => p.id === "whale-point").z;
+  ({ x: pose.x, z: pose.z } = islandPoint(w.along, 1.5));
   run(240, () => assert.ok(shoreDistance(w.x, w.z) < -80, "offshore"));
   assert.ok(events.filter((e) => e.type === "blow").length >= 2, "blows");
   finiteMatrices(group);

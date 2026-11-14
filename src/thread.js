@@ -5,16 +5,14 @@
 // writes the few things it owns (the preview minutes, through `preview`).
 //
 // For other modules (via state.thread):
-//   discoveries.add(pois)        { id, title, x, z, r, kind?, scope?, when?, hold?, above? }
+//   discoveries.add(pois)        { id, title, x, z, r, kind?, scope?, when?, hold? }
 //   hear(name, { x, z, y? }, options?)  sound.play with distance and pan from the cat
 //   setSpectacles(fn)            fn() → [{ id, title?, visible 0…1, direction? [e,u,n] }]
 import { createDiscoveries, islandDiscoveries } from "./discoveries.js";
 import { createPhotoMode } from "./photo-mode.js";
 import { createArrival, createDawnLapse, createFindLine, createGiftCard, createLessons, createNotesPanel, createWatch } from "./moments.js";
 import { createJourney } from "./journey.js";
-import { KEEPSAKES } from "./magic.js";
 import { capeTime, capeMinutes } from "./astronomy.js";
-import { SWIM_LIMIT } from "./walker.js";
 
 const TICK = 0.25;
 
@@ -38,14 +36,13 @@ export function createThread({ state, signal, reduced, capture, preview, light =
     seed: state.seed,
     signal,
     onFind(found) {
-      // A keepsake's waking names it in its own ceremony.
-      if (KEEPSAKES[found.id] && journey.covers(found.id)) {
-        notes.changed();
-        return;
-      }
+      notes.changed();
+      // A line only when something answered the cat: an animal met face to
+      // face, a sky spectacle in view. Places and moments go quietly into
+      // the notes (a keepsake's waking names it in its own ceremony).
+      if (found.kind !== "creature" && found.kind !== "sky") return;
       state.sound.play("discover");
       findLine.show(`found · ${found.title}`);
-      notes.changed();
     },
   });
   const notes = createNotesPanel({
@@ -119,14 +116,14 @@ export function createThread({ state, signal, reduced, capture, preview, light =
     attach() {
       if (attached || !state.walker) return;
       attached = true;
-      discoveries.add(islandDiscoveries({ obstacles: state.landscape?.obstacles, swimLimit: SWIM_LIMIT }));
+      discoveries.add(islandDiscoveries());
       journey.attach();
       watch = createWatch({ walker: state.walker });
       lapse = createDawnLapse({
         preview,
         onStart: () => {
           watch.stop();
-          findLine.show("dreaming of dawn · a preview");
+          findLine.show("dreaming of dawn");
         },
       });
     },
