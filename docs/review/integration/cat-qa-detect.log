@@ -1,0 +1,17 @@
+chrome pid 14551
+stand: 0 failing samples
+walk: 0 failing samples
+run: 0 failing samples
+turn: 0 failing samples
+jump: 0 failing samples
+sit: 0 failing samples
+wade: 0 failing samples
+swim: 0 failing samples
+exit: 0 failing samples
+forest: 0 failing samples
+close: 0 failing samples
+ok   shadow t750: cat core 0.159 vs land sky share 0.186 (×0.85)
+ok   shadow t1090: cat core 0.455 vs land sky share 0.381 (×1.20)
+shadow: 0 failing samples
+boat: 0 failing samples
+372 samples, 0 failing
