@@ -762,6 +762,18 @@ async function startAtmosphere() {
       magicPipelines.water = sea;
     }, useFallback);
   };
+  // hitch: build the awake sky/sea pipelines and the land layer's sleeping
+  // programs in the first idle moment after the scene is up, not in the
+  // frame a gift first wakes.
+  setTimeout(() => {
+    const warm = () => {
+      if (state.gpu !== gpu || state.disposed) return;
+      wakeMagicPasses();
+      state.landscape?.prewarm?.()?.catch?.(() => {});
+    };
+    if (globalThis.requestIdleCallback) requestIdleCallback(warm, { timeout: 3000 });
+    else warm();
+  }, 4000);
   const gpuClock = clock(gpu);
   // quality: one span per WebGPU pass; their sum is the sky and sea's cost.
   const passTimer = timed ? timer(gpu) : null;
