@@ -1,222 +1,222 @@
 {
  "lighthouse-wide-750": {
-  "triangles": 1046579,
-  "drawCalls": 165,
+  "triangles": 1049164,
+  "drawCalls": 167,
   "cat": [
    118.77,
    80.47
   ]
  },
  "lighthouse-close-750": {
-  "triangles": 652333,
-  "drawCalls": 120,
+  "triangles": 650748,
+  "drawCalls": 122,
   "cat": [
    122.21,
    66.35
   ]
  },
  "cottage-close-750": {
-  "triangles": 1015987,
-  "drawCalls": 163,
+  "triangles": 1481361,
+  "drawCalls": 358,
   "cat": [
-   110.75,
-   48.8
+   122.68,
+   50.2
   ]
  },
  "wreck-wide-750": {
-  "triangles": 829619,
-  "drawCalls": 115,
+  "triangles": 829819,
+  "drawCalls": 117,
   "cat": [
    3.56,
    43.41
   ]
  },
  "wreck-close-750": {
-  "triangles": 662503,
-  "drawCalls": 88,
+  "triangles": 647768,
+  "drawCalls": 90,
   "cat": [
    -5.23,
    46.49
   ]
  },
  "wreck-cat-750": {
-  "triangles": 403357,
-  "drawCalls": 59,
+  "triangles": 1423025,
+  "drawCalls": 382,
   "cat": [
-   -6.4,
-   45
+   -8.84,
+   43.72
   ]
  },
  "milkwood-wide-750": {
-  "triangles": 2003051,
-  "drawCalls": 225,
+  "triangles": 1610290,
+  "drawCalls": 224,
   "cat": [
    42.46,
    62.72
   ]
  },
  "milkwood-close-750": {
-  "triangles": 1264181,
-  "drawCalls": 158,
+  "triangles": 1136113,
+  "drawCalls": 168,
   "cat": [
    31.95,
    70.37
   ]
  },
  "beacon-wide-750": {
-  "triangles": 1786082,
-  "drawCalls": 227,
+  "triangles": 1210664,
+  "drawCalls": 223,
   "cat": [
    67.98,
    77.99
   ]
  },
  "beacon-close-750": {
-  "triangles": 2063090,
-  "drawCalls": 266,
+  "triangles": 1535991,
+  "drawCalls": 256,
   "cat": [
    59.28,
    83.65
   ]
  },
  "boat-wide-750": {
-  "triangles": 1675390,
-  "drawCalls": 264,
+  "triangles": 1287080,
+  "drawCalls": 226,
   "cat": [
    82.63,
    45.96
   ]
  },
  "boat-close-750": {
-  "triangles": 1628241,
-  "drawCalls": 276,
+  "triangles": 989884,
+  "drawCalls": 170,
   "cat": [
    73.27,
    39.9
   ]
  },
  "pool-wide-750": {
-  "triangles": 865981,
-  "drawCalls": 138,
+  "triangles": 1139339,
+  "drawCalls": 402,
   "cat": [
    56.08,
-   125.56
+   125.55
   ]
  },
  "pool-close-750": {
-  "triangles": 901343,
-  "drawCalls": 130,
+  "triangles": 694138,
+  "drawCalls": 138,
   "cat": [
    60.76,
    124.78
   ]
  },
  "boulders-stack-750": {
-  "triangles": 2137027,
-  "drawCalls": 342,
+  "triangles": 1117213,
+  "drawCalls": 154,
   "cat": [
    47.5,
    31.5
   ]
  },
  "boulders-seal-750": {
-  "triangles": 889278,
-  "drawCalls": 219,
+  "triangles": 398618,
+  "drawCalls": 76,
   "cat": [
    76.5,
    28.5
   ]
  },
  "lighthouse-wide-1320": {
-  "triangles": 716970,
-  "drawCalls": 132,
+  "triangles": 821404,
+  "drawCalls": 170,
   "cat": [
    118.77,
    80.47
   ]
  },
  "lighthouse-close-1320": {
-  "triangles": 591131,
-  "drawCalls": 114,
+  "triangles": 550863,
+  "drawCalls": 120,
   "cat": [
    122.21,
    66.35
   ]
  },
  "cottage-close-1320": {
-  "triangles": 1007555,
-  "drawCalls": 158,
+  "triangles": 1019600,
+  "drawCalls": 313,
   "cat": [
-   110.75,
-   48.8
+   122.68,
+   50.2
   ]
  },
  "wreck-wide-1320": {
-  "triangles": 959361,
-  "drawCalls": 124,
+  "triangles": 778820,
+  "drawCalls": 128,
   "cat": [
    3.56,
    43.41
   ]
  },
  "wreck-close-1320": {
-  "triangles": 549936,
-  "drawCalls": 76,
+  "triangles": 431301,
+  "drawCalls": 83,
   "cat": [
    -5.23,
    46.49
   ]
  },
  "wreck-cat-1320": {
-  "triangles": 299576,
-  "drawCalls": 51,
+  "triangles": 1004787,
+  "drawCalls": 355,
   "cat": [
-   -6.4,
-   45
+   -8.83,
+   43.72
   ]
  },
  "milkwood-wide-1320": {
-  "triangles": 1615038,
-  "drawCalls": 219,
+  "triangles": 1612511,
+  "drawCalls": 222,
   "cat": [
    42.46,
    62.72
   ]
  },
  "milkwood-close-1320": {
-  "triangles": 1152608,
-  "drawCalls": 166,
+  "triangles": 1003885,
+  "drawCalls": 146,
   "cat": [
    31.95,
    70.37
   ]
  },
  "beacon-wide-1320": {
-  "triangles": 1281414,
-  "drawCalls": 220,
+  "triangles": 1294302,
+  "drawCalls": 216,
   "cat": [
    67.98,
    77.99
   ]
  },
  "beacon-close-1320": {
-  "triangles": 1359253,
-  "drawCalls": 224,
+  "triangles": 1597806,
+  "drawCalls": 246,
   "cat": [
    59.28,
    83.65
   ]
  },
  "boat-wide-1320": {
-  "triangles": 1277336,
-  "drawCalls": 228,
+  "triangles": 1112020,
+  "drawCalls": 221,
   "cat": [
    82.63,
    45.96
   ]
  },
  "boat-close-1320": {
-  "triangles": 1125701,
+  "triangles": 1115182,
   "drawCalls": 221,
   "cat": [
    73.27,
@@ -224,32 +224,32 @@
   ]
  },
  "pool-wide-1320": {
-  "triangles": 860402,
-  "drawCalls": 284,
+  "triangles": 698962,
+  "drawCalls": 179,
   "cat": [
    56.08,
-   125.53
+   125.44
   ]
  },
  "pool-close-1320": {
-  "triangles": 1008113,
-  "drawCalls": 356,
+  "triangles": 733886,
+  "drawCalls": 143,
   "cat": [
    60.76,
    124.78
   ]
  },
  "boulders-stack-1320": {
-  "triangles": 1880453,
-  "drawCalls": 237,
+  "triangles": 1716554,
+  "drawCalls": 328,
   "cat": [
    47.5,
    31.5
   ]
  },
  "boulders-seal-1320": {
-  "triangles": 738921,
-  "drawCalls": 170,
+  "triangles": 397384,
+  "drawCalls": 75,
   "cat": [
    76.5,
    28.5
