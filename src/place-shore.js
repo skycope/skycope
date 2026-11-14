@@ -531,6 +531,9 @@ export function buildPool(p, materials, { light = false, seed = 1 } = {}) {
     // solid: culled where the fog has the shelf (it popped at 70 m).
     near, far, farDistance: 30, cullDistance: 115,
     obstacles: { trunks: [], domes },
+    // solid: the camera keeps above the pool's still water (it slid under
+    // the surface and saw it as a flat green board).
+    blockers: [cylinder(p.x, p.z, POOL.basin + 0.15, floor - 0.3, level + 0.05, { body: false })],
     update({ time, eye, pose }) {
       if (!eye || Math.hypot(eye[0] - p.x, eye[2] - p.z) > 22) return;
       const dt = Math.min(0.1, Math.max(0, time - last));

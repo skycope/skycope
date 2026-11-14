@@ -215,7 +215,11 @@ export function buildMilkwood(p, materials, { light = false, seed = 1 } = {}) {
     // The bole narrows upward: the highest ring still reaching out to r.
     let top = -Infinity;
     for (let k = 0; k <= 40; k++) if (boleRadius(k / 40, a) >= r) top = boleY(k / 40);
-    return top > ground(lx, lz) + 0.02 ? top : -Infinity;
+    // Low root flanks are a step to stand on; higher up the bole is a wall
+    // (standing there put the cat's back inside the lowest limbs).
+    const g = ground(lx, lz);
+    if (top <= g + 0.02) return -Infinity;
+    return top - g < 0.4 ? top : g + 3;
   });
   // solid: the camera keeps out of the limbs (capsules, a couple of metres
   // each; the cat ducks under them or meets them where they rest low) and

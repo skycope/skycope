@@ -127,7 +127,7 @@ export function createBlockers(list = [], bodies = []) {
     }
     return count;
   };
-  const hit = { prim: null, nx: 0, nz: 0, top: Infinity };
+  const hit = { prim: null, nx: 0, nz: 0, top: Infinity, d: Infinity };
   const nearestGathered = (x, y, z) => {
     let best = Infinity;
     for (let n = 0; n < count; n++) {
@@ -154,6 +154,7 @@ export function createBlockers(list = [], bodies = []) {
       const d = nearestGathered(x, y, z);
       if (d >= radius) return false;
       const p = hit.prim;
+      hit.d = d;
       const e = 0.05;
       const nx = nearestGathered(x + e, y, z) - nearestGathered(x - e, y, z);
       const nz = nearestGathered(x, y, z + e) - nearestGathered(x, y, z - e);

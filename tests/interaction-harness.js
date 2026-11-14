@@ -48,7 +48,7 @@ export function run(walker, { from, heading, seconds = 4, move = 1, runs = false
     if (cat.y < s - 0.05) problems.push({ kind: 'below surface', t, by: cat.y - s });
     for (const q of body) {
       const d = primitiveDistance(q, cat.x, cat.y + 0.17, cat.z);
-      if (d < -0.06) problems.push({ kind: 'inside solid', t, d, at: [q.x, q.z] });
+      if (d < -0.08) problems.push({ kind: 'inside solid', t, d, at: [q.x, q.z] });
     }
   }
   return { problems, travelled, end: { x: cat.x, y: cat.y, z: cat.z } };

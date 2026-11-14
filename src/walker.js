@@ -374,6 +374,11 @@ export function createWalker(obstacles, sea = null, wake = null) {
       if (cat.air > 0) {
         cat.vy -= GRAVITY * dt;
         cat.y += cat.vy * dt;
+        // solid: a leap stops under a limb or a seal, not inside it.
+        if (cat.vy > 0 && solids.touches(cat.x, cat.y + 0.17, cat.z, CAT_RADIUS)) {
+          cat.y -= cat.vy * dt;
+          cat.vy = 0;
+        }
         if (cat.y <= floor && cat.vy < 0) {
           cat.y = floor;
           events.push({ type: depth > 0.03 ? "splash" : "land", speed: -cat.vy });
@@ -500,10 +505,12 @@ export function createWalker(obstacles, sea = null, wake = null) {
     if (cat.air > 0 ? rise > 0.02 : tall && rise > 0.003 && rise / run > 1.6) return false;
     if (!drift && !bodyClear(nx, nz, next - rise)) return false;
     // solid: walls, the tank, the stem and the milkwood's resting limbs.
-    if (solids.touches(nx, (cat.air > 0 ? Math.max(cat.y, next) : next) + 0.17, nz, CAT_RADIUS)) {
+    const bodyY = (cat.air > 0 ? Math.max(cat.y, next) : next) + 0.17;
+    if (solids.touches(nx, bodyY, nz, CAT_RADIUS)) {
       const h = solids.hit;
-      // Only what the step runs into: free to back away from it.
-      if ((nx - cat.x) * h.nx + (nz - cat.z) * h.nz < 0) {
+      // Only a step that goes deeper into it: free to back away or slide
+      // along (a step along a curved limb crept into it by the normal).
+      if (h.d < solids.distance(cat.x, bodyY, cat.z, CAT_RADIUS + 0.5) - 1e-4) {
         wall.x = h.nx;
         wall.z = h.nz;
         wall.top = h.top;
