@@ -38,6 +38,11 @@ THREE.ShaderChunk.tonemapping_pars_fragment =
 // `?perf`: landscape.nightLand tunes them live.
 const NIGHT_LAND = { key: 0.1, moon: 0.14, fill: 6 };
 const MOON_KEY = new THREE.Color(0.62, 0.74, 1.0);
+// land-look: the sky dome as the land's ambient (buildEnvironment): how much
+// of its chroma reaches the land with the sun high and with it low, and how
+// much of the lowest sky the trees and hill hide, in general and toward a
+// low sun.
+const ENVIRONMENT = { chroma: 0.5, lowChroma: 0.85, hide: 0.6, sunHide: 0.25 };
 
 // Geometry shares the sky shader's 315° heading, 6° pitch, and projection.
 // WebGL handles mesh depth/shadows; WebGPU handles the sky and water behind it.
@@ -471,7 +476,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     // in rain the air thickens, so the far slopes fall back into the haze
     // and the foreground stands in front of them. Thin by night, where the
     // haze is dark and would only blacken the far land.
-    const dusk = THREE.MathUtils.smoothstep(celestial.sun[1], 0.25, 0.02) * (1 - night);
+    const dusk = (1 - THREE.MathUtils.smoothstep(celestial.sun[1], 0.02, 0.25)) * (1 - night);
     scene.fog.density = (0.0042 + 0.0058 * THREE.MathUtils.smoothstep(cover, 0.35, 1) + 0.0025 * dusk + Math.min(rainRate, 6) * 0.0007) * (1 - 0.35 * night);
     // The environment is baked at unit exposure; environmentIntensity carries
     // the eye's adaptation frame to frame, so it is rebuilt only when the sun,
@@ -497,7 +502,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     if (key !== environmentKey && domeRatio && now - environmentTime >= 250) {
       environmentKey = key;
       environmentTime = now;
-      buildEnvironment(skyUnit, bounceUnit, uniform);
+      buildEnvironment(skyUnit, bounceUnit, uniform, celestial.sun, night);
     }
     forest.updateSkySH(skySH.coefficients, exposure * nightFill);
     CAT_SKY.value.setRGB(sky[0] * Math.PI, sky[1] * Math.PI, sky[2] * Math.PI).multiplyScalar(nightFill);
@@ -540,13 +545,24 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
 
   // Sky above the horizon from the dome ratio (CIE overcast when cloudy or
   // at night), ground bounce below it, joined through a thin horizon band.
-  function buildEnvironment(sky, bounce, uniform) {
+  function buildEnvironment(sky, bounce, uniform, sunDirection, night) {
     const width = envWidth;
     const height = width / 2;
     const rows = width / 4;
     const half = THREE.DataUtils.toHalfFloat;
     skySH.zero();
     const cell = ((Math.PI * 2) / width) * (Math.PI / height);
+    // land-look: with the sun low the sky is the light. Below ~25° its
+    // colour reaches the land: the sunset's peach and the Belt of Venus's
+    // mauve on sand and rock, shade turning blue-violet. With the sun high
+    // the dome keeps half its chroma, so noon shade stays blue-grey, not cyan.
+    const [sx, sy, sz] = sunDirection;
+    const low = (1 - THREE.MathUtils.smoothstep(sy, 0.17, 0.42)) * (1 - night);
+    const chroma = ENVIRONMENT.chroma + (ENVIRONMENT.lowChroma - ENVIRONMENT.chroma) * low;
+    // The sun's bearing in this map's frame (see updateDirection).
+    const sunX = (sx + sz) * Math.SQRT1_2;
+    const sunZ = (sx - sz) * Math.SQRT1_2;
+    const sunFlat = Math.hypot(sunX, sunZ) || 1;
     for (let j = 0; j < height; j++) {
       const elevation = ((j + 0.5) / height - 0.5) * Math.PI;
       const up = Math.sin(elevation);
@@ -559,7 +575,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       // the lowest 20° of it on average, returning their own bounce light.
       // A statistical local horizon (vertical walls see 0.64 of the open sky
       // instead of 0.8), so shade is not lit as if on an open plain.
-      const hide = up > 0 ? 0.6 * (1 - THREE.MathUtils.smoothstep(up, 0, 0.34)) : 0;
+      const hideRow = up > 0 ? 1 - THREE.MathUtils.smoothstep(up, 0, 0.34) : 0;
       const across = Math.cos(elevation);
       const rgb = [0, 0, 0];
       for (let i = 0; i < width; i++) {
@@ -568,16 +584,21 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         const phi = ((i + 0.5) / width - 0.5) * Math.PI * 2;
         shDirection.set(Math.cos(phi) * across, up, Math.sin(phi) * across);
         THREE.SphericalHarmonics3.getBasisAt(shDirection, shBasis);
+        // land-look: toward a low sun the land opens onto the bright, warm
+        // horizon (that is where the light comes from); elsewhere the
+        // trees and the hill still hide the lowest sky.
+        const sunward = THREE.MathUtils.smoothstep((Math.cos(phi) * sunX + Math.sin(phi) * sunZ) / sunFlat, 0, 0.6);
+        const hide = hideRow * (ENVIRONMENT.hide + (ENVIRONMENT.sunHide - ENVIRONMENT.hide) * sunward * low);
         for (let c = 0; c < 3; c++) {
           const sky1 = sky[c] * (domeRatio[k + c] * (1 - uniform) + cie * uniform);
           const seen = sky1 + (bounce[c] * 1.2 - sky1) * hide;
           rgb[c] = seen + (bounce[c] - seen) * ground;
         }
         // Shade lit by a blue sky reads blue in a photograph, but not the
-        // saturated cyan of the raw dome: half its chroma, about luminance.
+        // saturated cyan of the raw dome: part of its chroma, about luminance.
         const luma = rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
         for (let c = 0; c < 3; c++) {
-          const radiance = luma + (rgb[c] - luma) * 0.5;
+          const radiance = luma + (rgb[c] - luma) * chroma;
           envData[o + c] = half(radiance);
           const weight = radiance * cell * across;
           for (let b = 0; b < 9; b++) skySH.coefficients[b].setComponent(c, skySH.coefficients[b].getComponent(c) + shBasis[b] * weight);
