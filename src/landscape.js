@@ -212,6 +212,18 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
 
+  // perf: frozen matrices. The scene root and the island group never move,
+  // nor do the vegetation chunks or anything else flagged
+  // `userData.static`: their matrices are composed once, and the per-frame
+  // world update stops at each of them instead of re-composing and walking
+  // thousands of objects (three re-composes every auto-updating matrix,
+  // and a parent that did forces its whole subtree). Moving things (the
+  // cat, animals, the boat, the wisp) keep updating as before, under a
+  // parent whose world matrix simply no longer changes.
+  for (const chunk of land.userData.lodChunks ?? []) for (const mesh of chunk.meshes) if (mesh) mesh.userData.static = true;
+  const frozen = freezeStatic(scene, land);
+  if (perf) canvas.dataset.frozen = String(frozen);
+
   return {
     // `?perf` QA: lets the console toggle scene parts and time the mesh
     // layer on its own (renderer and camera are only exposed then).
@@ -764,6 +776,37 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     envTarget = pmrem.fromEquirectangular(envSource, previous ?? null);
     scene.environment = envTarget.texture;
   }
+}
+
+// Freezes the roots' own matrices, and every object under them flagged
+// `userData.static` with its whole subtree: composed now, never again, and
+// skipped by the per-frame world update unless something marks it
+// (`matrixWorldNeedsUpdate`) or a frozen root is moved and updated by hand.
+// Returns how many objects were frozen.
+export function freezeStatic(...roots) {
+  let count = 0;
+  const freeze = (object) => {
+    object.traverse((o) => {
+      o.updateMatrix();
+      o.matrixAutoUpdate = false;
+      count++;
+    });
+    object.updateMatrixWorld = frozenMatrixWorld;
+  };
+  for (const root of roots) {
+    root.updateMatrix();
+    root.matrixAutoUpdate = false;
+    root.updateMatrixWorld(true);
+  }
+  for (const root of roots)
+    root.traverse((o) => {
+      if (o.userData.static && o.updateMatrixWorld !== frozenMatrixWorld) freeze(o);
+    });
+  return count;
+}
+
+function frozenMatrixWorld(force) {
+  if (this.matrixWorldNeedsUpdate || force) THREE.Object3D.prototype.updateMatrixWorld.call(this, true);
 }
 
 // msaa: a multisampled colour + depth/stencil framebuffer that three renders

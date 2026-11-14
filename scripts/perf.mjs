@@ -810,6 +810,7 @@ async function environment() {
 // async ({ tab, evaluate, sleep, shot, load }) => result, run against one tab.
 async function probe() {
   const { default: run } = await import(resolve(opt.script));
+  const path = opt.base ? await prepareBase(opt.base) : "/";
   const browser = await launchChrome();
   const tab = await openTab(browser);
   await mkdir(OUT, { recursive: true });
@@ -818,7 +819,7 @@ async function probe() {
       const r = await tab.send("Page.captureScreenshot", { format: "jpeg", quality: 85 });
       await writeFile(join(OUT, `${name}.jpg`), Buffer.from(r.result.data, "base64"));
     };
-    const result = await run({ tab, evaluate: tab.evaluate, sleep, shot, load: (magic = "asleep") => setup(tab, "/", magic), opt });
+    const result = await run({ tab, evaluate: tab.evaluate, sleep, shot, load: (magic = "asleep") => setup(tab, path, magic), opt });
     if (result !== undefined) console.log(JSON.stringify(result, null, 1));
     if (tab.errors.length) console.log("page errors:", tab.errors.slice(0, 8));
   } finally {
