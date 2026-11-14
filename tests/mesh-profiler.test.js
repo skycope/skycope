@@ -21,10 +21,23 @@ test("only finished queries publish GPU time; disjoint samples are discarded", (
   fake.status.available = true;
   for (let i = 0; i < 30; i++) profiler.render(fake.draw);
   assert.equal(fake.canvas.dataset.meshGpuMs, "2.00");
-  assert.equal(fake.calls.results, 2);
+  // One query every four frames, each read the frame after it finished.
+  assert.equal(fake.calls.results, 8);
+  assert.equal(profiler.gpuMs, 2);
   fake.status.disjoint = true;
   profiler.render(fake.draw);
   assert.equal(fake.canvas.dataset.meshGpuMs, undefined);
+  assert.equal(profiler.gpuMs, null);
+  profiler.dispose();
+});
+
+test("without QA it still times the layer for the render budget, and writes nothing", () => {
+  const fake = fixture();
+  const profiler = createMeshProfiler(fake.renderer, fake.canvas, false, fake.now);
+  fake.status.available = true;
+  for (let i = 0; i < 30; i++) profiler.render(fake.draw);
+  assert.equal(profiler.gpuMs, 2);
+  assert.deepEqual(fake.canvas.dataset, {});
   profiler.dispose();
 });
 

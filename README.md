@@ -53,7 +53,8 @@ reduced-motion mode, background/resume, and with the weather endpoint blocked.
 | File                     | Responsibility                                                           |
 | ------------------------ | ------------------------------------------------------------------------ |
 | `index.html`             | Minimal page, time preview, styles, static non-WebGPU fallback           |
-| `src/main.js`            | Controls, resource lifetime, clocks, uniforms, adaptive render budget    |
+| `src/main.js`            | Controls, resource lifetime, clocks, uniforms; applies the render budget |
+| `src/quality.js`         | The render budget: every layer's render size, and what to shed under load |
 | `src/astronomy.js`       | Cape Town dates, sun/moon positions, sidereal rotation                   |
 | `src/weather.js`         | Open-Meteo request and validation; no rendering code                     |
 | `src/weather-panel.js`   | Weather panel: live, presets, and cloud/wind/rain sliders                |
@@ -86,7 +87,7 @@ reduced-motion mode, background/resume, and with the weather endpoint blocked.
 | `src/lens.js`            | Rain on the lens and veiling glare, one full-screen pass over both layers |
 | `src/precipitation.js`   | Rain streaks and impacts, canopy shelter, surface wetness history        |
 | `src/cloud-transmission.js` | CPU ray through the visible cloud: the sun's direct beam              |
-| `src/mesh-profiler.js`   | `?perf` timing of the mesh layer                                         |
+| `src/mesh-profiler.js`   | Mesh-layer GPU timer queries (for the budget; `?perf` QA attributes)     |
 | `src/review-fixtures.js` | `?perf&review=` permalinks for before/after captures                     |
 | `src/vegetation.js`      | Growth traits, habitat placement, trees, ferns, grass and fynbos         |
 | `src/habitat.js`         | Regional habitat descriptors, crown competition, ground producers        |
@@ -443,7 +444,6 @@ compressed (`LINGER`) so a visitor who stays a few minutes sees one.
   pass, and the cloud layer as history). A resize, time scrub, weather change or
   returning home resets the history; reduced-motion stills render four frames.
   Then water and the final composite at up to **1.5 million pixels / 1.5× DPR** (650,000 / 1.25× on phones).
-  Adaptive cloud quality never reduces the water resolution.
 - The island's reflection in the sea runs only where it can show (a Fresnel
   above 4%, within 70 m of the shore, rising rays), leaps open water and empty
   cells, and costs the water pass about 14% on desktop; the phone budget skips
@@ -486,8 +486,8 @@ compressed (`LINGER`) so a visitor who stays a few minutes sees one.
 - A 256 KiB repeating noise volume avoids hashing many noise octaves per sample.
   The constellation atlas is uploaded once (2048 × 1024 RGBA, 8 MiB), and the
   star catalog grid once (1024 × 512 RGBA16F, 4 MiB).
-- Rendering follows `requestAnimationFrame`, paced to 60 fps (30 once the cat has settled) with a small tolerance so vsync jitter never skips a frame. Sustained slow frames reduce resolution and sample
-  count; recovery is gradual. The water budget is fixed. No full-resolution bloom; the only history buffer is the cloud layer.
+- Rendering follows `requestAnimationFrame`, paced to 60 fps (30 once the cat has settled) with a small tolerance so vsync jitter never skips a frame. No full-resolution bloom; the only history buffer is the cloud layer.
+- **The render budget** (`src/quality.js`, pure and tested) decides every layer's render size in one place and what to give up under load. It is driven by GPU time where the platform reports it (the mesh layer's timer query plus WebGPU pass timestamps), else by frame intervals. Sustained cost over 88% of the frame period sheds one step about every second, in this order: the sun shadow map's refresh spread over more frames and fewer cloud march steps; sky and cloud scale; sea scale (0.82, 0.68); vegetation LOD distances (×0.85, ×0.72); MSAA 4 → 2 where it starts at 4; a steady 40 fps (only on displays that pace it evenly) then 30; and only last the land's resolution, never below 0.85. Headroom under 62% restores a step after 1.5 s; a restore that cannot hold waits twice as long before it is tried again, so it never saw-tooths. Only a sky-size change rebuilds the cloud history. `?perf`: `skycope.budget.pin(level)` holds a level (`null` releases), and `data-quality` on the sky canvas shows it.
 - Hidden tabs stop rendering and skip weather fetches. Resuming refreshes stale
   weather. Reduced motion stops the animation loop and redraws only for clock,
   control, weather or size updates; pointer movement is disabled.
