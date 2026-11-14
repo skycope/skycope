@@ -116,13 +116,12 @@ test("unfound titles are never exposed", () => {
   ]);
   d.update(pose(0, 0), 0);
   const list = d.list();
-  assert.equal(list.length, 3);
+  assert.equal(list.length, 1, "only the found");
   assert.deepEqual(list[0], { id: "wreck", found: true, title: "the old wreck", kind: "place", at: list[0].at });
   const text = JSON.stringify(list) + JSON.stringify(d.nearest()) + JSON.stringify(d.counts);
   assert.ok(!text.includes("secret"), "unfound place title leaked");
   assert.ok(!text.includes("rainbow"), "unfound moment title/id leaked");
   assert.ok(!text.includes("cave"), "unfound id leaked");
-  assert.deepEqual(list[1], { found: false });
   // The nearest unfound place is a direction, not a name.
   assert.deepEqual(Object.keys(d.nearest()).sort(), ["distance", "x", "z"]);
 });

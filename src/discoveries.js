@@ -116,17 +116,13 @@ export function createDiscoveries({ seed, signal, onFind = () => {}, storage = d
     isFound(id) {
       return (entries.get(id)?.found ?? null) !== null;
     },
-    // The field notes: found entries (oldest first) with their titles, then
-    // the unfound as bare placeholders. Unfound titles are never included.
+    // The field notes: found entries (oldest first) with their titles.
+    // Nothing of the unfound: no count, no placeholder, no title.
     list() {
       const found = [];
-      const unfound = [];
-      for (const { poi, found: at } of entries.values()) {
+      for (const { poi, found: at } of entries.values())
         if (at !== null) found.push({ id: poi.id, found: true, title: poi.title, kind: poi.kind ?? "place", at });
-        else unfound.push({ found: false });
-      }
-      found.sort((a, b) => a.at - b.at);
-      return [...found, ...unfound];
+      return found.sort((a, b) => a.at - b.at);
     },
     get counts() {
       let found = 0;
