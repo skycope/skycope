@@ -124,37 +124,20 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
     lowTiles.push(timberTile(pts.map((q) => ({ x: p.x + q.x, y: q.y, z: p.z + q.z })), 0.12));
     woodFar.push(part(sweep(pts, [0.12, 0.13, 0.12, 0.1], 4), { colour: DRIFTWOOD, anchor }));
   }
-  // Oars: one across the hull, one leaning on it.
-  const oar = (a, b, list) => {
-    const d = new THREE.Vector3().subVectors(b, a);
-    list.push(part(sweep([a, a.clone().addScaledVector(d, 0.72), b], [0.026, 0.03, 0.022], 5), { colour: srgb("#9a8a70"), anchor }));
-    const m = new THREE.Matrix4().lookAt(b, a, new THREE.Vector3(0, 1, 0)).setPosition(a.clone().addScaledVector(d, 0.88));
-    list.push(part(new THREE.BoxGeometry(0.14, 0.018, 0.55), { matrix: m, colour: srgb("#a89a80"), anchor }));
-  };
-  {
-    const [x0, z0] = at(-0.4, -1.4), [x1, z1] = at(0.6, 1.2);
-    oar(new THREE.Vector3(x0, ground(x0, z0) + 0.03, z0), new THREE.Vector3(x1, keelAt(0.25) + 0.05, z1), hullParts); // boat:
-    const [x2, z2] = at(1.2, 1.25), [x3, z3] = at(-1.3, 1.05);
-    oar(new THREE.Vector3(x2, ground(x2, z2) + 0.04, z2), new THREE.Vector3(x3, ground(x3, z3) + 0.04, z3), wood);
-  }
-  // A coil of rope on the sand.
-  {
-    const [cx, cz] = at(-1.2, -1.6);
-    const pts = [];
-    const turns = 5;
-    for (let k = 0; k <= turns * 14; k++) {
-      const a = (k / 14) * Math.PI * 2;
-      const r = 0.3 - (k / (turns * 14)) * 0.17;
-      pts.push(new THREE.Vector3(cx + Math.cos(a) * r, ground(cx, cz) + 0.025 + (k / (turns * 14)) * 0.05, cz + Math.sin(a) * r));
-    }
-    paint.push(part(sweep(pts, pts.map(() => 0.022), 4), { colour: srgb("#8f7f5e"), anchor }));
-  }
+  // (Oars, a rope coil and orange floats were cut: clutter round the boat
+  // that read as props, not gear.)
   // Crayfish traps: a slatted base ring, netting, a top hoop and the
   // entrance funnel; one stacked on another.
   const trap = (u, v, lift, tilt) => {
     const [x, z] = at(u, v);
-    const y = ground(x, z) + lift;
-    const m = place(x, y, z, { yaw: random() * Math.PI, roll: tilt });
+    // Sat on the slope of the sand, not level on its centre point (the
+    // downhill side of the ring floated a hand clear on a steep beach).
+    const gx = ground(x + 0.3, z) - ground(x - 0.3, z), gz = ground(x, z + 0.3) - ground(x, z - 0.3);
+    const up = new THREE.Vector3(-gx / 0.6, 1, -gz / 0.6).normalize();
+    const y = ground(x, z) - 0.02 + lift;
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), up)
+      .multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, random() * Math.PI, tilt)));
+    const m = new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), q, new THREE.Vector3(1, 1, 1));
     wood.push(part(new THREE.CylinderGeometry(0.42, 0.42, 0.06, 14, 1, false), { matrix: m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0.03, 0)), colour: DRIFTWOOD, anchor }));
     paint.push(part(new THREE.TorusGeometry(0.4, 0.014, 4, 18), { matrix: m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0.42, 0)).multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2)), colour: srgb("#3b3a36") }));
     net.push(part(lathe([[0.41, 0.05], [0.41, 0.42], [0.14, 0.44], [0.1, 0.3]], 14), { matrix: m, colour: srgb("#2c3a34") }));
@@ -166,12 +149,7 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
   };
   trap(-0.3, -2.0, 0, 0);
   trap(-0.3, -2.0, 0.47, 0.06);
-  trap(1.0, -2.3, 0, 0.2);
-  // Orange floats on a line.
-  for (const [u, v] of [[0.3, -1.6], [0.55, -1.75]]) {
-    const [x, z] = at(u, v);
-    paint.push(part(new THREE.SphereGeometry(0.13, 10, 7), { matrix: place(x, ground(x, z) + 0.11, z), colour: srgb("#b4532a"), anchor }));
-  }
+  trap(1.0, -2.3, 0, 0.05);
   // The lantern: a hurricane lamp hung from a driftwood post.
   const [lx, lz] = at(-1.9, 1.2);
   const postBase = new THREE.Vector3(lx, ground(lx, lz) - 0.3, lz);
