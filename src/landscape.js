@@ -165,6 +165,12 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   sun.shadow.normalBias = 0.02;
   sun.shadow.bias = -0.0003;
   sun.target.position.set(23, 0, -35);
+  // perf: the cat's shadow pass (cat.js) renders this scene with a camera
+  // on its own layer (3). Seeing no light there, three bumped its light
+  // state twice a frame, which re-resolved every lit material's program
+  // (parameters and cache key, ~70 materials) in the main pass. On that
+  // layer too, the sun keeps the light state the same in both passes.
+  sun.layers.enable(3);
   scene.add(sun, sun.target);
   let previousLighting = "";
   // shadow: the sun's map is refreshed a slice of its casters per frame

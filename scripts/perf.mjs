@@ -294,6 +294,8 @@ function pageHelper({ island }) {
       await helper.sync();
       const t0 = performance.now();
       const n = helper.step(k);
+      // The CPU side alone (JS and GL command submission), ms per frame.
+      helper.lastCpu = (performance.now() - t0) / k;
       await helper.sync();
       if (n !== k) throw new Error(`bench: ${n} of ${k} frames rendered`);
       return (performance.now() - t0) / k;
@@ -540,27 +542,30 @@ async function ab() {
           counts[name] = await tab.evaluate("__perf.counts()");
           counts[name].alloc = await allocation(tab);
         }
-        const ratios = [], base = [], head = [];
+        const ratios = [], cpuRatios = [], base = [], head = [];
         for (let r = 0; r < ROUNDS; r++) {
-          const pair = [];
+          const pair = [], cpu = [];
           for (const [tab, list] of r % 2 ? [[B, head], [A, base]] : [[A, base], [B, head]]) {
             await tab.activate();
             await tab.evaluate(`__perf.place(${JSON.stringify(view)}, ${minutes})`);
-            const ms = await tab.evaluate(`await __perf.bench(${K})`);
+            const [ms, cpuMs] = await tab.evaluate(`[await __perf.bench(${K}), __perf.lastCpu]`);
             list.push(ms);
             pair.push(ms);
+            cpu.push(cpuMs);
           }
           ratios.push(r % 2 ? pair[0] / pair[1] : pair[1] / pair[0]);
+          cpuRatios.push(r % 2 ? cpu[0] / cpu[1] : cpu[1] / cpu[0]);
         }
         for (const tab of [A, B]) await tab.evaluate("__perf.resume()");
         const row = {
           magic, minutes, view,
           ratio: Math.round(median(ratios) * 1000) / 1000, ratioIqr: Math.round(iqr(ratios) * 1000) / 1000,
+          cpuRatio: Math.round(median(cpuRatios) * 1000) / 1000, cpuIqr: Math.round(iqr(cpuRatios) * 1000) / 1000,
           baseMs: r2(median(base)), headMs: r2(median(head)),
           base: counts.base, head: counts.head,
         };
         results.push(row);
-        console.log(`${magic.padEnd(6)} ${String(minutes).padEnd(5)} ${view.padEnd(11)} head/base ${row.ratio} (IQR ${row.ratioIqr}) tri ${row.base.triangles}→${row.head.triangles} calls ${row.base.calls}→${row.head.calls} geo ${row.base.geometries}→${row.head.geometries} alloc ${row.base.alloc.bytesPerFrame}→${row.head.alloc.bytesPerFrame}`);
+        console.log(`${magic.padEnd(6)} ${String(minutes).padEnd(5)} ${view.padEnd(11)} head/base ${row.ratio} (IQR ${row.ratioIqr}) cpu ${row.cpuRatio} (IQR ${row.cpuIqr}) tri ${row.base.triangles}→${row.head.triangles} calls ${row.base.calls}→${row.head.calls} geo ${row.base.geometries}→${row.head.geometries} alloc ${row.base.alloc.bytesPerFrame}→${row.head.alloc.bytesPerFrame}`);
       }
     }
   } finally {
@@ -572,11 +577,11 @@ async function ab() {
   await mkdir(OUT, { recursive: true });
   await writeFile(join(OUT, "ab.json"), JSON.stringify({ env, base: ref, results }, null, 1));
   const md = [
-    `# perf A/B: ${env.commit} against ${ref} (${env.date})`, "",
-    `Two tabs, one ${opt.headed ? "headed" : "headless"} Chrome, ${W}x${H} dpr ${DPR}, interleaved K=${K} × ${ROUNDS}. Ratio = median of per-round head/base whole-frame time. Load: ${env.load}.`, "",
-    "| gifts | time | view | head/base | IQR | triangles | calls | geometries | programs | alloc B/frame |",
-    "|---|---|---|---|---|---|---|---|---|---|",
-    ...results.map((r) => `| ${r.magic} | ${r.minutes} | ${r.view} | ${r.ratio} | ${r.ratioIqr} | ${r.base.triangles} → ${r.head.triangles} | ${r.base.calls} → ${r.head.calls} | ${r.base.geometries} → ${r.head.geometries} | ${r.base.programs} → ${r.head.programs} | ${r.base.alloc.bytesPerFrame} → ${r.head.alloc.bytesPerFrame} |`),
+    `# perf A/B: ${opt.head ?? env.commit} against ${ref} (${env.date})`, "",
+    `Two tabs, one ${opt.headed ? "headed" : "headless"} Chrome, ${W}x${H} dpr ${DPR}, interleaved K=${K} × ${ROUNDS}. Ratio = median of per-round head/base time: whole frame (GPU drained), and CPU (JS + GL submission). Load: ${env.load}.`, "",
+    "| gifts | time | view | frame head/base | IQR | CPU head/base | IQR | triangles | calls | geometries | programs | alloc B/frame |",
+    "|---|---|---|---|---|---|---|---|---|---|---|---|",
+    ...results.map((r) => `| ${r.magic} | ${r.minutes} | ${r.view} | ${r.ratio} | ${r.ratioIqr} | ${r.cpuRatio} | ${r.cpuIqr} | ${r.base.triangles} → ${r.head.triangles} | ${r.base.calls} → ${r.head.calls} | ${r.base.geometries} → ${r.head.geometries} | ${r.base.programs} → ${r.head.programs} | ${r.base.alloc.bytesPerFrame} → ${r.head.alloc.bytesPerFrame} |`),
   ].join("\n");
   await writeFile(join(OUT, "ab.md"), md + "\n");
   console.log(`\n${md}`);
