@@ -343,6 +343,10 @@ export function createPawPrints(parent) {
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
+      // land-magic: drawn just over the ground, never fighting it.
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
       vertexShader: /* glsl */ `
         attribute vec4 printLife;
         attribute vec4 printShape;
@@ -369,7 +373,7 @@ export function createPawPrints(parent) {
           vMagic = printMagic * max( printLife.y, 0.6 ) * step( 0.01, printLife.y )
             * smoothstep( 0.0, 0.12, age ) * ( exp( -age * 0.9 ) * 0.75 + exp( -age * 0.22 ) * 0.25 );
           // The quad grows to hold the glow's halo (the print stays at its centre).
-          float grow = vMagic > 0.003 ? 7.0 : 1.0;
+          float grow = vMagic > 0.003 ? 4.0 : 1.0;
           vPrint *= grow;
           gl_Position = vGlow > 0.003 || vMagic > 0.003 ? projectionMatrix * modelViewMatrix * instanceMatrix * vec4( position * vec3( grow, 1.0, grow ), 1.0 ) : vec4( 0.0, 0.0, -2.0, 1.0 );
         }`,
@@ -389,7 +393,7 @@ export function createPawPrints(parent) {
           if ( vMagic > 0.0 ) {
             // The paw's shape lit from within, in a soft pool of the gifts'
             // colour, with a few motes of light lifting off it.
-            float r2 = dot( vPrint, vPrint ) / 49.0;
+            float r2 = dot( vPrint, vPrint ) / 16.0;
             float pool = exp( -r2 * 9.0 ) * 0.35 + exp( -r2 * 30.0 ) * 0.4;
             float motes = step( 0.965, printHash( floor( vPrint * 3.0 ) + vSeed * 17.0 ) ) * exp( -r2 * 6.0 );
             c += printMagicColour * vMagic * ( pool + h * 1.3 + motes * 0.9 ) * mix( 0.35, 1.0, printMagicNight );

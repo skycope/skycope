@@ -130,7 +130,7 @@ fn night_sky(ray: vec3f, night: f32, clear: f32, background: f32) -> vec3f {
       axis_v = equatorial_from_local(cross(forward, right), sidereal, latitude);
     }
     let stars = catalog_stars(eq, starCatalog, pixel, atmosphere.time, airmass, background, lean, axis_u, axis_v)
-      + faint_stars(eq, pixel, background) * (1.0 + lean * 0.5);
+      + faint_stars(eq, pixel, background) * (1.0 + lean * 0.2);
     light += stars * extinction * night * clear * (1.0 - moon_cover);
   }
   return light;
@@ -169,8 +169,8 @@ fn meteor_storm(ray: vec3f) -> vec3f {
       let age = fract(t);
       let h = hash2(vec2f(slot * 1.7 + lane * 13.1, lane * 3.3));
       let g = hash2(vec2f(slot * 2.9 - lane * 7.7, 41.0 + lane));
-      // Not every wedge has one burning at once.
-      if (g.y < 0.2) { continue; }
+      // Not every wedge has one burning at once; fewer as the finale settles.
+      if (g.y < 1.0 - 0.8 * min(atmosphere.magic.w, 1.0)) { continue; }
       let phi = (index + 0.2 + 0.6 * h.x) * wedge;
       // Mostly where an eye on the horizon sees them: 20-75° from the radiant.
       let start = 0.35 + h.y * 0.95;
@@ -212,7 +212,7 @@ fn star_path(ray: vec3f, night: f32, clear: f32) -> vec3f {
   let extinction = exp(-0.28 * (airmass - 1.0)) * smoothstep(0.0, 0.05, mirror.y);
   let stars = catalog_stars(eq, starCatalog, pixel * 2.0, atmosphere.time, airmass, 0.0, 0.0, vec3f(0.0), vec3f(0.0));
   let fresnel = 0.02 + 0.98 * pow(1.0 - min(-ray.y * 1.2, 1.0), 5.0);
-  return stars * extinction * fresnel * (0.4 + 2.2 * h.y * h.y) * night * calm * atmosphere.magic.y * 3.0;
+  return stars * extinction * fresnel * (0.4 + 2.2 * h.y * h.y) * night * calm * atmosphere.magic.y * 1.5;
 }
 
 // sky-events: a lightning bolt (and its smeared reflection in the sea),

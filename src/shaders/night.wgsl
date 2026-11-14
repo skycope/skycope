@@ -151,26 +151,28 @@ export fn catalog_stars(eq: vec3f, catalog: texture_2d<f32>, pixel: f32, time: f
       let offset = length(eq - direction);
       // Scintillation: turbulence makes stars twinkle, far more near the horizon.
       let seed = night_hash(vec2f(f32(x), f32(y)));
-      let twinkle = 1.0 + (0.08 + 0.4 * smoothstep(1.5, 6.0, airmass) + lean * 0.3)
+      let twinkle = 1.0 + (0.08 + 0.4 * smoothstep(1.5, 6.0, airmass) + lean * 0.1)
         * sin(time * (9.0 + seed.x * 11.0) + seed.y * TAU) * sin(time * (5.3 + seed.y * 7.0));
       let core = exp(-(offset * offset) / (2.0 * sigma * sigma)) / (TAU * 0.72 * 0.72);
       var halo = exp(-offset / (pixel * 3.5)) * 0.012 * smoothstep(0.4, 4.0, star.b);
-      if (lean > 0.0 && star.b > 0.25) {
+      // Spikes only on the handful of brightest stars (brighter than
+      // magnitude 0: Sirius, Canopus, Alpha Centauri, Arcturus...).
+      if (lean > 0.0 && star.b > 1.0) {
         let d = eq - direction;
         let u = abs(dot(d, axis_u)) / pixel;
         let v = abs(dot(d, axis_v)) / pixel;
         let reach = 3.0 + 5.0 * min(sqrt(star.b), 2.0);
         let spikes = exp(-v * v * 4.0) * exp(-u / reach) + exp(-u * u * 4.0) * exp(-v / reach);
-        halo += spikes * 0.035 * lean * smoothstep(0.25, 0.8, star.b);
+        halo += spikes * 0.015 * lean * smoothstep(1.0, 3.0, star.b);
       }
       let seen = smoothstep(0.3, 1.5, star.b * 6.8 / (background * 3.0 + 0.002));
       // The gift deepens their colours: blue-white Rigel, orange Antares.
       var tint = star_colour(star.a);
       if (lean > 0.0) {
         let grey = dot(tint, vec3f(0.2126, 0.7152, 0.0722));
-        tint = max(vec3f(grey) + (tint - grey) * (1.0 + lean * 1.3), vec3f(0.0));
+        tint = max(vec3f(grey) + (tint - grey) * (1.0 + lean * 0.5), vec3f(0.0));
       }
-      total += tint * star.b * twinkle * seen * (core + halo) * (1.0 + lean * 0.7);
+      total += tint * star.b * twinkle * seen * (core + halo) * (1.0 + lean * 0.25);
     }
   }
   return total * 22.0;

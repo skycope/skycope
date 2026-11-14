@@ -250,7 +250,7 @@ fn atmosphere_color(ray: vec3f, sun: vec3f, moon: vec3f, night: f32, exposure: f
   // sea-sky-magic: by day the stars gift deepens the zenith a little.
   if (MAGIC_AWAKE && atmosphere.magic.y > 0.0) {
     let up = smoothstep(0.15, 0.9, ray.y) * atmosphere.magic.y * (1.0 - night);
-    color *= mix(vec3f(1.0), vec3f(0.74, 0.84, 1.0), up);
+    color *= mix(vec3f(1.0), vec3f(0.9, 0.94, 1.0), up);
   }
   // Airglow and scattered starlight: the darkest sky is never pure black.
   color += vec3f(0.004, 0.007, 0.014) * night * (1.0 + (1.0 - clamp(ray.y, 0.0, 1.0)) * 1.5);
@@ -294,7 +294,7 @@ fn atmosphere_color(ray: vec3f, sun: vec3f, moon: vec3f, night: f32, exposure: f
         // Blue-white arms, a gold core, rust at the edges of the dust lanes.
         let warm = mix(vec3f(0.75, 0.88, 1.3), vec3f(1.35, 1.0, 0.68), smoothstep(0.004, 0.02, lum));
         let rust = vec3f(1.15, 0.85, 0.75) * (1.0 - smoothstep(0.0, 0.25, abs(clump - 0.42)));
-        galaxy = mix(galaxy, galaxy * depth * mix(warm, rust, 0.25) * 1.6, min(lean, 1.5) * 0.8);
+        galaxy = mix(galaxy, galaxy * depth * mix(warm, rust, 0.25) * 1.3, min(lean, 1.5) * 0.45);
       }
       color += galaxy * extinction * night;
       // sea-sky-magic: the sky leans close: the airglow shows, a faint green
@@ -306,7 +306,7 @@ fn atmosphere_color(ray: vec3f, sun: vec3f, moon: vec3f, night: f32, exposure: f
         let green = exp(-pow((ray.y - 0.09) / 0.07, 2.0)) * waves;
         let red = exp(-pow((ray.y - 0.2) / 0.12, 2.0)) * (1.2 - waves * 0.5);
         let haze = smoothstep(-0.01, 0.03, ray.y);
-        color += (vec3f(0.12, 0.42, 0.16) * green + vec3f(0.3, 0.04, 0.06) * red * 0.35) * 0.02 * min(lean, 1.5) * night * haze;
+        color += (vec3f(0.12, 0.42, 0.16) * green + vec3f(0.3, 0.04, 0.06) * red * 0.35) * 0.008 * min(lean, 1.5) * night * haze;
       }
       color += constellation_lines(ray) * night;
       // sky-events: the zodiacal light, on moonless nights far from twilight.
@@ -347,21 +347,25 @@ fn constellation_lines(ray: vec3f) -> vec3f {
     let pen = exp(-ahead * ahead * 900.0) * select(0.0, 1.0, progress < 1.01) + exp(-max(ahead, 0.0) * 30.0) * drawn * 0.6 * select(0.0, 1.0, progress < 1.1);
     let shimmer = 0.75 + 0.25 * sin(atlas.g * 70.0 - atmosphere.time * 2.2 + atlas.b * 40.0);
     let forward = vec3f(sin(atmosphere.flight.w) * cos(atmosphere.pitch), sin(atmosphere.pitch), cos(atmosphere.flight.w) * cos(atmosphere.pitch));
-    let look = 0.45 + 0.55 * smoothstep(0.55, 0.97, dot(ray, forward));
-    let hold = (0.05 + 0.07 * atmosphere.magic.w) * shimmer * mix(look, 1.0, atmosphere.magic.w * 0.6);
+    // Few and faint: only the figures near where the camera looks, drawn
+    // once and then barely there (the finale lights them all, for a while).
+    let look = smoothstep(0.8, 0.97, dot(ray, forward));
+    let hold = (0.012 + 0.04 * atmosphere.magic.w) * shimmer * mix(look, 1.0, atmosphere.magic.w * 0.5);
     // A fine luminous thread: the filtered ridge's crest, sharpened, in a
     // faint wide glow of its own.
     let thread = smoothstep(0.42, 0.95, atlas.r) + atlas.r * 0.22;
     // A wide soft glow round each line from the atlas's coarse mip.
-    let glow = textureSampleLevel(starAtlas, cloudSampler, coordinates, 2.0).r * 1.4;
+    let glow = textureSampleLevel(starAtlas, cloudSampler, coordinates, 2.0).r * 0.6;
     let lines = (thread + glow) * drawn * hold;
-    let nodes = atlas.a * drawn * (0.05 + pen * 1.2) * look;
+    let nodes = atlas.a * drawn * (0.015 + pen * 0.8) * look;
     // The pen burns warm, the lines it leaves cool.
     // Each figure in its own pale colour (gold, ice blue, lavender, sea
     // green), like the stars that make it: the sky is not one grey.
     let hue = 0.5 + 0.5 * cos(6.283185 * (atlas.b * 3.7 + vec3f(0.0, 0.33, 0.67)));
     let figure = mix(FIGURE_LIGHT, hue * 1.1, 0.4);
-    light = mix(light, figure * (lines + nodes) + PEN_LIGHT * (thread + glow) * pen * 0.9, gift);
+    light = mix(light, figure * (lines + nodes) + PEN_LIGHT * (thread + glow) * pen * 0.6 * mix(look, 1.0, 0.3), gift);
   }
-  return light * horizon;
+  // Never over the Moon's disc (drawn sharp in the water pass, on top).
+  let moon_clear = smoothstep(0.019, 0.026, length(ray - atmosphere.moon));
+  return light * horizon * moon_clear;
 }
