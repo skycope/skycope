@@ -735,7 +735,13 @@ export function timberTile(points, r) {
   for (const q of points) { x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); z0 = Math.min(z0, q.z); z1 = Math.max(z1, q.z); }
   const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
   const half = Math.max(x1 - x0, z1 - z0) / 2 + r + 0.1;
-  return heightTile(cx, cz, half, 0.06, (px, pz) => {
+  return heightTile(cx, cz, half, 0.06, timberHeight(points, r));
+}
+
+// The top of a round timber along `points` (radius r) at (x, z), or
+// -Infinity off it: a timber tile's surface, exact.
+export function timberHeight(points, r) {
+  return (px, pz) => {
     let best = -Infinity;
     for (let i = 0; i + 1 < points.length; i++) {
       const a = points[i], b = points[i + 1];
@@ -746,7 +752,7 @@ export function timberTile(points, r) {
       if (d < r) best = Math.max(best, a.y + (b.y - a.y) * t + Math.sqrt(r * r - d * d));
     }
     return best;
-  });
+  };
 }
 
 // A collision height tile in walker.js's dome format, sampled from fn(x, z)

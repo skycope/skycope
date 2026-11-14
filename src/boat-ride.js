@@ -3,6 +3,8 @@ import { createBoatDynamics, findMooring, BOAT } from "./boat-dynamics.js";
 import { seabedDepth, shoreAlong } from "./sea-surface.js";
 import { deckHeight, STATION, HULL, sheer, halfBreadth } from "./boat-forms.js";
 import { createLaunch, touchesUpturned } from "./boat-launch.js";
+import { boatLogs, LOG_R } from "./place-shore.js";
+import { timberHeight } from "./place-kit.js";
 
 // The boat's life, without any drawing (boat.js draws it): asleep on its
 // logs until the `boat` gift wakes; then ready, still on its logs, until
@@ -75,14 +77,17 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
     if (Math.hypot(x - cove.x, z - cove.z) < 0.6) return coveTether();
     return { x: ax, z: az, y: bed(ax, az), length: 2.1, post: false };
   };
-  // The launch slides on the bare sand and seabed: not on its own upturned
-  // hull's walk tile or its logs (the glide from them is clear of
-  // boulders, findMooring).
+  // The launch slides on the bare sand and seabed and over the two logs it
+  // lay on (place-shore.js), not through them; not on its own upturned
+  // hull's walk tile (the glide from them is clear of boulders,
+  // findMooring).
+  const logs = boatLogs(landmark).map((pts) => timberHeight(pts, LOG_R));
   const sand = (x, z) => {
     const inland = shoreDistance(x, z);
     return inland < 0 ? Math.max(groundHeight(x, z), -seabedDepth(-inland, shoreAlong(x, z))) : groundHeight(x, z);
   };
-  const launcher = createLaunch({ landmark, to: cove, bed: sand, water: (x, z) => (sea?.drawn ? sea.drawn(x, z) : sea ? sea.at(x, z, bed(x, z)).level : -Infinity) });
+  const overLogs = (x, z) => Math.max(logs[0](x, z), logs[1](x, z));
+  const launcher = createLaunch({ landmark, to: cove, bed: sand, logs: overLogs, water: (x, z) => (sea?.drawn ? sea.drawn(x, z) : sea ? sea.at(x, z, bed(x, z)).level : -Infinity) });
   const pose = { x: landmark.x, y: 0, z: landmark.z, heading: landmark.facing, pitch: 0, roll: Math.PI, vx: 0, vz: 0, phase: "rock", floating: false };
   const events = [];
   const ride = {

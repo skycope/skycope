@@ -26,6 +26,27 @@ const RUBBING = srgb("#c9c3b4");
 const DRIFTWOOD = srgb("#80786c");
 const LANTERN = new THREE.Color(3.2, 1.75, 0.6);
 
+// The two driftwood logs the upturned boat rests on (coast x, y, z; their
+// radius LOG_R): the prop draws and tiles them, and the launch
+// (boat-ride.js) slides the hull over them, not through them.
+export const LOG_R = 0.12;
+export function boatLogs(p) {
+  const { at } = frameOf(p.facing);
+  const ground = (x, z) => groundHeight(p.x + x, p.z + z);
+  const L = 4.6;
+  const endRest = (s0, s1) => {
+    let g = -Infinity;
+    for (let s = s0; s <= s1 + 1e-6; s += 0.125) for (const v of [-0.8, 0, 0.8]) g = Math.max(g, ground(...at(s * L / 2, v)));
+    return g + 0.2;
+  };
+  const restStern = endRest(-1, -0.4), restBow = endRest(0.4, 1);
+  const restAt = (s) => restStern + (restBow - restStern) * (s + 1) / 2;
+  return [-0.62, 0.55].map((s) => [-1.3, -0.4, 0.4, 1.3].map((v) => {
+    const [x, z] = at(s * L / 2 + v * 0.12, v);
+    return { x: p.x + x, y: Math.max(ground(x, z) + 0.06, restAt(s) - 0.13), z: p.z + z };
+  }));
+}
+
 export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
   const random = seededRandom((seed ^ 0xb0a7) >>> 0 || 1);
   const { fx, fz, rx, rz, at } = frameOf(p.facing);
@@ -114,14 +135,11 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
     hullParts.push(part(sweep(pts, pts.map(() => [0.035, 0.05]), 4), { colour: ANTIFOUL })); // boat:
   }
   // Two driftwood logs it rests on.
-  for (const s of [-0.62, 0.55]) {
-    const pts = [-1.3, -0.4, 0.4, 1.3].map((v) => {
-      const [x, z] = at(s * L / 2 + v * 0.12, v);
-      return new THREE.Vector3(x, Math.max(ground(x, z) + 0.06, restAt(s) - 0.13), z);
-    });
+  for (const log of boatLogs(p)) {
+    const pts = log.map((q) => new THREE.Vector3(q.x - p.x, q.y, q.z - p.z));
     wood.push(part(sweep(pts, [0.12, 0.13, 0.12, 0.1], light ? 6 : 8), { colour: DRIFTWOOD, anchor }));
     // solid: the cat walked through the logs' ends; now it steps up on them.
-    lowTiles.push(timberTile(pts.map((q) => ({ x: p.x + q.x, y: q.y, z: p.z + q.z })), 0.12));
+    lowTiles.push(timberTile(log, LOG_R));
     woodFar.push(part(sweep(pts, [0.12, 0.13, 0.12, 0.1], 4), { colour: DRIFTWOOD, anchor }));
   }
   // (Oars, a rope coil and orange floats were cut: clutter round the boat

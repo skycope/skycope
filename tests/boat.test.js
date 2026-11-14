@@ -299,9 +299,13 @@ test("the launch: nothing moves until the cat touches it, and the hull always be
   const { groundHeight } = await import("../src/terrain.js");
   const { seabedDepth, shoreAlong } = await import("../src/sea-surface.js");
   // The bare sand and seabed (not the upturned hull's own walk tile).
-  const sand = (x, z) => (shoreDistance(x, z) < 0 ? Math.max(groundHeight(x, z), -seabedDepth(-shoreDistance(x, z), shoreAlong(x, z))) : groundHeight(x, z));
+  const { boatLogs, LOG_R } = await import("../src/place-shore.js");
+  const { timberHeight } = await import("../src/place-kit.js");
+  const bare = (x, z) => (shoreDistance(x, z) < 0 ? Math.max(groundHeight(x, z), -seabedDepth(-shoreDistance(x, z), shoreAlong(x, z))) : groundHeight(x, z));
   const points = [];
   for (const s of [-0.95, -0.5, 0, 0.5, 0.9]) for (const t of [0, 0.25, 0.5, 0.75, 1]) for (const side of [-1, 1]) points.push(new THREE.Vector3(...hullPoint(s, t, side)));
+  // (Finely along the bottom too: a log bears on it between the stations.)
+  for (let s = -0.98; s <= 0.92; s += 0.05) for (const t of [0, 0.2, 0.4]) for (const side of [-1, 1]) points.push(new THREE.Vector3(...hullPoint(s, t, side)));
   const euler = new THREE.Euler(0, 0, 0, "YXZ");
   const v = new THREE.Vector3();
   for (const seed of SEEDS) {
@@ -311,6 +315,12 @@ test("the launch: nothing moves until the cat touches it, and the hull always be
     const ride = createBoatRide({ landmark, sea, bed: walker.bed, solids: walker.solids, magic });
     const cat = { ...walker.cat, x: landmark.x + 6, z: landmark.z + 6, y: 5, air: 0 };
     const none = { move: [0, 0] };
+    // The logs it lay on (the places prop's own): sliding, it rides over
+    // them; it went 0.4 m through them when the slide saw only the sand.
+    const logs = boatLogs(landmark).map((q) => timberHeight(q, LOG_R));
+    const logTop = (x, z) => Math.max(logs[0](x, z), logs[1](x, z));
+    const sand = (x, z) => Math.max(bare(x, z), logTop(x, z));
+    let through = 0;
     let t = 0;
     magic.wake("boat");
     for (; t < 10; t += 1 / 30) {
@@ -340,12 +350,14 @@ test("the launch: nothing moves until the cat touches it, and the hull always be
         const under = p.phase === "slide" ? Math.max(floor, Number.isFinite(water) ? water - 0.25 : -Infinity) : top + LAUNCH.logs;
         gap = Math.min(gap, w.y - under);
         sunk = Math.min(sunk, w.y - floor);
+        if (p.phase === "slide") through = Math.max(through, logTop(w.x, w.z) - w.y);
       }
       lowestGap = Math.min(lowestGap, gap);
       assert.ok(gap < 0.09, `seed ${seed}: ${p.phase} at ${(t).toFixed(2)} s, its lowest point ${gap.toFixed(3)} m above what bears it`);
       assert.ok(sunk > -0.12, `seed ${seed}: ${p.phase}, ${(-sunk).toFixed(3)} m into the sand`);
       frames++;
     }
+    assert.ok(through < 0.03, `seed ${seed}: the hull slid ${through.toFixed(3)} m through a log`);
     assert.equal(ride.ride.state, "waiting", `seed ${seed}: afloat in the end (${phase})`);
     assert.ok(frames > 60, "a launch you can watch");
     assert.ok(ride.tether, "on its painter");
