@@ -95,12 +95,12 @@ function anatomy(rig) {
   // Trunk: rump, loin, a slim waist, the deep ribcage and the keel of the
   // chest. Deep and narrow, as a cat is: ~13 cm deep, ~10 cm wide.
   ell("hips", [0, 0.018, -0.13], [0.04, 0.057, 0.058], { k: 0 });
-  ell("hips", [0, 0.034, -0.077], [0.035, 0.047, 0.064], { k: 0.03 });
-  ell("spine", [0, 0.028, -0.02], [0.037, 0.042, 0.07], { k: 0.03 });
-  ell("ribs", [0, 0.02, 0.035], [0.052, 0.052, 0.08], { k: 0.035 });
+  ell("hips", [0, 0.034, -0.077], [0.032, 0.047, 0.064], { k: 0.03 });
+  ell("spine", [0, 0.028, -0.02], [0.034, 0.042, 0.07], { k: 0.03 });
+  ell("ribs", [0, 0.02, 0.035], [0.053, 0.052, 0.08], { k: 0.035 });
   ell("chest", [0, 0, 0.11], [0.041, 0.048, 0.052], { k: 0.03, comb: [0, -1, -0.2], fur: 1.15 });
   // The belly pouch hangs loose between the hind legs, and swings.
-  ell("pouch", [0, -0.02, -0.07], [0.034, 0.028, 0.055], { k: 0.03, comb: [0, -0.2, -1], fur: 1.3 });
+  ell("pouch", [0, -0.02, -0.07], [0.03, 0.028, 0.055], { k: 0.03, comb: [0, -0.2, -1], fur: 1.3 });
   // Neck and ruff.
   cone("neck", [0, 0.03, 0.138], [0, 0.082, 0.2], 0.037, 0.032, { body: true, sx: 0.82, k: 0.03, comb: [0, -0.4, -1], fur: 1.2 });
   ell("neck", [0, 0.022, 0.172], [0.03, 0.04, 0.036], { k: 0.025, comb: [0, -1, -0.1], fur: 1.25 });

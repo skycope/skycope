@@ -36,8 +36,9 @@ const POSTURE = {
   stand: { height: STAND_HEIGHT, pitch: 0 },
   // Sitting: haunches on the ground, front legs straight, ~40° up.
   sit: { height: 0.145, pitch: 0.72, front: [0.02, 0.1], hind: [0.042, 0.045] },
-  // Loaf: belly down, paws tucked.
-  lie: { height: 0.082, pitch: 0.03, front: [0.022, 0.13], hind: [0.045, -0.07] },
+  // Lying (a sphinx): belly on the ground, forearms flat along it with the
+  // paws under the chin, hind legs folded beside the belly.
+  lie: { height: 0.062, pitch: 0.03, front: [0.024, 0.19], hind: [0.045, -0.07] },
   // Stalking: low, the rump a touch higher than the shoulders.
   crouch: { height: 0.15, pitch: -0.07 },
 };
@@ -644,23 +645,15 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
           }
           leg.lastPhase = phase;
         }
-        // Sitting: the hind hocks lie flat on the ground.
+        // Sitting and lying, the hind hocks lie flat on the ground, heel
+        // back; lying, the forearms do too, wrist back.
         if (!spec.front) flexLeg = lerp(flexLeg, spec.lean - (Math.PI / 2 - pitch - 0.12), sitW + lieW * 0.9);
+        else flexLeg = lerp(flexLeg, spec.lean - (Math.PI / 2 - pitch - 0.45), lieW);
         const solved = solveLeg(leg, local.x, local.z, local.y, flexLeg);
         leg.lastUpper = solved.upperAngle;
-        // A loaf folds every leg underneath.
-        if (lieW > 0.01) {
-          // Front: upper arm back, forearm and pastern forward under the
-          // chest. Hind: thigh forward, shin back, hock folded flat forward.
-          const tuck = spec.front ? [1.25, -2.6, 0.1, 1.5] : [-1.0, 2.6, -3.05, 1.45];
-          leg.upper.rotation.x = lerp(leg.upper.rotation.x, tuck[0], lieW);
-          leg.lower.rotation.x = lerp(leg.lower.rotation.x, tuck[1], lieW);
-          leg.foot.rotation.x = lerp(leg.foot.rotation.x, tuck[2], lieW);
-          leg.paw.rotation.x = lerp(leg.paw.rotation.x, tuck[3], lieW);
-        }
         // Planted paws lie flat on the ground, on slopes and rock too.
         leg.upper.updateMatrixWorld(true);
-        const planted = (leg.stance ? 1 : 1 - leg.swing) * (1 - lieW) * (pose.air > 0.01 ? 0 : 1) * (1 - swim);
+        const planted = (leg.stance ? 1 : 1 - leg.swing) * (pose.air > 0.01 ? 0 : 1) * (1 - swim);
         if (planted > 0.01) {
           const e = 0.03;
           up.set(ground(wx - e, wz) - ground(wx + e, wz), 2 * e, ground(wx, wz - e) - ground(wx, wz + e)).normalize();
