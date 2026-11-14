@@ -164,7 +164,7 @@ test('the walker and its camera allocate little per frame', () => {
 // place's top seen past the land and the landmarks. Counts the old,
 // straight-on shot's failures alongside, for the report.
 test('each ceremony ends on a clear view of its place', async () => {
-  const { ceremonyFrames, SHOTS } = await import('../src/journey.js');
+  const { ceremonyFrames, placeGround, SHOTS } = await import('../src/journey.js');
   const { KEEPSAKES } = await import('../src/magic.js');
   const { forest, places, obstacles } = island(SEED);
   const walker = walkerFor(SEED);
@@ -226,7 +226,7 @@ test('each ceremony ends on a clear view of its place', async () => {
       for (let i = 0; i < 20 && walker.surface(x, z) < 0.05; i++) { x += (place.x - x) * 0.1; z += (place.z - z) * 0.1; }
       cat.x = x; cat.z = z; cat.y = walker.surface(x, z); cat.speed = cat.air = cat.vy = 0;
       cat.heading = Math.atan2(place.x - x, place.z - z);
-      const ground = walker.surface(place.x, place.z);
+      const ground = placeGround(place, walker.surface);
       const shot = SHOTS[gift] ?? SHOTS.default;
       const yaw = cat.heading;
       const frames = ceremonyFrames(walker, { place, gift, ground, shot, yaw, crown, canopies, fov: 1.0 });

@@ -411,6 +411,10 @@ export function buildLighthouse(p, materials, { light = false } = {}) {
   const [cx, cz] = at(cu, cv);
   return prop({
     lod: { near: nearGroup, far: farGroup },
+    // What a ceremony frames (journey.js): the apron the tower stands on
+    // (the walk surface at its centre is the tower's own top) and the
+    // ventilator ball on the dome.
+    frame: { foot: yP, top: yC + 1.2 },
     surfaces: { trunks, tiles, solids },
     covers: [
       { kind: "roof", x: p.x + cx, z: p.z + cz, yaw: φ, hu: depth / 2 + overhang, hv: width / 2 + overhang, y: wallTop },

@@ -52,7 +52,7 @@ export const SHOTS = {
 // the subject, every plant crown (and the milkwood's) as something to keep
 // the lens out of and look past. Exported for tests/movement.test.js.
 export function ceremonyFrames(walker, { place, gift, ground, shot, yaw, crown = null, canopies = [], fov = 1 }) {
-  const tops = { lamp: 17.6, fireflies: crown ? crown.top - ground : 7, stars: 3, tideglow: 2.6, boat: 1.4, seafolk: 0.8 };
+  const tops = { lamp: Number.isFinite(place.top) ? place.top - ground : 15.6, fireflies: crown ? crown.top - ground : 7, stars: 3, tideglow: 2.6, boat: 1.4, seafolk: 0.8 };
   // (r: how far out from its centre its own solids reach: a line to its
   // top may end anywhere inside that.)
   const radii = { lamp: 3.5, fireflies: crown ? crown.radius : 6, stars: 1.5, tideglow: 4, boat: 2.5, seafolk: 2 };
@@ -60,6 +60,13 @@ export function ceremonyFrames(walker, { place, gift, ground, shot, yaw, crown =
   const all = crown ? [...canopies, { x: crown.x, z: crown.z, y: crown.top - crown.radius * 0.45, r: crown.radius }] : canopies;
   const frame = (elevation, distance) => walker.frameShot({ subject, yaw, elevation, distance, canopies: all, fov });
   return { subject, dive: frame(shot.elevation, shot.distance), wide: frame(shot.wide[0], shot.wide[1]) };
+}
+
+// The ground a ceremony stands its place on: the place's own foot where it
+// gives one (the lighthouse's apron: the walk surface at its centre is the
+// top of the tower), else the walk surface there.
+export function placeGround(place, surface) {
+  return Number.isFinite(place.foot) ? place.foot : surface(place.x, place.z);
 }
 
 export function createJourney({ state, card, findLine, now, onChange = () => {} }) {
@@ -120,7 +127,7 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
   function start(event) {
     const place = event.place;
     const surface = state.walker.surface;
-    const ground = surface(place.x, place.z);
+    const ground = placeGround(place, surface);
     const cat = state.walker.cat;
     ceremony = {
       type: event.type,
