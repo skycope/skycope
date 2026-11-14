@@ -88,12 +88,44 @@ test('every landmark keeps the prop contract and its triangle budget', async () 
       for (const k of ['lod', 'surfaces', 'covers', 'lights', 'affordances']) assert.ok(b[k], `${p.id} has ${k}`);
       for (const k of ['trunks', 'tiles', 'solids']) assert.ok(Array.isArray(b.surfaces[k]), `${p.id} surfaces.${k}`);
       let triangles = 0;
-      b.lod.near.traverse((o) => {
+      // (What is drawn near: a cross-faded far level is hidden there, and
+      // its warm-up copies draw one triangle.)
+      b.lod.near.traverseVisible((o) => {
         if (!o.isMesh) return;
         const g = o.geometry;
-        triangles += ((g.index ? g.index.count : g.attributes.position.count) / 3) * (o.isInstancedMesh ? o.count : 1);
+        const count = Math.min(g.index ? g.index.count : g.attributes.position.count, g.drawRange.count);
+        triangles += (count / 3) * (o.isInstancedMesh ? o.count : 1);
       });
       assert.ok(triangles <= budget[p.id], `seed ${seed} ${p.id}: ${triangles} triangles near`);
     }
   }
+});
+
+// The milkwood's near and far levels cross over dithered, not swapped: at
+// every distance one level is whole (opaque, drawn), the other dithered or
+// hidden, and the change is spread over the band (it popped at 34 m).
+test('the milkwood crosses from near to far without a hard swap', async () => {
+  const { buildMilkwood } = await import('../src/place-milkwood.js');
+  const { createMaterials } = await import('../src/place-kit.js');
+  const p = placesLayout(1847).find((q) => q.kind === 'milkwood');
+  const b = buildMilkwood(p, createMaterials({}), { seed: 1847 });
+  const [near, far] = b.levels.group.children;
+  const state = (root) => {
+    let whole = root.visible, faded = 0;
+    root.traverse((o) => { if (o.isMesh && o.material.alphaHash) { whole = false; faded = o.material.opacity; } });
+    return { shown: root.visible, whole, faded };
+  };
+  let steps = 0, prev = null;
+  for (let d = 20; d <= 48; d += 0.25) {
+    b.levels.update(d);
+    const n = state(near), f = state(far);
+    assert.ok(n.whole || f.whole, `at ${d} m one level is whole`);
+    if (d < 29.9) assert.ok(n.whole && !f.shown, `near only at ${d} m`);
+    if (d > 38.1) assert.ok(f.whole && !n.shown, `far only at ${d} m`);
+    const k = b.levels.k;
+    if (prev !== null) assert.ok(Math.abs(k - prev) < 0.1, `a quarter metre moves the cross-over by under a tenth (${d} m)`);
+    if (k > 0 && k < 1) steps++;
+    prev = k;
+  }
+  assert.ok(steps >= 24, `the cross-over spread over ${steps / 4} m`);
 });

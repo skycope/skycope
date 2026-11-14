@@ -596,6 +596,70 @@ export function glowMaterial({ colour = [1, 0.85, 0.6], vertex, fragment, unifor
   });
 }
 
+// A dithered cross-over between a place's near and far levels, instead of
+// THREE.LOD's hard swap (the milkwood's ~55k-triangle crown popped at
+// 34 m). Over `band` metres round `at`: first the far level dithers in
+// over the opaque near one, then the near one dithers out over the opaque
+// far one, so one level is always whole (no see-through moment). Dithered
+// only inside the band (hashed alpha: a discard, which costs early-z), on
+// clones of the meshes' materials; one-triangle copies drawn from the start
+// compile those programs at load, not on the first walk past.
+//   const x = crossfade(near, far, { at: 34, band: 8 }); x.group (add it);
+//   x.update(distance) every frame.
+export function crossfade(near, far, { at, band = 8 }) {
+  const group = new THREE.Group();
+  group.add(near, far);
+  const levels = [near, far].map((root) => {
+    const meshes = [];
+    root.traverse((o) => {
+      if (!o.isMesh) return;
+      const base = o.material;
+      const fade = base.clone();
+      fade.onBeforeCompile = base.onBeforeCompile;
+      fade.customProgramCacheKey = base.customProgramCacheKey;
+      fade.userData = { ...base.userData };
+      fade.alphaHash = true;
+      meshes.push({ mesh: o, base, fade });
+    });
+    return { root, meshes };
+  });
+  // The warm-up copies: the same geometry's buffers, one triangle drawn.
+  for (const { mesh, fade } of levels.flatMap((l) => l.meshes)) {
+    const g = new THREE.BufferGeometry();
+    for (const [name, attribute] of Object.entries(mesh.geometry.attributes)) g.setAttribute(name, attribute);
+    if (mesh.geometry.index) g.setIndex(mesh.geometry.index);
+    g.setDrawRange(0, 3);
+    const warm = mesh.isInstancedMesh ? new THREE.InstancedMesh(g, fade, 1) : new THREE.Mesh(g, fade);
+    if (warm.isInstancedMesh) warm.setMatrixAt(0, new THREE.Matrix4().makeScale(0, 0, 0));
+    warm.scale.setScalar(1e-6);
+    warm.castShadow = warm.receiveShadow = false;
+    warm.frustumCulled = false;
+    warm.updateMatrix();
+    warm.matrixAutoUpdate = false;
+    group.add(warm);
+  }
+  const set = (level, opacity) => {
+    level.root.visible = opacity > 0;
+    for (const m of level.meshes) {
+      m.mesh.material = opacity >= 1 ? m.base : m.fade;
+      m.fade.opacity = opacity;
+    }
+  };
+  let last = -1;
+  return {
+    group,
+    // 0 near … 1 far, as last set (QA).
+    get k() { return last; },
+    update(distance) {
+      const k = smooth01(at - band / 2, at + band / 2, distance);
+      if (k === last) return;
+      last = k;
+      set(levels[1], Math.min(1, k * 2));
+      set(levels[0], Math.min(1, 2 - k * 2));
+    },
+  };
+}
+
 // A static, frozen mesh: matrices composed once.
 export function staticMesh(geometry, material, { cast = true, receive = true } = {}) {
   const mesh = new THREE.Mesh(geometry, material);

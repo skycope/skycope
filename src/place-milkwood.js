@@ -3,7 +3,7 @@ import { groundHeight } from "./terrain.js";
 import { capsule, roof } from "./blockers.js";
 import { heightTile, timberTile } from "./place-kit.js";
 import { seededRandom } from "./random.js";
-import { part, merge, sweep, smooth01, srgb, hsl, staticMesh, prop } from "./place-kit.js";
+import { part, merge, sweep, smooth01, srgb, hsl, staticMesh, prop, crossfade } from "./place-kit.js";
 
 // One ancient white milkwood (Sideroxylon inerme), the kind that is a
 // landmark in its own right on the Cape coast: low and immensely wide, a
@@ -304,8 +304,16 @@ export function buildMilkwood(p, materials, { light = false, seed = 1 } = {}) {
   nearGroup.add(staticMesh(merge(woodNear), materials.bark), leafNear, beardMesh);
   const farGroup = new THREE.Group();
   farGroup.add(staticMesh(merge(woodFar), materials.bark), leafFar);
+  // Near to far at 34 m, dithered across 8 m (a hard swap changed 2% of
+  // the picture in one frame).
+  const levels = crossfade(nearGroup, farGroup, { at: 34, band: 8 });
+  levels.update(0);
   return prop({
-    lod: { near: nearGroup, far: farGroup, farDistance: 34 },
+    lod: { near: levels.group },
+    levels,
+    update({ eye }) {
+      if (eye) levels.update(Math.hypot(eye[0] - p.x, eye[1] - (g0 + 4), eye[2] - p.z));
+    },
     surfaces: { trunks, tiles: [rootTile, ...rampTiles], solids: blockers },
     affordances: perch ? [{ id: "milkwood-fork", kind: "perch", ...perch, r: 0.5, hint: "bark worn pale along the top of one low limb" }] : [],
     covers: [{ kind: "crown", x: p.x, z: p.z, r: maxReach * 0.8, y: g0 + 2.5 }],
