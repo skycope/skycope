@@ -12,6 +12,7 @@ import { createWispMind } from "./wisp-mind.js";
 import { GIFT_COLOURS } from "./magic.js";
 import { WAKE_LIGHT, createWaking, wakingSource, frontArrival } from "./waking.js";
 import { SWIM_LIMIT } from "./walker.js";
+import { groundHeight } from "./terrain.js";
 
 // One line of type per gift, in the site's voice.
 export const GIFT_LINES = {
@@ -420,7 +421,21 @@ export function wakingSourceFor(state, gift) {
     const l = state.boat?.lantern;
     if (l && l[3] > 0.001) return [l[0], l[1], l[2]];
   }
-  return wakingSource(gift, { pois: land.pois ?? [], crown: land.wakingPlaces?.crown, beacon: land.wakingPlaces?.beacon, surface: state.walker?.surface ?? (() => 0) });
+  const at = wakingSource(gift, { pois: land.pois ?? [], crown: land.wakingPlaces?.crown, beacon: land.wakingPlaces?.beacon, surface: state.walker?.surface ?? (() => 0) });
+  // The milkwood's hollow is in the bole's face, on the side the cat came
+  // from (the bole is ~0.95 m round its centre: place-milkwood.js), not
+  // inside the wood. (Until the prop contract gives it a recess.)
+  const cat = state.walker?.cat;
+  if (at && gift === "fireflies" && cat) {
+    const dx = cat.x - at[0], dz = cat.z - at[2], d = Math.hypot(dx, dz);
+    if (d > 1.2) {
+      at[0] += (dx / d) * 1.05;
+      at[2] += (dz / d) * 1.05;
+    }
+    // (The land's own ground there, not the root mound's collision top.)
+    at[1] = groundHeight(at[0], at[2]) + 1.6;
+  }
+  return at;
 }
 
 // `?perf` QA (waking-light.md section 9): skycope.waking.
@@ -431,21 +446,27 @@ export function wakingSourceFor(state, gift) {
 export function createWakingQA(state) {
   const magic = state.magic;
   let held = null;
-  const rest = () => {
-    if (held) {
+  const rest = (next = null) => {
+    if (held && held !== next) {
       magic.sleep(held);
       magic.levels[held] = 0;
     }
     held = null;
     magic.waking = null;
+    magic.qaAsleep = null;
   };
   const start = (gift, age, frozen) => {
-    rest();
+    rest(gift);
     const at = wakingSourceFor(state, gift);
     if (!at || !WAKE_LIGHT[gift]) return null;
-    if (age < 0) return null;
+    // (Awake to the quest throughout, so no ceremony starts under the QA.)
     magic.wake(gift, { quiet: true });
     held = gift;
+    if (age < 0) {
+      magic.qaAsleep = gift;
+      magic.levels[gift] = 0;
+      return null;
+    }
     magic.levels[gift] = frozen ? 1 - Math.exp(-age / 2.5) : 0;
     magic.wakeAt[gift] = magic.clock - age;
     magic.waking = createWaking(gift, at, { age, frozen, follow: null });
@@ -454,7 +475,9 @@ export function createWakingQA(state) {
   return {
     freeze: (gift, age) => start(gift, age, true),
     play: (gift) => start(gift, 0, false),
-    clear: rest,
+    clear: () => rest(),
+    // (The live table, for calibration from the console.)
+    table: WAKE_LIGHT,
     get now() {
       return magic.waking;
     },

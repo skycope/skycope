@@ -24,7 +24,8 @@ import { WAKE_LIGHT, wakingAt, lampCatch, lampSpin } from "./waking.js";
 //               half-width (m), z the front's glints F, w lingering glints G
 //   wakeColour  its tint × the body light I
 //   wakeTint    its tint
-//   wakeShape   x ripple (light from under water), y light from above
+//   wakeShape   x ripple (light from under water), y light from above,
+//               z how far the body light carries (m)
 //
 // No new passes, no lights: a few multiply-adds per fragment, and nothing
 // at all while every gift sleeps (a uniform branch the GPU skips whole).
@@ -49,6 +50,23 @@ float magicHash( vec3 p ) {
   p = fract( p * 0.1031 );
   p += dot( p, p.zyx + 31.32 );
   return fract( ( p.x + p.y ) * p.z );
+}
+// Rare round points a pixel or two wide that twinkle as the eye moves; they
+// fade out where a cell is bigger than that on screen (the dew's code).
+float magicSparkle( vec3 world, vec3 view, float scale, float rare ) {
+  vec3 gp = world * scale;
+  vec3 cell = floor( gp );
+  float h = magicHash( cell );
+  float spot = 1.0 - smoothstep( 0.12, 0.3, length( fract( gp ) - 0.5 ) );
+  float small = 1.0 - smoothstep( 0.6, 2.0, scale * length( fwidth( world ) ) );
+  return step( rare, h ) * spot * small
+    * ( 0.5 + 0.5 * sin( h * 40.0 + magicBeam.w * ( 1.5 + 3.0 * h ) + dot( view, vec3( 30.0 ) ) ) );
+}
+// The kindled light's front at a world point (0 away from it), for the
+// sun-glint gates (forest.js FOLIAGE_GLSL, SAND_GLINT_GLSL).
+float wakeBandAt( vec3 world ) {
+  float fb = ( length( wakeSource.xyz - world ) - wakeFront.x ) / wakeFront.y;
+  return exp( -fb * fb ) * wakeFront.z;
 }
 `;
 
@@ -91,7 +109,10 @@ if ( magicOn > 0.0 ) {
   // reached wakeFront.x metres. Behind the front the world is lit as by a
   // lamp (inverse square, by which way it faces, times albedo); nothing
   // ahead of it is.
-  vec3 mWake = vec3( 0.0 );
+  vec3 mView = normalize( cameraPosition - mWorld );
+  vec3 mWake = vec3( 0.0 );      // diffuse: times albedo below
+  vec3 mWakeSpec = vec3( 0.0 );  // glints
+  float wakeSheenReach = 1.0;    // the stars' dew spreads with their light
   if ( wakeFront.x > 0.0 ) {
     vec3 wd = wakeSource.xyz - mWorld;
     float d2 = dot( wd, wd );
@@ -107,14 +128,37 @@ if ( magicOn > 0.0 ) {
       float lam = clamp( mix( ndl, mN.y, wakeShape.y ) * WAKE_WRAP + ( 1.0 - WAKE_WRAP ), 0.0, 1.0 );
       // Seafolk: light from under moving water.
       float ripple = 1.0 + wakeShape.x * sin( dot( mWorld.xz, vec2( 5.1, 3.7 ) ) + magicBeam.w * 2.3 ) * sin( dot( mWorld.xz, vec2( -2.9, 4.6 ) ) - magicBeam.w * 1.7 );
-      mWake = wakeColour * ( fall * lam * reached * ripple );
+      // (Windowed: the body light lights its own place, wakeShape.z metres.)
+      float mWin = 1.0 - smoothstep( wakeShape.z * 0.45, wakeShape.z, d );
+      mWake = wakeColour * ( fall * lam * reached * ripple * mWin );
+      if ( wakeShape.y > 0.5 ) wakeSheenReach = reached;
+      // What catches: edges seen against the light, and gloss (wet sand,
+      // wet rock, waxy leaves: their roughness is already low).
+      float edge = pow( 1.0 - abs( dot( mN, mView ) ), 3.0 );
+      float against = clamp( dot( -mView, wl ) * 0.5 + 0.5, 0.0, 1.0 );
+      #ifdef STANDARD
+        float rough = material.roughness;
+      #else
+        float rough = 0.85;
+      #endif
+      vec3 wh = normalize( wl + mView );
+      float gloss = pow( clamp( dot( mN, wh ), 0.0, 1.0 ), mix( 180.0, 10.0, rough ) ) * ( 1.0 - rough ) * step( 0.0, ndl );
+      float fb = ( d - wakeFront.x ) / wakeFront.y;
+      float band = exp( -fb * fb ) * wakeFront.z;
+      float lit = sqrt( fall ) * reached * mWin;
+      // Behind the front: a steady rim and sheen from the light itself.
+      mWakeSpec = wakeColour * lit * ( edge * against * 0.35 * mix( vec3( 1.0 ), diffuseColor.rgb * 4.0, 0.7 ) + gloss * 2.0 );
+      // The front: glints running outward…
+      mWakeSpec += wakeTint * band * ( edge * against * 0.5 + gloss * 1.2 + magicSparkle( mWorld, mView, 55.0, 0.97 ) * 3.0 );
+      // …and a few that keep twinkling behind it.
+      mWakeSpec += wakeTint * wakeFront.w * lit * magicSparkle( mWorld, mView, 55.0, 0.988 ) * 2.5;
+      mWakeSpec = min( mWakeSpec, vec3( 0.6 ) );
     }
   }
   vec3 mSheen = vec3( 0.0 );
   if ( magicSheen.w > 0.0 ) {
     // Starlight: a cool sheen on whatever faces the sky, rim-brightened,
     // and dew catching it in points that twinkle.
-    vec3 mView = normalize( cameraPosition - mWorld );
     float rim = pow( 1.0 - clamp( dot( mN, mView ), 0.0, 1.0 ), 3.0 );
     float skyward = clamp( mN.y * 0.5 + 0.5, 0.0, 1.0 );
     // Dew: rare points on upturned leaves and grass, a pixel or two wide
@@ -126,10 +170,10 @@ if ( magicOn > 0.0 ) {
     float small = 1.0 - smoothstep( 0.6, 2.0, 70.0 * length( fwidth( mWorld ) ) );
     float dew = step( 0.993, magicHash( cell ) ) * spot * small * smoothstep( 0.55, 0.85, mN.y )
       * ( 0.5 + 0.5 * sin( magicHash( cell + 3.1 ) * 40.0 + magicBeam.w * 2.0 + dot( mView, vec3( 30.0 ) ) ) );
-    mSheen = magicSheen.rgb * ( skyward * ( 0.25 + rim * 0.9 ) ) + magicSheen.rgb * dew * magicSheen.w * 2.5;
+    mSheen = ( magicSheen.rgb * ( skyward * ( 0.25 + rim * 0.9 ) ) + magicSheen.rgb * dew * magicSheen.w * 2.5 ) * wakeSheenReach;
   }
   reflectedLight.directDiffuse += ( mLight + mWake ) * diffuseColor.rgb;
-  reflectedLight.directSpecular += mLight * 0.035 + mSheen;
+  reflectedLight.directSpecular += mLight * 0.035 + mSheen + mWakeSpec;
 }
 `;
 
@@ -305,7 +349,7 @@ export function createLandMagic({ shared, lamps = [], beacon = null, light = fal
         u.wakeFront.value.set(w.radius, w.width, w.front, w.glint);
         u.wakeColour.value.setRGB(spec.tint[0] * w.inside, spec.tint[1] * w.inside, spec.tint[2] * w.inside);
         u.wakeTint.value.setRGB(spec.tint[0], spec.tint[1], spec.tint[2]);
-        u.wakeShape.value.set(spec.ripple ?? 0, spec.up ?? 0, 0, 0);
+        u.wakeShape.value.set(spec.ripple ?? 0, spec.up ?? 0, spec.body ?? spec.reach, 0);
         on = 1;
       } else {
         u.wakeFront.value.set(0, 1, 0, 0);

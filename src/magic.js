@@ -98,6 +98,10 @@ export function createMagic({ force = [] } = {}) {
       if (w?.frozen && w.gift in levels) {
         levels[w.gift] = 1 - Math.exp(-w.age / 2.5);
         wakeAt[w.gift] = clock - w.age;
+      } else if (this.qaAsleep in levels) {
+        // QA: shown asleep, but awake to the quest (no ceremony starts).
+        levels[this.qaAsleep] = 0;
+        wakeAt[this.qaAsleep] = Infinity;
       }
     },
   };

@@ -27,15 +27,20 @@ export const WAKING = { start: 0.35, tau: 1.5, hold: 3.0, fade: 3.0, end: 16 };
 // it runs on the water (0: not at all), seaHold: how long the lit water
 // keeps glinting. catch: the catch curve's speed (lamp 1: its real 4 s
 // catch; others 2). tau: the front's time constant. up: light from above
-// (the stars). ripple: light from under moving water (seafolk).
+// (the stars). ripple: light from under moving water (seafolk). body: how
+// far the body light carries (m) before it is windowed out: a lamp's light
+// lights its own place, not the island (only the glints run on to `reach`).
+// Calibrated by eye at night and noon (docs/review/waking/): the design's
+// first values were about five times too dim to read against the night
+// exposure, and an unwindowed inverse square washed whole beaches.
 export const WAKE_LIGHT = {
-  fireflies: { tint: [1.0, 0.74, 0.28], core: 1.8, reach: 24, night: 0.85, day: 0.22, front: 0.5, frontDay: 0.25, glint: 0.5, rest: 0, sea: 0 },
-  tideglow: { tint: [0.1, 0.55, 1.0], core: 1.6, reach: 30, night: 0.7, day: 0.12, front: 0.7, frontDay: 0.35, glint: 0.8, rest: 0, sea: 120, seaHold: 8 },
-  lamp: { tint: [1.0, 0.66, 0.26], core: 5.0, reach: 46, night: 1.1, day: 0.2, front: 0.45, frontDay: 0.2, glint: 0.3, rest: 0, sea: 150, catch: 1, tau: 2.2 },
-  stars: { tint: [0.62, 0.72, 1.0], core: 1.2, reach: 60, night: 0.3, day: 0.05, front: 0.35, frontDay: 0.3, glint: 1.0, rest: 0, sea: 0, up: 1 },
-  seafolk: { tint: [0.2, 0.8, 0.6], core: 1.4, reach: 14, night: 0.6, day: 0.12, front: 0.4, frontDay: 0.2, glint: 0.4, rest: 0, sea: 90, ripple: 0.4 },
-  boat: { tint: [1.0, 0.5, 0.16], core: 1.5, reach: 26, night: 0.8, day: 0.18, front: 0.5, frontDay: 0.25, glint: 0.4, rest: 0, sea: 80 },
-  finale: { tint: [1.0, 0.9, 0.72], core: 3.0, reach: 60, night: 0.9, day: 0.2, front: 0.5, frontDay: 0.3, glint: 0.6, rest: 0, sea: 150 },
+  fireflies: { tint: [1.0, 0.74, 0.28], body: 10, core: 1.8, reach: 24, night: 4.2, day: 0.9, front: 0.5, frontDay: 0.25, glint: 0.5, rest: 0, sea: 0 },
+  tideglow: { tint: [0.1, 0.55, 1.0], body: 7, core: 1.6, reach: 30, night: 1.6, day: 0.5, front: 0.7, frontDay: 0.35, glint: 0.8, rest: 0, sea: 120, seaHold: 8 },
+  lamp: { tint: [1.0, 0.66, 0.26], body: 24, core: 5.0, reach: 46, night: 5.5, day: 0.8, front: 0.45, frontDay: 0.2, glint: 0.3, rest: 0, sea: 150, catch: 1, tau: 2.2 },
+  stars: { tint: [0.62, 0.72, 1.0], body: 20, core: 1.2, reach: 60, night: 1.5, day: 0.2, front: 0.35, frontDay: 0.3, glint: 1.0, rest: 0, sea: 0, up: 1 },
+  seafolk: { tint: [0.2, 0.8, 0.6], body: 6, core: 1.4, reach: 14, night: 3.0, day: 0.5, front: 0.4, frontDay: 0.2, glint: 0.4, rest: 0, sea: 90, ripple: 0.4 },
+  boat: { tint: [1.0, 0.5, 0.16], body: 9, core: 1.5, reach: 26, night: 4.0, day: 0.7, front: 0.5, frontDay: 0.25, glint: 0.4, rest: 0, sea: 80 },
+  finale: { tint: [1.0, 0.9, 0.72], body: 20, core: 3.0, reach: 60, night: 4.5, day: 0.8, front: 0.5, frontDay: 0.3, glint: 0.6, rest: 0, sea: 150 },
 };
 
 // The one colour table: each gift's light (the wisp's ribbon, the field
@@ -141,7 +146,7 @@ export function practicalLevel(s) {
 export const SOURCE_POI = { fireflies: "milkwood", tideglow: "wreck", lamp: "lighthouse", stars: "beacon", seafolk: "pool", boat: "boat" };
 export function wakingSource(gift, { pois = [], crown = null, beacon = null, surface = () => 0 } = {}) {
   const poi = pois.find((p) => p.id === SOURCE_POI[gift]);
-  if (gift === "fireflies" && crown) return [crown.x, crown.ground + 1.6, crown.z];
+  if (gift === "fireflies" && crown) return [crown.x, surface(crown.x, crown.z) + 1.6, crown.z];
   if (gift === "lamp" && beacon) return [beacon.x, beacon.y, beacon.z];
   if (!poi) return null;
   const ground = surface(poi.x, poi.z);

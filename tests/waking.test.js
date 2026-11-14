@@ -87,7 +87,7 @@ test("sources sit at each keepsake; the practical hands over without a gap", () 
   const pois = [{ id: "wreck", x: 1, z: 2 }, { id: "pool", x: 3, z: 4 }];
   assert.deepEqual(wakingSource("tideglow", { pois, surface: () => 1 }), [1, 1.6, 2]);
   assert.ok(wakingSource("seafolk", { pois, surface: () => 1 })[1] < 1, "under the pool's surface");
-  assert.deepEqual(wakingSource("fireflies", { crown: { x: 5, z: 6, ground: 2 } }), [5, 3.6, 6]);
+  assert.deepEqual(wakingSource("fireflies", { crown: { x: 5, z: 6, ground: 2 }, surface: () => 2 }), [5, 3.6, 6]);
   assert.equal(wakingSource("boat", { pois }), null);
   assert.equal(practicalLevel(0), 0);
   assert.equal(practicalLevel(8), 1);

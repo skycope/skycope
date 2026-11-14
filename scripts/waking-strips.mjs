@@ -19,8 +19,10 @@ const before = process.env.MODE === "before";
 const AGES = (process.env.AGES ?? "-1,0.7,2.2,5,14").split(",").map(Number);
 const TIMES = (process.env.TIMES ?? "1320,750").split(",").map(Number);
 const W = 1280, H = 800;
+// Where the cat stands for each gift's shot (see setup below); STANDS='{"lamp":[1.2,16]}' overrides.
+const STANDS = { fireflies: [0, 4], tideglow: [0, 5], lamp: [1.2, 16], stars: [0, 5], seafolk: [0, 5], boat: [0, 5], ...JSON.parse(process.env.STANDS ?? "{}") };
 await mkdir(out, { recursive: true });
-const frames = `${out}/frames`;
+const frames = process.env.FRAMES ?? `${out}/frames`;
 await mkdir(frames, { recursive: true });
 
 const page = await openPage({ port, cdp, query: "seed=1847&weather=clear", width: W, height: H });
@@ -34,11 +36,14 @@ await evaluate(`(async () => {
   const KEEP = { fireflies: 'milkwood', tideglow: 'wreck', lamp: 'lighthouse', stars: 'beacon', seafolk: 'pool', boat: 'boat' };
   window.__waking = {
     setup(gift) {
+      if (s.waking) s.waking.freeze(gift, -1); // awake to the quest before the cat arrives
       const poi = s.landscape.pois.find((p) => p.id === KEEP[gift]);
       const w = s.walker, c = w.cat;
+      // Where the cat stands: [turn from the island-centre side (rad), metres].
+      const [turn, back] = (${JSON.stringify(STANDS)})[gift] ?? [0, 5];
       let dx = 58 - poi.x, dz = 70 - poi.z;
       const L = Math.hypot(dx, dz); dx /= L; dz /= L;
-      const back = gift === 'lamp' ? 9 : gift === 'fireflies' ? 4 : 5;
+      [dx, dz] = [dx * Math.cos(turn) - dz * Math.sin(turn), dx * Math.sin(turn) + dz * Math.cos(turn)];
       const x = poi.x + dx * back, z = poi.z + dz * back;
       c.x = x; c.z = z; c.y = w.surface(x, z); c.speed = 0; c.vy = 0; c.air = 0; c.sit = 0; c.idle = 0;
       c.heading = Math.atan2(poi.x - x, poi.z - z);
@@ -133,7 +138,7 @@ for (const gift of gifts) {
   }
   // Back to sleep before the next gift.
   if (before) await evaluate(`(() => { const m = skycope.magic; window.__old.gift = null; m.pulse = null; m.sleep('${gift}'); m.levels['${gift}'] = 0; return true; })()`);
-  else await evaluate("skycope.waking.clear()");
+  // (after: the next setup puts this gift back to sleep, once the cat has left.)
 }
 if (page.errors.length) console.log("page errors:", page.errors.slice(0, 5));
 

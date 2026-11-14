@@ -629,7 +629,11 @@ const FOLIAGE_GLSL = /* glsl */ `
   vec3 sparkleRay = reflect( -sunDirView, leafN );
   float sparkle = pow( clamp( dot( sparkleRay, toEye ), 0.0, 1.0 ), 64.0 ) * facing;
   float gate = 0.2 + 0.8 * smoothstep( 0.7, 0.97, fract( vGlint * 9.173 + breezeTime * 0.11 ) );
-  reflectedLight.directSpecular += leafSun * sparkle * gate * 0.2 * ( SHEEN / 0.6 );
+  // waking: as the kindled light's front passes, the crowns shimmer in the
+  // sun leaf by leaf, as when a gust turns them (land-magic.js).
+  float wk = wakeFront.z > 0.0 ? wakeBandAt( cameraPosition + ( vec4( -vViewPosition, 0.0 ) * viewMatrix ).xyz ) : 0.0;
+  gate = max( gate, min( wk * 2.0, 1.0 ) );
+  reflectedLight.directSpecular += leafSun * sparkle * gate * 0.2 * ( SHEEN / 0.6 ) * ( 1.0 + 3.0 * wk );
   #ifdef ROOTED
     // Low plants grow out of their own shade: the base of a tuft or rosette
     // sees little sky or sun, so it darkens into the soil it stands in.
@@ -653,11 +657,14 @@ reflectedLight.indirectSpecular *= 1.0 - lowCover * 0.5;
 reflectedLight.directSpecular *= 1.0 - lowCover * 0.5;
 reflectedLight.indirectDiffuse *= 1.0 + lowCover * vec3( 0.1, 0.35, 0.0 );
 reflectedLight.directDiffuse += leafSun * diffuseColor.rgb * vec3( 0.2, 0.3, 0.08 ) * lowCover * RECIPROCAL_PI;
-if ( sandGlint > 0.01 && dHash( glintCell + 0.37 ) < 0.1 ) {
+// waking: a line of sun-sparkle runs down the beach with the kindled
+// light's front (land-magic.js).
+float wk = wakeFront.z > 0.0 ? wakeBandAt( cameraPosition + ( vec4( -vViewPosition, 0.0 ) * viewMatrix ).xyz ) : 0.0;
+if ( sandGlint > 0.01 && dHash( glintCell + 0.37 ) < 0.1 + 0.25 * wk ) {
   vec3 tilt = vec3( dHash( glintCell + 1.1 ), dHash( glintCell + 2.3 ), dHash( glintCell + 3.7 ) ) - 0.5;
   vec3 facet = normalize( normal + tilt * 0.9 );
   float mirror = dot( reflect( -sunDirView, facet ), normalize( vViewPosition ) );
-  float flash = smoothstep( 0.992, 0.999, mirror ) * sandGlint * ( 1.0 - swashFilm ) * ( 1.0 - swashCover );
+  float flash = smoothstep( 0.992, 0.999, mirror ) * sandGlint * ( 1.0 - swashFilm ) * ( 1.0 - swashCover ) * ( 1.0 + 4.0 * wk );
   reflectedLight.directSpecular += leafSun * flash * 3.0;
 }
 `;
