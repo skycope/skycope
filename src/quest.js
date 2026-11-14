@@ -12,6 +12,8 @@ const PREFIX = "skycope.gifts.";
 const SUMMIT = "beacon";
 // A keepsake's heart can be hard to reach (a hull, a rock pool): close is enough.
 const REACH_SLACK = 1.5;
+// …and a big walled site (the lighthouse yard) more so, in proportion.
+const slack = (r) => Math.max(REACH_SLACK, r * 0.45);
 
 // places: places.js pois ({ id, title, x, z, r }); summit: { x, z, r } for
 // the finale when there is no beacon. magic: createMagic().
@@ -64,7 +66,7 @@ export function createQuest({ seed, places = [], magic, storage = defaultStorage
       if (pending || busy || !pose) return null;
       for (const k of keepsakes) {
         if (!asleep(k)) continue;
-        if (Math.hypot(pose.x - k.x, pose.z - k.z) < k.r + REACH_SLACK) {
+        if (Math.hypot(pose.x - k.x, pose.z - k.z) < k.r + slack(k.r)) {
           pending = k;
           return { type: "wake", place: k };
         }
