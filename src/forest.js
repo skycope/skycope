@@ -1385,7 +1385,8 @@ function groundShader(shader, shared, sea) {
 export function groundAnimals(root, shared) {
   root.traverse((o) => {
     const m = o.material;
-    if (!m || Array.isArray(m) || m.userData.grounded || !m.customProgramCacheKey?.call(m).startsWith("animal-")) return;
+    // Bodies only: not their contact blobs or spray (transparent).
+    if (!m || Array.isArray(m) || m.userData.grounded || m.transparent || !m.isMeshStandardMaterial || !m.customProgramCacheKey?.call(m).startsWith("animal-")) return;
     m.userData.grounded = true;
     const before = m.onBeforeCompile;
     const key = m.customProgramCacheKey;
