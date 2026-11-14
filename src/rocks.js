@@ -35,7 +35,7 @@ export function rockLayout(random) {
   // corestones straddling the waterline. Each outcrop weathered out of one
   // jointed block, so its stones share a joint direction and a mineral
   // colour; they grow outward from the biggest, touching, leaning on one
-  // another, some stacked on top.
+  // another.
   const clusters = 5 + Math.floor(random() * 3);
   for (let c = 0; c < clusters; c++) {
     const theta = random() * Math.PI * 2;
@@ -116,7 +116,9 @@ export function rockLayout(random) {
     }
     if (nearest) fragment.color.lerp(nearest.color, 0.65);
   }
-  return bedRocks(rocks);
+  // A ball perched on a boulder's crown read as placed, not weathered:
+  // those are drawn (so every other stone keeps its place) and dropped.
+  return bedRocks(rocks.filter((rock) => !rock.restsOn));
 }
 
 // solid: what a stone settles to: the lowest ground under its footprint,
