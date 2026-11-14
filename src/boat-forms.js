@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { part, merge, sweep, lathe, place, srgb, hash, smooth01 } from "./place-kit.js";
 import { BOAT } from "./boat-dynamics.js";
 
@@ -159,6 +160,10 @@ export function buildBoatForms({ light = false } = {}) {
     return out;
   };
   const nrm = [0, 0, 0];
+  // The skin the sea meets (outer planking, keel, stem, transom's face,
+  // rubbing strake, gunwale): the hull's shader cuts it at the water. The
+  // rest is inside a dry hull (see boat.js).
+  const outer = [];
 
   // ---- Outer skin: strake by strake, lapped.
   for (const side of [-1, 1]) {
@@ -194,7 +199,7 @@ export function buildBoatForms({ light = false } = {}) {
       g.setIndex(index);
       g.computeVertexNormals();
       const cols = colours;
-      hull.push(part(g, { colour: indexedColour(g, cols), shade: 0 }));
+      outer.push(part(g, { colour: indexedColour(g, cols), shade: 0 }));
     }
   }
 
@@ -234,27 +239,25 @@ export function buildBoatForms({ light = false } = {}) {
 
   // ---- Transom: outside blue (antifouling low), inside buff.
   {
-    const positions = [];
+    const outside = [], inside = [];
     const n = 10;
     const z = -H;
     for (let j = 0; j < n; j++) {
       const a0 = hullPoint(-1, j / n, -1, [0, 0, 0]), a1 = hullPoint(-1, j / n, 1, [0, 0, 0]);
       const b0 = hullPoint(-1, (j + 1) / n, -1, [0, 0, 0]), b1 = hullPoint(-1, (j + 1) / n, 1, [0, 0, 0]);
       // Outside face (toward −z), then the inside face a plank further in.
-      positions.push(...a0, ...b0, ...a1, ...a1, ...b0, ...b1);
+      outside.push(...a0, ...b0, ...a1, ...a1, ...b0, ...b1);
       const i0 = [a0[0], a0[1], z + 0.03], i1 = [a1[0], a1[1], z + 0.03], j0 = [b0[0], b0[1], z + 0.03], j1 = [b1[0], b1[1], z + 0.03];
-      positions.push(...i0, ...i1, ...j0, ...i1, ...j1, ...j0);
+      inside.push(...i0, ...i1, ...j0, ...i1, ...j1, ...j0);
     }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-    g.computeVertexNormals();
-    hull.push(part(g, {
-      colour: (v, n2, out) => {
-        if (v.z > -H + 0.015) return out.copy(BUFF);
-        return out.copy(v.y < -0.035 ? ANTIFOUL : v.y < 0.02 ? BOOT : TOPSIDE);
-      },
-      shade: (v) => (v.z > -H + 0.015 ? insideShade(v.y, -1) : 0),
-    }));
+    const face = (positions) => {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      g.computeVertexNormals();
+      return g;
+    };
+    outer.push(part(face(outside), { colour: (v, n2, out) => out.copy(v.y < -0.035 ? ANTIFOUL : v.y < 0.02 ? BOOT : TOPSIDE) }));
+    hull.push(part(face(inside), { colour: BUFF, shade: (v) => insideShade(v.y, -1) }));
     // A varnished capping on the transom's top edge.
     const pts = [];
     for (let k = 0; k <= 8; k++) {
@@ -271,7 +274,7 @@ export function buildBoatForms({ light = false } = {}) {
       const s = -1 + (k / 16) * 1.97;
       keelPts.push(new THREE.Vector3(0, keel(s) - 0.02, s * H));
     }
-    hull.push(part(sweep(keelPts, keelPts.map(() => [0.03, 0.035]), 5), { colour: ANTIFOUL }));
+    outer.push(part(sweep(keelPts, keelPts.map(() => [0.03, 0.035]), 5), { colour: ANTIFOUL }));
     // The stem: from the forefoot up past the sheer, a little raked.
     const stem = [];
     for (let k = 0; k <= 8; k++) {
@@ -279,7 +282,7 @@ export function buildBoatForms({ light = false } = {}) {
       const y = keel(0.985) - 0.01 + (sheer(1) + 0.08 - keel(0.985)) * f;
       stem.push(new THREE.Vector3(0, y, H * 0.985 + 0.04 * f * f + 0.02));
     }
-    hull.push(part(sweep(stem, stem.map((v, i) => [0.026, i > 6 ? 0.03 : 0.04]), 6), { colour: (v, n, out) => out.copy(v.y < -0.035 ? ANTIFOUL : v.y < 0.02 ? BOOT : v.y > sheer(1) - 0.02 ? VARNISH : TOPSIDE) }));
+    outer.push(part(sweep(stem, stem.map((v, i) => [0.026, i > 6 ? 0.03 : 0.04]), 6), { colour: (v, n, out) => out.copy(v.y < -0.035 ? ANTIFOUL : v.y < 0.02 ? BOOT : v.y > sheer(1) - 0.02 ? VARNISH : TOPSIDE) }));
     // The bilge: a dark floor just under the boards, so the sea never shows
     // between them.
     const positions = [];
@@ -325,9 +328,9 @@ export function buildBoatForms({ light = false } = {}) {
       hullPoint(s, 0.9, side, q);
       rub.push(new THREE.Vector3(q[0] + side * 0.022 * fade, q[1], q[2]));
     }
-    hull.push(part(sweep(out, out.map(() => [0.02, 0.026]), 5), { colour: VARNISH }));
+    outer.push(part(sweep(out, out.map(() => [0.02, 0.026]), 5), { colour: VARNISH }));
     hull.push(part(sweep(inw, inw.map(() => [0.016, 0.03]), 4), { colour: VARNISH, shade: 0.2 }));
-    hull.push(part(sweep(rub, rub.map(() => [0.014, 0.022]), 4), { colour: RUBBING }));
+    outer.push(part(sweep(rub, rub.map(() => [0.014, 0.022]), 4), { colour: RUBBING }));
   }
 
   // ---- Floorboards: five boards with fine gaps, over the bilge.
@@ -476,11 +479,30 @@ export function buildBoatForms({ light = false } = {}) {
   }
 
   return {
-    hull: merge(hull),
+    hull: skins(merge(outer), merge(hull)),
     lamp: merge(lamp),
     glass: merge(glass),
   };
 }
+
+// One geometry with a per-vertex `skin`: 1 outside (the sea meets it), 0
+// inside.
+function skins(outside, inside) {
+  for (const [g, v] of [[outside, 1], [inside, 0]]) g.setAttribute("skin", new THREE.BufferAttribute(new Float32Array(g.attributes.position.count).fill(v), 1));
+  const merged = mergeGeometries([outside, inside], false);
+  outside.dispose();
+  inside.dispose();
+  merged.computeBoundingSphere();
+  return merged;
+}
+
+// The hull's half-breadth where it meets the water (local y = 0, outside
+// the planking) at stations s = −1 … 1 in WATERPLANE.length steps: the
+// shader's test of whether a ray reached the inside from above the water.
+export const WATERPLANE = Array.from({ length: 9 }, (_, i) => {
+  const s = -1 + i / 4;
+  return s >= 0.985 ? 0 : breadthAt(Math.min(s, 0.98), 0) + HULL.plank;
+});
 
 // The girth parameter of the skin at (s, y): inverse of hullPoint's height.
 function girthOf(s, y) {

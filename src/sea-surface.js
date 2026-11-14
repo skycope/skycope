@@ -61,7 +61,11 @@ export function createSea(seed, modes) {
   let wind = [0, 0];
   const out = { level: 0, flowX: 0, flowZ: 0, breaking: 0 };
 
-  function height(x, z, offshore, along, rx, rz, withFlow) {
+  // drawn: only what the water pass displaces its surface by (ocean.wgsl
+  // wave_surface with geometry = true): the breaking train, two shore
+  // swells, the open-sea groundswell and the longest cascade. The boat's
+  // waterline is cut against this, so it meets the water as drawn.
+  function height(x, z, offshore, along, rx, rz, withFlow, drawn = false) {
     const depth = seabedDepth(offshore, along);
     const shallows = Math.exp(-offshore / 12);
     const refracted = offshore + 9 * (1 - shallows);
@@ -104,10 +108,30 @@ export function createSea(seed, modes) {
       const c = Math.cos((-refracted * ac + along * al) * kk - travel);
       h += (c + 0.18 * (c * c - 0.5)) * Math.min(amplitude * shoal, cap) * shoreWeight;
     }
-    // The two longest wind-sea cascades (the shorter ones only shade).
+    // Open-ocean groundswell: plane waves round the wind, each in its own
+    // slow groups (ocean.wgsl). Nothing within 8 m of the beach.
+    const openSea = smooth(8, 70, offshore);
+    if (openSea > 0.001) {
+      let f = 0.3;
+      let amp = (0.08 + Math.min(speed * 0.003, 0.03)) * openSea;
+      for (let j = 0; j < 3; j++) {
+        const jitter = fract(Math.sin(j * 12.9898 + s * 78.233) * 43758.5453);
+        const spread = (fract(j * 0.618034 + s * 3.7) - 0.5) * 2.2;
+        const angle = windAngle + spread * (0.35 + 0.35 * jitter);
+        const kx = Math.cos(angle) * f, kz = Math.sin(angle) * f;
+        const phase = kx * x + kz * z - time * 0.22 * Math.sqrt(9.81 * f) + jitter * TAU;
+        const group = 0.35 + 1.1 * smooth(0.2, 0.8, valueNoise(x * (0.011 + jitter * 0.008) + j * 7.31 - kx * time * 0.05, z * (0.011 + jitter * 0.008) + j * 3.17 - kz * time * 0.05));
+        const sn = Math.sin(phase);
+        h += (sn + 0.18 * (sn * sn - 0.5)) * amp * group;
+        f *= 1.3 + jitter * 0.16;
+        amp *= 0.72;
+      }
+    }
+    // The two longest wind-sea cascades (the shorter ones only shade; the
+    // water pass displaces by the longest alone).
     if (modes) {
       const felt = smooth(0.3, 3.5, depth);
-      for (let c = 0; c < 2; c++) {
+      for (let c = 0; c < (drawn ? 1 : 2); c++) {
         const w = c === 0 ? felt : 0.35 + 0.65 * felt;
         if (w < 0.01) continue;
         let sum = 0;
@@ -127,6 +151,19 @@ export function createSea(seed, modes) {
       time = t;
       swell = swellUniform;
       wind = windNow;
+    },
+    // The wind (m/s, coast x and z) the sea was last set with.
+    get wind() {
+      return wind;
+    },
+    // The surface as the water pass draws it (see height): metres, or
+    // -Infinity on land. No flow, no swash.
+    drawn(x, z) {
+      const inland = shoreDistance(x, z);
+      if (inland >= 0) return -Infinity;
+      const dx = x - ISLAND.x, dz = z - ISLAND.z;
+      const r = Math.hypot(dx, dz) || 1;
+      return height(x, z, -inland, shoreAlong(x, z), dx / r, dz / r, false, true);
     },
     // The water surface at (x, z), or -Infinity where the sand is dry; and
     // the flow a floating body is carried by. `ground` is the sand height.
@@ -153,6 +190,23 @@ export function createSea(seed, modes) {
       return out;
     },
   };
+}
+
+// ocean.wgsl value_noise / hash22.
+function hash22x(px, py) {
+  let qx = fract(px * 0.1031), qy = fract(py * 0.103), qz = fract(px * 0.0973);
+  const d = qx * (qy + 33.33) + qy * (qz + 33.33) + qz * (qx + 33.33);
+  qx += d;
+  qy += d;
+  qz += d;
+  return fract((qx + qy) * qz);
+}
+function valueNoise(x, z) {
+  const ix = Math.floor(x), iz = Math.floor(z);
+  const fx = x - ix, fz = z - iz;
+  const ux = fx * fx * (3 - 2 * fx), uz = fz * fz * (3 - 2 * fz);
+  const a = hash22x(ix, iz), b = hash22x(ix + 1, iz), c = hash22x(ix, iz + 1), d = hash22x(ix + 1, iz + 1);
+  return a + (b - a) * ux + (c - a) * uz + (a - b - c + d) * ux * uz;
 }
 
 function clamp(v, a, b) {

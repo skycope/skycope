@@ -4,9 +4,9 @@ import { groundHeight } from "./terrain.js";
 import { patchMaterial } from "./forest.js";
 import { glowMaterial, smooth01 } from "./place-kit.js";
 import { markSolid, SOLID_ORDER } from "./cat-coat.js";
-import { buildBoatForms, HULL, LANTERN, sheer } from "./boat-forms.js";
+import { buildBoatForms, HULL, LANTERN, WATERPLANE, sheer } from "./boat-forms.js";
 import { createBoatRide, RIDE } from "./boat-ride.js";
-import { BOAT } from "./boat-dynamics.js";
+import { BOAT, WATER_GRID } from "./boat-dynamics.js";
 import { SWIM_LIMIT } from "./walker.js";
 import { createJellies } from "./boat-jellies.js";
 
@@ -15,11 +15,20 @@ import { createJellies } from "./boat-jellies.js";
 // the landscape (hidden until its gift wakes); attach() joins it to the
 // walker once that exists.
 //
-// Draws: the hull (one mesh, ~12k triangles, cut at the sea's surface by a
-// clip plane fitted to the swell under it, so the hull sits IN the water
-// the WebGPU pass draws behind), the swinging hurricane lantern (metal and
-// glass), and one additive mesh for the lantern's halo and the wisp's
-// thread of light. Nothing draws, updates or allocates while it sleeps.
+// Draws: the hull (one mesh, ~12.5k triangles), the swinging hurricane
+// lantern (metal and glass), and one additive mesh for the lantern's halo
+// and the wisp's thread of light. Nothing draws, updates or allocates while
+// it sleeps.
+//
+// The waterline: the sea is drawn behind, by the WebGPU pass, so the hull
+// must leave a hole wherever water would hide it. Its shader knows the sea
+// surface under it (nine heights over the waterplane, sampled on the CPU
+// from the surface exactly as the water pass displaces it, sea-surface.js
+// `drawn`, and interpolated biquadratically per fragment). The outer skin is
+// cut where it is under water; the inside of the hull is dry, so it stays,
+// unless the eye can only have reached it through water (the ray crossed
+// the surface outside the hull's waterplane), so no sea is ever drawn
+// inside the boat and no inside is seen through the sea.
 //
 // Values for others (coast metres):
 //   magic.afloat  null ashore; aboard { x, z, heading, speed, lamp: [x, y, z],
@@ -35,12 +44,19 @@ const LANTERN_COLOUR = new THREE.Color(1.0, 0.5, 0.16);
 
 export function createBoat(land, { light = false, shared, landmark, hull = null, seed = 1 }) {
   const forms = buildBoatForms({ light });
-  const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   const lampUniforms = {
     boatLamp: { value: new THREE.Vector4(0, 0, 0, 0) },
     boatLampColour: { value: LANTERN_COLOUR.clone() },
+    // The sea under the hull (see the header): nine heights (world y) on
+    // the WATER_GRID round the hull's pose (coast x, z, sin and cos of its
+    // heading), and the waterplane's half-breadths along it.
+    boatWater: { value: new Float32Array(9).fill(-100) },
+    boatPose: { value: new THREE.Vector4(0, 0, 0, 1) },
+    boatGrid: { value: new THREE.Vector3(WATER_GRID.u, WATER_GRID.v, HULL.half) },
+    boatPlane: { value: Float32Array.from(WATERPLANE) },
   };
-  const wood = boatMaterial(shared, plane, lampUniforms);
+  const wood = boatMaterial(shared, lampUniforms, true);
+  const iron = boatMaterial(shared, lampUniforms, false);
   const glassMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, fog: false });
 
   const group = new THREE.Group();
@@ -50,7 +66,7 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
   const hullMesh = new THREE.Mesh(forms.hull, wood);
   const pivot = new THREE.Group();
   pivot.position.set(...LANTERN.pivot);
-  const lampMesh = new THREE.Mesh(forms.lamp, wood);
+  const lampMesh = new THREE.Mesh(forms.lamp, iron);
   const glassMesh = new THREE.Mesh(forms.glass, glassMaterial);
   pivot.add(lampMesh, glassMesh);
   group.add(hullMesh, pivot);
@@ -76,8 +92,6 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
   const flame = new THREE.Vector3();
   const flameCoast = new THREE.Vector3();
   const stemCoast = new THREE.Vector3();
-  const normal = new THREE.Vector3();
-  const point = new THREE.Vector3();
   const swing = { x: 0, z: 0, vx: 0, vz: 0 };
   let ride = null;
   let hullBody = null;
@@ -122,6 +136,8 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
     events,
     lamp,
     pois: [jellies.poi],
+    // Where it lies ashore ({ x, z, facing }).
+    landmark,
     // magic.afloat's record while the cat is aboard, else null (fauna.js).
     get afloatNow() {
       return magic?.afloat ?? null;
@@ -271,15 +287,13 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
       pivot.rotation.set(swing.x, 0, swing.z);
       group.updateMatrixWorld(true);
 
-      // The clip: the sea's plane under the hull (coast → the land group's
-      // frame is the same; the group's world is z-mirrored, and three's
-      // clip planes are in world space).
-      const afloatNow = ride.ride.state !== "launching" || ride.ride.launch > 0.88;
-      if (afloatNow) {
-        normal.set(-s.slopeX, 1, s.slopeZ).normalize();
-        point.set(s.x, s.level - 0.015, -s.z);
-        plane.setFromNormalAndCoplanarPoint(normal, point);
-      } else plane.set(normal.set(0, 1, 0), 50);
+      // The sea under the hull, for its waterline: the dynamics' own nine
+      // heights when it is floating (taken at this pose), else sampled
+      // here (on the sand: none, where the beach is dry).
+      const water = ride.ride.state === "launching" ? ride.dynamics.sampleWater(pose.x, pose.z, pose.heading) : s.water;
+      const grid = lampUniforms.boatWater.value;
+      for (let i = 0; i < 9; i++) grid[i] = Number.isFinite(water[i]) ? water[i] : -100;
+      lampUniforms.boatPose.value.set(pose.x, pose.z, Math.sin(pose.heading), Math.cos(pose.heading));
 
       // The lantern: lit from dusk, a small steady flame by day.
       const lit = 0.18 + 0.82 * smooth01(0.02, 0.35, night);
@@ -309,6 +323,7 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
       forms.lamp.dispose();
       forms.glass.dispose();
       wood.dispose();
+      iron.dispose();
       glassMaterial.dispose();
       glow.dispose();
       jellies.dispose();
@@ -322,19 +337,34 @@ const WAKE_FLOW = [0, 0];
 // The boat's timber and paint: the places' shared light model (fog, aerial
 // perspective, baked occlusion) plus grain along the planks in the boat's
 // own frame (so it rides with the hull), paint worn at the edges, and the
-// lantern's warm light.
-function boatMaterial(shared, plane, uniforms) {
-  const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72, clippingPlanes: [plane] });
+// lantern's warm light. `water`: the hull's waterline (see the header); the
+// lantern, always above the sea, goes without.
+function boatMaterial(shared, uniforms, water) {
+  const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72 });
   patchMaterial(material, shared);
   markSolid(material);
   const base = material.onBeforeCompile;
-  material.customProgramCacheKey = () => "boat-hull-v1";
+  material.customProgramCacheKey = () => (water ? "boat-hull-v2" : "boat-iron-v2");
   material.onBeforeCompile = (shader, renderer) => {
     base?.(shader, renderer);
     Object.assign(shader.uniforms, uniforms);
-    shader.vertexShader = shader.vertexShader.replace("void main() {", "varying vec3 vBoatP;\nvoid main() {\n  vBoatP = position;");
+    shader.vertexShader = shader.vertexShader
+      .replace("void main() {", "attribute float skin;\nvarying vec3 vBoatP;\nvarying vec3 vBoatW;\nvarying float vSkin;\nvoid main() {\n  vBoatP = position;\n  vSkin = skin;")
+      .replace("#include <worldpos_vertex>", "#include <worldpos_vertex>\n  vBoatW = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;");
     shader.fragmentShader = shader.fragmentShader
-      .replace("void main() {", `${BOAT_NOISE}\nvarying vec3 vBoatP;\nuniform vec4 boatLamp;\nuniform vec3 boatLampColour;\nvoid main() {`)
+      .replace("void main() {", `${BOAT_NOISE}\n${water ? BOAT_WATER : ""}\nvarying vec3 vBoatP;\nvarying vec3 vBoatW;\nvarying float vSkin;\nuniform vec4 boatLamp;\nuniform vec3 boatLampColour;\nvoid main() {`)
+      .replace(
+        "#include <clipping_planes_fragment>",
+        water
+          ? /* glsl */ `#include <clipping_planes_fragment>
+        float boatAbove = vBoatW.y - boatSea( vBoatW );
+        if ( boatAbove < 0.0 ) {
+          // The sea is drawn behind: under water, the outside leaves a hole
+          // for it, and so does any inside the eye reached through water.
+          if ( vSkin > 0.5 || !boatSeenFromAbove( vBoatW, boatAbove ) ) discard;
+        }`
+          : "#include <clipping_planes_fragment>",
+      )
       .replace(
         "#include <color_fragment>",
         /* glsl */ `#include <color_fragment>
@@ -357,14 +387,19 @@ function boatMaterial(shared, plane, uniforms) {
           diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.16, 0.14, 0.11 ) * ( 0.8 + grain * 0.4 ), wear * 0.7 );
           // A green-brown tide line of weed at the boot-top.
           float tide = exp( -pow( ( vBoatP.y + 0.035 ) / 0.02, 2.0 ) ) * smoothstep( 0.4, 0.7, blotch );
-          diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.08, 0.1, 0.04 ), tide * 0.6 );
+          diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.08, 0.1, 0.04 ), tide * 0.6 * vSkin );
+          ${water ? /* glsl */ `
+          // Wet just above the water it rides in: darker where it laps.
+          float wet = vSkin * ( 1.0 - smoothstep( 0.0, 0.05, boatAbove ) );
+          diffuseColor.rgb *= 1.0 - 0.45 * wet;` : ""}
         }`,
       )
       .replace(
         "#include <roughnessmap_fragment>",
         /* glsl */ `#include <roughnessmap_fragment>
         // Varnish and fresh paint have a sheen; wet near the water.
-        roughnessFactor = mix( roughnessFactor, 0.38, 1.0 - smoothstep( -0.05, 0.2, vBoatP.y ) );`,
+        roughnessFactor = mix( roughnessFactor, 0.38, ( 1.0 - smoothstep( -0.05, 0.2, vBoatP.y ) ) * vSkin );
+        ${water ? "roughnessFactor = mix( roughnessFactor, 0.12, vSkin * ( 1.0 - smoothstep( 0.0, 0.025, boatAbove ) ) );" : ""}`,
       )
       .replace(
         "#include <lights_fragment_end>",
@@ -383,6 +418,45 @@ function boatMaterial(shared, plane, uniforms) {
   };
   return material;
 }
+
+// The sea under the hull, in Three world (x, y, −z coast). Nine heights on
+// a grid along (u) and across (v) the hull's heading, Lagrange-quadratic
+// between them (a little beyond the grid, held).
+const BOAT_WATER = /* glsl */ `
+uniform float boatWater[9];
+uniform vec4 boatPose;
+uniform vec3 boatGrid;
+uniform float boatPlane[9];
+vec2 boatLocal( vec3 w ) {
+  vec2 d = vec2( w.x, -w.z ) - boatPose.xy;
+  return vec2( d.x * boatPose.z + d.y * boatPose.w, d.x * boatPose.w - d.y * boatPose.z );
+}
+vec3 boatWeights( float t ) {
+  t = clamp( t, -1.3, 1.3 );
+  return vec3( 0.5 * t * ( t - 1.0 ), 1.0 - t * t, 0.5 * t * ( t + 1.0 ) );
+}
+float boatSea( vec3 w ) {
+  vec2 uv = boatLocal( w );
+  vec3 a = boatWeights( uv.x / boatGrid.x );
+  vec3 b = boatWeights( uv.y / boatGrid.y );
+  vec3 r0 = vec3( boatWater[0], boatWater[1], boatWater[2] );
+  vec3 r1 = vec3( boatWater[3], boatWater[4], boatWater[5] );
+  vec3 r2 = vec3( boatWater[6], boatWater[7], boatWater[8] );
+  return a.x * dot( r0, b ) + a.y * dot( r1, b ) + a.z * dot( r2, b );
+}
+// Whether the ray from the eye to a point under water at w crossed the
+// water's level inside the hull's waterplane (it came in over the side).
+bool boatSeenFromAbove( vec3 w, float below ) {
+  float h = cameraPosition.y - w.y;
+  if ( h <= -below ) return true;
+  vec3 q = mix( cameraPosition, w, ( h + below ) / h );
+  vec2 uv = boatLocal( q );
+  float s = clamp( ( uv.x / boatGrid.z + 1.0 ) * 4.0, 0.0, 8.0 );
+  int i = int( min( floor( s ), 7.0 ) );
+  float halfB = mix( boatPlane[i], boatPlane[i + 1], s - float( i ) );
+  return abs( uv.y ) < halfB + 0.015 && abs( uv.x ) < boatGrid.z;
+}
+`;
 
 const BOAT_NOISE = /* glsl */ `
 float bHash3( vec3 p ) {

@@ -54,8 +54,11 @@ const CONTACT = [
   [HALF * 0.5, 0, 0.03],
   [-HALF * 0.5, 0, 0.03],
 ];
-// Where the swell is sampled for heave, pitch and roll.
-const SAMPLE = { bow: HALF * 0.8, side: 0.62 };
+// Where the swell is sampled for heave, pitch and roll: a 3 × 3 grid over
+// the waterplane (along ±u, across ±v), as the water pass draws the
+// surface. boat.js hands the same nine heights to the hull's shader, which
+// cuts the hull where the water meets it.
+export const WATER_GRID = { u: HALF * 0.85, v: 0.7 };
 
 // sea: createSea (sea-surface.js). bed(x, z): the seabed, sand or boulder
 // top under the water (walker.bed). solids: walker.solids (blockers.js).
@@ -80,10 +83,12 @@ export function createBoatDynamics({ sea, bed, solids = null } = {}) {
     roll: 0,
     vr: 0,
     // The sea's surface under the hull as a plane: level at (x, z) and its
-    // slope, for the waterline clip.
+    // slope; and the nine heights it was fitted to (WATER_GRID: row by row
+    // from astern, port to starboard), taken at the hull's current pose.
     level: 0,
     slopeX: 0,
     slopeZ: 0,
+    water: new Float64Array(9),
     // How hard the swell and wind are working the boat (0…1), breaking
     // water at the bow (0…1), and contact: grounded on sand (0…1), the
     // last bump's strength and when (seconds since).
@@ -110,6 +115,12 @@ export function createBoatDynamics({ sea, bed, solids = null } = {}) {
     water.fz = w.flowZ;
     water.breaking = w.breaking;
     return water.level;
+  }
+  // The surface as drawn (sea.drawn), else as felt; the seabed where dry.
+  function surfaceAt(x, z) {
+    const d = sea?.drawn ? sea.drawn(x, z) : -Infinity;
+    if (Number.isFinite(d)) return d;
+    return levelAt(x, z);
   }
 
   function place(x, z, heading = s.heading) {
@@ -360,22 +371,35 @@ export function createBoatDynamics({ sea, bed, solids = null } = {}) {
       good.heading = nh;
     }
 
-    // Heave, pitch and roll on the swell.
-    const fx2 = Math.sin(s.heading), fz2 = Math.cos(s.heading);
-    const bowL = levelAt(s.x + fx2 * SAMPLE.bow, s.z + fz2 * SAMPLE.bow);
-    const sternL = levelAt(s.x - fx2 * SAMPLE.bow, s.z - fz2 * SAMPLE.bow);
-    const portL = levelAt(s.x - fz2 * SAMPLE.side, s.z + fx2 * SAMPLE.side);
-    const stbdL = levelAt(s.x + fz2 * SAMPLE.side, s.z - fx2 * SAMPLE.side);
-    const midL = levelAt(s.x, s.z);
+    // Heave, pitch and roll on the swell: the plane through the nine
+    // heights by least squares (the grid is symmetric, so its mean, and
+    // the first moments along and across).
+    const g = sampleWater(s.x, s.z, s.heading);
+    let mean = 0, mu = 0, mv = 0, rough = 0;
+    for (let i = 0; i < 9; i++) {
+      const gu = (Math.floor(i / 3) - 1), gv = (i % 3) - 1;
+      mean += g[i];
+      mu += g[i] * gu;
+      mv += g[i] * gv;
+    }
+    mean /= 9;
+    const along = mu / (6 * WATER_GRID.u);
+    const across = -mv / (6 * WATER_GRID.v);
+    // What the plane misses (short, steep water): chop.
+    for (let i = 0; i < 9; i++) {
+      const gu = (Math.floor(i / 3) - 1), gv = (i % 3) - 1;
+      rough += Math.abs(g[i] - (mean + along * gu * WATER_GRID.u - across * gv * WATER_GRID.v));
+    }
     // Aground in a trough, it rests on the sand rather than sinking into it.
-    const targetY = Math.max((bowL + sternL + portL + stbdL + 2 * midL) / 6, bed(s.x, s.z) + BOAT.draft - 0.03);
-    const along = (bowL - sternL) / (2 * SAMPLE.bow);
-    const across = (portL - stbdL) / (2 * SAMPLE.side);
-    // The plane of the sea under the hull, in world slope terms.
+    const targetY = Math.max(mean, bed(s.x, s.z) + BOAT.draft - 0.03);
+    const fx2 = Math.sin(s.heading), fz2 = Math.cos(s.heading);
+    // The plane of the sea under the hull, in world slope terms (`across`
+    // rises to port).
     s.level = targetY;
     s.slopeX = along * fx2 - across * fz2;
     s.slopeZ = along * fz2 + across * fx2;
-    s.chop += (clamp(Math.abs(bowL - sternL) * 2 + Math.abs(portL - stbdL) * 3, 0, 1) - s.chop) * Math.min(1, dt * 2);
+    const steep = Math.abs(along) * HALF * 2 + Math.abs(across) * 3 + rough * 1.5;
+    s.chop += (clamp(steep, 0, 1) - s.chop) * Math.min(1, dt * 2);
     // Heels a little out of a turn, squats a touch with speed.
     const heel = clamp(-s.u * s.r * 0.12, -0.12, 0.12);
     const sit = -s.grounded * 0.04;
@@ -393,6 +417,16 @@ export function createBoatDynamics({ sea, bed, solids = null } = {}) {
     }
   }
 
+  // The water over the 3 × 3 grid round a pose, into s.water.
+  function sampleWater(x, z, heading) {
+    const fx = Math.sin(heading), fz = Math.cos(heading);
+    for (let i = 0; i < 9; i++) {
+      const u = (Math.floor(i / 3) - 1) * WATER_GRID.u, v = ((i % 3) - 1) * WATER_GRID.v;
+      s.water[i] = surfaceAt(x + fx * u + fz * v, z + fz * u - fx * v);
+    }
+    return s.water;
+  }
+
   // A shove (a cat landing aboard): drops the hull and rocks it.
   function nudge(down = 0.15, roll = 0, pitch = 0) {
     s.vy -= down;
@@ -400,7 +434,7 @@ export function createBoatDynamics({ sea, bed, solids = null } = {}) {
     s.vp += pitch;
   }
 
-  return { state: s, events, contact, place, step, nudge, local: (u, v) => ({ ...local(u, v) }), probe: (x, z, h) => probe(x, z, h, levelAt(x, z) - BOAT.draft) };
+  return { state: s, events, contact, place, step, nudge, sampleWater, local: (u, v) => ({ ...local(u, v) }), probe: (x, z, h) => probe(x, z, h, levelAt(x, z) - BOAT.draft) };
 }
 
 const STILL = { level: 0, flowX: 0, flowZ: 0, breaking: 0 };
