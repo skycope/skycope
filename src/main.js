@@ -172,8 +172,8 @@ const state = {
   frameMs: 16.7,
   // quality.js: the governor's state, this frame's settings, and the render
   // sizes last applied. gpuMs: the WebGPU passes' time, where measurable.
-  quality: createQualityState(qualityLadder(baseSettings({ light: LIGHT }))),
-  settings: baseSettings({ light: LIGHT }),
+  quality: createQualityState(qualityLadder(baseSettings({ light: LIGHT, dpr: window.devicePixelRatio || 1 }))),
+  settings: baseSettings({ light: LIGHT, dpr: window.devicePixelRatio || 1 }),
   sizes: null,
   gpuMs: null,
   refreshHz: 0,
@@ -1294,7 +1294,7 @@ function measureRefresh(timestamp) {
   if (!(period > 2 && period < 40)) return;
   state.refreshHz = 1000 / period;
   if (!state.quality.pinned && state.quality.level === 0) {
-    state.quality = createQualityState(qualityLadder(baseSettings({ light: LIGHT }), { refresh: state.refreshHz }));
+    state.quality = createQualityState(qualityLadder(baseSettings({ light: LIGHT, dpr: window.devicePixelRatio || 1 }), { refresh: state.refreshHz }));
   }
 }
 

@@ -481,8 +481,13 @@ compressed (`LINGER`) so a visitor who stays a few minutes sees one.
   on the CPU (at most ~24k instances a frame, nearest first) when the eye has
   moved enough to move instances between levels; the render budget's
   `lodBias` pulls every level in. Per-instance levels cut the milkwood,
-  beacon and summit views from 2.2–3.3 M triangles to 1.7–2.1 M. The mesh canvas caps at
-  1.6 million pixels with MSAA (0.8 million without MSAA on phones). Rendering
+  beacon and summit views from 2.2–3.3 M triangles to 1.7–2.1 M. The mesh layer renders
+  into its own multisampled framebuffer, resolved onto the (single-sampled)
+  canvas by one blit, so the render budget chooses the sample count: MSAA 2
+  on high-DPI screens at 1.94 MP (about the cost of the old 1.6 MP at MSAA 4,
+  measured whole-frame), up to 0.75 of native linear (2160 × 1350 on a
+  1440 × 900 Retina laptop) while the GPU has headroom; MSAA 4 at native size
+  on 1x screens; 0.8 MP without MSAA on phones. Rendering
   is capped at 60 fps, 30 once the cat has settled, on the low-power GPU. The
   cat is ~8 draws (the old one ~63): its skinned passes are vertex-bound, so the
   fur shells, shadow map and see-through silhouette use a coarse mesh, outer

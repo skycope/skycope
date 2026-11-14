@@ -52,7 +52,10 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   const renderer = new THREE.WebGLRenderer({
     canvas,
     alpha: true,
-    antialias: !light,
+    // msaa: the canvas itself is single-sampled; the scene renders into a
+    // multisampled framebuffer whose sample count the render budget sets
+    // (quality.js msaa), resolved onto the canvas by one blit.
+    antialias: false,
     // The cat's see-through silhouette uses the stencil buffer (cat.js).
     stencil: true,
     // Same GPU as the WebGPU passes (see main.js), and the quiet one.
@@ -184,6 +187,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   // quality: the render budget's settings for this layer (quality.js).
   let quality = null;
   const drawingBuffer = new THREE.Vector2();
+  const msaa = createMsaa(renderer);
 
   const sunWorld = new THREE.Vector3(0, 1, 0);
   const sunView = new THREE.Vector3();
@@ -369,11 +373,16 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         renderer.info.reset();
         cat.renderShadow(renderer, scene);
         // Islands kilometres out, then the near scene over them with a
-        // fresh depth buffer: each gets the whole depth precision.
+        // fresh depth buffer: each gets the whole depth precision. Both
+        // into the multisampled buffer (msaa), resolved onto the canvas;
+        // the lens is a full-screen pass with no edges to antialias.
+        renderer.setRenderTarget(msaa.target);
         renderer.render(archipelago.scene, far);
         renderer.autoClear = false;
         renderer.clearDepth();
         renderer.render(scene, camera);
+        msaa.resolve();
+        renderer.setRenderTarget(null);
         renderer.render(lens.scene, camera);
         renderer.autoClear = true;
       });
@@ -414,14 +423,18 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       archipelago.camera.updateProjectionMatrix();
       const size = renderer.getDrawingBufferSize(drawingBuffer);
       if (size.x !== w || size.y !== h) renderer.setSize(w, h, false);
+      msaa.set(w, h, quality?.msaa ?? (light ? 0 : 2));
       archipelago.uniforms.pixelAngle.value = 1 / (0.9 * h);
     },
     // quality: this level's settings (quality.js baseSettings).
     setQuality(settings) {
       quality = settings;
+      const size = renderer.getDrawingBufferSize(drawingBuffer);
+      msaa.set(size.x, size.y, settings.msaa);
     },
     dispose() {
       profiler.dispose();
+      msaa.dispose();
       // The cat owns render targets (its shadow map, the coat bakes) and a
       // build worker the scene traversal below cannot reach.
       cat.dispose();
@@ -728,4 +741,68 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     envTarget = pmrem.fromEquirectangular(envSource, previous ?? null);
     scene.environment = envTarget.texture;
   }
+}
+
+// msaa: a multisampled colour + depth/stencil framebuffer that three renders
+// into as an externally managed target (so it never resolves it itself),
+// resolved straight onto the single-sampled canvas by one blit. `target` is
+// null (render to the canvas) when the sample count is 0. The target is
+// flagged as XR so three applies tone mapping and sRGB output to it, as it
+// does for the canvas.
+function createMsaa(renderer) {
+  const gl = renderer.getContext();
+  const most = gl.getParameter(gl.MAX_SAMPLES);
+  const state = { target: null, fbo: null, colour: null, depth: null, width: 0, height: 0, samples: 0 };
+  const release = () => {
+    if (state.fbo) gl.deleteFramebuffer(state.fbo);
+    if (state.colour) gl.deleteRenderbuffer(state.colour);
+    if (state.depth) gl.deleteRenderbuffer(state.depth);
+    state.fbo = state.colour = state.depth = null;
+    state.target?.dispose();
+    state.target = null;
+  };
+  return {
+    get target() {
+      return state.target;
+    },
+    set(width, height, samples) {
+      samples = Math.min(samples, most);
+      if (width === state.width && height === state.height && samples === state.samples) return;
+      release();
+      state.width = width;
+      state.height = height;
+      state.samples = samples;
+      if (!samples) return;
+      const storage = (format) => {
+        const buffer = gl.createRenderbuffer();
+        gl.bindRenderbuffer(gl.RENDERBUFFER, buffer);
+        gl.renderbufferStorageMultisample(gl.RENDERBUFFER, samples, format, width, height);
+        return buffer;
+      };
+      state.colour = storage(gl.RGBA8);
+      state.depth = storage(gl.DEPTH24_STENCIL8);
+      gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+      state.fbo = gl.createFramebuffer();
+      renderer.state.bindFramebuffer(gl.FRAMEBUFFER, state.fbo);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, state.colour);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_STENCIL_ATTACHMENT, gl.RENDERBUFFER, state.depth);
+      renderer.state.bindFramebuffer(gl.FRAMEBUFFER, null);
+      const target = new THREE.WebGLRenderTarget(width, height, { depthBuffer: true, stencilBuffer: true });
+      target.texture.colorSpace = THREE.SRGBColorSpace;
+      target.isXRRenderTarget = true;
+      renderer.setRenderTargetFramebuffer(target, state.fbo);
+      state.target = target;
+    },
+    // Resolves the samples onto the canvas (call with the target bound).
+    resolve() {
+      if (!state.target) return;
+      const { width, height } = state;
+      renderer.state.setScissorTest(false);
+      renderer.state.bindFramebuffer(gl.READ_FRAMEBUFFER, state.fbo);
+      renderer.state.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+      gl.blitFramebuffer(0, 0, width, height, 0, 0, width, height, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+      renderer.state.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+    },
+    dispose: release,
+  };
 }
