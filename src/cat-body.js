@@ -25,6 +25,13 @@ const BIG = 1;
 // (a domestic tabby's ~5 mm of coat) instead of a hairless figurine's, the
 // bare nose leather stays put and the eye sockets open with the lids.
 export const LOFT = 0.005;
+// How far the muzzle (whisker pads, nose, chin) stands ahead of the eyes
+// beyond a flat face: a cat's nose leather sits ~1.5 cm ahead of its
+// corneas. The nose leather (head-local) and its radii; the coat paints the
+// leather and the whiskers grow from the pads relative to these.
+export const MUZZLE = 0.006;
+export const NOSE = [0, -0.0064, 0.0452 + MUZZLE];
+export const NOSE_RADII = [0.0058, 0.0042, 0.0032];
 
 // Two levels of detail, as grid cells (m) for the field surface. Every pass
 // of the body is bound by skinned vertices, not pixels, so each gets the
@@ -87,16 +94,16 @@ function anatomy(rig) {
 
   // Trunk: rump, loin, a slim waist, the deep ribcage and the keel of the
   // chest. Deep and narrow, as a cat is: ~13 cm deep, ~10 cm wide.
-  ell("hips", [0, 0.018, -0.13], [0.048, 0.057, 0.058], { k: 0 });
-  ell("hips", [0, 0.032, -0.077], [0.042, 0.045, 0.064], { k: 0.03 });
-  ell("spine", [0, 0.028, -0.02], [0.043, 0.048, 0.07], { k: 0.03 });
-  ell("ribs", [0, 0.006, 0.05], [0.05, 0.069, 0.084], { k: 0.035 });
-  ell("chest", [0, -0.012, 0.11], [0.041, 0.061, 0.052], { k: 0.03, comb: [0, -1, -0.2], fur: 1.15 });
+  ell("hips", [0, 0.018, -0.13], [0.04, 0.057, 0.058], { k: 0 });
+  ell("hips", [0, 0.034, -0.077], [0.032, 0.047, 0.064], { k: 0.03 });
+  ell("spine", [0, 0.028, -0.02], [0.034, 0.042, 0.07], { k: 0.03 });
+  ell("ribs", [0, 0.02, 0.035], [0.053, 0.052, 0.08], { k: 0.035 });
+  ell("chest", [0, 0, 0.11], [0.041, 0.048, 0.052], { k: 0.03, comb: [0, -1, -0.2], fur: 1.15 });
   // The belly pouch hangs loose between the hind legs, and swings.
-  ell("pouch", [0, -0.02, -0.07], [0.034, 0.028, 0.055], { k: 0.03, comb: [0, -0.2, -1], fur: 1.3 });
+  ell("pouch", [0, -0.02, -0.07], [0.03, 0.028, 0.055], { k: 0.03, comb: [0, -0.2, -1], fur: 1.3 });
   // Neck and ruff.
-  cone("neck", [0, 0.03, 0.138], [0, 0.082, 0.2], 0.045, 0.041, { body: true, k: 0.03, comb: [0, -0.4, -1], fur: 1.2 });
-  ell("neck", [0, 0.026, 0.172], [0.041, 0.043, 0.04], { k: 0.025, comb: [0, -1, -0.1], fur: 1.25 });
+  cone("neck", [0, 0.03, 0.138], [0, 0.082, 0.2], 0.037, 0.032, { body: true, sx: 0.82, k: 0.03, comb: [0, -0.4, -1], fur: 1.2 });
+  ell("neck", [0, 0.022, 0.172], [0.03, 0.04, 0.036], { k: 0.025, comb: [0, -1, -0.1], fur: 1.25 });
 
   // Shoulder blades: flat plates on the withers, rolling as the legs swing.
   for (const leg of rig.legs.filter((l) => l.spec.front)) {
@@ -116,22 +123,22 @@ function anatomy(rig) {
     };
     if (l.spec.front) {
       // Upper arm with the triceps behind; the forearm, tapering to the wrist.
-      cone(`${n}Upper`, [0, 0, 0], [0, -a, 0], 0.023, 0.016, { k: 0.02, sx: 0.8, region: [0, 0.6, 0, 0], comb: down(`${n}Upper`), fur: 0.85 });
+      cone(`${n}Upper`, [0, 0, 0], [0, -a, 0], 0.023, 0.016, { k: 0.02, sx: 0.7, region: [0, 0.6, 0, 0], comb: down(`${n}Upper`), fur: 0.85 });
       ell(`${n}Upper`, [0, -a * 0.45, -0.011], [0.016, a * 0.5, 0.019], { axis: true, k: 0.012, region: [0, 0.6, 0, 0], comb: down(`${n}Upper`), fur: 0.85 });
-      cone(`${n}Lower`, [0, 0, 0], [0, -b, 0], 0.0192, 0.0132, { k: 0.012, sx: 0.85, region: leg, comb: down(`${n}Lower`), fur: 0.6 });
+      cone(`${n}Lower`, [0, 0, 0], [0, -b, 0], 0.0145, 0.0105, { k: 0.012, sx: 0.85, region: leg, comb: down(`${n}Lower`), fur: 0.3 });
       ell(`${n}Lower`, [0, -b * 0.28, 0.002], [0.0135, b * 0.3, 0.015], { axis: true, k: 0.01, region: leg, comb: down(`${n}Lower`), fur: 0.6 });
-      cone(`${n}Foot`, [0, 0, 0], [0, -c, 0], 0.0132, 0.0128, { k: 0.008, sx: 0.9, region: leg, comb: down(`${n}Foot`), fur: 0.5 });
+      cone(`${n}Foot`, [0, 0, 0], [0, -c, 0], 0.0105, 0.0105, { k: 0.008, sx: 0.9, region: leg, comb: down(`${n}Foot`), fur: 0.3 });
       // The carpal pad on the back of the wrist.
       ell(`${n}Foot`, [0, -0.006, -0.0105], [0.0048, 0.0055, 0.0045], { axis: true, k: 0.004, region: paw, fur: 0.4, fine: true });
     } else {
       // Thigh: the femur inside a broad, flat haunch muscle. Shin with the
       // calf behind, the heel's point at the hock, then the long hock.
-      cone(`${n}Upper`, [0, 0, 0], [0, -a, 0], 0.028, 0.022, { k: 0.02, sx: 0.8, region: [0, 0.4, 0, 0], comb: down(`${n}Upper`) });
-      ell(`${n}Upper`, [0, -a * 0.36, -0.004], [0.034, a * 0.64, 0.047], { axis: true, k: 0.025, region: [0, 0.35, 0, 0], comb: [0, -0.6, -0.8] });
-      cone(`${n}Lower`, [0, 0, 0], [0, -b, 0], 0.021, 0.0122, { k: 0.012, sx: 0.8, region: leg, comb: down(`${n}Lower`), fur: 0.75 });
+      cone(`${n}Upper`, [0, 0, 0], [0, -a, 0], 0.024, 0.017, { k: 0.02, sx: 0.75, region: [0, 0.4, 0, 0], comb: down(`${n}Upper`) });
+      ell(`${n}Upper`, [0, -a * 0.36, -0.004], [0.02, a * 0.64, 0.047], { axis: true, k: 0.025, region: [0, 0.35, 0, 0], comb: [0, -0.6, -0.8] });
+      cone(`${n}Lower`, [0, 0, 0], [0, -b, 0], 0.016, 0.01, { k: 0.012, sx: 0.8, region: leg, comb: down(`${n}Lower`), fur: 0.4 });
       ell(`${n}Lower`, [0, -b * 0.3, -0.008], [0.014, b * 0.32, 0.017], { axis: true, k: 0.012, region: leg, comb: down(`${n}Lower`), fur: 0.75 });
       ell(`${n}Foot`, [0, 0.005, -0.008], [0.0075, 0.009, 0.0085], { axis: true, k: 0.008, region: leg, comb: [0, -1, 0], fur: 0.6 });
-      cone(`${n}Foot`, [0, 0, 0], [0, -c, 0], 0.0122, 0.0118, { k: 0.008, sx: 0.85, region: leg, comb: down(`${n}Foot`), fur: 0.5 });
+      cone(`${n}Foot`, [0, 0, 0], [0, -c, 0], 0.0095, 0.0095, { k: 0.008, sx: 0.85, region: leg, comb: down(`${n}Foot`), fur: 0.3 });
     }
     // Paw: a rounded pad of a foot and four toes in an arc (the middle two
     // leading), soles flat on the ground.
@@ -145,16 +152,16 @@ function anatomy(rig) {
   // Head (in the head's frame): a round cranium, the brow, broad cheeks,
   // a short muzzle with whisker pads, the nose leather, and the jaw hinged
   // beneath. Eye sockets are carved out for the eyes to sit in.
-  ell("head", H([0, 0.007, -0.008]), [0.039, 0.035, 0.042], { k: 0.03, region: head, comb: [0, 0.2, -1], fur: 0.6 });
+  ell("head", H([0, 0.007, -0.008]), [0.035, 0.032, 0.04], { k: 0.03, region: head, comb: [0, 0.2, -1], fur: 0.6 });
   ell("head", H([0, 0.0135, 0.013]), [0.029, 0.024, 0.027], { k: 0.016, region: head, comb: [0, 0.5, -0.9], fur: 0.5 });
   for (const side of [1, -1]) {
-    ell("head", H([0.025 * side, -0.012, 0.004]), [0.027, 0.024, 0.027], { k: 0.014, region: head, comb: [side * 0.9, -0.3, -0.5], fur: 0.85 });
-    ell("head", H([0.0088 * side, -0.0185, 0.0375]), [0.0118, 0.0095, 0.0106], { k: 0.007, region: head, comb: [side, -0.35, -0.25], fur: 0.45, fine: true });
+    ell("head", H([0.022 * side, -0.012, 0.004]), [0.023, 0.021, 0.024], { k: 0.014, region: head, comb: [side * 0.9, -0.3, -0.5], fur: 0.85 });
+    ell("head", H([0.0082 * side, -0.0185, 0.0375 + MUZZLE]), [0.0106, 0.0092, 0.0104], { k: 0.007, region: head, comb: [side, -0.35, -0.25], fur: 0.45, fine: true });
   }
-  ell("head", H([0, -0.0085, 0.032]), [0.0125, 0.0118, 0.0148], { k: 0.011, region: head, comb: [0, 0.4, -1], fur: 0.3, fine: true });
-  ell("head", H([0, -0.0064, 0.0452]), [0.0058, 0.0042, 0.0032], { k: 0.0042, region: head, comb: [0, 0.4, -1], fur: 0, loft: 0.15, fine: true, nose: true });
+  ell("head", H([0, -0.0085, 0.032 + MUZZLE]), [0.0125, 0.0118, 0.0148], { k: 0.011, region: head, comb: [0, 0.4, -1], fur: 0.3, fine: true });
+  ell("head", H(NOSE), NOSE_RADII, { k: 0.0042, region: head, comb: [0, 0.4, -1], fur: 0, loft: 0.15, fine: true, nose: true });
   ell("jaw", H([0, -0.0235, 0.012]), [0.0178, 0.0092, 0.024], { k: 0.01, region: head, comb: [0, -0.3, -1], fur: 0.5, fine: true });
-  ell("jaw", H([0, -0.0272, 0.0245]), [0.0092, 0.0062, 0.0095], { k: 0.006, region: head, comb: [0, -0.4, -1], fur: 0.35, fine: true });
+  ell("jaw", H([0, -0.0272, 0.0245 + MUZZLE]), [0.0092, 0.0062, 0.0095], { k: 0.006, region: head, comb: [0, -0.4, -1], fur: 0.35, fine: true });
   for (const side of [1, -1]) {
     const socket = new THREE.Matrix4()
       .makeRotationFromEuler(new THREE.Euler(0.05, side * 0.3, side * 0.16, "YXZ"))
@@ -173,7 +180,7 @@ function anatomy(rig) {
   // Tail: a root that blends into the rump, then tapering segments, one
   // per bone, the tip rounded.
   // A cat's tail is nearly as thick at the tip as the root under its fur.
-  const radius = (s) => 0.0115 * (1 - 0.25 * THREE.MathUtils.smoothstep(s, 0.5, 1)) - Math.max(0, s - 0.93) * 0.05;
+  const radius = (s) => 0.009 * (1 - 0.45 * THREE.MathUtils.smoothstep(s, 0.5, 1)) - Math.max(0, s - 0.93) * 0.05;
   cone("tail0", [0, 0.034, -0.138], [TAIL_ROOT[0], TAIL_ROOT[1], TAIL_ROOT[2] - 0.03], 0.019, radius(0.1), { body: true, k: 0.02, region: [0, 0, 0.6, 0], comb: [0, 0.1, -1], fur: 1.3 });
   for (let i = 0; i < TAIL_BONES; i++) {
     const s0 = i / TAIL_BONES;
@@ -185,7 +192,7 @@ function anatomy(rig) {
       k: 0.006,
       region: [0, 0, 1, 0],
       comb: [0, 0, -1],
-      fur: 1.5,
+      fur: 0.9,
       fine: s1 > 0.85,
     });
   }

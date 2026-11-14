@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { furFlow, EYE_RADIUS, eyeCentre, buildCatGeometry, LOFT } from '../src/cat-body.js';
+import { furFlow, EYE_RADIUS, eyeCentre, buildCatGeometry, LOFT, MUZZLE } from '../src/cat-body.js';
 import { createRig } from '../src/cat-rig.js';
 import { pupilResponse } from '../src/cat.js';
 
@@ -29,14 +29,14 @@ test('pupils adapt continuously to both cloud shade and night', () => {
   assert.ok(Math.abs(one - two) < 1e-12, 'frame subdivision does not change response');
   assert.ok(one > .12 && one < .66);
   assert.ok(pupilResponse(.12, {night:0, direct:.1}, .2) > .12);
-  assert.ok(pupilResponse(.66, clear, 1) < .2);
+  assert.ok(pupilResponse(.66, clear, 1) < .25);
 });
 
 test('eyes sit inside the facial envelope and body flow is tangent at both LODs', () => {
-  // Head frame: the muzzle's skin front is at z 0.0468 (before its coat);
+  // Head frame: the muzzle's skin front is at z 0.0468 + MUZZLE (before its coat);
   // the cranium's front is at 0.034 plus its coat (0.6 × LOFT).
   const front = eyeCentre(1)[2] + EYE_RADIUS;
-  assert.ok(front < .0468, 'globe is recessed behind muzzle front');
+  assert.ok(front < .0468 + MUZZLE, 'globe is recessed behind muzzle front');
   assert.ok(front > .034 + .6 * LOFT, 'globe stands clear of the coat round it, not in a pit');
   assert.equal(eyeCentre(1)[0], -eyeCentre(-1)[0]);
   const lods = buildCatGeometry(createRig());

@@ -238,7 +238,12 @@ export function buildLighthouse(p, materials, { light = false } = {}) {
 
   // Collision: the plinth stands as a trunk; walls and cottage as one
   // height tile the cat can hop onto (the wall) or not (the cottage).
-  const trunks = [{ x: p.x, z: p.z, r: TOWER.plinth + 0.05 }];
+  // The plinth's top: its octagon's inscribed circle (no standing on air
+  // past a face; a hand's breadth of corner is left to the eye).
+  const plinthTile = discTile(p.x, p.z, (TOWER.plinth - 0.12) * Math.cos(Math.PI / 8), yP);
+  // solid: the plinth is a step round the tower a cat hops onto (a wall
+  // of no height before); the tower itself stops it.
+  const trunks = [{ x: p.x, z: p.z, r: 2.5 }];
   const centre = at(-3.4, 2.1);
   const domes = [heightTile(p.x + centre[0], p.z + centre[1], 10.5, 0.1, (x, z) => {
     const lx = x - p.x, lz = z - p.z;
@@ -282,7 +287,7 @@ export function buildLighthouse(p, materials, { light = false } = {}) {
     lamp: { x: p.x, y: yLamp, z: p.z, radius: 1.24 },
     // land-magic: the cottage's lit windows spill warm light on the yard.
     cottage: (() => { const [x, z] = at(cu + depth / 2 + 1.2, cv); return { x: p.x + x, y: floor + 1.5, z: p.z + z, colour: [1.0, 0.62, 0.3], reach: 4.5, power: 0.9 }; })(),
-    obstacles: { trunks, domes },
+    obstacles: { trunks, domes: [...domes, plinthTile] },
     blockers,
   };
 }
@@ -290,7 +295,8 @@ export function buildLighthouse(p, materials, { light = false } = {}) {
 // A wall along a rounded rectangle in (u, v): returns its geometry (local
 // x, z; absolute y) and a height lookup for collision.
 function yardWall(groundUV, at, { u0, u1, half, cv = 0, corner }) {
-  const thick = 0.42, height = 0.78, gate = 1.1;
+  // solid: low enough (coping 0.68 m) for a cat to hop onto, as cats do.
+  const thick = 0.42, height = 0.58, gate = 1.1;
   // Perimeter points, every ~0.5 m, counter-clockwise from the gate.
   const path = [];
   const cu = (u0 + u1) / 2, hu = (u0 - u1) / 2;
@@ -337,14 +343,20 @@ function yardWall(groundUV, at, { u0, u1, half, cv = 0, corner }) {
     geometry,
     path,
     top(u, v) {
-      // Distance to the perimeter in (u, v), coarse: nearest path point.
-      let best = Infinity, gap = false;
-      for (const q of path) {
-        const d = (q.u - u) ** 2 + (q.v - v) ** 2;
-        if (d < best) { best = d; gap = q.gap; }
+      // solid: distance to the wall's run, segment by segment. Nearest path
+      // point (0.5 m apart, 0.25 m reach) left notches between the beads
+      // that a cat's chest wedged into.
+      let best = Infinity;
+      for (let i = 0; i + 1 < path.length; i++) {
+        const a = path[i], b = path[i + 1];
+        if (a.gap || b.gap) continue;
+        const du = b.u - a.u, dv = b.v - a.v;
+        const t = Math.max(0, Math.min(1, ((u - a.u) * du + (v - a.v) * dv) / (du * du + dv * dv || 1e-9)));
+        best = Math.min(best, (a.u + du * t - u) ** 2 + (a.v + dv * t - v) ** 2);
       }
-      if (gap || best > (thick / 2 + 0.04) ** 2) return -Infinity;
-      return groundUV(u, v) + height + 0.05;
+      if (best > (thick / 2 + 0.02) ** 2) return -Infinity;
+      // The coping's crown (it stood 5 cm proud of the collision top).
+      return groundUV(u, v) + height + 0.1;
     },
   };
 }
@@ -367,6 +379,35 @@ function corrugated(width, length, pitch, depth) {
   return g;
 }
 
+// solid: low things as surfaces, not walls. A trunk is a wall of no height
+// (the cat met it in mid-air and could never jump over it or onto it); a
+// tile is a surface the walker treats like a boulder: walked round, hopped
+// onto when low, jumped over, landed on. Coast metres.
+// A flat-topped disc (a crayfish trap, a plinth).
+export function discTile(x, z, r, top) {
+  return heightTile(x, z, r + 0.1, 0.06, (px, pz) => (Math.hypot(px - x, pz - z) <= r ? top : -Infinity));
+}
+// A round timber lying along a polyline of { x, y, z } (centre line) with
+// radius r: its upper surface.
+export function timberTile(points, r) {
+  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+  for (const q of points) { x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); z0 = Math.min(z0, q.z); z1 = Math.max(z1, q.z); }
+  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  const half = Math.max(x1 - x0, z1 - z0) / 2 + r + 0.1;
+  return heightTile(cx, cz, half, 0.06, (px, pz) => {
+    let best = -Infinity;
+    for (let i = 0; i + 1 < points.length; i++) {
+      const a = points[i], b = points[i + 1];
+      const dx = b.x - a.x, dz = b.z - a.z;
+      const l2 = dx * dx + dz * dz || 1e-9;
+      const t = Math.max(0, Math.min(1, ((px - a.x) * dx + (pz - a.z) * dz) / l2));
+      const d = Math.hypot(px - a.x - dx * t, pz - a.z - dz * t);
+      if (d < r) best = Math.max(best, a.y + (b.y - a.y) * t + Math.sqrt(r * r - d * d));
+    }
+    return best;
+  });
+}
+
 // A collision height tile in walker.js's dome format, sampled from fn(x, z)
 // (−Infinity where there is nothing to stand on).
 export function heightTile(cx, cz, half, cell, fn) {
@@ -376,5 +417,8 @@ export function heightTile(cx, cz, half, cell, fn) {
   const heights = new Float32Array(nx * nz);
   for (let j = 0; j < nz; j++)
     for (let i = 0; i < nx; i++) heights[j * nx + i] = fn(x0 + i * cell, z0 + j * cell);
-  return { x0, z0, cell, nx, nz, heights, x: cx, z: cz, r: half };
+  // `gradient`: walker.js takes a wall's normal from the tile's own slope,
+  // not from its centre (a wall round a yard pointed the cat inside the
+  // yard into the wall, and it pushed there for good).
+  return { x0, z0, cell, nx, nz, heights, x: cx, z: cz, r: half, gradient: true };
 }

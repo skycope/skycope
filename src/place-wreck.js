@@ -3,7 +3,7 @@ import { groundHeight } from "./terrain.js";
 import { capsule } from "./blockers.js";
 import { seededRandom } from "./random.js";
 import { part, merge, sweep, place, smooth01, srgb, hash, staticMesh } from "./place-kit.js";
-import { heightTile } from "./place-lighthouse.js";
+import { heightTile, timberTile } from "./place-lighthouse.js";
 import { hurricaneLantern } from "./place-shore.js"; // land-magic:
 
 // The bones of a wooden coaster, driven bow-first up the beach and half
@@ -56,6 +56,7 @@ export function buildWreck(p, materials, { light = false, seed = 1 } = {}) {
   const wood = { near: [], far: [] };
   const iron = { near: [], far: [] };
   const trunks = [];
+  let boilerTile = null;
   // solid: the timbers the camera keeps out of (blockers.js).
   const blockers = [];
   const C = (q) => ({ x: p.x + q.x, y: q.y, z: p.z + q.z });
@@ -71,6 +72,12 @@ export function buildWreck(p, materials, { light = false, seed = 1 } = {}) {
   // Inside the hull, below the sand line, little sky reaches.
   const hullShade = (q) => 0.35 * (1 - smooth01(anchor(q) - 0.1, anchor(q) + 0.8, q.y));
 
+  // solid: only timbers seated in sand. Where the sea lies over the bed
+  // (the land layer is cut at the surface and the water pass knows nothing
+  // of the wreck) a frame showed as a hollow, knife-edged plate floating on
+  // the water: those are gone, as the sea takes a wreck's seaward end.
+  const SEATED = -0.05;
+  const seated = (s) => groundAtU(s * (L / 2)) > SEATED;
   // Frames: in pairs, every ~0.8 m, each broken off at its own height.
   const stations = 18;
   for (let i = 0; i < stations; i++) {
@@ -89,6 +96,7 @@ export function buildWreck(p, materials, { light = false, seed = 1 } = {}) {
       const radii = points.map((_, k) => 0.15 * (1 - (k / n) * 0.3));
       const twist = (random() - 0.5) * 0.04;
       for (const q of points) { q.x += twist * rx; q.z += twist * rz; }
+      if (!seated(s)) continue;
       wood.near.push(part(sweep(points, radii, light ? 4 : 5, { roll: Math.PI / 4 }), { colour: timberColour, shade: hullShade, anchor }));
       timberChain(points, 0.16, { body: false });
       wood.far.push(part(sweep(points.filter((_, k) => k % 2 === 0 || k === n), radii.filter((_, k) => k % 2 === 0 || k === n), 3), { colour: timberColour, anchor }));
@@ -129,8 +137,10 @@ export function buildWreck(p, materials, { light = false, seed = 1 } = {}) {
   {
     const base = hull(-0.95, 0, 1);
     const points = [base.clone().add(new THREE.Vector3(0, 0.1, 0)), base.clone().add(new THREE.Vector3(-fx * 0.25, 1.4, -fz * 0.25))];
-    timberChain(points, 0.17);
-    wood.near.push(part(sweep(points, [0.17, 0.14], 5, { roll: Math.PI / 4 }), { colour: timberColour, anchor }));
+    if (seated(-0.95)) {
+      timberChain(points, 0.17);
+      wood.near.push(part(sweep(points, [0.17, 0.14], 5, { roll: Math.PI / 4 }), { colour: timberColour, anchor }));
+    }
   }
   // A few strakes of planking still fastened high on the bow, sprung and
   // gapped; and one of the floor timbers' long stringers.
@@ -138,6 +148,7 @@ export function buildWreck(p, materials, { light = false, seed = 1 } = {}) {
   const strakes = [[0.8, 0.5, 0.88, highSide], [0.68, 0.62, 0.86, highSide], [0.4, -0.3, 0.2, -highSide]];
   for (const [t, s0, s1, side] of strakes) {
     if (random() < 0.15) continue;
+    if (!seated(s0) || !seated(s1)) continue;
     const points = [];
     const n = Math.max(3, Math.round((s1 - s0) * 9));
     for (let k = 0; k <= n; k++) {
@@ -172,17 +183,24 @@ export function buildWreck(p, materials, { light = false, seed = 1 } = {}) {
       iron.near.push(part(new THREE.CylinderGeometry(0.09, 0.09, 0.08, 8), {
         matrix: m.clone().multiply(new THREE.Matrix4().makeTranslation(Math.cos(a) * r, 1.06, Math.sin(a) * r + 0.05)), colour: srgb("#1c120c"),
       }));
-    trunks.push({ x: p.x + centre.x, z: p.z + centre.z, r: 0.55 });
+    // solid: the drum lies half sunk; a cat hops onto it (it was a wall).
     // Its axis: the cylinder's y turned by the roll, then the yaw.
     const ax = -Math.cos(yaw) * 0.75, az = Math.sin(yaw) * 0.75;
     blockers.push(capsule(C({ x: centre.x - ax, y: centre.y, z: centre.z - az }), C({ x: centre.x + ax, y: centre.y, z: centre.z + az }), 0.64, { body: false }));
+    const ex = -Math.cos(yaw) * 1.02, ez = Math.sin(yaw) * 1.02;
+    boilerTile = timberTile([C({ x: centre.x - ex, y: centre.y, z: centre.z - ez }), C({ x: centre.x + ex, y: centre.y, z: centre.z + ez })], 0.62);
   }
   // Drift bolts and an iron knee standing proud of the keel.
   for (let k = 0; k < 7; k++) {
     const s = -0.8 + random() * 1.5;
     const q = hull(s, 0, 1);
     const top = q.clone().add(new THREE.Vector3((random() - 0.5) * 0.1, 0.45 + random() * 0.35, (random() - 0.5) * 0.1));
-    iron.near.push(part(sweep([q.clone().add(new THREE.Vector3(0, 0.1, 0)), top], [0.028, 0.022], 4), { colour: RUST, anchor }));
+    // solid: no bolts left standing as bare upright sticks (in the sea
+    // they read as a twig stuck in the water); a few stubs, bent over and
+    // short, where the keel is seated in sand.
+    if (!seated(s) || k % 2) continue;
+    const stub = q.clone().lerp(top, 0.35).add(new THREE.Vector3(fx * 0.12, 0, fz * 0.12));
+    iron.near.push(part(sweep([q.clone().add(new THREE.Vector3(0, 0.1, 0)), stub], [0.03, 0.024], 4), { colour: RUST, anchor }));
   }
 
   // land-magic: a lantern someone hung from the stem head on a lanyard,
@@ -203,7 +221,7 @@ export function buildWreck(p, materials, { light = false, seed = 1 } = {}) {
     const q = hull(u / (L / 2), 0, 1);
     return q.y + 0.12 + 0.17;
   };
-  const domes = [heightTile(p.x, p.z, L / 2 + 0.5, 0.12, (x, z) => keelTop(x - p.x, z - p.z))];
+  const domes = [heightTile(p.x, p.z, L / 2 + 0.5, 0.12, (x, z) => keelTop(x - p.x, z - p.z)), boilerTile];
   return {
     near: nearGroup, far: farGroup, farDistance: 40, obstacles: { trunks, domes }, blockers,
     halos: [{ x: p.x + lantern.x, y: lantern.y, z: p.z + lantern.z, size: 1.5, colour: [1.0, 0.62, 0.28], flicker: true, reach: 4 }],

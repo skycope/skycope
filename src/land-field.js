@@ -20,7 +20,7 @@ const { sand: SAND, wetSand: WET_SAND, dune: DUNE, litter: LITTER, moss: MOSS } 
 // normalised to unit luminance), which covers sand, litter, moss and leaves.
 const LUMA = [0.2126, 0.7152, 0.0722];
 const luma = (c) => c[0] * LUMA[0] + c[1] * LUMA[1] + c[2] * LUMA[2];
-export const SAND_TINT = [1.24, 0.97, 0.6];
+export const SAND_TINT = [1.125, 0.992, 0.714];
 export const LEAF_TINT = [0.56, 1.21, 0.31];
 const TINT_AXIS = SAND_TINT.map((v, i) => LEAF_TINT[i] - v);
 const TINT_NORM = TINT_AXIS.reduce((a, v) => a + v * v, 0);

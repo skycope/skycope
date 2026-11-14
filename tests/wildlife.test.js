@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import * as THREE from "three";
 import { createForest } from "../src/forest.js";
 import { createWildlife } from "../src/wildlife.js";
-import { shoreDistance } from "../src/terrain.js";
+import { shoreDistance, groundHeight as groundHeightAt } from "../src/terrain.js";
 
 // The island's animals build without WebGL (geometry is meshed in place when
 // there are no workers) and behave toward a scripted cat: they notice it,
@@ -125,4 +125,31 @@ test("the tortoise withdraws from a pounce and comes out again", () => {
   pose.x = t.x + 10;
   run(25);
   assert.ok(t.in < 0.1, "out again");
+});
+
+// solid: penguins stand on sand or a low flat stone, never up a boulder
+// (they walked up the flanks in a stutter of hops and stood on the tops).
+test("penguins never climb the boulders", () => {
+  const { wild, pose, run } = world();
+  const p = wild.penguins;
+  let worst = 0, where = "";
+  const check = () => {
+    for (const b of p.birds) {
+      // (Afloat, or standing at the sea's edge on a submerged ledge.)
+      if (b.swim > 0.5 || b.y < 0.15) continue;
+      const up = b.y - groundHeightAt(b.x, b.z);
+      if (up > worst) { worst = up; where = `${b.mode} at ${b.x.toFixed(1)},${b.z.toFixed(1)} home ${b.home.x.toFixed(1)},${b.home.z.toFixed(1)} speed ${b.speed.toFixed(2)} vy ${b.vy.toFixed(2)}`; }
+    }
+  };
+  run(5, check);
+  pose.speed = 1.6;
+  for (const [dx, dz] of [[12, 0], [-12, 0], [0, 12], [0, -12]])
+    run(10, (t) => {
+      pose.x = p.centre.x + dx * (1 - ((t % 10) / 10));
+      pose.z = p.centre.z + dz * (1 - ((t % 10) / 10));
+      check();
+    });
+  pose.x = p.centre.x + 40;
+  run(60, check);
+  assert.ok(worst < 0.4, `a penguin stood ${worst.toFixed(2)} m above the sand: ${where}`);
 });

@@ -5,6 +5,7 @@ import { createPenguins } from "./penguins.js";
 import { createSeals } from "./seals.js";
 import { createWhale } from "./whale.js";
 import { createTortoise, createOystercatchers } from "./shore-life.js";
+import { cylinder, capsule, setCapsule } from "./blockers.js";
 
 // The island's larger animals, each a module with the same interface:
 //   { pois: [{ id, title, x, z, r }], update(frame) → interest | null,
@@ -67,7 +68,41 @@ export function createWildlife(group, seed, { obstacles, light = false }) {
   const best = { x: 0, y: 0, z: 0, kind: "", near: false, d: Infinity };
   const timing = { ms: 0, frames: 0 };
 
+  // solid: the animals' bodies, one list of moving solids (blockers.js)
+  // beside the landmarks' static ones: the cat cannot pass through them
+  // and the camera keeps out of the big ones. Rewritten in place each frame.
+  const bodies = [];
+  const bodyOf = new Map();
+  const add2 = (animal, prim) => { bodyOf.set(animal, prim); bodies.push(prim); };
+  for (const b of penguins.birds ?? []) add2(b, cylinder(b.x, b.z, 0.17, 0, 0.6, { lens: false }));
+  for (const s of seals.seals ?? []) add2(s, capsule({ x: s.x, y: 0, z: s.z }, { x: s.x, y: 0, z: s.z }, 0.3));
+  if (tortoise.tortoise) add2(tortoise.tortoise, cylinder(0, 0, 0.24, 0, 0.24, { lens: false, stand: true }));
+  for (const b of oystercatchers.birds ?? []) add2(b, cylinder(b.x, b.z, 0.1, 0, 0.3, { lens: false }));
+  const placeBodies = () => {
+    for (const b of penguins.birds ?? []) {
+      const c = bodyOf.get(b);
+      const y = Number.isFinite(b.y) ? b.y : 0;
+      c.x = b.x; c.z = b.z; c.rad = c.r = 0.17 * (b.size ?? 1); c.y0 = y; c.y1 = y + 0.6 * (b.size ?? 1);
+    }
+    for (const s of seals.seals ?? []) {
+      const k = s.size ?? 1, hx = Math.sin(s.heading) * 0.55 * k, hz = Math.cos(s.heading) * 0.55 * k;
+      const y = (Number.isFinite(s.y) ? s.y : 0) + 0.28 * k;
+      setCapsule(bodyOf.get(s), s.x - hx, y, s.z - hz, s.x + hx, y, s.z + hz, 0.3 * k);
+    }
+    const t = tortoise.tortoise;
+    if (t) {
+      const c = bodyOf.get(t);
+      c.x = t.x; c.z = t.z; c.y0 = groundHeight(t.x, t.z); c.y1 = c.y0 + 0.24;
+    }
+    for (const b of oystercatchers.birds ?? []) {
+      const c = bodyOf.get(b);
+      c.live = b.state !== "fly";
+      c.x = b.x; c.z = b.z; c.y0 = b.y ?? groundHeight(b.x, b.z); c.y1 = c.y0 + 0.3;
+    }
+  };
+  placeBodies();
   return {
+    bodies,
     pois,
     events,
     modules,
@@ -97,6 +132,7 @@ export function createWildlife(group, seed, { obstacles, light = false }) {
         if (interest && (!found || interest.d < found.d)) found = interest;
       }
       blobs.end();
+      placeBodies();
       spray.update(frame.dt, frame.wind, frame.night);
       timing.ms += performance.now() - started;
       timing.frames++;

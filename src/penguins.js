@@ -27,6 +27,10 @@ const AWARE = 7;
 const SHY = 2.7;
 const HOME_CALM = 5;
 
+// solid: grown in and out over the last 20 m before the hide radius, so
+// the herd never pops in or out of view.
+const grownAt = (d, radius) => 1 - Math.min(1, Math.max(0, (d - (radius - 20)) / 20)) ** 2;
+
 export function penguinGeometry({ light = false } = {}) {
   const prims = [
     ellipsoid("body", [0, 0.265, -0.005], [0.112, 0.2, 0.1], { k: 0 }),
@@ -156,6 +160,19 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
   // The outcrop's stones (and any nearby) are what they walk round.
   const near = domes.filter((d) => Math.hypot(d.x - cluster.x, d.z - cluster.z) < 26);
   const surface = surfaceOf(near);
+  // Moves a standing bird to (x, z) unless that is up on a rock.
+  const easeTo = (q, x, z) => {
+    if (surface(x, z) - groundHeight(x, z) > 0.3) return;
+    q.x = x;
+    q.z = z;
+  };
+  // Whether a stride toward heading h climbs a flank (see update).
+  const steepAhead = (b, here, h) => {
+    const ax = b.x + Math.sin(h) * 0.25, az = b.z + Math.cos(h) * 0.25;
+    const ahead = surface(ax, az);
+    const up = ahead - here;
+    return up > 0.35 || (up > 0.1 && ahead - groundHeight(ax, az) > 0.3);
+  };
   const tall = (x, z) => {
     for (const d of near) {
       if (Math.abs(x - d.x) > d.r || Math.abs(z - d.z) > d.r) continue;
@@ -251,6 +268,7 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
   const interest = { x: 0, y: 0, z: 0, kind: "penguin", near: false, d: 0 };
   const say = (type, b, d, gain) => events.push({ type, x: b.x, z: b.z, d, gain: gain * clamp(1 - d / 45, 0, 1) });
 
+  let grow = 1;
   return {
     pois: [{ id: "penguins", title: "Penguin colony", x: centre.x, z: centre.z, r: 6 }],
     events,
@@ -263,6 +281,7 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
       const catD = Math.hypot(pose.x - centre.x, pose.z - centre.z);
       // Far off (and no-one at sea) the colony costs nothing.
       const away = catD > 95 && atSea === 0;
+      grow = atSea ? 1 : grownAt(catD, 95);
       mesh.visible = !away && geometry.userData.ready;
       if (away) return null;
       atSea = 0;
@@ -482,16 +501,30 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
           const ox = b.x - o.x;
           const oz = b.z - o.z;
           const od = Math.hypot(ox, oz);
-          if (od < 0.3 && od > 1e-4) {
-            px += (ox / od) * (0.3 - od);
-            pz += (oz / od) * (0.3 - od);
+          if (od < 0.38 && od > 1e-4) {
+            px += (ox / od) * (0.38 - od);
+            pz += (oz / od) * (0.38 - od);
+          }
+        }
+        // solid: and from the cat's paws: a penguin brushed by the cat
+        // steps aside (it is a body the cat cannot walk through).
+        if (b.swim < 0.5) {
+          const cx = b.x - pose.x, cz = b.z - pose.z, cd = Math.hypot(cx, cz);
+          if (cd < 0.6 && cd > 1e-4) {
+            px += (cx / cd) * (0.6 - cd) * 2.5;
+            pz += (cz / cd) * (0.6 - cd) * 2.5;
           }
         }
         let nx = b.x + Math.sin(b.heading) * b.speed * dt + px * dt * 3;
         let nz = b.z + Math.cos(b.heading) * b.speed * dt + pz * dt * 3;
         // Round the stones: a rock too tall to hop is walked round.
+        // solid: judged a stride ahead, not one frame's step: by the step
+        // a boulder's flank never looked steep, so penguins walked up the
+        // big boulders in a stutter of little hops and stood on their
+        // rounded tops. A penguin hops onto a low flat stone (under 0.3 m
+        // above the sand), never up a flank.
         const here = surface(b.x, b.z);
-        if (b.swim < 0.5 && b.speed > 0.01 && surface(nx, nz) - here > 0.35) {
+        if (b.speed > 0.01 && steepAhead(b, here, b.heading)) {
           // Feel round it: the nearest clear bearing either side, keeping to
           // whichever side it chose first until clear.
           const step = b.speed * dt + 0.08;
@@ -499,9 +532,7 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
           for (let k = 1; k <= 4 && !found; k++) {
             for (const s of b.dodge ? [b.dodge] : [1, -1]) {
               const h = b.heading + s * k * 0.45;
-              const tx = b.x + Math.sin(h) * step;
-              const tz = b.z + Math.cos(h) * step;
-              if (surface(tx, tz) - here <= 0.35) {
+              if (!steepAhead(b, here, h)) {
                 b.dodge = s;
                 b.heading = turnToward(b.heading, h, dt * 6);
                 nx = b.x + Math.sin(h) * b.speed * dt;
@@ -517,6 +548,15 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
             b.heading += (b.dodge || 1) * dt * 3;
           }
         } else if (b.speed > 0.01) b.dodge = 0;
+        // And whatever the push (a neighbour, a dodge), never up onto a
+        // rock more than a low stone's height above the sand.
+        if (b.swim < 0.5) {
+          const top = surface(nx, nz);
+          if (top > here + 0.002 && top - groundHeight(nx, nz) > 0.3) {
+            nx = b.x;
+            nz = b.z;
+          }
+        }
         // Only to sea when meaning to go.
         const goingIn = b.mode === "outing" || b.mode === "flee" || b.mode === "sea" || b.mode === "back";
         if (!goingIn && shoreDistance(nx, nz) < 0.5 && shoreDistance(nx, nz) < shoreDistance(b.x, b.z)) {
@@ -578,7 +618,7 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
         // the bird's middle is where it is.
         const back = Math.sin(b.pitch) * 0.28 * b.size;
         const bob = b.swim < 0.5 ? Math.abs(Math.cos(b.gait)) * 0.012 * b.gaitAmp : 0;
-        placeInstance(mesh, b.i, b.x - Math.sin(b.heading) * back, y + bob, b.z - Math.cos(b.heading) * back, b.heading + yawWobble, b.pitch, roll, b.size);
+        placeInstance(mesh, b.i, b.x - Math.sin(b.heading) * back, y + bob, b.z - Math.cos(b.heading) * back, b.heading + yawWobble, b.pitch, roll, b.size * grow);
         bounds.add(b.x - Math.sin(b.heading) * back, y + bob, b.z - Math.cos(b.heading) * back, 0.5);
         attrs.pose.setXYZW(b.i, b.headYaw, b.headPitch, b.flipper, b.gait);
         attrs.pose2.setXYZW(b.i, b.gaitAmp * Math.min(1, b.speed / 0.2 + 0.3), b.beat, b.jitter ?? 0, 0);
@@ -588,6 +628,21 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
         if (dc < bestD) {
           bestD = dc;
           best = b;
+        }
+      }
+      // solid: no two standing penguins in one place: pairs closer than a
+      // body's width are eased apart (not onto a rock).
+      for (let i = 0; i < birds.length; i++) {
+        const b = birds[i];
+        if (b.swim > 0.5) continue;
+        for (let j = i + 1; j < birds.length; j++) {
+          const o = birds[j];
+          if (o.swim > 0.5) continue;
+          const dx = b.x - o.x, dz = b.z - o.z, d = Math.hypot(dx, dz);
+          if (d >= 0.34 || d < 1e-5) continue;
+          const push = (0.34 - d) / 2 / d;
+          easeTo(b, b.x + dx * push, b.z + dz * push);
+          easeTo(o, o.x - dx * push, o.z - dz * push);
         }
       }
       if (outing && outing.party.every((b) => b.mode !== "outing")) outing = null;
