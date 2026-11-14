@@ -440,7 +440,7 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
   function holdCat(cat, dt, steering) {
     // Standing, front paws up on the breasthook; sitting, a step back so
     // all four are on the bow sheets.
-    const sz = STATION.z - 0.2 * clamp(cat.sit, 0, 1);
+    const sz = STATION.z - 0.05 * clamp(cat.sit, 0, 1);
     const st = toWorld(STATION.x, sz);
     cat.x = st.x;
     cat.z = st.z;

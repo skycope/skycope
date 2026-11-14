@@ -1198,6 +1198,12 @@ function footstep(leg, x, z, heading, front, { side = 1, speed = 0, pace = speed
   const inland = shoreDistance(x, z);
   const e = 0.03;
   const y = ground(x, z);
+  // Seabed bared for a moment by a wave trough: the water comes back over
+  // it, and a print drawn there would show as a dark square on the sea.
+  if (y < 0.02 && inland < 0) {
+    state.pawWet = 1;
+    return kind;
+  }
   const nx = ground(x - e, z) - ground(x + e, z);
   const nz = ground(x, z - e) - ground(x, z + e);
   const n = Math.hypot(nx, 2 * e, nz);
