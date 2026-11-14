@@ -15,7 +15,7 @@
 // nothing for a budget (MSAA 4 → 2 where the base is 2) are dropped from
 // that budget's ladder, so every level costs less than the one above.
 export const STEPS = [
-  { shadowSlices: 6, cloudSteps: 32 },
+  { shadowSlices: 8, cloudSteps: 32 },
   { skyScale: 0.75 },
   { seaScale: 0.82 },
   { seaScale: 0.68 },
@@ -34,7 +34,7 @@ export const STEPS = [
 // over; `lodBias` scales every vegetation LOD distance.
 export function baseSettings({ light = false } = {}) {
   return {
-    shadowSlices: 3,
+    shadowSlices: 4,
     cloudSteps: light ? 32 : 44,
     skyScale: 1,
     seaScale: 1,

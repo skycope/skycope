@@ -489,8 +489,14 @@ compressed (`LINGER`) so a visitor who stays a few minutes sees one.
   shells are clipped away before rasterisation except at the silhouette, and the
   coat is baked per vertex once on the GPU for the shells (and for the body
   beyond ~2 m). Its cost matches the old cat at the follow distance. Sun
-  shadows use one 2048² map over 64 m around the cat, updated only when
-  lighting changes. Individual leaf tips flutter in a vertex shader.
+  shadows use one 2048² map over 64 m around the cat, re-rendered only when
+  the light's direction moves ~0.3° or the cat's 10 m anchor moves (not for
+  colour, twilight or cloud). A refresh is spread over four frames (eight
+  under load, `shadowSlices`): each renders a quarter of the casters into a
+  back map that replaces the front one only when whole, so no frame pays the
+  whole caster set (at the milkwood 3 M extra triangles in one frame before,
+  about 0.5–0.8 M in each of four now); a jump renders it at once. Individual
+  leaf tips flutter in a vertex shader.
 - A 256 KiB repeating noise volume avoids hashing many noise octaves per sample.
   The constellation atlas is uploaded once (2048 × 1024 RGBA, 8 MiB), and the
   star catalog grid once (1024 × 512 RGBA16F, 4 MiB).
