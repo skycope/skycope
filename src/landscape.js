@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { createForest } from "./forest.js";
+import { createForest, groundAnimals } from "./forest.js";
 import { createFauna } from "./fauna.js";
 import { createCat, SPLASH } from "./cat.js";
 import { CAT_SKY } from "./cat-ground.js";
@@ -42,8 +42,12 @@ const MOON_KEY = new THREE.Color(0.62, 0.74, 1.0);
 // land-look: the sky dome as the land's ambient (buildEnvironment): how much
 // of its chroma reaches the land with the sun high and with it low, and how
 // much of the lowest sky the trees and hill hide: by day, with the sun low,
-// and toward a low sun.
-const ENVIRONMENT = { chroma: 0.5, lowChroma: 1, hide: 0.6, lowHide: 0.4, sunHide: 0.15 };
+// and toward a low sun. Low-sun chroma is above the clear-sky model's own
+// (1.35), and its blues lean violet (`violet`): together they carry what
+// the clear-sky model leaves out (the sunset-lit clouds, the ozone-violet
+// zenith, a camera's daylight white balance), which is why open shade
+// photographs blue-violet and wet sand peach at golden hour.
+const ENVIRONMENT = { chroma: 0.5, lowChroma: 1.35, violet: 0.3, hide: 0.6, lowHide: 0.25, sunHide: 0.05 };
 
 // Geometry shares the sky shader's 315° heading, 6° pitch, and projection.
 // WebGL handles mesh depth/shadows; WebGPU handles the sky and water behind it.
@@ -84,6 +88,8 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   forest.obstacles.trunks.push(...places.obstacles.trunks);
   forest.obstacles.domes.push(...places.obstacles.domes);
   forest.obstacles.blockers = places.blockers; // solid: camera and body solids (blockers.js)
+  // land-look: the ground darkens round the landmarks' feet (forest.js).
+  forest.groundContact(land, [places.group]);
   // land-magic: the gifts' light on the land (uniforms in forest.js shared).
   const landMagic = createLandMagic({ shared: land.userData.forestShared, lamps: places.lamps, beacon: places.beacon, light });
   const fauna = createFauna(land, seed);
@@ -231,7 +237,10 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       starLevel = levels?.stars ?? 0; // land-look: the stars gift lifts the night
       // The cat's coat and the animals take the same light (their
       // materials are built lazily: wrapped at load and once more later).
-      if (magicScan < 2400 && magicScan % 300 === 30) lightWithMagic(land, land.userData.forestShared);
+      if (magicScan < 2400 && magicScan % 300 === 30) {
+        lightWithMagic(land, land.userData.forestShared);
+        groundAnimals(land, land.userData.forestShared); // land-look: animals sit in the ground
+      }
       magicScan++;
       places.update({ time, night, wind, eye: [flight.x, flight.y, flight.z], pose, lamp: gifts.lamp, lights: gifts.lampLights }); // places:
       const sinA = Math.sin(flight.azimuth);
@@ -608,8 +617,13 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         // Shade lit by a blue sky reads blue in a photograph, but not the
         // saturated cyan of the raw dome: part of its chroma, about luminance.
         const luma = rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+        // Blue sky toward violet with the sun low: red lifted by the blue
+        // excess, green lowered to keep the luminance.
+        const lean = Math.max(rgb[2] - luma, 0) * ENVIRONMENT.violet * low;
+        rgb[0] += lean;
+        rgb[1] -= (lean * 0.2126) / 0.7152;
         for (let c = 0; c < 3; c++) {
-          const radiance = luma + (rgb[c] - luma) * chroma;
+          const radiance = Math.max(0, luma + (rgb[c] - luma) * chroma);
           envData[o + c] = half(radiance);
           const weight = radiance * cell * across;
           for (let b = 0; b < 9; b++) skySH.coefficients[b].setComponent(c, skySH.coefficients[b].getComponent(c) + shBasis[b] * weight);

@@ -16,7 +16,7 @@ import { landFieldData } from "./land-field.js";
 import { placeRocks } from "./place-rocks.js"; // places:
 import { markSolid, SOLID_ORDER } from "./cat-coat.js"; // solid:
 import { bridgeCrevices } from "./walker.js"; // solid:
-import { MATERIAL_HEX } from "./material-palette.js";
+import { MATERIAL_HEX, MATERIAL_LINEAR } from "./material-palette.js";
 import { groundDetailData, groundCover } from "./ground-detail.js";
 import { createNearGround } from "./near-ground.js";
 import { magicUniforms, MAGIC_LIGHT_DECLARATIONS, MAGIC_LIGHT_GLSL } from "./land-magic.js"; // land-magic:
@@ -63,6 +63,9 @@ export function createForest(scene, seed, { light = false } = {}) {
     skySH: { value: Array.from({ length: 9 }, () => new THREE.Vector3()) },
     rainWetness: { value: 0 },
     rainFilm: { value: 0 },
+    // land-look: the ground field (groundFieldTexture) and where it lies.
+    groundField: { value: null },
+    groundRect: { value: new THREE.Vector4() },
     // land-magic: the gifts' light on the land (land-magic.js).
     ...magicUniforms(),
   };
@@ -289,6 +292,11 @@ export function createForest(scene, seed, { light = false } = {}) {
     },
     updateSun(directionView) {
       shared.sunDirView.value.copy(directionView);
+    },
+    // land-look: contact shade on the ground round the landmarks' feet
+    // (`roots` under the land group `land`), baked once they are built.
+    groundContact(land, roots) {
+      bakeGroundContact(shared, land, roots);
     },
   };
 }
@@ -595,6 +603,10 @@ const FOG_GLSL = /* glsl */ `
 // vWorld is Three world space; the land group mirrors z, so coast z = -vWorld.z.
 const GROUND_COLOUR_GLSL = /* glsl */ `
 #include <color_fragment>
+// land-look: contact shade round the landmarks' feet (bakeGroundContact):
+// a little darker and damper, and seeing less sky (after the lights).
+float groundContact = texture2D( groundField, ( vec2( vWorld.x, -vWorld.z ) - groundRect.xy ) * groundRect.zw ).g;
+diffuseColor.rgb *= 1.0 - 0.18 * groundContact;
 // Metre-scale masks are baked per vertex (vGroundMask: mottling, exposed
 // granite, leaf litter); only centimetre detail is evaluated per pixel.
 vec2 coast = vec2( vWorld.x, -vWorld.z );
@@ -1259,12 +1271,144 @@ float dShore( vec2 p ) {
 }
 `;
 
+// land-look: grounding, shared by the landmarks and the animals. One read of
+// the ground field (groundFieldTexture) at the start of the fragment gives
+// the height above the real terrain (groundingH, for any material's own
+// use) and the ground's colour; before the lights:
+// - drift: sand or soil banked a few centimetres up the foot, its edge
+//   ragged, so a thing sits in the ground rather than on it;
+// - dust: the ground's colour picked up a hand's breadth higher;
+// - contact: the foot's sides see little sky (indirect light only; the
+//   sun's shadow is the shadow map's);
+// - bounce: the ground's own brightness lighting sides and undersides;
+// and with GROUNDING_SEA (landmarks, not animals, which carry their own
+// wet coats) the sea's reach from the real sea level: a dark, glossy wet
+// band with weed low down, and where a thing stands in the water a thin
+// broken lace of foam at the surface.
+// The ground's albedo is stored as luminance and a soil-to-sand mix.
+const chromaticity = (c) => {
+  const l = c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
+  return c.map((v) => v / l);
+};
+const SOIL_TINT = chromaticity(MATERIAL_LINEAR.litter);
+const SAND_GROUND_TINT = chromaticity(MATERIAL_LINEAR.sand);
+const GROUNDING_PARS_GLSL = /* glsl */ `
+uniform sampler2D groundField;
+uniform vec4 groundRect;
+varying vec3 vGrounding;
+float groundingHash( vec3 p ) {
+  p = fract( p * 0.1031 );
+  p += dot( p, p.zyx + 31.32 );
+  return fract( ( p.x + p.y ) * p.z );
+}
+float groundingNoise( vec3 p ) {
+  vec3 i = floor( p );
+  vec3 f = fract( p );
+  vec3 u = f * f * ( 3.0 - 2.0 * f );
+  return mix(
+    mix( mix( groundingHash( i ), groundingHash( i + vec3( 1, 0, 0 ) ), u.x ), mix( groundingHash( i + vec3( 0, 1, 0 ) ), groundingHash( i + vec3( 1, 1, 0 ) ), u.x ), u.y ),
+    mix( mix( groundingHash( i + vec3( 0, 0, 1 ) ), groundingHash( i + vec3( 1, 0, 1 ) ), u.x ), mix( groundingHash( i + vec3( 0, 1, 1 ) ), groundingHash( i + vec3( 1, 1, 1 ) ), u.x ), u.y ),
+    u.z );
+}
+`;
+const GROUNDING_FETCH_GLSL = /* glsl */ `
+  vec4 groundingField = texture2D( groundField, ( vec2( vGrounding.x, -vGrounding.z ) - groundRect.xy ) * groundRect.zw );
+  float groundingH = vGrounding.y - groundingField.r;
+  float groundingAO = 1.0;
+  float groundingBounce = 1.0;
+`;
+const GROUNDING_SURFACE_GLSL = /* glsl */ `
+{
+  float gPx = max( length( fwidth( vGrounding ) ), 1e-4 );
+  float gFine = mix( groundingNoise( vGrounding * 9.0 ), 0.5, smoothstep( 0.25, 0.6, gPx * 9.0 ) );
+  float gBroad = groundingNoise( vGrounding * vec3( 1.6, 0.7, 1.6 ) + 3.0 );
+  vec3 gAlbedo = mix( vec3( ${SOIL_TINT.map((v) => v.toFixed(3)).join(", ")} ), vec3( ${SAND_GROUND_TINT.map((v) => v.toFixed(3)).join(", ")} ), groundingField.a ) * groundingField.b;
+  vec3 gNormal = normalize( ( vec4( normal, 0.0 ) * viewMatrix ).xyz );
+  float gTop = 0.005 + 0.09 * gBroad * gBroad + ( gFine - 0.5 ) * 0.05;
+  float gDrift = ( 1.0 - smoothstep( gTop - 0.025, gTop + 0.006, groundingH ) ) * 0.85;
+  float gDust = ( 1.0 - smoothstep( 0.0, 0.22 + 0.2 * gBroad, groundingH ) ) * 0.3;
+  diffuseColor.rgb = mix( diffuseColor.rgb, mix( diffuseColor.rgb, gAlbedo, 0.6 ), gDust );
+  diffuseColor.rgb = mix( diffuseColor.rgb, gAlbedo * ( 0.7 + 0.35 * gFine ), gDrift );
+  roughnessFactor = mix( roughnessFactor, 0.95, gDrift );
+  // Contact: faces turned up still see the sky; the sides and undersides
+  // of the foot do not.
+  groundingAO = mix( 1.0, mix( 0.5, 1.0, smoothstep( 0.0, 0.45, groundingH ) ), 1.0 - 0.8 * max( gNormal.y, 0.0 ) );
+  groundingAO = mix( groundingAO, max( groundingAO, 0.85 ), gDrift );
+  // Bounce: the land's ambient assumes the island's mean albedo (~0.2)
+  // below the horizon; pale sand returns two or three times that onto the
+  // sides and undersides of whatever stands on it, dark soil less.
+  groundingBounce = 1.0 + ( clamp( groundingField.b / 0.2, 0.4, 3.0 ) - 1.0 ) * 0.6 * ( 0.5 - 0.5 * gNormal.y );
+  #ifdef GROUNDING_SEA
+    float gSea = vGrounding.y + ( gBroad - 0.5 ) * 0.2;
+    float gWet = ( 1.0 - smoothstep( 0.15, 0.45, gSea ) ) * ( 1.0 - gDrift );
+    float gWeed = smoothstep( 0.55, 0.7, gBroad + ( gFine - 0.5 ) * 0.3 ) * ( 1.0 - smoothstep( 0.05, 0.35, gSea ) ) * gWet;
+    diffuseColor.rgb *= mix( 1.0, 0.62, gWet );
+    diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.05, 0.08, 0.03 ), gWeed * 0.55 );
+    roughnessFactor = mix( roughnessFactor, 0.42, gWet * ( 1.0 - gWeed * 0.5 ) );
+    float gLine = abs( vGrounding.y - 0.07 - 0.03 * sin( breezeTime * 1.1 + vGrounding.x * 0.9 - vGrounding.z * 0.7 ) );
+    float gLace = ( 1.0 - smoothstep( 0.012, 0.045, gLine ) ) * smoothstep( 0.35, 0.6, gFine ) * ( 1.0 - smoothstep( -0.05, 0.1, groundingField.r ) );
+    diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.78, 0.8, 0.8 ), gLace * 0.85 );
+    roughnessFactor = mix( roughnessFactor, 0.7, gLace );
+  #endif
+}
+`;
+const GROUNDING_LIGHT_GLSL = /* glsl */ `
+reflectedLight.indirectDiffuse *= groundingAO * groundingBounce;
+reflectedLight.indirectSpecular *= mix( 1.0, groundingAO, 0.6 );
+`;
+
+// Adds the grounding to a material's shader (inside onBeforeCompile).
+function groundShader(shader, shared, sea) {
+  shader.uniforms.groundField = shared.groundField;
+  shader.uniforms.groundRect = shared.groundRect;
+  shader.vertexShader = shader.vertexShader
+    .replace("void main() {", "varying vec3 vGrounding;\nvoid main() {")
+    .replace(
+      "#include <worldpos_vertex>",
+      `#include <worldpos_vertex>
+      {
+        vec4 groundingWorld = vec4( transformed, 1.0 );
+        #ifdef USE_INSTANCING
+          groundingWorld = instanceMatrix * groundingWorld;
+        #endif
+        vGrounding = ( modelMatrix * groundingWorld ).xyz;
+      }`,
+    );
+  shader.fragmentShader = (sea ? "#define GROUNDING_SEA\n" : "") + shader.fragmentShader
+    .replace("void main() {", `${GROUNDING_PARS_GLSL}\nvoid main() {\n${GROUNDING_FETCH_GLSL}`)
+    .replace("#include <emissivemap_fragment>", `${GROUNDING_SURFACE_GLSL}\n#include <emissivemap_fragment>`)
+    .replace("#include <lights_fragment_end>", `#include <lights_fragment_end>\n${GROUNDING_LIGHT_GLSL}`);
+}
+
+// The animals (animal-forms.js animalMaterial, recognised by their program
+// key) take the same grounding, without the sea's (their coats carry their
+// own wet). Wraps each material's onBeforeCompile once.
+export function groundAnimals(root, shared) {
+  root.traverse((o) => {
+    const m = o.material;
+    // Bodies only: not their contact blobs or spray (transparent).
+    if (!m || Array.isArray(m) || m.userData.grounded || m.transparent || !m.isMeshStandardMaterial || !m.customProgramCacheKey?.call(m).startsWith("animal-")) return;
+    m.userData.grounded = true;
+    const before = m.onBeforeCompile;
+    const key = m.customProgramCacheKey;
+    m.onBeforeCompile = function (shader, renderer) {
+      before.call(this, shader, renderer);
+      groundShader(shader, shared, false);
+    };
+    m.customProgramCacheKey = function () {
+      return `${key.call(this)}|grounded`;
+    };
+    m.needsUpdate = true;
+  });
+}
+
 // places: exported so the landmarks (place-kit.js) share fog, haze and light.
-export function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = false, ground = false, rock = false, bark = false, bent = 0, fade = false, taper = false, pliant = false, rooted = 0, sheen = 0.6 } = {}) {
+// `grounded`: the shared grounding (groundShader), with the sea's reach.
+export function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = false, ground = false, rock = false, bark = false, bent = 0, fade = false, taper = false, pliant = false, rooted = 0, sheen = 0.6, grounded = false } = {}) {
   // three caches programs by onBeforeCompile's source text, which is the same
   // for every patched material: key them by their options, or a material
   // silently runs another's shader (blades with the clusters' flutter).
-  const key = JSON.stringify({ sway, flutter, foliage, ground, rock, bark, bent, fade, taper, pliant, rooted, sheen });
+  const key = JSON.stringify({ sway, flutter, foliage, ground, rock, bark, bent, fade, taper, pliant, rooted, sheen, grounded });
   material.customProgramCacheKey = () => key;
   material.userData.magicLit = true; // land-magic: already carries the light
   material.onBeforeCompile = (shader) => {
@@ -1396,7 +1540,7 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
           );
       shader.fragmentShader = shader.fragmentShader
         .replace("uniform float breezeTime;\n", "")
-        .replace("void main() {", (bark ? "varying vec3 vBark;\n" : "") + DETAIL_GLSL + (ground ? "varying vec4 vGroundMask;\nvarying vec2 vGroundMask2;\nvarying float vGroundGust;\nuniform vec4 catLegs[ 4 ];\nuniform vec4 catFlow;\n" + SWASH_GLSL : rock ? SWASH_GLSL : "") + "\nvoid main() {")
+        .replace("void main() {", (bark ? "varying vec3 vBark;\n" : "") + DETAIL_GLSL + (ground ? "varying vec4 vGroundMask;\nvarying vec2 vGroundMask2;\nvarying float vGroundGust;\nuniform vec4 catLegs[ 4 ];\nuniform vec4 catFlow;\nuniform sampler2D groundField;\nuniform vec4 groundRect;\n" + SWASH_GLSL : rock ? SWASH_GLSL : "") + "\nvoid main() {")
         .replace("#include <color_fragment>", ground ? GROUND_COLOUR_GLSL : rock ? ROCK_COLOUR_GLSL : BARK_COLOUR_GLSL)
         .replace("#include <roughnessmap_fragment>", "#include <roughnessmap_fragment>\n  roughnessFactor = detailRoughness;")
         .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>
@@ -1428,7 +1572,9 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
       // Sand sparkle, lit by the shadowed sun from three's light loop.
       shader.fragmentShader = shader.fragmentShader
         .replace("#include <lights_fragment_begin>", LEAF_LIGHTS_GLSL)
-        .replace("#include <lights_fragment_end>", SAND_GLINT_GLSL);
+        .replace("#include <lights_fragment_end>", `${SAND_GLINT_GLSL}
+        reflectedLight.indirectDiffuse *= 1.0 - 0.55 * groundContact;
+        reflectedLight.indirectSpecular *= 1.0 - 0.55 * groundContact;`);
     if (foliage || bark)
       shader.fragmentShader = shader.fragmentShader
         .replace("void main() {", "uniform vec3 skySH[ 9 ];\nvoid main() {")
@@ -1512,6 +1658,7 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
           : `diffuseColor.a *= smoothstep( -0.08, 0.18, vWorld.y + ( dNoise( vec2( vWorld.x, -vWorld.z ) * 3.0 ) - 0.5 ) * 0.12 );
              #include <alphatest_fragment>`,
       );
+    if (grounded) groundShader(shader, shared, true);
   };
 }
 
@@ -1790,6 +1937,7 @@ function addGround(scene, shared, occluders, cover, rocks = []) {
   }
   geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
   geometry.setAttribute("canopyShade", new THREE.BufferAttribute(shades, 1));
+  groundFieldTexture(position, colors, shared);
   geometry.computeVertexNormals();
   const masks = new Float32Array(position.count * 4);
   const fbm = (x, z) =>
@@ -1873,6 +2021,102 @@ function addGround(scene, shared, occluders, cover, rocks = []) {
   mesh.receiveShadow = true;
   scene.add(mesh);
   return field;
+}
+
+// land-look: grounding. The ground mesh's own grid (GROUND, 0.5 m) as one
+// RGBA half-float texture: the terrain height (r), contact shade round the
+// landmarks' feet (g, baked by groundContact once they are built), the
+// ground's albedo luminance (b) and how sandy it is (a, 0 soil, 1 sand).
+// Landmarks and animals read it once per pixel (GROUNDING_GLSL) to sit in
+// the island rather than on it; the ground reads its contact shade.
+function groundFieldTexture(position, colors, shared) {
+  const n = GROUND.segments + 1;
+  const data = new Uint16Array(n * n * 4);
+  const half = THREE.DataUtils.toHalfFloat;
+  const axis = SAND_GROUND_TINT.map((v, i) => v - SOIL_TINT[i]);
+  const norm = axis.reduce((a, v) => a + v * v, 0);
+  // PlaneGeometry rotated flat: rows run up z, columns up x (coast metres).
+  for (let i = 0; i < position.count; i++) {
+    const r = colors[i * 3], g = colors[i * 3 + 1], b = colors[i * 3 + 2];
+    const l = Math.max(r * 0.2126 + g * 0.7152 + b * 0.0722, 1e-5);
+    let t = 0;
+    for (let c = 0; c < 3; c++) t += ([r, g, b][c] / l - SOIL_TINT[c]) * axis[c];
+    data[i * 4] = half(position.getY(i));
+    data[i * 4 + 1] = half(0);
+    data[i * 4 + 2] = half(l);
+    data[i * 4 + 3] = half(Math.min(1, Math.max(0, t / norm)));
+  }
+  const texture = new THREE.DataTexture(data, n, n, THREE.RGBAFormat, THREE.HalfFloatType);
+  texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearFilter;
+  texture.colorSpace = THREE.NoColorSpace;
+  texture.needsUpdate = true;
+  const cell = GROUND.size / GROUND.segments;
+  shared.groundField.value = texture;
+  // uv = (coast xz − origin) × scale; the origin sits half a texel out.
+  shared.groundRect.value.set(ISLAND.x - GROUND.size / 2 - cell / 2, ISLAND.z - GROUND.size / 2 - cell / 2, 1 / (n * cell), 1 / (n * cell));
+}
+
+// Bakes contact shade into the ground field's g channel round everything in
+// `roots` that meets the ground (the landmarks: static meshes in coast
+// metres): along every triangle edge within ~0.3 m of the terrain, the
+// ground within ~0.8 m darkens, most at the foot. Once, at load.
+function bakeGroundContact(shared, land, roots) {
+  const texture = shared.groundField.value;
+  if (!texture) return;
+  const n = texture.image.width;
+  const data = texture.image.data;
+  const half = THREE.DataUtils.toHalfFloat;
+  const full = THREE.DataUtils.fromHalfFloat;
+  const [ox, oz, sx] = shared.groundRect.value.toArray();
+  const cell = 1 / (sx * n);
+  const contact = new Float32Array(n * n);
+  const heightAt = (x, z) => {
+    const u = (x - ox) / cell - 0.5, v = (z - oz) / cell - 0.5;
+    const i = Math.max(0, Math.min(n - 2, Math.floor(u))), j = Math.max(0, Math.min(n - 2, Math.floor(v)));
+    const fu = Math.min(1, Math.max(0, u - i)), fv = Math.min(1, Math.max(0, v - j));
+    const h = (a, b) => full(data[((j + b) * n + i + a) * 4]);
+    return (h(0, 0) * (1 - fu) + h(1, 0) * fu) * (1 - fv) + (h(0, 1) * (1 - fu) + h(1, 1) * fu) * fv;
+  };
+  const REACH = 0.8;
+  const splat = (x, z, k) => {
+    const ci = (x - ox) / cell - 0.5, cj = (z - oz) / cell - 0.5;
+    const r = Math.ceil(REACH / cell);
+    for (let j = Math.floor(cj) - r; j <= Math.ceil(cj) + r; j++)
+      for (let i = Math.floor(ci) - r; i <= Math.ceil(ci) + r; i++) {
+        if (i < 0 || j < 0 || i >= n || j >= n) continue;
+        const d = Math.hypot(i - ci, j - cj) * cell;
+        if (d < REACH) contact[j * n + i] = Math.max(contact[j * n + i], k * (1 - smoothstep(0.1, REACH, d)));
+      }
+  };
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), p = new THREE.Vector3();
+  const local = new THREE.Matrix4();
+  for (const root of roots)
+    root.traverse((mesh) => {
+      if (!mesh.isMesh || mesh.isInstancedMesh || !mesh.geometry?.attributes.position || mesh.material?.transparent) return;
+      // Coast metres: the transforms up to the land group (frozen matrices).
+      local.identity();
+      for (let o = mesh; o && o !== land; o = o.parent) local.premultiply(o.matrix);
+      const position = mesh.geometry.attributes.position;
+      const index = mesh.geometry.index;
+      const count = index ? index.count : position.count;
+      const vertex = (k, out) => out.fromBufferAttribute(position, index ? index.getX(k) : k).applyMatrix4(local);
+      for (let t = 0; t + 2 < count; t += 3)
+        for (let e = 0; e < 3; e++) {
+          vertex(t + e, a);
+          vertex(t + ((e + 1) % 3), b);
+          const ha = a.y - heightAt(a.x, a.z), hb = b.y - heightAt(b.x, b.z);
+          if (Math.min(ha, hb) > 0.3 || Math.max(ha, hb) < -0.6) continue;
+          const steps = Math.min(64, Math.ceil(a.distanceTo(b) / 0.25));
+          for (let s = 0; s <= steps; s++) {
+            p.lerpVectors(a, b, s / steps);
+            const h = p.y - heightAt(p.x, p.z);
+            if (h < 0.3 && h > -0.6) splat(p.x, p.z, 1 - smoothstep(0.0, 0.3, h));
+          }
+        }
+    });
+  for (let i = 0; i < n * n; i++) data[i * 4 + 1] = half(contact[i]);
+  texture.needsUpdate = true;
 }
 
 function addGroundDetails(scene, shared, details, occluders) {
