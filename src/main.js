@@ -40,7 +40,7 @@ import { createSkyEvents, parseSkyForce, skySpectacles } from "./sky-events.js";
 import { spectacleSeen } from "./discoveries.js";
 import { createMagic, parseMagicForce } from "./magic.js";
 // sea-sky-magic: the gifts' sea and sky uniforms (src/sea-sky-magic.js).
-import { magicUniforms, magicVariant, magicActive } from "./sea-sky-magic.js";
+import { magicUniforms, magicVariant, magicPasses } from "./sea-sky-magic.js";
 import { archipelagoUniform, archipelagoSunVisibility, ISLAND_SLOTS } from "./archipelago.js";
 import { createWeatherPanel } from "./weather-panel.js";
 import { createWalker, surfaceKind, SWIM_LIMIT } from "./walker.js";
@@ -736,10 +736,10 @@ async function startAtmosphere() {
   });
   // sea-sky-magic: build and compile the awake sky and water pipelines once,
   // off the frame; until they are ready the asleep ones keep drawing.
-  const magicPasses = { started: false, sky: null, water: null };
+  const magicPipelines = { started: false, sky: null, water: null };
   const wakeMagicPasses = () => {
-    if (magicPasses.started) return;
-    magicPasses.started = true;
+    if (magicPipelines.started) return;
+    magicPipelines.started = true;
     // The render targets may have been resized since start: bind today's.
     let sky, sea;
     try {
@@ -758,8 +758,8 @@ async function startAtmosphere() {
     }
     Promise.all([sky.compile(skyTarget.write), sea.compile({ colors: [output.format] })]).then(() => {
       if (state.gpu !== gpu || state.disposed) return;
-      magicPasses.sky = sky;
-      magicPasses.water = sea;
+      magicPipelines.sky = sky;
+      magicPipelines.water = sea;
     }, useFallback);
   };
   const gpuClock = clock(gpu);
@@ -789,11 +789,12 @@ async function startAtmosphere() {
     }
     state.magic.update(motionPreference.matches ? 0 : dt, state.time);
     const uniforms = createUniforms();
-    // sea-sky-magic: the awake pipelines while any gift (or pulse, wisp) shows.
-    const magicOn = magicActive(uniforms);
-    if (magicOn) wakeMagicPasses();
-    const skyPass = magicOn && magicPasses.sky ? magicPasses.sky : atmosphere;
-    const waterPass = magicOn && magicPasses.water ? magicPasses.water : water;
+    // sea-sky-magic: each pass's awake pipeline only while a gift it draws
+    // shows (the wisp wakes the water's, not the sky's).
+    const awake = magicPasses(uniforms);
+    if (awake.sky || awake.water) wakeMagicPasses();
+    const skyPass = awake.sky && magicPipelines.sky ? magicPipelines.sky : atmosphere;
+    const waterPass = awake.water && magicPipelines.water ? magicPipelines.water : water;
     const wind = uniforms.wind;
     modes.write(waveModes.update(state.time, wind));
     // Whitecaps need wind; once the last foam has long decayed in a calm,
