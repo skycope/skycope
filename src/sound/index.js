@@ -40,6 +40,7 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
   let lastWasWet = false;
   let lastUpdate = 0;
   let suspendTimer = null;
+  const calls = []; // the named calls played (tests: who answered, when)
   const scoreInput = { sunAltitude: 30, sunAzimuth: 0, cover: 0, rain: 0, asleep: false, spectacle: 0 };
   const conditions = { sea: 0.5, seaPan: 0, wind: 0, rain: 0, night: 0, trees: 0, shore: 30 };
   // The world the sounds come from (setWorld): plants, roofs, places.
@@ -91,6 +92,8 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
       opts.pan = p.pan;
     }
     if (opts.t !== undefined && opts.delay === undefined) opts.delay = Math.max(0, opts.t - ctx.currentTime);
+    calls.push({ name, at: ctx.currentTime + 0.02 + (opts.delay ?? 0) });
+    if (calls.length > 200) calls.shift();
     const io = { ctx: core.counted, out: mix.input(CALL_BUS[name] ?? "world"), reverb: mix.sendA, noise: core.buffers.white, pink: core.buffers.pink, brown: core.buffers.brown, random: core.random };
     return playCall(io, name, opts);
   }
@@ -424,7 +427,7 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
     },
     // Tests and the audition page: the engine's parts.
     get _qa() {
-      return mix ? { ctx, mix, core, beds, foley, weather, world, cues, score } : null;
+      return mix ? { ctx, mix, core, beds, foley, weather, world, cues, score, calls } : null;
     },
     dispose() {
       if (!context) ctx?.close();

@@ -422,6 +422,11 @@ export function createCore(ctx, mix, { seed = 1 } = {}) {
       while (stats.window.length > 2 && now - stats.window[0][0] > 10) stats.window.shift();
       const [t0, c0] = stats.window[0];
       stats.rate = now > t0 ? (stats.created - c0) / (now - t0) : 0;
+      // The busiest second so far (node creations in the last 1 s).
+      let k = stats.window.length - 1;
+      while (k > 0 && now - stats.window[k - 1][0] <= 1) k--;
+      const [t1, c1] = stats.window[k];
+      if (now - t1 > 0.5) stats.maxRate = Math.max(stats.maxRate ?? 0, (stats.created - c1) / (now - t1));
       stats.voices = live.size;
     },
   };

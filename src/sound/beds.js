@@ -60,7 +60,10 @@ export function createBeds(core) {
     });
   }
 
+  const chirps = [];
   function chirp(c) {
+    chirps.push({ t: ctx.currentTime, x: c.x, z: c.z });
+    if (chirps.length > 400) chirps.shift();
     const v = core.voice({ bus: "amb", at: { x: c.x, z: c.z }, ref: 4 });
     for (let i = 0; i < 3; i++) core.tone(v, { hz: c.hz, attack: 0.008, tail: 0.022, gain: 0.008, at: i * 0.05 });
     v?.done();
@@ -159,10 +162,11 @@ export function createBeds(core) {
       }
       return v?.done();
     },
-    // How many crickets are not hushed (tests).
+    // The cricket spots and the chirps so far (tests).
     get crickets() {
       return crickets;
     },
+    chirps,
   };
   return api;
 }

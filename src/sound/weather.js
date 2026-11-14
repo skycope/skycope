@@ -95,7 +95,7 @@ export function createWeather(core) {
       layers[name].pan.disconnect();
       layers[name].pan.connect(open);
     }
-    const roof = striker(ROOF_MODES.map(([f, q, g]) => ["bandpass", f, q, g]), { click: 0.3 });
+    const roof = striker(ROOF_MODES.map(([f, q, g]) => ["bandpass", f, q, g]), { click: 0.012 });
     const roofPan = core.counted.createStereoPanner();
     const roofAir = core.filter("lowpass", 16000, -3);
     const roofSend = core.counted.createGain();
@@ -190,7 +190,7 @@ export function createWeather(core) {
           rate /= 2;
           boost = 1.41;
         }
-        rain(rig.roof, "roof", rate, dt, () => core.rand(0.01, 0.022) * boost * 9);
+        rain(rig.roof, "roof", rate, dt, () => core.rand(0.01, 0.022) * boost * 60);
         // The gutter into the tank, close by.
         const now = ctx.currentTime;
         if (roof.gain > 0.3 && now > nextGutter) {
