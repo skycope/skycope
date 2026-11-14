@@ -15,6 +15,7 @@ import { rockLayout, rockGeometry, shoreRockData, ROCK_VARIANTS } from "./rocks.
 import { landFieldData } from "./land-field.js";
 import { placeRocks } from "./place-rocks.js"; // places:
 import { markSolid, SOLID_ORDER } from "./cat-coat.js"; // solid:
+import { bridgeCrevices } from "./walker.js"; // solid:
 import { MATERIAL_HEX } from "./material-palette.js";
 import { groundDetailData, groundCover } from "./ground-detail.js";
 import { createNearGround } from "./near-ground.js";
@@ -1505,7 +1506,9 @@ function obstaclesFor(layout, rocks) {
   const trunks = layout
     .filter((p) => p.kind === "tree")
     .map((p) => ({ x: p.x, z: p.z, r: p.height * 0.034 + 0.02 }));
-  const domes = rockSurfaces(rocks);
+  // solid: crevices between touching boulders too narrow for a cat are
+  // bridged (it dropped into them and could not climb or jump out).
+  const domes = bridgeCrevices(rockSurfaces(rocks));
   // Flowering fynbos, where butterflies feed.
   const flowers = layout
     .filter((p) => ["protea", "erica", "daisies", "aloe"].includes(p.kind))
