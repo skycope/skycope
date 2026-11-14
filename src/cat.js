@@ -187,6 +187,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
     dipV: 0,
     lastAir: 0,
     airVel: 0,
+    lastAirVel: 0,
     lastHeight: 0,
     lastLift: 0,
     lastPitch: 0,
@@ -216,14 +217,51 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
     surge: 0,
     hitCool: 0,
     dunked: 99,
+    // The last water level the cat was in: it floats on this while `swim`
+    // eases out, after the water under it has gone (a wave drawn back, or
+    // walking out up a steep beach), when pose.waterY is already −∞.
+    waterLevel: 0,
   };
+  // Springs and integrators that carry state from frame to frame. A single
+  // non-finite input (once: the float height on −∞ water) used to poison
+  // them for good: the tail, the belly pouch and the front legs (through the
+  // shoulder blades' feedback) vanished for the rest of the visit. Anything
+  // non-finite is put back to rest at the start of every frame.
+  const SPRINGS = { dip: 0, dipV: 0, lastAir: 0, airVel: 0, lastAirVel: 0, lastHeight: 0, lastLift: 0, lastPitch: 0, breath: 0, exertion: 0, pouch: 0, pouchV: 0, wet: 0, stroke: 0, gait: 0, lie: 0, crouch: 0, bow: 0, drip: 0, surge: 0 };
+  function heal() {
+    let healed = false;
+    for (const key in SPRINGS)
+      if (!Number.isFinite(state[key])) {
+        state[key] = SPRINGS[key];
+        healed = true;
+      }
+    for (const key in state.settle) if (!Number.isFinite(state.settle[key])) delete state.settle[key];
+    for (let i = 0; i < TAIL_BONES; i++)
+      if (!(Number.isFinite(state.tailElev[i]) && Number.isFinite(state.tailSide[i]) && Number.isFinite(state.tailElevV[i]) && Number.isFinite(state.tailSideV[i]))) {
+        state.tailElev[i] = -0.3;
+        state.tailSide[i] = state.tailElevV[i] = state.tailSideV[i] = 0;
+        healed = true;
+      }
+    for (const ear of state.ears)
+      if (!(Number.isFinite(ear.swivel) && Number.isFinite(ear.flick))) {
+        ear.swivel = ear.flick = 0;
+        healed = true;
+      }
+    if (!(Number.isFinite(state.gaze.x) && Number.isFinite(state.gaze.y))) state.gaze.set(0, 0);
+    for (const leg of rig.legs) {
+      if (leg.lastUpper !== undefined && !Number.isFinite(leg.lastUpper)) leg.lastUpper = undefined;
+      if (leg.scapLift !== undefined && !Number.isFinite(leg.scapLift)) leg.scapLift = 0;
+      if (leg.plant && !(Number.isFinite(leg.plant.x) && Number.isFinite(leg.plant.z) && Number.isFinite(leg.plant.fromX) && Number.isFinite(leg.plant.fromZ))) leg.plant = null;
+    }
+    if (healed) debug.healed++;
+  }
   const tailP = Array.from({ length: TAIL_BONES + 1 }, () => new THREE.Vector3());
   const tailN = Array.from({ length: TAIL_BONES + 1 }, () => new THREE.Vector3(1, 0, 0));
   const tailRoot = new THREE.Vector3(...TAIL_ROOT).sub(b.spine.position).sub(b.hips.position);
   let firstFrame = true;
   // Dev: the lab's benchmark toggles parts to attribute cost; QA captures
   // can hold the lids open (blink: 0) and find it from the scene graph.
-  const debug = { meshes, shells: null, blink: null };
+  const debug = { meshes, shells: null, blink: null, healed: 0 };
   root.userData.debug = debug;
 
   return {
@@ -243,6 +281,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
         firstFrame = false;
       }
       uniforms.catTime.value = time;
+      heal();
       const step = Math.min(dt, 1 / 30);
       still = pose.gaitAmp < 0.02 && pose.air === 0 && Math.abs(pose.turn) < 0.05;
       const speed = Math.abs(pose.speed);
@@ -253,6 +292,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       // Water: afloat (swim), how deep the legs are in it (wade), and the
       // shake that throws it off afterwards.
       const inWater = Number.isFinite(pose.waterY);
+      if (inWater) state.waterLevel = pose.waterY;
       const swim = pose.swim ?? 0;
       const wade = (pose.wade ?? 0) * (1 - swim);
       const shaking = pose.shake ?? 0;
@@ -369,7 +409,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
         const slopeZ = pose.waterSlope?.[1] ?? 0;
         const along = Math.atan(slopeX * sin + slopeZ * cos) * 0.7;
         const across = Math.atan(slopeX * cos - slopeZ * sin) * 0.7;
-        const floatY = pose.waterY - 0.045 * S + Math.sin(strokeC * 2) * 0.004 * S + pose.air;
+        const floatY = state.waterLevel - 0.045 * S + Math.sin(strokeC * 2) * 0.004 * S + pose.air;
         height = lerp(height, floatY, swim);
         pitch = lerp(pitch, 0.2 - effort * 0.05 + along, swim);
         bodyRoll = lerp(bodyRoll, across + Math.sin(strokeC) * 0.05 + lean * 0.5, swim);
@@ -1091,6 +1131,9 @@ function whiskers() {
         }
         twitch[key] *= Math.exp(-dt * 3.5);
       }
+      // (Never let one bad frame stick: see heal() in createCat.)
+      if (!Number.isFinite(mood.turn) || !Number.isFinite(mood.height)) return;
+      if (![lag, bounce.x, bounce.v, swing.x, swing.v, lastRise].every(Number.isFinite)) lag = bounce.x = bounce.v = swing.x = swing.v = lastRise = 0;
       if (lastTurn === null) lastTurn = mood.turn;
       if (lastHeight === null) lastHeight = mood.height;
       const turnRate = dt > 0 ? Math.atan2(Math.sin(mood.turn - lastTurn), Math.cos(mood.turn - lastTurn)) / dt : 0;
