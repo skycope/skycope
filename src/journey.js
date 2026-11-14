@@ -4,13 +4,15 @@
 //
 // It writes the shared record (magic.js) the other layers read:
 //   magic.wisp   updated in place every frame (position, glow, colour, visible)
-//   magic.pulse  a new object at each waking (the wave of light)
+//   magic.waking a new record at each waking (its kindled light, waking.js)
 //   magic.call   a new object at each meow
 // and wakes gifts through the quest (quest.js → magic.wake).
 import { createQuest } from "./quest.js";
 import { createWispMind } from "./wisp-mind.js";
-import { GIFT_COLOURS, PULSE } from "./magic.js";
+import { GIFT_COLOURS } from "./magic.js";
+import { WAKE_LIGHT, createWaking, wakingSource, frontArrival } from "./waking.js";
 import { SWIM_LIMIT } from "./walker.js";
+import { groundHeight } from "./terrain.js";
 
 // One line of type per gift, in the site's voice.
 export const GIFT_LINES = {
@@ -26,7 +28,9 @@ const FINALE = { small: "six gifts · one island", big: "the island is awake", a
 // Seconds into a ceremony (wall clock), from the moment the wisp is gone
 // into the keepsake: when the card shows, when time runs again, when the
 // camera comes home and the cat is let go.
-const WAKE = { card: 0.6, cardHold: 3.4, hold: 1.8, release: 4, camHome: 5, end: 6.5 };
+// (The card waits until the light has arrived; time slows a little, for a
+// moment: the light itself runs on wall time, waking.js.)
+const WAKE = { card: 2.4, cardHold: 3.4, hold: 1.2, slow: 0.6, release: 4, camHome: 5, end: 6.5 };
 const FINALE_TIME = { wake: 2.4, card: 3.8, cardHold: 6.5, hold: 4.5, camHome: 13, end: 16 };
 const WHITE = [1, 0.95, 0.85];
 // Each ceremony's camera: low behind the cat while the wisp dives (elevation,
@@ -122,14 +126,17 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
     const surface = state.walker.surface;
     const ground = surface(place.x, place.z);
     const cat = state.walker.cat;
+    // waking: where the gift's light is kindled (the hollow, the furnace
+    // mouth, the lantern room…): the wisp dives into it.
+    const source = event.type === "finale" ? null : wakingSourceFor(state, place.gift);
     ceremony = {
       type: event.type,
       place,
       gift: place.gift,
       at: now(),
       goneAt: null,
-      // The lighthouse's gift is its lamp: the wisp goes in at the top.
-      y: ground + (event.type === "finale" ? 2 : place.gift === "lamp" ? 16.4 : 1.1),
+      source,
+      y: source ? source[1] : ground + (event.type === "finale" ? 2 : 1.1),
       // The sky only leans close in the dark: by day the stars shot is the usual one.
       shot: (place.gift === "stars" && (state.celestial?.scene ?? 0) < 1.5 ? null : SHOTS[event.type === "finale" ? "finale" : place.gift]) ?? SHOTS.default,
       // Look from the cat toward the place, so it stands beyond the cat.
@@ -144,7 +151,7 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
     camStart();
     // The finale: the wisp circles up round the cat itself, in frame.
     if (event.type === "finale") mind.soar(cat.x, cat.y + 0.7, cat.z);
-    else mind.dive(place.x, ceremony.y, place.z);
+    else mind.dive(source ? source[0] : place.x, ceremony.y, source ? source[2] : place.z);
     state.sound.ceremony?.(event.type === "finale" ? "finale" : place.gift);
   }
 
@@ -169,17 +176,52 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
     carry = gift;
     colourFor(gift);
     onChange();
-    magic.pulse = {
-      x: c.place.x,
-      y: c.y,
-      z: c.place.z,
-      at: magic.clock,
-      gift,
-      colour: GIFT_COLOURS[gift],
-      speed: PULSE.speed,
-      reach: gift === "finale" ? PULSE.reach * 1.6 : PULSE.reach,
-    };
-    state.thread?.hear?.("wake", { x: c.place.x, z: c.place.z, y: c.y }, { gift });
+    // waking: the gift's light is kindled at its source and reaches out
+    // (waking.js). Not the finale (no blast from the wisp) and not the stars
+    // (the beacon has no waking of its own; its light is the ending's, story-and-wow.md 9).
+    if (gift !== "finale" && gift !== "stars" && c.source) {
+      magic.waking = createWaking(gift, c.source, { follow: gift === "boat" ? boatLantern : null });
+      cues = wakingCues(gift, c.source);
+    }
+  }
+
+  // The boat's lantern while it floats (boat.js), so the light moves with it.
+  function boatLantern() {
+    const l = state.boat?.lantern;
+    return l && l[3] > 0.001 ? [l[0], l[1], l[2]] : null;
+  }
+
+  // waking: the diegetic sound cues, scheduled from the same curves as the
+  // light (so they cannot drift), fired as the waking's wall clock passes
+  // each. Named hooks only: sound.js decides what each sounds like
+  // (waking-light.md section 6); a missing hook is silent.
+  let cues = [];
+  function wakingCues(gift, at) {
+    const spec = WAKE_LIGHT[gift];
+    const cat = state.walker?.cat;
+    const dCat = cat ? Math.hypot(cat.x - at[0], (cat.y ?? at[1]) - at[1], cat.z - at[2]) : Infinity;
+    const list = [
+      { t: 0, cue: "hush" },
+      { t: 0.35, cue: "kindle" },
+      ...(gift === "lamp" ? [0.8, 1.5] : [0.55, 0.75]).map((t) => ({ t, cue: "gutter" })),
+      { t: 0.35, cue: "reach" },
+      { t: frontArrival(dCat, spec), cue: "arrive" },
+      { t: 1, cue: "glints", count: { fireflies: 12, tideglow: 10, boat: 4 }[gift] ?? 0, until: 7 },
+      { t: 6, cue: "settle" },
+    ];
+    if (gift === "seafolk") list.push({ t: 4, cue: "answer" });
+    if (gift === "lamp") list.push({ t: 2.2, cue: "clockwork" });
+    // (About when the front meets the swash: the light goes into the water.)
+    if (gift === "tideglow") list.push({ t: 2, cue: "enter" });
+    return list.filter((c) => Number.isFinite(c.t)).sort((a, b) => a.t - b.t);
+  }
+  function playCues() {
+    const w = magic.waking;
+    if (!w || !cues.length) return;
+    while (cues.length && w.age >= cues[0].t) {
+      const { cue, ...rest } = cues.shift();
+      state.sound?.[cue]?.({ gift: w.gift, x: w.x, y: w.y, z: w.z, ...rest });
+    }
   }
 
   function stage(dt) {
@@ -211,7 +253,8 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
       wakeNow();
     }
     const g = c.goneAt === null ? -1 : now() - c.goneAt;
-    if (!c.carded && g > WAKE.card) {
+    // (Seafolk: the card waits for the sea to answer, not before.)
+    if (!c.carded && g > (c.gift === "seafolk" ? 4.2 : WAKE.card)) {
       c.carded = true;
       card?.show(c.place.title?.toLowerCase?.() ?? "", GIFT_LINES[c.gift] ?? "", WAKE.cardHold, false);
     }
@@ -239,7 +282,7 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
     }
     // Time holds its breath, then runs again.
     const held = g >= 0 && g < WAKE.hold;
-    scale += ((held ? 0.3 : 1) - scale) * Math.min(1, dt * (held ? 3 : 1));
+    scale += ((held ? WAKE.slow : 1) - scale) * Math.min(1, dt * (held ? 3 : 1));
     if (g > (s.end ?? WAKE.end)) finish();
     void cat;
   }
@@ -312,6 +355,7 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
       }
       if (mind.mode === "hidden" && now() > meetAt && !blocked) mind.appear(cat);
       if (ceremony) stage(dt);
+      playCues(); // waking: its sound cues
       ctx.cat = cat;
       ctx.target = ceremony ? null : quest.target(cat.x, cat.z);
       if (ctx.target !== last) last = ctx.target;
@@ -357,10 +401,80 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
     beginAgain() {
       if (ceremony) finish();
       quest?.beginAgain();
+      magic.waking = null;
+      cues = [];
       mind?.reset();
       carry = null;
       colourFor(null);
       meetAt = now() + 2;
+    },
+  };
+}
+
+// waking: where a gift's light is kindled on this island (coast metres),
+// from what the land exposes (landscape.js wakingPlaces). The boat's is its
+// lantern while it floats.
+export function wakingSourceFor(state, gift) {
+  const land = state.landscape;
+  if (!land) return null;
+  if (gift === "boat") {
+    const l = state.boat?.lantern;
+    if (l && l[3] > 0.001) return [l[0], l[1], l[2]];
+  }
+  // (The hollow faces the cat; the furnace mouth faces inland, since the
+  // practical it resolves into must stay put.)
+  const cat = state.walker?.cat;
+  return wakingSource(gift, {
+    pois: land.pois ?? [], crown: land.wakingPlaces?.crown, beacon: land.wakingPlaces?.beacon, blockers: land.obstacles?.blockers ?? [],
+    // (The pool's light is under its water: the walker's surface there.)
+    surface: gift === "seafolk" && state.walker?.surface ? state.walker.surface : groundHeight, toward: gift === "fireflies" && cat ? [cat.x, cat.z] : undefined,
+  });
+}
+
+// `?perf` QA (waking-light.md section 9): skycope.waking.
+//   freeze(gift, age)  hold that gift's waking at `age` wall seconds (its
+//                      level held where it would be then); age < 0: asleep
+//   play(gift)         run it live, without the ceremony camera
+//   clear()            no waking; the frozen gift back to sleep
+export function createWakingQA(state) {
+  const magic = state.magic;
+  let held = null;
+  const rest = (next = null) => {
+    if (held && held !== next) {
+      magic.sleep(held);
+      magic.levels[held] = 0;
+    }
+    held = null;
+    magic.waking = null;
+    magic.qaAsleep = null;
+  };
+  const start = (gift, age, frozen) => {
+    rest(gift);
+    const at = wakingSourceFor(state, gift);
+    if (!at || !WAKE_LIGHT[gift]) return null;
+    // (Awake to the quest throughout, so no ceremony starts under the QA.)
+    magic.wake(gift, { quiet: true });
+    held = gift;
+    if (age < 0) {
+      magic.qaAsleep = gift;
+      magic.levels[gift] = 0;
+      return null;
+    }
+    magic.levels[gift] = frozen ? 1 - Math.exp(-age / 2.5) : 0;
+    magic.wakeAt[gift] = magic.clock - age;
+    // (The boat's light rides with its lantern once the hull is afloat.)
+    const follow = gift === "boat" ? () => { const l = state.boat?.lantern; return l && l[3] > 0.001 ? [l[0], l[1], l[2]] : null; } : null;
+    magic.waking = createWaking(gift, at, { age, frozen, follow });
+    return magic.waking;
+  };
+  return {
+    freeze: (gift, age) => start(gift, age, true),
+    play: (gift) => start(gift, 0, false),
+    clear: () => rest(),
+    // (The live table, for calibration from the console.)
+    table: WAKE_LIGHT,
+    get now() {
+      return magic.waking;
     },
   };
 }

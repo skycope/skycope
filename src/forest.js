@@ -386,8 +386,9 @@ uniform vec4 catTrail[ 3 ];
 // the lens; w 0 off) and the eye it is seen from.
 uniform vec4 sightLine;
 uniform vec3 sightEye;
-// land-magic: a waking's ring (Three world x, z, radius, strength).
-uniform vec4 magicPulse;
+// waking: the kindled light's source (Three world) and front (land-magic.js).
+uniform vec4 wakeSource;
+uniform vec4 wakeFront;
 varying float vGlint;
 // Height of the plant's base (per instance): wind bends from there, so a trunk
 // or stem is rooted wherever it stands. Zero for non-instanced meshes.
@@ -417,16 +418,16 @@ vec3 windOffset(vec3 p) {
     offset.xz += push;
     offset.y -= dot( push, push ) / max( h, 0.05 ) * 0.5;
   #endif
-  // land-magic: as a waking's ring of light passes, everything that grows
-  // bows away from the keepsake and rises again behind it.
-  if ( magicPulse.w > 0.0 ) {
-    vec2 pd = p.xz - vec2( magicPulse.x, -magicPulse.y );
+  // waking: a breath of air runs out with the kindled light's front (a few
+  // centimetres, inside its reach only). Land-group positions are coast
+  // space, so the source's mirrored z is turned back.
+  if ( wakeFront.z > 0.0 ) {
+    vec2 pd = p.xz - vec2( wakeSource.x, -wakeSource.z );
     float pl = length( pd ) + 1e-3;
-    float dd = pl - magicPulse.z;
-    float wave = exp( -dd * dd * 0.08 ) * min( magicPulse.w, 1.0 );
-    float bow = wave * h / ( 0.5 + h ) * ( 0.12 + 0.05 * min( h, 4.0 ) );
+    float fb = ( pl - wakeFront.x ) / ( wakeFront.y * 2.5 );
+    float bow = exp( -fb * fb ) * min( wakeFront.z * 2.0, 1.0 ) * h / ( 0.5 + h ) * 0.045;
     offset.xz += pd / pl * bow;
-    offset.y -= bow * 0.35;
+    offset.y -= bow * 0.25;
   }
   return offset;
 }
@@ -641,7 +642,11 @@ const FOLIAGE_GLSL = /* glsl */ `
   vec3 sparkleRay = reflect( -sunDirView, leafN );
   float sparkle = pow( clamp( dot( sparkleRay, toEye ), 0.0, 1.0 ), 64.0 ) * facing;
   float gate = 0.2 + 0.8 * smoothstep( 0.7, 0.97, fract( vGlint * 9.173 + breezeTime * 0.11 ) );
-  reflectedLight.directSpecular += leafSun * sparkle * gate * 0.2 * ( SHEEN / 0.6 );
+  // waking: as the kindled light's front passes, the crowns shimmer in the
+  // sun leaf by leaf, as when a gust turns them (land-magic.js).
+  float wk = wakeFront.z > 0.0 ? wakeBandAt( cameraPosition + ( vec4( -vViewPosition, 0.0 ) * viewMatrix ).xyz ) : 0.0;
+  gate = max( gate, min( wk * 2.0, 1.0 ) );
+  reflectedLight.directSpecular += leafSun * sparkle * gate * 0.2 * ( SHEEN / 0.6 ) * ( 1.0 + 3.0 * wk );
   #ifdef ROOTED
     // Low plants grow out of their own shade: the base of a tuft or rosette
     // sees little sky or sun, so it darkens into the soil it stands in.
@@ -665,11 +670,14 @@ reflectedLight.indirectSpecular *= 1.0 - lowCover * 0.5;
 reflectedLight.directSpecular *= 1.0 - lowCover * 0.5;
 reflectedLight.indirectDiffuse *= 1.0 + lowCover * vec3( 0.1, 0.35, 0.0 );
 reflectedLight.directDiffuse += leafSun * diffuseColor.rgb * vec3( 0.2, 0.3, 0.08 ) * lowCover * RECIPROCAL_PI;
-if ( sandGlint > 0.01 && dHash( glintCell + 0.37 ) < 0.1 ) {
+// waking: a line of sun-sparkle runs down the beach with the kindled
+// light's front (land-magic.js).
+float wk = wakeFront.z > 0.0 ? wakeBandAt( cameraPosition + ( vec4( -vViewPosition, 0.0 ) * viewMatrix ).xyz ) : 0.0;
+if ( sandGlint > 0.01 && dHash( glintCell + 0.37 ) < 0.1 + 0.25 * wk ) {
   vec3 tilt = vec3( dHash( glintCell + 1.1 ), dHash( glintCell + 2.3 ), dHash( glintCell + 3.7 ) ) - 0.5;
   vec3 facet = normalize( normal + tilt * 0.9 );
   float mirror = dot( reflect( -sunDirView, facet ), normalize( vViewPosition ) );
-  float flash = smoothstep( 0.992, 0.999, mirror ) * sandGlint * ( 1.0 - swashFilm ) * ( 1.0 - swashCover );
+  float flash = smoothstep( 0.992, 0.999, mirror ) * sandGlint * ( 1.0 - swashFilm ) * ( 1.0 - swashCover ) * ( 1.0 + 4.0 * wk );
   reflectedLight.directSpecular += leafSun * flash * 3.0;
 }
 `;
@@ -1555,7 +1563,8 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
   material.userData.magicLit = true; // land-magic: already carries the light
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, shared);
-    const defines = (pliant ? "#define PLIANT\n" : "") + (rooted ? `#define ROOTED ${rooted.toFixed(3)}\n` : "") + `#define SHEEN ${sheen.toFixed(2)}\n`;
+    const defines = (pliant ? "#define PLIANT\n" : "") + (rooted ? `#define ROOTED ${rooted.toFixed(3)}\n` : "") + `#define SHEEN ${sheen.toFixed(2)}\n` +
+      `#define WAKE_WRAP ${foliage ? "0.6\n#define WAKE_FOLIAGE" : "0.85"}\n` + (ground ? "#define WAKE_CAT_SHADOW\n" : ""); // waking: thin leaves let the kindled light round; the cat shades the ground
     shader.vertexShader = defines + OCCLUSION_VERTEX_GLSL + WIND_GLSL +
       shader.vertexShader.replace(
         "#include <begin_vertex>",

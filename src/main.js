@@ -39,6 +39,7 @@ import { lightingAt } from "./sunlight.js";
 import { createSkyEvents, parseSkyForce, skySpectacles } from "./sky-events.js";
 import { spectacleSeen } from "./discoveries.js";
 import { createMagic, parseMagicForce } from "./magic.js";
+import { createWakingQA } from "./journey.js"; // waking: `?perf` QA
 // sea-sky-magic: the gifts' sea and sky uniforms (src/sea-sky-magic.js).
 import { magicUniforms, magicVariant, magicPasses } from "./sea-sky-magic.js";
 import { archipelagoUniform, archipelagoSunVisibility, ISLAND_SLOTS } from "./archipelago.js";
@@ -185,6 +186,8 @@ state.sound = createSound({ seed: state.seed });
 
 // `?perf` QA exposes live state, e.g. to aim the camera at the sun.
 if (PERF) window.skycope = state;
+// waking: `?perf` QA, skycope.waking.freeze(gift, age) / play(gift) / clear().
+if (PERF) state.waking = createWakingQA(state);
 // `?perf` QA: hold a quality level (0 = full; null releases), or read it.
 if (PERF) {
   state.budget = {
@@ -806,7 +809,7 @@ async function startAtmosphere() {
       state.wake.tick(state.time);
       updateCat(dt, realDt);
     }
-    state.magic.update(motionPreference.matches ? 0 : dt, state.time);
+    state.magic.update(motionPreference.matches ? 0 : dt, state.time, realDt); // waking: its light runs on wall time
     const uniforms = createUniforms();
     // sea-sky-magic: each pass's awake pipeline only while a gift it draws
     // shows (the wisp wakes the water's, not the sky's).
@@ -969,8 +972,15 @@ function createUniforms() {
     ocean: [0, 0, 0, state.landscape?.cloudTransmission ?? 1],
     ...skyEventUniforms(sky, weather, light, view),
     // sea-sky-magic: the awakened gifts for the sea and sky (all zero asleep).
-    ...magicUniforms(state.magic, { time: state.time, lamp: lampPosition(), lantern: state.boat?.lantern ?? null }), // boat: lantern
+    ...magicUniforms(state.magic, { time: state.time, lamp: lampPosition(), lantern: state.boat?.lantern ?? null, night: wakingNight(), reduced: motionPreference.matches }), // boat: lantern; waking: night
   };
+}
+
+// waking: how far into night it is (0…1), as the land layer reckons it
+// (landscape.js), so the kindled light is the same on the land and the sea.
+function wakingNight() {
+  const x = Math.max(0, Math.min(1, (state.celestial?.scene ?? 0) - 1));
+  return x * x * (3 - 2 * x);
 }
 
 // sea-sky-magic: the lighthouse lamp in coast metres (place-lighthouse.js

@@ -261,36 +261,54 @@ export fn lamp_on_sea(s: SeaPoint, lamp: vec4f, level: f32, night: f32) -> vec3f
   return LAMP_COLOUR * ((1.0 - exp(-path * 14.0)) * 1.05 + min(glints, 3.0) * 0.6);
 }
 
-// ---- The pulse: a waking's wave of light running out across the sea. -------
-// A ring of glow and glitter racing outward from the keepsake's shore, its
-// wake a fading wash of the gift's colour. `brightness` lifts it to read by
-// day (the sky's own luminance).
-export fn pulse_on_sea(s: SeaPoint, pulse: vec4f, colour: vec4f, time: f32, brightness: f32) -> vec3f {
-  let d = length(s.p.xz - pulse.xy);
-  let behind = pulse.z - d;
-  if (behind < -12.0 || behind > 60.0) { return vec3f(0.0); }
-  let width = 1.6 + s.pixel * 2.0;
-  // A soft leading edge rising to the crest of the wave of light, and
-  // behind it a wake that lingers a second or two (~30 m at 18 m/s).
-  let lead = select(exp(-behind * behind / (width * width * 4.0)), exp(-behind * behind / (width * width)), behind > 0.0);
-  let wake = select(0.0, exp(-behind / 10.0) * 0.12, behind > 0.0);
-  // Glitter in the wake: sparks on the swell that flare and fade at their
-  // own pace, thinning out behind the crest.
+// ---- waking: a gift's kindled light reaching the water (src/waking.js). ----
+// A small light over the water: its broken road of glints toward the eye,
+// and the faint pool it spreads on faces and foam turned to it. `core`: its
+// size (m).
+fn point_light_on_sea(s: SeaPoint, at: vec3f, colour: vec3f, core: f32) -> vec3f {
+  let to = at - s.p;
+  let d2 = dot(to, to);
+  let l = to * inverseSqrt(max(d2, 1e-4));
+  let h = normalize(l - s.ray);
+  let nh = max(dot(s.normal, h), 0.0);
+  let cell = hash22m(floor(s.p.xz * 6.0)).x;
+  let spec = (pow(nh, 600.0) * (1.5 + 5.0 * cell * cell) + pow(nh, 60.0) * 0.35 + pow(nh, 12.0) * 0.05) * s.fresnel * 4.0;
+  let pool = max(dot(s.normal, l), 0.0) * (0.03 + 0.35 * s.foam.x);
+  let light = colour * (spec + pool) * (core * core / (d2 + core * core));
+  return light / (1.0 + max(light.r, max(light.g, light.b)) * 0.6);
+}
+
+// A waking's light on the sea. waking: source x, z (coast metres), how far
+// its light has reached on the water (m), the front's glints F.
+// light: tint × the lit water's strength (rgb), source height (w).
+// Behind the front the water is lit by the point (its glitter road and
+// pool); the front itself is crests and foam turned to the source catching
+// it, and cells flaring; lit water keeps a few glints as it fades. By day
+// the front is the sun's own glitter switched on in a line.
+export fn waking_on_sea(s: SeaPoint, waking: vec4f, light: vec4f, time: f32, daylight: f32) -> vec3f {
+  let at = vec3f(waking.x, light.w, waking.y);
+  let d = length(s.p.xz - at.xz);
+  let width = 0.6 + 0.05 * waking.z;
+  if (d > waking.z + 3.0 * width) { return vec3f(0.0); }
+  let reached = 1.0 - smoothstep(waking.z - width, waking.z, d);
+  let peak = max(light.r, max(light.g, light.b));
+  let tint = light.rgb / max(peak, 1e-4);
+  var out = point_light_on_sea(s, at, light.rgb * 1.5, 2.2) * reached;
+  let fb = (d - waking.z) / width;
+  let band = exp(-fb * fb) * waking.w;
+  let l = normalize(at - s.p);
+  let crest = pow(max(dot(s.normal, l), 0.0), 3.0) * 0.5 + s.foam.x * 0.4;
   let scale = max(0.4, s.pixel * 1.5);
   let g = s.p.xz / scale;
-  let cell = hash22m(floor(g));
-  let pace = time * (2.0 + cell.x * 3.0) + cell.y * 9.0;
-  let h = hash22m(floor(g) + floor(pace) * 0.37);
-  let spot = 1.0 - smoothstep(0.08, 0.25, length(fract(g) - 0.25 - h * 0.5));
+  let pace = time * 2.5 + hash22m(floor(g)).y * 9.0;
+  let hh = hash22m(floor(g) + floor(pace) * 0.37);
+  let spot = 1.0 - smoothstep(0.08, 0.25, length(fract(g) - 0.25 - hh * 0.5));
   let flare = (1.0 - fract(pace)) * (1.0 - fract(pace));
-  let trail = select(lead, exp(-behind / 6.0), behind > 0.0);
-  let glitter = step(0.86, h.x) * spot * flare * trail * 2.5;
-  let crest = smoothstep(-0.05, 0.2, s.height) * 0.6 + 0.4;
-  // The gift's own colour, deepened a little so it reads as colour, the
-  // body saturating softly below white.
-  let hue = mix(vec3f(dot(colour.rgb, vec3f(0.3333))), colour.rgb, 1.35);
-  let body = (lead * 1.6 + wake) * crest * pulse.w * brightness;
-  return max(hue, vec3f(0.0)) * ((1.0 - exp(-body * 1.4)) * 0.6 * brightness + glitter * pulse.w * brightness * 0.6);
+  let glitter = step(0.93, hh.x) * spot * flare;
+  out += mix(tint, vec3f(1.0), 0.5 * daylight) * band * (crest + glitter * 2.0) * (0.5 + daylight);
+  // (Near the source only: lit water, not a bay of confetti.)
+  out += tint * peak * reached * glitter * 0.3 * exp(-d / 10.0);
+  return out;
 }
 
 // ---- The wisp: the guiding light's reflection and pool on the water. --------
