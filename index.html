@@ -920,7 +920,7 @@
          builds. The gradient shows only until the painting is drawn. */
       .loading-screen {
         position: fixed; inset: 0; z-index: 100; overflow: hidden;
-        background: linear-gradient(#5d7d96, #a7b6bd 34%, #6d8a8e 36%, #7f7d6c);
+        background: linear-gradient(#34495a, #5d6f78 34%, #4c5d60 36%, #5a5a50);
         color: #f4f7f8; font-size: 0.68rem; letter-spacing: 0.08em;
         touch-action: none;
         --glow: 0;
@@ -942,13 +942,13 @@
       .wisp-part {
         position: absolute; left: 0; top: 0;
         transform: translate3d(var(--x, 50vw), var(--y, 60vh), 0);
-        transition: transform calc(var(--move, 0s) + var(--k) * 75ms) cubic-bezier(0.45, 0.05, 0.3, 1);
+        transition: transform calc(var(--move, 0s) + var(--k) * 45ms) cubic-bezier(0.45, 0.05, 0.3, 1);
       }
       .wisp-bob { animation: wisp-bob 4.4s ease-in-out infinite; animation-delay: calc(var(--k) * 60ms - 4.4s); }
       /* Brighter as the world builds (--glow, 0…1); the tail fainter and finer. */
       .wisp-size {
-        transform: scale(calc((0.5 + 0.5 * var(--glow)) * (1 - var(--k) * 0.09)));
-        opacity: calc((0.45 + 0.55 * var(--glow)) * (1 - var(--k) * 0.11));
+        transform: scale(calc((0.5 + 0.5 * var(--glow)) * (1 - var(--k) * 0.07)));
+        opacity: calc((0.45 + 0.55 * var(--glow)) * (1 - var(--k) * 0.085));
         transition: transform 2.4s ease, opacity 2.4s ease;
       }
       .wisp-light {
@@ -958,7 +958,7 @@
         animation: wisp-breathe 3.1s ease-in-out infinite;
       }
       .wisp-part + .wisp-part .wisp-light {
-        background: radial-gradient(closest-side, rgba(255, 244, 214, 0.8) 0, rgba(255, 210, 140, 0.3) 14%, rgba(255, 200, 130, 0) 40%);
+        background: radial-gradient(closest-side, rgba(255, 244, 214, 0.7) 0, rgba(255, 214, 146, 0.3) 18%, rgba(255, 200, 130, 0) 52%);
         animation: none;
       }
       @keyframes wisp-bob {

@@ -355,7 +355,7 @@ export function paint(width, height, { celestial, weather = null, view = homeVie
 
 const WEATHER_KEY = "skycope.veil-weather";
 const WEATHER_AGE_MS = 3 * 3600 * 1000;
-const PARTS = 8;
+const PARTS = 11;
 // The painting's size: about this many pixels, whatever the screen.
 const PAINT_PIXELS = 52000;
 
@@ -482,7 +482,8 @@ export function createLoadingScreen({ document: doc = globalThis.document, stora
     ].join();
     if (next === key) return;
     const first = !key;
-    draw(!first && !reduced);
+    // The first painting fades in over the page's plain gradient too.
+    draw(!reduced);
     key = next;
     if (first) {
       moveWisp(anchor, 0);
