@@ -1,5 +1,26 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+
+// (Defined below; hoisted.)
+test("after a waking it leads on from the keepsake to the next (pool to boat, wreck to milkwood, boat to lighthouse)", () => {
+  for (const [from, to] of [["pool", "boat"], ["wreck", "milkwood"], ["boat", "lighthouse"]]) {
+    const a = place(from);
+    const b = place(to);
+    const mind = makeWisp();
+    const cat = makeCat({ x: a.x, z: a.z });
+    mind.appear(cat);
+    let reached = -1;
+    for (let i = 0; i < 30 * 300; i++) {
+      walkCat(cat, mind.position, DT, 1.6);
+      mind.update(DT, { cat, target: b, night: 0 });
+      if (Math.hypot(cat.x - b.x, cat.z - b.z) < b.r + 1.5) {
+        reached = i * DT;
+        break;
+      }
+    }
+    assert.ok(reached > 0, `${from} → ${to} not reached`);
+  }
+});
 import { createWispMind, WISP } from "../src/wisp-mind.js";
 import { groundHeight, shoreDistance } from "../src/terrain.js";
 import { placesLayout } from "../src/place-layout.js";
@@ -234,4 +255,22 @@ test("the same seed flies the same way; another seed differently", () => {
   };
   assert.deepEqual(run(1847), run(1847));
   assert.notDeepEqual(run(1847), run(9));
+});
+
+import { createRoutes } from "../src/wisp-route.js";
+
+test("routes go round a fence through its gate, never through a post", () => {
+  // A fence of posts 0.5 m apart across the way, with one gap far to the side.
+  const trunks = [];
+  for (let x = -40; x <= 160; x += 0.5) if (Math.abs(x - 52) > 1.5) trunks.push({ x, z: 60, r: 0.12 });
+  const routes = createRoutes({ obstacles: { trunks, domes: [] }, surface: groundHeight, reach: 21 });
+  const path = routes.find(30, 50, 30, 70);
+  assert.ok(path && path.length >= 4);
+  const end = [path.at(-2), path.at(-1)];
+  assert.ok(Math.hypot(end[0] - 30, end[1] - 70) < 2, "reaches the far side");
+  // Through the gate.
+  let crossed = null;
+  for (let i = 2; i < path.length; i += 2) if ((path[i - 1] - 60) * (path[i + 1] - 60) <= 0) crossed = path[i - 2];
+  assert.ok(crossed !== null && Math.abs(crossed - 52) < 2.5, `crossed at x=${crossed}`);
+  for (let i = 0; i < path.length; i += 2) for (const t of trunks) assert.ok(Math.hypot(path[i] - t.x, path[i + 1] - t.z) > t.r);
 });
