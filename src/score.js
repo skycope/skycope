@@ -181,17 +181,47 @@ export function ceremonyEvents(gift) {
   return { length: (gift === "finale" ? end + 12 : end + 4), pads, plucks };
 }
 
+// The home phrase (story-and-wow.md section 8): the melody the visitor
+// learns, D lydian, rising and unresolved until the sixth light. Each
+// light lit adds a note. homeEvents(n) -> plucks for the first n notes
+// (seconds from now), the last one held long; at n = 6 the octave below
+// rings under the last note and it resolves. n = 0 is silence.
+export const HOME_PHRASE = [74, 76, 78, 81, 83, 86];
+export function homeEvents(n) {
+  const count = Math.max(0, Math.min(HOME_PHRASE.length, Math.floor(n) || 0));
+  const beat = 0.42;
+  const plucks = [];
+  for (let i = 0; i < count; i++) {
+    const last = i === count - 1;
+    plucks.push({ midi: HOME_PHRASE[i], at: i * beat + (last ? beat * 0.3 : 0), velocity: last ? 1 : 0.7 + 0.2 * (i / HOME_PHRASE.length), decay: last ? 3.2 : 1.3 });
+  }
+  if (count === HOME_PHRASE.length) plucks.push({ midi: HOME_PHRASE[count - 1] - 12, at: plucks[count - 1].at, velocity: 0.6, decay: 4 });
+  const length = count ? plucks[plucks.length - 1].at + 4 : 0;
+  return { length, plucks, resolved: count === HOME_PHRASE.length };
+}
+
+// Each gift's phrase in the timbre of its light (sound-plan.md section 8):
+// pluck() options per gift.
+export const GIFT_TIMBRE = {
+  fireflies: { decay: 0.9, bright: 1.4, echo: { delay: 0.09, gain: 0.3, octave: 12 } },
+  tideglow: { decay: 1.8, bright: 0.7, attack: 0.12 },
+  lamp: { decay: 2.4, bright: 0.55, attack: 0.025 },
+  stars: { decay: 3, bright: 1.2, echo: { delay: 0.31, gain: 0.25, octave: 12 } },
+  seafolk: { decay: 2, bright: 0.6, glide: 1 },
+  boat: { decay: 1.2, bright: 1.6 },
+  finale: { decay: 2.2, bright: 1.1 },
+};
+
 // ---------------------------------------------------------------------------
 // Audio. A small feedback-delay network reverb (eight lines through a
 // Householder mix, damped in the loop): all the space the score needs.
-export function createReverb(ctx, { seconds = 4.5, damping = 3200, predelay = 0.025 } = {}) {
+export function createReverb(ctx, { seconds = 4.5, damping = 3200, predelay = 0.025, lengths = [0.0437, 0.0511, 0.0593, 0.0673, 0.0761, 0.0839, 0.0929, 0.1013], trim: wet = 0.35 } = {}) {
   const input = ctx.createGain();
   const output = ctx.createGain();
   output.gain.value = 1;
   const pre = ctx.createDelay(0.2);
   pre.delayTime.value = predelay;
   input.connect(pre);
-  const lengths = [0.0437, 0.0511, 0.0593, 0.0673, 0.0761, 0.0839, 0.0929, 0.1013];
   const mix = ctx.createGain();
   mix.gain.value = -2 / lengths.length;
   const merger = ctx.createChannelMerger(2);
@@ -218,7 +248,7 @@ export function createReverb(ctx, { seconds = 4.5, damping = 3200, predelay = 0.
   for (const line of lines) mix.connect(line.sum);
   // The wet tail is quieter than the sum of eight lines.
   const trim = ctx.createGain();
-  trim.gain.value = 0.35;
+  trim.gain.value = wet;
   merger.connect(trim).connect(output);
   return {
     input,
@@ -239,6 +269,7 @@ function pad(ctx, out, send, notes, t, duration, level) {
   filter.frequency.linearRampToValueAtTime(900, t + duration * 0.5);
   filter.frequency.linearRampToValueAtTime(420, t + duration + 5);
   const env = ctx.createGain();
+  env.gain.value = 0;
   const attack = Math.min(4, duration * 0.4);
   env.gain.setValueAtTime(0, t);
   env.gain.linearRampToValueAtTime(level, t + attack);
@@ -272,7 +303,7 @@ function pad(ctx, out, send, notes, t, duration, level) {
 
 // A plucked note: a kalimba-like tine (fundamental, a soft octave and a
 // faint inharmonic overtone, each dying at its own rate).
-export function pluck(ctx, out, send, midi, t, velocity, { decay = 1.4, bright = 1 } = {}) {
+export function pluck(ctx, out, send, midi, t, velocity, { decay = 1.4, bright = 1, attack = 0.006, glide = 0 } = {}) {
   const hz = midiToHz(midi);
   const env = ctx.createGain();
   const filter = ctx.createBiquadFilter();
@@ -293,11 +324,15 @@ export function pluck(ctx, out, send, midi, t, velocity, { decay = 1.4, bright =
   for (const [ratio, type, gain, tau] of partials) {
     const osc = ctx.createOscillator();
     osc.type = type;
-    osc.frequency.value = hz * ratio;
+    if (glide) {
+      osc.frequency.setValueAtTime(hz * ratio * 2 ** (glide / 12), t);
+      osc.frequency.exponentialRampToValueAtTime(hz * ratio, t + 0.15);
+    } else osc.frequency.value = hz * ratio;
     const g = ctx.createGain();
+    g.gain.value = 0;
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(gain, t + 0.006);
-    g.gain.setTargetAtTime(0, t + 0.006, tau);
+    g.gain.linearRampToValueAtTime(gain, t + attack);
+    g.gain.setTargetAtTime(0, t + attack, tau);
     osc.connect(g).connect(env);
     osc.start(t);
     osc.stop(end);
@@ -311,7 +346,7 @@ export function pluck(ctx, out, send, midi, t, velocity, { decay = 1.4, bright =
 
 // The score's player: look-ahead scheduling from the composer into voices.
 // `out` is the music bus; `send` its reverb send.
-export function createScore(ctx, { out, send, seed = 1 } = {}) {
+export function createScore(ctx, { out, send, seed = 1, ceremonyOut = null } = {}) {
   const composer = createComposer(seed);
   let nextBeat = 0;
   let mood = "noon";
@@ -341,12 +376,20 @@ export function createScore(ctx, { out, send, seed = 1 } = {}) {
     },
     // A gift waking: its own phrase over a held chord (CEREMONIES), the
     // wandering line hushed while it plays, then a swell.
-    ceremony(gift, now = ctx.currentTime) {
+    // It plays on `ceremonyOut` (the magic bus) when given, so it sounds
+    // with the music off; `pads: false` leaves out the held chord.
+    ceremony(gift, now = ctx.currentTime, { pads = true, gain = 1 } = {}) {
       const events = ceremonyEvents(gift);
       if (!events) return 0;
       const t = now + 0.05;
-      for (const p of events.pads) pad(ctx, level, null, p.notes, t + p.at, p.length, PAD_LEVEL * 2);
-      for (const p of events.plucks) pluck(ctx, level, null, p.midi, t + p.at, PLUCK_LEVEL * 2.2 * p.velocity, { decay: 2.2, bright: 1.1 });
+      const dest = ceremonyOut ?? level;
+      const timbre = GIFT_TIMBRE[gift] ?? GIFT_TIMBRE.finale;
+      if (pads) for (const p of events.pads) pad(ctx, dest, null, p.notes, t + p.at, p.length, PAD_LEVEL * 2 * gain);
+      for (const p of events.plucks) {
+        const v = PLUCK_LEVEL * 2.2 * p.velocity * gain;
+        pluck(ctx, dest, null, p.midi, t + p.at, v, timbre);
+        if (timbre.echo) pluck(ctx, dest, null, p.midi + timbre.echo.octave, t + p.at + timbre.echo.delay, v * timbre.echo.gain, timbre);
+      }
       hushUntil = t + events.length;
       swell = Math.max(swell, 1);
       swellAt = t + events.length * 0.5;
@@ -381,6 +424,13 @@ export function createScore(ctx, { out, send, seed = 1 } = {}) {
         }
         nextBeat += beat;
       }
+    },
+    // The home phrase's first n notes (homeEvents) on `ceremonyOut`.
+    home(n, now = ctx.currentTime, gain = 1) {
+      const events = homeEvents(n);
+      const dest = ceremonyOut ?? level;
+      for (const p of events.plucks) pluck(ctx, dest, null, p.midi, now + 0.05 + p.at, PLUCK_LEVEL * 2 * p.velocity * gain, { decay: p.decay, bright: 1.2 });
+      return events.length;
     },
     dispose() {
       level.disconnect();

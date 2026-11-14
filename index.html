@@ -1149,7 +1149,9 @@
     <!-- The loading veil paints first; the world (main.js) loads behind it. -->
     <script type="module">
       import { loading } from "/src/loading-screen.js";
-      import("/src/main.js").then(() => loading.progress("start"), (error) => loading.fail(error));
+      // /?audition: every sound cue with a play button (src/sound/audition.js), no world.
+      if (new URLSearchParams(location.search).has("audition")) import("/src/sound/audition.js").then((m) => m.mount(document.body));
+      else import("/src/main.js").then(() => loading.progress("start"), (error) => loading.fail(error));
     </script>
   </body>
 </html>

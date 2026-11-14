@@ -181,7 +181,13 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
     // (the beacon has no waking of its own; its light is the ending's, story-and-wow.md 9).
     if (gift !== "finale" && gift !== "stars" && c.source) {
       magic.waking = createWaking(gift, c.source, { follow: gift === "boat" ? boatLantern : null });
-      cues = wakingCues(gift, c.source);
+      // sound: every diegetic cue of the waking, scheduled by the sound side
+      // from the moment the light is kindled (src/sound/cues.js `waking`);
+      // tCat is when the light's front reaches the cat.
+      const cat = state.walker?.cat;
+      const dCat = cat ? Math.hypot(cat.x - c.source[0], (cat.y ?? c.source[1]) - c.source[1], cat.z - c.source[2]) : Infinity;
+      const tCat = frontArrival(dCat, WAKE_LIGHT[gift]);
+      state.sound?.waking?.(gift, { x: c.source[0], y: c.source[1], z: c.source[2] }, Number.isFinite(tCat) ? { tCat } : {});
     }
   }
 
@@ -191,38 +197,6 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
     return l && l[3] > 0.001 ? [l[0], l[1], l[2]] : null;
   }
 
-  // waking: the diegetic sound cues, scheduled from the same curves as the
-  // light (so they cannot drift), fired as the waking's wall clock passes
-  // each. Named hooks only: sound.js decides what each sounds like
-  // (waking-light.md section 6); a missing hook is silent.
-  let cues = [];
-  function wakingCues(gift, at) {
-    const spec = WAKE_LIGHT[gift];
-    const cat = state.walker?.cat;
-    const dCat = cat ? Math.hypot(cat.x - at[0], (cat.y ?? at[1]) - at[1], cat.z - at[2]) : Infinity;
-    const list = [
-      { t: 0, cue: "hush" },
-      { t: 0.35, cue: "kindle" },
-      ...(gift === "lamp" ? [0.8, 1.5] : [0.55, 0.75]).map((t) => ({ t, cue: "gutter" })),
-      { t: 0.35, cue: "reach" },
-      { t: frontArrival(dCat, spec), cue: "arrive" },
-      { t: 1, cue: "glints", count: { fireflies: 12, tideglow: 10, boat: 4 }[gift] ?? 0, until: 7 },
-      { t: 6, cue: "settle" },
-    ];
-    if (gift === "seafolk") list.push({ t: 4, cue: "answer" });
-    if (gift === "lamp") list.push({ t: 2.2, cue: "clockwork" });
-    // (About when the front meets the swash: the light goes into the water.)
-    if (gift === "tideglow") list.push({ t: 2, cue: "enter" });
-    return list.filter((c) => Number.isFinite(c.t)).sort((a, b) => a.t - b.t);
-  }
-  function playCues() {
-    const w = magic.waking;
-    if (!w || !cues.length) return;
-    while (cues.length && w.age >= cues[0].t) {
-      const { cue, ...rest } = cues.shift();
-      state.sound?.[cue]?.({ gift: w.gift, x: w.x, y: w.y, z: w.z, ...rest });
-    }
-  }
 
   function stage(dt) {
     const c = ceremony;
@@ -355,7 +329,6 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
       }
       if (mind.mode === "hidden" && now() > meetAt && !blocked) mind.appear(cat);
       if (ceremony) stage(dt);
-      playCues(); // waking: its sound cues
       ctx.cat = cat;
       ctx.target = ceremony ? null : quest.target(cat.x, cat.z);
       if (ctx.target !== last) last = ctx.target;
@@ -402,7 +375,6 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
       if (ceremony) finish();
       quest?.beginAgain();
       magic.waking = null;
-      cues = [];
       mind?.reset();
       carry = null;
       colourFor(null);
