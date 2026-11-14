@@ -707,9 +707,9 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       const hipsToCoast = inverse.multiplyMatrices(toCoast, b.hips.matrixWorld);
       for (let i = 0; i < TAIL_BONES; i++) {
         const s = i / TAIL_BONES;
-        // Walking: carried in a relaxed curve, out and up from the rump to
-        // about 50°, the tip curling higher (not a raised pole).
-        const carried = 0.2 + smooth(s, 0, 0.6) * 0.7 + smooth(s, 0.65, 1) * 0.6;
+        // Walking: carried in a loose S, rising off the rump, easing level
+        // through the middle and the tip curling up again (not a raised pole).
+        const carried = 0.25 + smooth(s, 0, 0.35) * 0.7 - smooth(s, 0.35, 0.7) * 0.45 + smooth(s, 0.62, 1) * 0.8;
         // At a gallop: out behind, a little low at the root, curving up
         // toward the tip.
         const streaming = lerp(0.15 - s * 0.1, -0.02 + smooth(s, 0.2, 1) * 0.38, gallop);
@@ -722,17 +722,19 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
         // so level in the world is about −pitch here).
         // Each bound pumps the tail, the wave running down to the tip.
         const pump = Math.sin(cycle - s * 2.4) * 0.16 * s * gallop * amp;
+        // Walking, each step sends a slow wave up and down its length.
+        const ripple = Math.sin(cycle * 2 - s * 4.5) * 0.12 * s * amp * (1 - gallop) * (1 - pose.sit);
         const floorE = -pitch + 0.02;
         const down = lerp(-1.05, floorE, smooth(s, 0.05, 0.25));
         let targetE = lerp(up2, down, pose.sit) + pose.air * 1.4 / S;
         // Wading, the tail is held high and dry; afloat it streams out
         // level behind as a rudder.
         // Galloping, the tail holds its line as the pelvis tucks and tips.
-        targetE += wade * 0.6 * (1 - s * 0.5) + pump + (rock - flex) * 0.8 * gallop;
+        targetE += wade * 0.6 * (1 - s * 0.5) + pump + ripple + (rock - flex) * 0.8 * gallop;
         targetE = lerp(targetE, -pitch + 0.06 - s * 0.05, swim);
         const sway = Math.sin(time * (0.9 + swish * 2.5) - s * 2.6) * s * s * (0.22 + swish * 0.55) * (1 - crouch);
         const twitch = crouch * smooth(s, 0.75, 1) * Math.sin(time * 13) * 0.5 * (0.5 + 0.5 * Math.sin(time * 1.3));
-        const gaitSway = Math.sin(cycle + Math.PI * s) * 0.06 * amp * (1 - gallop) * s + 0.14 * s * gallop * amp;
+        const gaitSway = Math.sin(cycle - Math.PI * s) * 0.16 * amp * (1 - gallop) * s + 0.14 * s * gallop * amp;
         let targetS = sway + twitch + gaitSway + sitW * s * 2.3 + lieW * s * 3.2;
         targetS = lerp(targetS, Math.sin(strokeC - s * 3) * 0.1 * s - pose.turn * 0.25 * s, swim);
         targetS += Math.sin((shakeT - 0.5 - s * 0.15) * Math.PI * 2 * 5.5) * 0.45 * s * shakeTail;
