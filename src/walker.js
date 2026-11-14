@@ -1008,10 +1008,11 @@ export function createWalker(obstacles, sea = null, wake = null) {
     // Turn the view to the middle of the cat and the subject's top (by
     // angle), so both sit in the frame.
     // (The bisector of the directions from the lens to the cat and to the
-    // subject's upper part: a midpoint in space put a near cat out of the
-    // bottom of the frame.)
+    // subject's top: a midpoint in space put a near cat out of the bottom
+    // of the frame, and aiming two-thirds up left the lighthouse's lantern
+    // above it; the search keeps their span inside the frame.)
     const L = best.lens;
-    const fx = subject.x, fy = sy0 + (sy1 - sy0) * 0.65, fz = subject.z;
+    const fx = subject.x, fy = sy1, fz = subject.z;
     const dc = hyp(hyp(tx - L.x, tz - L.z), ty - 0.1 - L.y) || 1;
     const ds = hyp(hyp(fx - L.x, fz - L.z), fy - L.y) || 1;
     const ux = (tx - L.x) / dc + (fx - L.x) / ds, uy = (ty - 0.1 - L.y) / dc + (fy - L.y) / ds, uz = (tz - L.z) / dc + (fz - L.z) / ds;

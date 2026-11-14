@@ -171,9 +171,14 @@ test('each ceremony ends on a clear view of its place', async () => {
   const { cat, camera, solids } = walker;
   const canopies = forest.obstacles.canopies;
   const crown = places.crown;
+  let cuts = 0;
   const settle = (yaw, elevation, distance, look) => {
     walker.freeCamera(true);
-    camera.yaw = yaw; camera.elevation = elevation; camera.distance = distance; camera.targetY = cat.y;
+    // (targetY a hair different every time: the rig takes a write as a cut
+    // only when it differs from what it last wrote, and a searched shot
+    // equal to the straight-on one was left at the follow camera's
+    // clamped 8 m.)
+    camera.yaw = yaw; camera.elevation = elevation; camera.distance = distance; camera.targetY = cat.y + ++cuts * 1e-9;
     walker.lookAt(look, 1);
     for (let i = 0; i < 120; i++) walker.update(1 / 60, { move: [0, 0], run: false, jump: false }, null);
     const view = { x: camera.x, y: camera.y, z: camera.z, azimuth: camera.azimuth + Math.PI / 4, pitch: camera.pitch };
@@ -238,7 +243,7 @@ test('each ceremony ends on a clear view of its place', async () => {
     }
   }
   console.log(`ceremony shots with a fault: ${before}/${shots} straight-on, ${after}/${shots} searched\n  was: ${old.join('\n  was: ')}\n  now: ${report.join('\n  now: ')}`);
-  assert.ok(after <= 1, `ceremony shots still faulty:\n${report.join('\n')}`);
+  assert.equal(report.length, 0, `ceremony shots still faulty:\n${report.join('\n')}`);
   assert.ok(after < before || before === 0, `no better than straight-on (${before} -> ${after})`);
 });
 
