@@ -184,14 +184,13 @@ export function ceremonyEvents(gift) {
 // ---------------------------------------------------------------------------
 // Audio. A small feedback-delay network reverb (eight lines through a
 // Householder mix, damped in the loop): all the space the score needs.
-export function createReverb(ctx, { seconds = 4.5, damping = 3200, predelay = 0.025 } = {}) {
+export function createReverb(ctx, { seconds = 4.5, damping = 3200, predelay = 0.025, lengths = [0.0437, 0.0511, 0.0593, 0.0673, 0.0761, 0.0839, 0.0929, 0.1013], trim: wet = 0.35 } = {}) {
   const input = ctx.createGain();
   const output = ctx.createGain();
   output.gain.value = 1;
   const pre = ctx.createDelay(0.2);
   pre.delayTime.value = predelay;
   input.connect(pre);
-  const lengths = [0.0437, 0.0511, 0.0593, 0.0673, 0.0761, 0.0839, 0.0929, 0.1013];
   const mix = ctx.createGain();
   mix.gain.value = -2 / lengths.length;
   const merger = ctx.createChannelMerger(2);
@@ -218,7 +217,7 @@ export function createReverb(ctx, { seconds = 4.5, damping = 3200, predelay = 0.
   for (const line of lines) mix.connect(line.sum);
   // The wet tail is quieter than the sum of eight lines.
   const trim = ctx.createGain();
-  trim.gain.value = 0.35;
+  trim.gain.value = wet;
   merger.connect(trim).connect(output);
   return {
     input,
