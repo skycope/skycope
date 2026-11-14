@@ -493,7 +493,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     // sun and sky, at its true brightness relative to the sky, so undersides
     // stay darker than tops instead of being lifted to match them.
     const bounce = lighting.direct.map(
-      (v, i) => (v * Math.max(sunWorld.y, 0) * overcast / Math.PI + sky[i]) * [0.2, 0.19, 0.15][i],
+      (v, i) => (v * Math.max(sunWorld.y, 0) * overcast / Math.PI + sky[i]) * [0.21, 0.2, 0.165][i],
     );
     // Only incident light invalidates PMREM/SH. Camera shadow anchors do not.
     const skyUnit = lighting.sky.map((v) => (v * (1 + cover * 0.45)) / exposure);

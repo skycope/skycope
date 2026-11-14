@@ -1163,7 +1163,7 @@ if ( rockSandy > 0.01 && vRockAbove < 0.3 ) {
   float driftTop = 0.012 + 0.045 * windward * windward + ( relief - 0.5 ) * 0.02 + ( mid - 0.5 ) * 0.02
     + ( mix( dNoise3( q * 23.0 ), 0.5, smoothstep( 0.2, 0.5, footprint * 23.0 ) ) - 0.5 ) * 0.015;
   drift = ( 1.0 - smoothstep( driftTop - 0.015, driftTop + 0.004, vRockAbove ) ) * rockSandy;
-  vec3 sandTone = mix( vec3( 0.36, 0.28, 0.18 ), vec3( 0.26, 0.2, 0.13 ), smoothstep( 4.0, 9.0, rockInland ) );
+  vec3 sandTone = mix( vec3( 0.41, 0.36, 0.26 ), vec3( 0.29, 0.24, 0.16 ), smoothstep( 4.0, 9.0, rockInland ) );
   diffuseColor.rgb = mix( diffuseColor.rgb, sandTone * ( 0.85 + relief * 0.3 ), drift );
 }
 float detailHeight = macro * 0.05 + mid * 0.018 + relief * 0.022 + feldspar * 0.0006 - biotite * 0.0004 - seam * 0.006 + barnacles * 0.0015 + lichen * 0.002;

@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { MATERIAL_LINEAR, srgbToLinear } from '../src/material-palette.js';
-import { tintOf, landFieldLevels, LAND_FIELD } from '../src/land-field.js';
+import { tintOf, landFieldLevels, LAND_FIELD, SAND_TINT } from '../src/land-field.js';
 import { skyDomeMean, skyEnvironmentKey } from '../src/sunlight.js';
 
 test('material reflectances use exact sRGB decoding and retain identity', () => {
   const sand = MATERIAL_LINEAR.sand;
-  [0.539479, 0.423268, 0.262251].forEach((expected, c) => assert.ok(Math.abs(sand[c] - expected) < 1e-5));
+  [0.577580, 0.508881, 0.366253].forEach((expected, c) => assert.ok(Math.abs(sand[c] - expected) < 1e-5));
   assert.equal(srgbToLinear(0), 0);
   assert.equal(srgbToLinear(1), 1);
   assert.ok(MATERIAL_LINEAR.moss[1] > MATERIAL_LINEAR.moss[0]);
@@ -67,4 +67,13 @@ test('CPU and WGSL atmosphere use identical optical units and coefficients', () 
     const gpuValues = gpu.match(new RegExp(`const ${name}: vec3f = vec3f\\(([^)]+)\\)`))[1].split(',').map(Number);
     assert.deepEqual(cpuValues, gpuValues, name);
   }
+});
+
+test('the sea reflects the land sand in its own colour', () => {
+  const sand = MATERIAL_LINEAR.sand;
+  const l = sand[0] * 0.2126 + sand[1] * 0.7152 + sand[2] * 0.0722;
+  SAND_TINT.forEach((v, c) => assert.ok(Math.abs(v - sand[c] / l) < 0.005, `SAND_TINT[${c}]`));
+  const ocean = readFileSync(new URL('../src/shaders/ocean.wgsl', import.meta.url), 'utf8');
+  const literal = ocean.match(/const SAND_TINT: vec3f = vec3f\(([^)]+)\)/)[1].split(',').map(Number);
+  assert.deepEqual(literal, SAND_TINT);
 });
