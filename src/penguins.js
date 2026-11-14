@@ -533,6 +533,15 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
             b.heading += (b.dodge || 1) * dt * 3;
           }
         } else if (b.speed > 0.01) b.dodge = 0;
+        // And whatever the push (a neighbour, a dodge), never up onto a
+        // rock more than a low stone's height above the sand.
+        if (b.swim < 0.5) {
+          const top = surface(nx, nz);
+          if (top > here + 0.002 && top - groundHeight(nx, nz) > 0.3) {
+            nx = b.x;
+            nz = b.z;
+          }
+        }
         // Only to sea when meaning to go.
         const goingIn = b.mode === "outing" || b.mode === "flee" || b.mode === "sea" || b.mode === "back";
         if (!goingIn && shoreDistance(nx, nz) < 0.5 && shoreDistance(nx, nz) < shoreDistance(b.x, b.z)) {
