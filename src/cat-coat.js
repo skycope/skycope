@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { HEAD } from "./cat-rig.js";
+import { HEAD, HEAD_SCALE } from "./cat-rig.js";
 import { LOFT, MUZZLE, NOSE, NOSE_RADII } from "./cat-body.js";
 
 // The coat: a brown mackerel tabby painted per pixel in the bind pose (so
@@ -260,7 +260,8 @@ Coat coatAt( vec3 p, vec4 region, vec3 n, vec3 flow, float nose, float mouth ) {
     pale += bodyPale * body;
   }
   if ( head > 0.01 ) {
-    vec3 h = p - ${HEAD_GLSL};
+    // Head-local, in the units the head is authored in (cat-rig.js HEAD_SCALE).
+    vec3 h = ( p - ${HEAD_GLSL} ) / ${HEAD_SCALE.toFixed(4)};
     float ax = abs( h.x );
     float front = smoothstep( 0.0, 0.025, h.z );
     // The forehead "M" and fine lines back over the crown.
@@ -328,7 +329,7 @@ Coat coatAt( vec3 p, vec4 region, vec3 n, vec3 flow, float nose, float mouth ) {
   col = mix( col, lin( vec3( 0.2, 0.13, 0.12 ) ), c.pad );
   // Nose leather: brick red, rimmed in black, with nostrils.
   {
-    vec3 h = p - ${HEAD_GLSL} - vec3( ${NOSE.map((v) => v.toFixed(4)).join(", ")} );
+    vec3 h = ( p - ${HEAD_GLSL} ) / ${HEAD_SCALE.toFixed(4)} - vec3( ${NOSE.map((v) => v.toFixed(4)).join(", ")} );
     // (Its primitive's radii plus the loft it carries, cat-body.js.)
     vec3 hn = h / ( vec3( ${NOSE_RADII.map((v) => v.toFixed(4)).join(", ")} ) + ${(0.15 * LOFT).toFixed(5)} );
     // A rounded triangle, wide at the top: narrower toward the bottom.
