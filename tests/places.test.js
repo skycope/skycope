@@ -75,3 +75,25 @@ test('nothing grows or lies inside a landmark', () => {
   assert.ok(scattered.length > 150 && scattered.length < original.length);
   for (const r of scattered) assert.ok(placeClearance(layout, r.position.x, r.position.z, 'clear') > 0);
 });
+
+test('every landmark keeps the prop contract and its triangle budget', async () => {
+  const { BUILDERS } = await import('../src/places.js');
+  const { createMaterials } = await import('../src/place-kit.js');
+  const materials = createMaterials({});
+  // Near-level budgets (triangles): the milkwood was 178k.
+  const budget = { lighthouse: 7500, beacon: 1500, milkwood: 60000, wreck: 3500, boat: 6000, pool: 7500 };
+  for (const seed of [1847, 1, 99999]) {
+    for (const p of placesLayout(seed)) {
+      const b = BUILDERS[p.kind](p, materials, { seed });
+      for (const k of ['lod', 'surfaces', 'covers', 'lights', 'affordances']) assert.ok(b[k], `${p.id} has ${k}`);
+      for (const k of ['trunks', 'tiles', 'solids']) assert.ok(Array.isArray(b.surfaces[k]), `${p.id} surfaces.${k}`);
+      let triangles = 0;
+      b.lod.near.traverse((o) => {
+        if (!o.isMesh) return;
+        const g = o.geometry;
+        triangles += ((g.index ? g.index.count : g.attributes.position.count) / 3) * (o.isInstancedMesh ? o.count : 1);
+      });
+      assert.ok(triangles <= budget[p.id], `seed ${seed} ${p.id}: ${triangles} triangles near`);
+    }
+  }
+});
