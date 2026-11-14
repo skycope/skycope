@@ -190,7 +190,7 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
     // The boat: keep the hull in the picture as it glides to its cove.
     const ride = s.follow ? state.boat?.ride : null;
     if (ride?.cove && g >= 0) {
-      const k = ride.ride?.state === "launching" ? ride.ride.launch : 1;
+      const k = ride.ride?.state === "launching" ? ride.ride.launch : ride.ride?.state === "ready" ? 0 : 1; // boat: ready on its logs until the cat launches it
       const hx = c.place.x + (ride.cove.x - c.place.x) * k;
       const hz = c.place.z + (ride.cove.z - c.place.z) * k;
       yaw = Math.atan2(hx - cat.x, hz - cat.z);

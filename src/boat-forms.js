@@ -485,6 +485,34 @@ export function buildBoatForms({ light = false } = {}) {
   };
 }
 
+// The cove's mooring post: a weathered timber pile driven into the bottom
+// (world y from `bottom` to POST.top, its own frame at the post), leaning a
+// little, weed-dark below the tide line, a few turns of line at its ring.
+// `skin` 2: cut at the sea's level at the post (boat.js).
+export const POST = { top: 0.88, ring: 0.45, radius: 0.075 };
+export function buildPost(bottom, seed = 1) {
+  const lean = 0.04 + 0.03 * hash(seed, 3.1);
+  const dir = hash(seed, 7.7) * Math.PI * 2;
+  const at = (y) => (y - bottom) / (POST.top - bottom);
+  const pts = [];
+  for (let k = 0; k <= 6; k++) {
+    const y = bottom + ((POST.top - bottom) * k) / 6;
+    pts.push(new THREE.Vector3(Math.cos(dir) * lean * at(y), y, Math.sin(dir) * lean * at(y)));
+  }
+  const parts = [];
+  const timber = srgb("#77705f"), weed = srgb("#2f3322");
+  parts.push(part(sweep(pts, pts.map((q, k) => POST.radius * (1 - 0.12 * (k / 6))), 7), {
+    colour: (v, n, out) => out.copy(timber).lerp(weed, 1 - smooth01(-0.05, 0.25, v.y)).multiplyScalar(0.85 + 0.3 * hash(Math.floor(v.y * 9), 2.2)),
+  }));
+  const ringAt = POST.ring;
+  const off = new THREE.Vector3(Math.cos(dir) * lean * at(ringAt), 0, Math.sin(dir) * lean * at(ringAt));
+  for (let k = 0; k < 3; k++)
+    parts.push(part(new THREE.TorusGeometry(POST.radius + 0.008, 0.009, 3, 9), { matrix: place(off.x, ringAt - 0.02 + k * 0.02, off.z, { pitch: Math.PI / 2 }), colour: ROPE }));
+  const g = merge(parts);
+  g.setAttribute("skin", new THREE.BufferAttribute(new Float32Array(g.attributes.position.count).fill(2), 1));
+  return g;
+}
+
 // One geometry with a per-vertex `skin`: 1 outside (the sea meets it), 0
 // inside.
 function skins(outside, inside) {

@@ -104,6 +104,8 @@ export function createBoatDynamics({ sea, bed, solids = null } = {}) {
   };
   const events = [];
   const good = { x: 0, z: 0, heading: 0 };
+  // The last targets of heave, pitch and roll (for the water's own rate).
+  const lastTarget = { y: NaN, p: NaN, r: NaN };
   // Scratch, reused every step.
   const water = { level: 0, fx: 0, fz: 0, breaking: 0 };
 
@@ -131,6 +133,7 @@ export function createBoatDynamics({ sea, bed, solids = null } = {}) {
     s.vy = s.vp = s.vr = 0;
     s.y = levelAt(x, z);
     s.level = s.y;
+    lastTarget.y = lastTarget.p = lastTarget.r = NaN;
     s.pitch = s.roll = 0;
     s.grounded = 0;
     good.x = x;
@@ -221,7 +224,7 @@ export function createBoatDynamics({ sea, bed, solids = null } = {}) {
     return s;
   }
 
-  function substep(dt, { dir = null, throttle = 0, hurry = false, moor = null, load = 0 } = {}) {
+  function substep(dt, { dir = null, throttle = 0, hurry = false, moor = null, load = 0, tether = null } = {}) {
     s.clock += dt;
     s.bumpAge += dt;
     const fx = Math.sin(s.heading), fz = Math.cos(s.heading);
@@ -263,6 +266,36 @@ export function createBoatDynamics({ sea, bed, solids = null } = {}) {
         tz = dz * pull;
       }
     }
+    // On its painter: the line pulls the stem toward what it is made fast
+    // to once it comes taut (a stiff spring with damping, never a push), and
+    // the stem fends off the post. Left to itself the boat drifts on the
+    // wind (its topsides' windage) and lies to its line, bow to the post.
+    let driftX = 0, driftZ = 0;
+    if (tether) {
+      const stemX = s.x + fx * (HALF + 0.02), stemZ = s.z + fz * (HALF + 0.02);
+      const lx = tether.x - stemX, lz = tether.z - stemZ;
+      const d = Math.hypot(lx, lz) || 1e-6;
+      const ux = lx / d, uz = lz / d;
+      const stretch = d - tether.length;
+      const away = -(s.vx * ux + s.vz * uz);
+      if (stretch > 0) {
+        const pull = Math.min(900, stretch * 700 + Math.max(0, away) * 260);
+        tx += ux * pull;
+        tz += uz * pull;
+      }
+      if (tether.post && d < 0.45) {
+        tx -= ux * (0.45 - d) * 900;
+        tz -= uz * (0.45 - d) * 900;
+      }
+      if (!dir && sea?.wind) {
+        const w = sea.wind;
+        const ws = Math.hypot(w[0], w[1]);
+        // ~0.7 N per (m/s)²: a 6 m/s breeze leans on it with 25 N.
+        const gust = 0.85 + 0.15 * Math.sin(s.clock * 0.37) * Math.sin(s.clock * 0.13 + 1.1);
+        driftX = w[0] * ws * 0.7 * gust;
+        driftZ = w[1] * ws * 0.7 * gust;
+      }
+    }
     // Held at a mooring: a soft spring to station and to its heading.
     let moorTorque = 0;
     if (moor) {
@@ -283,8 +316,8 @@ export function createBoatDynamics({ sea, bed, solids = null } = {}) {
     const dv = -(260 * wv + 420 * wv * Math.abs(wv));
     // Grounded: the sand holds it.
     const hold = 1 + s.grounded * 30;
-    const Fx = tx + (du * fx + dv * sx) * hold;
-    const Fz = tz + (du * fz + dv * sz) * hold;
+    const Fx = tx + driftX + (du * fx + dv * sx) * hold;
+    const Fz = tz + driftZ + (du * fz + dv * sz) * hold;
     s.vx += (Fx / BOAT.mass) * dt;
     s.vz += (Fz / BOAT.mass) * dt;
     // Yaw: the tow's side pull on the stem swings the bow round (and the
@@ -405,11 +438,19 @@ export function createBoatDynamics({ sea, bed, solids = null } = {}) {
     const sit = -s.grounded * 0.04;
     const targetP = Math.atan(along) * 0.85 + clamp(s.u * 0.012, -0.02, 0.03) + sit;
     const targetR = Math.atan(across) * 0.8 + heel;
-    s.vy += (32 * (targetY - s.y) - 7 * s.vy) * dt;
+    // Damped against the water's own motion (the hull's relative velocity),
+    // so it rides a rising swell without lagging below it.
+    const rate = Number.isFinite(lastTarget.y) ? clamp((targetY - lastTarget.y) / dt, -3, 3) : 0;
+    const rateP = Number.isFinite(lastTarget.p) ? clamp((targetP - lastTarget.p) / dt, -3, 3) : 0;
+    const rateR = Number.isFinite(lastTarget.r) ? clamp((targetR - lastTarget.r) / dt, -3, 3) : 0;
+    lastTarget.y = targetY;
+    lastTarget.p = targetP;
+    lastTarget.r = targetR;
+    s.vy += (32 * (targetY - s.y) - 7 * (s.vy - rate)) * dt;
     s.y += s.vy * dt;
-    s.vp += (24 * (targetP - s.pitch) - 5.5 * s.vp) * dt;
+    s.vp += (24 * (targetP - s.pitch) - 5.5 * (s.vp - rateP)) * dt;
     s.pitch += s.vp * dt;
-    s.vr += (15 * (targetR - s.roll) - 2.4 * s.vr) * dt;
+    s.vr += (15 * (targetR - s.roll) - 2.4 * (s.vr - rateR)) * dt;
     s.roll += s.vr * dt;
     // Never NaN out to the renderer: fall back to the last good pose.
     if (![s.x, s.z, s.heading, s.vx, s.vz, s.r, s.y, s.vy, s.pitch, s.vp, s.roll, s.vr].every(Number.isFinite)) {

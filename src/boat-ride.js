@@ -1,11 +1,15 @@
 import { shoreDistance, groundHeight, ISLAND } from "./terrain.js";
 import { createBoatDynamics, findMooring, BOAT } from "./boat-dynamics.js";
+import { seabedDepth, shoreAlong } from "./sea-surface.js";
 import { deckHeight, STATION, HULL, sheer, halfBreadth } from "./boat-forms.js";
+import { createLaunch, touchesUpturned } from "./boat-launch.js";
 
 // The boat's life, without any drawing (boat.js draws it): asleep on its
-// logs until the `boat` gift wakes; the launch (it rises, rolls upright and
-// slides down the beach into its cove); then afloat, waiting at a mooring
-// for the cat. The cat boards by swimming or wading up to it and pushing
+// logs until the `boat` gift wakes; then ready, still on its logs, until
+// the cat pushes at it or hops onto it; the launch (it rocks, rolls over off
+// its logs and scrapes down the sand into the water, boat-launch.js); then
+// afloat, waiting on its painter (made fast to a post in the cove, or to an
+// anchor where it was left) for the cat. The cat boards by swimming or wading up to it and pushing
 // at it, or jumping beside it; aboard, the walker's input steers it (the
 // wisp tows it, boat-dynamics.js), the cat stands at the bow with its front
 // paws on the breasthook or sits on the bow sheets once it has stopped.
@@ -14,14 +18,15 @@ import { deckHeight, STATION, HULL, sheer, halfBreadth } from "./boat-forms.js";
 // the boat waits where it is; left adrift, it finds its way to the nearest
 // beach and waits there.
 //
-// States: asleep → launching → waiting ⇄ boarding → aboard → waiting|adrift.
+// States: asleep → ready → launching → waiting ⇄ boarding → aboard →
+// waiting|adrift.
 //
 // The walker (walker.js) calls `update(dt, input, cat)` every frame and
 // hands the cat over while it returns true; `deck(x, z)` is walkable.
 
 export const RIDE = {
-  // Seconds: the launch, the hop aboard, how long the bow must sit on the
-  // sand before the cat hops out.
+  // Seconds: the launch (about; it ends when the water takes it), the hop
+  // aboard, how long the bow must sit on the sand before the cat hops out.
   launch: 8,
   hop: 0.55,
   beach: 0.7,
@@ -32,6 +37,10 @@ export const RIDE = {
   jumpLimit: 20,
   // Left farther out than this, the boat makes for the beach.
   adrift: 12,
+  // The painter: metres of line from the stem head, and how far shoreward
+  // of the stem the cove's post stands.
+  painter: 1.7,
+  post: 1.35,
 };
 
 const H = HULL.half;
@@ -53,13 +62,37 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
     ?? findMooring(landmark.x, landmark.z, bed)
     ?? { x: landmark.x, z: landmark.z, heading: landmark.facing };
   const moor = { x: cove.x, z: cove.z, heading: cove.heading };
+  // The cove's mooring post: ahead of the bow (the bow faces the beach).
+  const post = { x: cove.x + Math.sin(cove.heading) * (H + RIDE.post), z: cove.z + Math.cos(cove.heading) * (H + RIDE.post) };
+  post.bed = bed(post.x, post.z);
+  // What the painter is made fast to: { x, z, y (the ring or the seabed),
+  // length, post }, or null while the cat has the boat.
+  let tether = null;
+  const coveTether = () => ({ x: post.x, z: post.z, y: 0.45, length: RIDE.painter, post: true });
+  // Left elsewhere: an anchor a little ahead of the bow, on the bottom.
+  const anchorTether = (x, z, heading) => {
+    const ax = x + Math.sin(heading) * (H + 1.6), az = z + Math.cos(heading) * (H + 1.6);
+    if (Math.hypot(x - cove.x, z - cove.z) < 0.6) return coveTether();
+    return { x: ax, z: az, y: bed(ax, az), length: 2.1, post: false };
+  };
+  // The launch slides on the bare sand and seabed: not on its own upturned
+  // hull's walk tile or its logs (the glide from them is clear of
+  // boulders, findMooring).
+  const sand = (x, z) => {
+    const inland = shoreDistance(x, z);
+    return inland < 0 ? Math.max(groundHeight(x, z), -seabedDepth(-inland, shoreAlong(x, z))) : groundHeight(x, z);
+  };
+  const launcher = createLaunch({ landmark, to: cove, bed: sand, water: (x, z) => (sea?.drawn ? sea.drawn(x, z) : sea ? sea.at(x, z, bed(x, z)).level : -Infinity) });
+  const pose = { x: landmark.x, y: 0, z: landmark.z, heading: landmark.facing, pitch: 0, roll: Math.PI, vx: 0, vz: 0, phase: "rock", floating: false };
   const events = [];
   const ride = {
     state: "asleep",
     // Seconds into the current state.
     t: 0,
-    // 0…1 through the launch (boat.js poses the hull along it).
+    // 0…1 through the launch, and the hull's pose along it (boat.js
+    // draws it there).
     launch: 0,
+    pose,
     // The cat's hop aboard / ashore: from (x, y, z) to the station.
     hop: { x: 0, y: 0, z: 0, heading: 0 },
     // While the cat is aboard: which way it wants to go (world), how hard.
@@ -119,6 +152,12 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
     events,
     cove,
     moor,
+    post,
+    // The painter's far end, or null (boat.js draws the line).
+    get tether() {
+      return tether;
+    },
+    launcher,
     get afloat() {
       return afloat();
     },
@@ -144,12 +183,12 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
     get view() {
       return ride.view;
     },
-    // Wake the boat: from its logs (a ceremony) or straight onto its
-    // mooring (awake at load).
+    // Wake the boat: ready on its logs for the cat to launch (a ceremony)
+    // or straight onto its mooring (awake at load).
     wake(now = true) {
       if (ride.state !== "asleep") return;
       if (now) {
-        ride.state = "launching";
+        ride.state = "ready";
         ride.t = 0;
         ride.launch = 0;
       } else {
@@ -160,7 +199,16 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
           moor.heading = left.heading;
         }
         dyn.place(moor.x, moor.z, moor.heading);
+        tether = left ? anchorTether(moor.x, moor.z, moor.heading) : coveTether();
       }
+    },
+    // The launch now (the cat's push; also for QA).
+    launch() {
+      if (ride.state !== "ready" && ride.state !== "asleep") return;
+      ride.state = "launching";
+      ride.t = 0;
+      ride.launch = 0;
+      events.push({ type: "knock", gain: 1 });
     },
     // The walker's hook, every frame. input: { move: [right, forward],
     // run, jump } in camera terms; yaw: the camera's heading (to turn the
@@ -173,22 +221,45 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
         if (magic?.isAwake?.("boat")) api.wake(Number.isFinite(magic.wakeAt?.boat) && magic.wakeAt.boat > -Infinity);
         if (ride.state === "asleep") return false;
       }
-      if (ride.state === "launching") {
-        ride.launch = Math.min(1, ride.t / RIDE.launch);
-        if (ride.launch >= 1) {
-          ride.state = "waiting";
-          ride.t = 0;
-          dyn.place(moor.x, moor.z, moor.heading);
-          dyn.nudge(0.35, 0.3, -0.2);
-          events.push({ type: "launch", gain: 1 });
-        }
-        return false;
-      }
       // The cat's wish, as a world direction.
       const mx = input?.move?.[0] ?? 0, mz = input?.move?.[1] ?? 0;
       const sinY = Math.sin(yaw), cosY = Math.cos(yaw);
       let wx = sinY * mz + cosY * mx;
       let wz = cosY * mz - sinY * mx;
+      if (ride.state === "ready") {
+        // Ready on its logs: the cat's push, or a hop onto it, launches it.
+        if (cat && touchesUpturned(landmark, cat, wx, wz) && (cat.air === 0 || cat.y > bed(landmark.x, landmark.z) + 0.5)) {
+          api.launch();
+          // A cat on top is tipped off as it stirs.
+          if (cat.y > bed(cat.x, cat.z) + 0.35) {
+            cat.heading = Math.atan2(cat.x - landmark.x, cat.z - landmark.z);
+            cat.vy = 2.4;
+            cat.air = 0.001;
+            cat.speed = 1.1;
+          }
+        }
+        return false;
+      }
+      if (ride.state === "launching") {
+        launcher.pose(ride.t, pose);
+        const run = Math.hypot(cove.x - landmark.x, cove.z - landmark.z) || 1;
+        ride.launch = Math.min(1, Math.max(ride.t / RIDE.launch, Math.hypot(pose.x - landmark.x, pose.z - landmark.z) / run));
+        if (pose.phase === "slide" && ride.t - dt < 2.6 && ride.t >= 2.6) events.push({ type: "scrape", gain: 1 });
+        if (pose.floating) {
+          // The water has it: on its way, on its painter.
+          ride.state = "waiting";
+          ride.t = 0;
+          ride.launch = 1;
+          dyn.place(pose.x, pose.z, pose.heading);
+          s.vx = pose.vx;
+          s.vz = pose.vz;
+          s.y = pose.y;
+          s.pitch = pose.pitch;
+          tether = coveTether();
+          events.push({ type: "launch", gain: 1 });
+        }
+        return false;
+      }
       // A tapped point on the sea, until the keys take over or it is reached.
       if (mx || mz) ride.target = null;
       if (ride.target && ride.state === "aboard") {
@@ -212,6 +283,8 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
         const near = cat.air === 0 && hullGap(cat.x, cat.z) < RIDE.reach;
         const pushing = wl > 0.3 && (wx * (s.x - cat.x) + wz * (s.z - cat.z)) > 0;
         if (near && (pushing || input?.jump)) {
+          // Cast off: the painter comes aboard with the cat.
+          tether = null;
           ride.state = "boarding";
           ride.t = 0;
           Object.assign(ride.hop, { x: cat.x, y: cat.y, z: cat.z, heading: cat.heading });
@@ -292,7 +365,7 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
           ride.state = "waiting";
           ride.t = 0;
         }
-      } else stepBoat(dt, null, 0, false, moor);
+      } else stepBoat(dt, null, 0, false, null);
       updateView();
       return false;
     },
@@ -302,6 +375,7 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
     moor.x = x;
     moor.z = z;
     moor.heading = heading;
+    tether = anchorTether(x, z, heading);
     if (!key || !storage) return;
     try {
       storage.setItem(key, JSON.stringify({ x: +x.toFixed(2), z: +z.toFixed(2), heading: +heading.toFixed(3) }));
@@ -334,7 +408,7 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
   }
 
   // Reused every frame: no allocation.
-  const control = { dir: null, throttle: 0, hurry: false, moor: null, load: 0 };
+  const control = { dir: null, throttle: 0, hurry: false, moor: null, load: 0, tether: null };
   const home = [0, 0];
   function stepBoat(dt, dir, throttle, hurry, mooring) {
     control.dir = dir;
@@ -342,6 +416,7 @@ export function createBoatRide({ landmark, sea, bed, solids = null, magic = null
     control.hurry = hurry;
     control.moor = mooring;
     control.load = ride.state === "aboard" ? 1 : 0;
+    control.tether = ride.state === "waiting" ? tether : null;
     dyn.step(dt, control);
     for (const e of dyn.events) events.push(e);
     dyn.events.length = 0;

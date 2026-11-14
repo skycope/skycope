@@ -7,6 +7,7 @@
 // under way (astern, abeam), aboard (the game's own camera), landing on
 // another shore; noon and night; calm and storm.
 import { mkdir, writeFile, readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
 const out = process.argv[2] ?? "docs/review/boat/after";
 const port = process.argv[3] ?? "5338";
@@ -192,7 +193,7 @@ if (shots.length) {
   const rows = Math.ceil(shots.length / cols);
   const sheetW = 1800, cellH = (sheetW / cols) * (H / W) + 24;
   await send("Emulation.setDeviceMetricsOverride", { width: sheetW, height: Math.ceil(rows * cellH + 12), deviceScaleFactor: 1, mobile: false });
-  await send("Page.navigate", { url: `file://${process.cwd()}/${out}/sheet.html` });
+  await send("Page.navigate", { url: `file://${resolve(out)}/sheet.html` });
   await sleep(1500);
   const r = await send("Page.captureScreenshot", { format: "jpeg", quality: 80, captureBeyondViewport: true });
   await writeFile(`${out}/sheet.jpg`, Buffer.from(r.result.data, "base64"));
