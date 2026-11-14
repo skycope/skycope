@@ -169,6 +169,9 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   let counted = false;
   const perf = new URLSearchParams(window.location.search).has("perf");
   const profiler = createMeshProfiler(renderer, canvas, perf);
+  // quality: the render budget's settings for this layer (quality.js).
+  let quality = null;
+  const drawingBuffer = new THREE.Vector2();
 
   const sunWorld = new THREE.Vector3(0, 1, 0);
   const sunView = new THREE.Vector3();
@@ -374,22 +377,25 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     catSplashed(time, strength, level) {
       cat.splash(time, strength, level);
     },
-    // `pixels` ([w, h]) overrides the budget: the coarse grid of the reveal.
-    resize(width, height, quality = 1, pixels = null) {
+    // quality: the mesh layer's GPU time (ms, null where unmeasurable).
+    get gpuMs() {
+      return profiler.gpuMs;
+    },
+    // quality: `width`/`height` are the CSS size (the camera's aspect);
+    // `pixels` ([w, h]) is the render size quality.js decided.
+    resize(width, height, [w, h]) {
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       archipelago.camera.fov = camera.fov;
       archipelago.camera.aspect = camera.aspect;
       archipelago.camera.updateProjectionMatrix();
-      // The mesh layer is MSAA'd, so it needs fewer pixels than the sea:
-      // 1.6 MP (0.8 MP on phones), scaled down further by adaptive quality.
-      const budget = light ? 800000 : 1600000;
-      const scale =
-        Math.min(window.devicePixelRatio || 1, 1.5, Math.sqrt(budget / (width * height))) *
-        Math.max(0.6, quality);
-      const [w, h] = pixels ?? [Math.round(width * scale), Math.round(height * scale)];
-      renderer.setSize(w, h, false);
+      const size = renderer.getDrawingBufferSize(drawingBuffer);
+      if (size.x !== w || size.y !== h) renderer.setSize(w, h, false);
       archipelago.uniforms.pixelAngle.value = 1 / (0.9 * h);
+    },
+    // quality: this level's settings (quality.js baseSettings).
+    setQuality(settings) {
+      quality = settings;
     },
     dispose() {
       profiler.dispose();
