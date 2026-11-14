@@ -40,9 +40,9 @@ const NIGHT_LAND = { key: 0.1, moon: 0.14, fill: 6 };
 const MOON_KEY = new THREE.Color(0.62, 0.74, 1.0);
 // land-look: the sky dome as the land's ambient (buildEnvironment): how much
 // of its chroma reaches the land with the sun high and with it low, and how
-// much of the lowest sky the trees and hill hide, in general and toward a
-// low sun.
-const ENVIRONMENT = { chroma: 0.5, lowChroma: 0.85, hide: 0.6, sunHide: 0.25 };
+// much of the lowest sky the trees and hill hide: by day, with the sun low,
+// and toward a low sun.
+const ENVIRONMENT = { chroma: 0.5, lowChroma: 1, hide: 0.6, lowHide: 0.4, sunHide: 0.15 };
 
 // Geometry shares the sky shader's 315° heading, 6° pitch, and projection.
 // WebGL handles mesh depth/shadows; WebGPU handles the sky and water behind it.
@@ -585,11 +585,13 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         const phi = ((i + 0.5) / width - 0.5) * Math.PI * 2;
         shDirection.set(Math.cos(phi) * across, up, Math.sin(phi) * across);
         THREE.SphericalHarmonics3.getBasisAt(shDirection, shBasis);
-        // land-look: toward a low sun the land opens onto the bright, warm
-        // horizon (that is where the light comes from); elsewhere the
-        // trees and the hill still hide the lowest sky.
+        // land-look: with the sun low the sky is most of the light, and
+        // the land opens onto it: shade takes the blue-violet of the sky
+        // overhead and the Belt of Venus, and toward the sun the bright,
+        // warm horizon (where the light comes from) is barely hidden.
         const sunward = THREE.MathUtils.smoothstep((Math.cos(phi) * sunX + Math.sin(phi) * sunZ) / sunFlat, 0, 0.6);
-        const hide = hideRow * (ENVIRONMENT.hide + (ENVIRONMENT.sunHide - ENVIRONMENT.hide) * sunward * low);
+        const lowHide = ENVIRONMENT.lowHide + (ENVIRONMENT.sunHide - ENVIRONMENT.lowHide) * sunward;
+        const hide = hideRow * (ENVIRONMENT.hide + (lowHide - ENVIRONMENT.hide) * low);
         for (let c = 0; c < 3; c++) {
           const sky1 = sky[c] * (domeRatio[k + c] * (1 - uniform) + cie * uniform);
           const seen = sky1 + (bounce[c] * 1.2 - sky1) * hide;
