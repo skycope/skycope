@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { capsule, setCapsule } from "./blockers.js";
 import { groundHeight } from "./terrain.js";
 import { patchMaterial } from "./forest.js";
 import { glowMaterial, smooth01 } from "./place-kit.js";
@@ -79,6 +80,7 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
   const point = new THREE.Vector3();
   const swing = { x: 0, z: 0, vx: 0, vz: 0 };
   let ride = null;
+  let hullBody = null;
   let magic = null;
   let wake = null;
   let launched = false;
@@ -142,6 +144,11 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
       wake = wakeRecord;
       ride = createBoatRide({ landmark, sea, bed: walker.bed, solids: walker.solids, magic, swimLimit: SWIM_LIMIT, seed });
       walker.ride = ride;
+      // solid: the hull afloat is a moving solid to the camera (the follow
+      // and ceremony cameras ended inside or under it); the cat boards it
+      // by the ride, so it does not stop the cat.
+      hullBody = capsule({ x: 0, y: -100, z: 0 }, { x: 0, y: -100, z: 0 }, 0.6, { body: false, live: false });
+      walker.solids.bodies.push(hullBody);
       record.afloat = null;
       return api;
     },
@@ -244,6 +251,11 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
         pose.heading = s.heading;
         pose.pitch = s.pitch;
         pose.roll = s.roll;
+      }
+      if (hullBody) {
+        const hx = Math.sin(pose.heading) * 1.6, hz = Math.cos(pose.heading) * 1.6;
+        setCapsule(hullBody, pose.x - hx, pose.y + 0.1, pose.z - hz, pose.x + hx, pose.y + 0.1, pose.z + hz, 0.62);
+        hullBody.live = true;
       }
       euler.set(-pose.pitch, pose.heading, -pose.roll);
       quat.setFromEuler(euler);
