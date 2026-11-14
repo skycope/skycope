@@ -26,7 +26,7 @@ const HOME_THETA = Math.atan2(0 - ISLAND.z, 6 - ISLAND.x);
 const PROBES = [[0.04, 0], [0.09, 0], [0.14, 0], [0.2, 0], [0.12, 0.05], [0.12, -0.05]].map(([f, s]) => [
   f * CAT_SCALE,
   s * CAT_SCALE,
-  Math.hypot(f, s) * CAT_SCALE,
+  hyp(f, s) * CAT_SCALE,
 ]);
 const STEP_UP = 0.08;
 const CLIMB = 0.75;
@@ -162,10 +162,9 @@ export function createWalker(obstacles, sea = null, wake = null) {
     wrote: [NaN, NaN, NaN, NaN],
   };
   let target = null;
-  let blocked = 0;
-  let armLift = 0;
-  let lastDrag = -10;
-  let clock = 0;
+  // Running state kept in one object, not closure variables: a closure's
+  // number is re-boxed on every write (an allocation a frame each).
+  const rt = { blocked: 0, armLift: 0, lastDrag: -10, clock: 0 };
   // Where the aim is easing to when it is not simply following: the slow
   // drift of sitting to watch the sky. { yaw, elevation, distance, rate }
   let goal = null;
@@ -206,7 +205,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
     home,
     walkTo(x, z) {
       target = { x, z };
-      blocked = 0;
+      rt.blocked = 0;
     },
     meow() {
       cat.meowing = 0.9;
@@ -218,7 +217,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
       goal = null;
       aim.yaw += dx;
       aim.elevation = free ? clamp(aim.elevation + dy, FREE.low, FREE.high) : clamp(aim.elevation + dy, 0.06, 1.2);
-      if (!free) lastDrag = clock;
+      if (!free) rt.lastDrag = rt.clock;
     },
     zoom(factor) {
       if (free) {
@@ -238,7 +237,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
       if (!free) {
         aim.elevation = clamp(aim.elevation, 0.06, 1.2);
         aim.distance = clamp(aim.distance, CAMERA.min, CAMERA.max);
-        lastDrag = clock;
+        rt.lastDrag = rt.clock;
       }
     },
     // Sitting to watch: drift slowly to frame `view` ({ yaw, elevation,
@@ -246,13 +245,13 @@ export function createWalker(obstacles, sea = null, wake = null) {
     watch(view) {
       if (free) return;
       goal = view ? { yaw: aim.yaw + wrap(view.yaw - aim.yaw), elevation: view.elevation, distance: view.distance, rate: 0.11 } : null;
-      if (!view) lastDrag = clock;
+      if (!view) rt.lastDrag = rt.clock;
     },
     // input: move [right, forward] in camera terms (−1…1), run, jump (edge).
     // cameraDt is the camera's own clock: it keeps easing while time is
     // paused for a photo.
     update(dt, input, interest, cameraDt = dt) {
-      clock += dt;
+      rt.clock += dt;
       // boat: aboard, the boat carries the cat and the input steers it.
       // (Every frame, so the boat lives while the cat is ashore too.)
       if (ride && ride.update(dt, input, cat, camera.yaw)) {
@@ -267,13 +266,13 @@ export function createWalker(obstacles, sea = null, wake = null) {
       const forwardZ = Math.cos(camera.yaw);
       let dirX = forwardX * mz + forwardZ * mx;
       let dirZ = forwardZ * mz - forwardX * mx;
-      let want = Math.min(1, Math.hypot(dirX, dirZ));
+      let want = Math.min(1, hyp(dirX, dirZ));
       let run = input.run;
       if (target) {
         const tx = target.x - cat.x;
         const tz = target.z - cat.z;
-        const d = Math.hypot(tx, tz);
-        if (d < 0.18 || blocked > 0.8) target = null;
+        const d = hyp(tx, tz);
+        if (d < 0.18 || rt.blocked > 0.8) target = null;
         else {
           dirX = tx;
           dirZ = tz;
@@ -285,15 +284,15 @@ export function createWalker(obstacles, sea = null, wake = null) {
       // into the rock, and straight at it picks a side and keeps to it. A
       // low enough rock met head-on is hopped onto instead.
       let hop = false;
-      if (want > 0.01 && clock - wall.at < 0.3) {
-        const len = Math.hypot(dirX, dirZ);
+      if (want > 0.01 && rt.clock - wall.at < 0.3) {
+        const len = hyp(dirX, dirZ);
         const wx = dirX / len;
         const wz = dirZ / len;
         const into = wx * wall.x + wz * wall.z;
         if (into < 0) {
           let tx = wx - wall.x * into;
           let tz = wz - wall.z * into;
-          const across = Math.hypot(tx, tz);
+          const across = hyp(tx, tz);
           if (across > 0.3) wall.side = Math.sign(tx * wall.z - tz * wall.x) || wall.side;
           const reach = wall.top - cat.y;
           wall.headOn = across < 0.45 ? wall.headOn + dt : 0;
@@ -304,7 +303,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
               tx = wall.z * wall.side;
               tz = -wall.x * wall.side;
             }
-            const t = Math.hypot(tx, tz);
+            const t = hyp(tx, tz);
             dirX = tx / t;
             dirZ = tz / t;
           }
@@ -357,7 +356,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
       // Against a rock, slide along its outline (only the part of the step
       // into it is lost), so the cat brushes past instead of juddering.
       let moved = tryMove(cat.x + sx, cat.z + sz);
-      if (!moved && clock === wall.at) {
+      if (!moved && rt.clock === wall.at) {
         const into = sx * wall.x + sz * wall.z;
         if (into < 0) moved = tryMove(cat.x + sx - wall.x * into, cat.z + sz - wall.z * into);
       }
@@ -370,10 +369,10 @@ export function createWalker(obstacles, sea = null, wake = null) {
         moved = tryMove(cat.x + Math.sin(a) * step * 0.8, cat.z + Math.cos(a) * step * 0.8);
       }
       if (!moved && Math.abs(step) > 1e-4) {
-        blocked += dt;
+        rt.blocked += dt;
         // In the air, momentum carries on once the body clears the rim.
         if (cat.air === 0) cat.speed *= 0.5;
-      } else blocked = 0;
+      } else rt.blocked = 0;
       // The swell carries a floating cat back and forth (and the broken
       // bores carry it in); it surges round wading legs.
       if (cat.water > 0.02 && cat.air === 0 && last) {
@@ -481,12 +480,12 @@ export function createWalker(obstacles, sea = null, wake = null) {
       // Head: leads into turns, glances round when idle, watches whatever
       // is interesting (a butterfly, a crab), and looks up to meow.
       let look = clamp(cat.turn * 0.12, -0.6, 0.6);
-      if (cat.idle > 1) look += Math.sin(clock * 0.37) * Math.sin(clock * 0.13 + 1) * 0.8;
+      if (cat.idle > 1) look += Math.sin(rt.clock * 0.37) * Math.sin(rt.clock * 0.13 + 1) * 0.8;
       let lookUp = 0;
       if (interest) {
         const ix = interest.x - cat.x;
         const iz = interest.z - cat.z;
-        const d = Math.hypot(ix, iz);
+        const d = hyp(ix, iz);
         if (d < 5) {
           look = wrap(Math.atan2(ix, iz) - cat.heading);
           lookUp = clamp(Math.atan2(interest.y - cat.y - 0.3, d), -0.4, 0.8);
@@ -496,7 +495,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
       if (cat.meowing > 0) lookUp += Math.sin((cat.meowing / 0.9) * Math.PI) * 0.35;
       cat.look += (look - cat.look) * Math.min(1, dt * 5);
       cat.lookUp += (lookUp - cat.lookUp) * Math.min(1, dt * 5);
-      cat.tilt += ((cat.sit > 0.8 ? Math.sin(clock * 0.21) * 0.25 : 0) - cat.tilt) * Math.min(1, dt * 2);
+      cat.tilt += ((cat.sit > 0.8 ? Math.sin(rt.clock * 0.21) * 0.25 : 0) - cat.tilt) * Math.min(1, dt * 2);
       cat.swish += ((interest && interest.near ? 1 : input.rain ? 0.6 : 0) - cat.swish) * Math.min(1, dt * 1.5);
 
       updateCamera(cameraDt, want > 0.01);
@@ -538,12 +537,12 @@ export function createWalker(obstacles, sea = null, wake = null) {
     // teleport, a landing) is always free.
     if (!grid.clearOfTrunks(nx, nz, CAT_RADIUS)) {
       const t = grid.trunk;
-      const away = Math.hypot(nx - t.x, nz - t.z);
-      if (!(away > Math.hypot(cat.x - t.x, cat.z - t.z) && Math.hypot(cat.x - t.x, cat.z - t.z) < t.r + CAT_RADIUS)) {
+      const away = hyp(nx - t.x, nz - t.z);
+      if (!(away > hyp(cat.x - t.x, cat.z - t.z) && hyp(cat.x - t.x, cat.z - t.z) < t.r + CAT_RADIUS)) {
         wall.x = away > 1e-6 ? (nx - t.x) / away : -Math.sin(cat.heading);
         wall.z = away > 1e-6 ? (nz - t.z) / away : -Math.cos(cat.heading);
         wall.top = Infinity;
-        wall.at = clock;
+        wall.at = rt.clock;
         return false;
       }
     }
@@ -554,7 +553,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
     // above the water needs a scramble.
     const rise = next - (cat.air > 0 || cat.swim > 0.5 ? cat.y : surface(cat.x, cat.z));
     if (drift && rise > 0.02) return false;
-    const run = Math.hypot(nx - cat.x, nz - cat.z) || 1e-4;
+    const run = hyp(nx - cat.x, nz - cat.z) || 1e-4;
     // Pebbles are stepped over; a boulder's steep flank needs a jump.
     const tall = next - groundHeight(nx, nz) > 0.12;
     if (cat.air > 0 ? rise > 0.02 : tall && rise > 0.003 && rise / run > 1.6) return false;
@@ -569,7 +568,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
         wall.x = h.nx;
         wall.z = h.nz;
         wall.top = h.top;
-        wall.at = clock;
+        wall.at = rt.clock;
         return false;
       }
     }
@@ -584,7 +583,8 @@ export function createWalker(obstacles, sea = null, wake = null) {
     const sin = Math.sin(cat.heading);
     const cos = Math.cos(cat.heading);
     const step = cat.air > 0 || cat.swim > 0.5 ? 0.03 : STEP_UP;
-    for (const [f, s, d] of PROBES) {
+    for (let k = 0; k < PROBES.length; k++) {
+      const probe = PROBES[k], f = probe[0], s = probe[1], d = probe[2];
       const px = x + sin * f + cos * s;
       const pz = z + cos * f - sin * s;
       const h = surface(px, pz);
@@ -618,10 +618,10 @@ export function createWalker(obstacles, sea = null, wake = null) {
         nz = surface(px, pz - e) - surface(px, pz + e);
         wall.top = h;
       }
-      const n = Math.hypot(nx, nz) || 1;
+      const n = hyp(nx, nz) || 1;
       wall.x = nx / n;
       wall.z = nz / n;
-      wall.at = clock;
+      wall.at = rt.clock;
       return false;
     }
     return true;
@@ -679,7 +679,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
       // drag wins for a while), only once the bow has come round toward
       // where the cat is steering: sooner would drag the steering with it.
       const v = ride.view;
-      if (clock - lastDrag > 2.5) {
+      if (rt.clock - rt.lastDrag > 2.5) {
         const rate = (0.45 + 0.5 * Math.min(1, Math.abs(v.speed) / 1.5)) * smooth(0.5, 0.95, v.align ?? 1);
         aim.yaw += wrap(v.heading - aim.yaw) * Math.min(1, dt * rate);
       }
@@ -689,7 +689,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
       if (!free && (aim.distance > CAMERA.max || aim.distance < CAMERA.min)) aim.distance = clamp(aim.distance, CAMERA.min, CAMERA.max);
       // Swing round behind the cat while it walks, unless the viewer is
       // steering the camera themselves.
-      if (moving && !free && clock - lastDrag > 1.2) {
+      if (moving && !free && rt.clock - rt.lastDrag > 1.2) {
         const rate = 1.4 * Math.min(1, Math.abs(cat.speed) / WALK_SPEED);
         aim.yaw += wrap(cat.heading - aim.yaw) * Math.min(1, dt * rate);
       }
@@ -714,7 +714,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
     const cx = afloat ? v.x : cat.x;
     const cz = afloat ? v.z : cat.z;
     const cy = afloat ? v.y : cat.y;
-    if (dt === 0 || Math.hypot(cx - rig.px.x, cz - rig.pz.x) > 3) {
+    if (dt === 0 || hyp(cx - rig.px.x, cz - rig.pz.x) > 3) {
       settle(rig.px, cx);
       settle(rig.pz, cz);
       if (dt === 0) settle(rig.py, cy);
@@ -729,7 +729,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
     const cos = Math.cos(camera.yaw);
     // 4. Reach: afloat the open sea needs none.
     const reach = afloat ? 1 : armReach(tx, ty, tz, horizontal, rise);
-    const lift = afloat ? 0 : armLift;
+    const lift = afloat ? 0 : rt.armLift;
     const placing = dt === 0 || rig.arm.x < 0;
     if (placing) {
       settle(rig.arm, reach);
@@ -755,7 +755,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
         const t = grid.found[i];
         const r = t.r + TRUNK_GUARD;
         const dx = x - t.x, dz = z - t.z;
-        const d = Math.hypot(dx, dz);
+        const d = hyp(dx, dz);
         if (d >= r + 0.3 || y > trunkTop(t)) continue;
         // (Eased onto the guard radius, so the lens's path bends round
         // the bark instead of kinking.)
@@ -807,7 +807,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
     const dx = tx - camera.x;
     const dz = tz - camera.z;
     camera.azimuth = Math.atan2(dx, dz) - Math.PI / 4;
-    camera.pitch = Math.atan2(ty - camera.y, Math.hypot(dx, dz)) + LOOK_LIFT * (afloat ? 0.6 : 1);
+    camera.pitch = Math.atan2(ty - camera.y, hyp(dx, dz)) + LOOK_LIFT * (afloat ? 0.6 : 1);
     rig.wrote[0] = camera.yaw;
     rig.wrote[1] = camera.elevation;
     rig.wrote[2] = camera.distance;
@@ -837,7 +837,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
   // from (tx, ty, tz) past the trunks, each padded by `clearance`, up to
   // their tops (trunkTop).
   function trunkReach(tx, ty, tz, bx, bz, rise, clearance, t) {
-    const n = grid.trunksNear(tx + bx / 2, tz + bz / 2, Math.hypot(bx, bz) / 2 + 1);
+    const n = grid.trunksNear(tx + bx / 2, tz + bz / 2, hyp(bx, bz) / 2 + 1);
     for (let i = 0; i < n; i++) {
       const trunk = grid.found[i];
       // Segment (tx, tz) + s·(bx, bz) against the padded circle.
@@ -865,7 +865,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
   function armReach(tx, ty, tz, horizontal, rise) {
     const bx = -Math.sin(camera.yaw) * horizontal;
     const bz = -Math.cos(camera.yaw) * horizontal;
-    const length = Math.hypot(horizontal, rise) || 1;
+    const length = hyp(horizontal, rise) || 1;
     let t = trunkReach(tx, ty, tz, bx, bz, rise, ARM_CLEARANCE, 1);
     // Ground and boulders: the boom tilts up over a rise or a rock (lifting
     // the camera by `lift` raises the boom at s by lift·s) when a modest
@@ -919,7 +919,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
       }
       t *= f;
     }
-    armLift = lift;
+    rt.armLift = lift;
     return Math.max(t, 0.1 / length);
   }
 }
@@ -1057,7 +1057,7 @@ function spatialGrid({ trunks, domes }) {
       const c = at(x, z);
       if (!c) return true;
       for (const t of c.trunks)
-        if (Math.hypot(x - t.x, z - t.z) < t.r + radius) {
+        if (hyp(x - t.x, z - t.z) < t.r + radius) {
           this.trunk = t;
           return false;
         }
@@ -1129,6 +1129,11 @@ function settle(s, x) {
   s.v = 0;
 }
 
+// Math.hypot allocates on every call; the walker calls this hundreds of
+// times a frame.
+function hyp(a, b) {
+  return Math.sqrt(a * a + b * b);
+}
 function lerp(a, b, t) {
   return a + (b - a) * t;
 }

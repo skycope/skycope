@@ -18,7 +18,7 @@ export function shoreRadius(theta) {
 export function shoreDistance(x, z) {
   const dx = x - ISLAND.x;
   const dz = z - ISLAND.z;
-  const r = Math.hypot(dx, dz) || 0.001;
+  const r = Math.sqrt(dx * dx + dz * dz) || 0.001;
   return shoreRadius(Math.atan2(dz, dx)) - r;
 }
 
@@ -84,12 +84,27 @@ export function groundHeight(x, z) {
   const x0 = ISLAND.x - GROUND.size / 2 + i * cell;
   const z0 = ISLAND.z - GROUND.size / 2 + j * cell;
   // PlaneGeometry splits each cell along the (0,1)-(1,0) diagonal.
-  const h01 = terrainHeight(x0, z0 + cell);
-  const h10 = terrainHeight(x0 + cell, z0);
+  const h01 = vertexHeight(i, j + 1, x0, z0 + cell);
+  const h10 = vertexHeight(i + 1, j, x0 + cell, z0);
   if (fu + fv <= 1) {
-    const h00 = terrainHeight(x0, z0);
+    const h00 = vertexHeight(i, j, x0, z0);
     return h00 + fu * (h10 - h00) + fv * (h01 - h00);
   }
-  const h11 = terrainHeight(x0 + cell, z0 + cell);
+  const h11 = vertexHeight(i + 1, j + 1, x0 + cell, z0 + cell);
   return h11 + (1 - fu) * (h01 - h11) + (1 - fv) * (h10 - h11);
+}
+
+// The ground mesh's vertex heights, computed once each on first use (the
+// walker and its camera sample groundHeight hundreds of times a frame; each
+// terrainHeight is four noise lookups and allocated as it went). Exactly
+// terrainHeight's values; off the grid, computed every time.
+const VERTS = GROUND.segments + 1;
+let vertexCache = null;
+function vertexHeight(i, j, x, z) {
+  if (i < 0 || j < 0 || i >= VERTS || j >= VERTS) return terrainHeight(x, z);
+  if (!vertexCache) vertexCache = new Float64Array(VERTS * VERTS).fill(NaN);
+  const k = j * VERTS + i;
+  let h = vertexCache[k];
+  if (h !== h) h = vertexCache[k] = terrainHeight(x, z);
+  return h;
 }
