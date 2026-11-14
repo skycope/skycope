@@ -166,7 +166,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
   let target = null;
   // Running state kept in one object, not closure variables: a closure's
   // number is re-boxed on every write (an allocation a frame each).
-  const rt = { blocked: 0, armLift: 0, lastDrag: -10, clock: 0 };
+  const rt = { blocked: 0, armLift: 0, lastDrag: -10, clock: 0, escape: 0, escapeUntil: -1 };
   // Where the aim is easing to when it is not simply following: the slow
   // drift of sitting to watch the sky. { yaw, elevation, distance, rate }
   let goal = null;
@@ -328,6 +328,32 @@ export function createWalker(obstacles, sea = null, wake = null) {
           }
         } else wall.headOn = 0;
       }
+      // Never pinned: held against something for a third of a second (a
+      // trunk dead ahead, a pocket between boulders, a keel), the cat looks
+      // for the nearest way that is open, either side of where it wants to
+      // go, and heads that way for a moment; with none open, it hops.
+      if (want > 0.01 && rt.blocked > 0.35 && cat.air === 0 && cat.swim < 0.5) {
+        const base = Math.atan2(dirX, dirZ);
+        let found = NaN;
+        for (let k = 1; k <= 8 && found !== found; k++)
+          for (let side = 0; side < 2; side++) {
+            const a = base + (side ? -wall.side : wall.side) * k * (Math.PI / 8);
+            if (canStep(a, Math.max(0.005, WALK_SPEED * 0.6 * dt)) && canStep(a, 0.08)) {
+              found = a;
+              break;
+            }
+          }
+        if (found === found) {
+          rt.escape = found;
+          rt.escapeUntil = rt.clock + 0.7;
+          wall.side = Math.sign(wrap(found - base)) || wall.side;
+        } else hop = true;
+        rt.blocked = 0;
+      }
+      if (rt.clock < rt.escapeUntil && want > 0.01) {
+        dirX = Math.sin(rt.escape);
+        dirZ = Math.cos(rt.escape);
+      }
       // Turn toward the wanted direction; a cat pivots rather than reversing.
       // Turning eases in and out (angular velocity, not snapped headings),
       // and a cat slows to turn sharply.
@@ -386,6 +412,16 @@ export function createWalker(obstacles, sea = null, wake = null) {
       for (let k = 0; !moved && k < SKEW.length && Math.abs(step) > 1e-4; k++) {
         const a = cat.heading + SKEW[k] * wall.side;
         moved = tryMove(cat.x + Math.sin(a) * step * 0.8, cat.z + Math.cos(a) * step * 0.8);
+      }
+      // Getting out of a pin: the cat steps the open way while it is still
+      // turning to face it (a sidestep), at a walk.
+      if (!moved && rt.clock < rt.escapeUntil && cat.air === 0) {
+        const heading = cat.heading;
+        const d = Math.max(Math.abs(step), WALK_SPEED * 0.6 * dt);
+        cat.heading = rt.escape;
+        moved = tryMove(cat.x + Math.sin(rt.escape) * d, cat.z + Math.cos(rt.escape) * d);
+        cat.heading = heading;
+        if (moved) cat.speed = Math.max(cat.speed, WALK_SPEED * 0.6);
       }
       if (!moved && Math.abs(step) > 1e-4) {
         rt.blocked += dt;
@@ -575,7 +611,15 @@ export function createWalker(obstacles, sea = null, wake = null) {
     const run = hyp(nx - cat.x, nz - cat.z) || 1e-4;
     // Pebbles are stepped over; a boulder's steep flank needs a jump.
     const tall = next - groundHeight(nx, nz) > 0.12;
-    if (cat.air > 0 ? rise > 0.02 : tall && rise > 0.003 && rise / run > 1.6) return false;
+    // (The slope over at least 6 cm: a rock tile is bilinear in 6 cm cells,
+    // so over a slow step's millimetres its facets read as walls; a cat
+    // pinned on a boulder top could not creep off it that way.)
+    let climb = rise / run;
+    if (cat.air === 0 && run < 0.06 && tall && rise > 0.003) {
+      const k = 0.06 / run;
+      climb = (surface(cat.x + (nx - cat.x) * k, cat.z + (nz - cat.z) * k) - (next - rise)) / 0.06;
+    }
+    if (cat.air > 0 ? rise > 0.02 : tall && rise > 0.003 && climb > 1.6) return false;
     if (!drift && !bodyClear(nx, nz, next - rise)) return false;
     // solid: walls, the tank, the stem and the milkwood's resting limbs.
     const bodyY = (cat.air > 0 ? Math.max(cat.y, next) : next) + BODY_Y;
@@ -594,6 +638,20 @@ export function createWalker(obstacles, sea = null, wake = null) {
     cat.x = nx;
     cat.z = nz;
     return true;
+  }
+
+  // Whether a step of `d` metres heading `a` is open (tryMove's rules),
+  // moving nothing.
+  function canStep(a, d) {
+    const x = cat.x, z = cat.z, heading = cat.heading;
+    const wx = wall.x, wz = wall.z, wt = wall.top, wa = wall.at;
+    cat.heading = a;
+    const ok = tryMove(x + Math.sin(a) * d, z + Math.cos(a) * d);
+    cat.x = x;
+    cat.z = z;
+    cat.heading = heading;
+    wall.x = wx; wall.z = wz; wall.top = wt; wall.at = wa;
+    return ok;
   }
 
   // Whether the chest and shoulders fit at (x, z), paws at height `feet`.

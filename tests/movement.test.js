@@ -230,3 +230,38 @@ test('each ceremony ends on a clear view of its place', async () => {
   assert.ok(after <= 1, `ceremony shots still faulty:\n${report.join('\n')}`);
   assert.ok(after < before || before === 0, `no better than straight-on (${before} -> ${after})`);
 });
+
+// The first-visit audit's pins (G1-G3): W held with the camera following,
+// walking straight at the two trunks it reproduced on, the wreck's keel and
+// rib rows, and boulder flanks from four sides. Before: 10 s with no
+// movement at both trunks. The cat may go round or hop; it may not stand
+// still pressing for more than a few seconds.
+test('walking straight at a trunk, the keel or a boulder never pins the cat', () => {
+  const { obstacles } = island(SEED);
+  const walker = walkerFor(SEED);
+  const { cat, camera } = walker;
+  const cases = [[62.0, 74.1, 0, true], [104.6, 62.1, 1.74, true]];
+  for (const x of [-10, -7, -4]) { cases.push([x, 40.4, 0, true]); cases.push([x, 46.6, Math.PI, true]); }
+  const big = obstacles.domes.filter((d) => !d.bridge && d.r > 1.2 && d.r < 4 && Math.hypot(d.x - ISLAND.x, d.z - ISLAND.z) < 60).slice(0, 6);
+  for (const d of big) for (const a of [0, 1.6, 3.2, 4.7]) cases.push([d.x + Math.sin(a) * (d.r + 1), d.z + Math.cos(a) * (d.r + 1), a + Math.PI, false]);
+  const fails = [];
+  for (const [x, z, heading, mustPass] of cases) {
+    cat.x = x; cat.z = z; cat.y = walker.surface(x, z); cat.heading = heading;
+    if (walker.water(x, z).level > cat.y + 0.1) continue;
+    cat.speed = cat.vy = cat.air = cat.turn = 0; cat.sit = cat.idle = 0; cat.swim = cat.wade = cat.water = 0;
+    camera.yaw = heading; camera.elevation = 0.38; camera.distance = 3.4; camera.targetY = cat.y;
+    const input = { move: [0, 1], run: false, jump: false };
+    let still = 0, worst = 0, px = cat.x, pz = cat.z;
+    for (let f = 0; f < 600; f++) {
+      walker.update(1 / 60, input, null);
+      if (f % 30 === 29) {
+        still = Math.hypot(cat.x - px, cat.z - pz) < 0.05 ? still + 0.5 : 0;
+        worst = Math.max(worst, still);
+        px = cat.x; pz = cat.z;
+      }
+    }
+    const moved = Math.hypot(cat.x - x, cat.z - z);
+    if (worst > 3 || (mustPass && moved < 3)) fails.push(`(${x.toFixed(1)}, ${z.toFixed(1)}) heading ${heading.toFixed(2)}: pinned ${worst} s, moved ${moved.toFixed(1)} m`);
+  }
+  assert.equal(fails.length, 0, fails.join('\n'));
+});
