@@ -265,3 +265,22 @@ test('walking straight at a trunk, the keel or a boulder never pins the cat', ()
   }
   assert.equal(fails.length, 0, fails.join('\n'));
 });
+
+// Nothing grows up through a boulder: no plant or grass clump roots inside
+// a rock's footprint where the rock stands out of the ground.
+test('no plant roots inside a boulder', async () => {
+  const { rockFootprints } = await import('../src/forest.js');
+  const { createVegetation, vegetationLayout } = await import('../src/vegetation.js');
+  const { rockLayout } = await import('../src/rocks.js');
+  const { placeRocks } = await import('../src/place-rocks.js');
+  const { seededRandom } = await import('../src/random.js');
+  const rocks = placeRocks(SEED, rockLayout(seededRandom(SEED)));
+  const onRock = rockFootprints(rocks);
+  const before = vegetationLayout(SEED).filter((p) => onRock(p.x, p.z, 0)).length;
+  const grown = createVegetation(SEED, { avoid: onRock });
+  const plants = grown.layout.filter((p) => onRock(p.x, p.z, 0)).length;
+  const turf = grown.turf.filter((t) => onRock(t.position.x, t.position.z, 0)).length;
+  console.log(`plants rooted in a boulder: ${before} before, ${plants} after; grass clumps: ${turf}`);
+  assert.equal(plants, 0);
+  assert.equal(turf, 0);
+});

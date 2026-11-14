@@ -80,8 +80,10 @@ export function createForest(scene, seed, { light = false } = {}) {
   // `?perf` QA: the console can read and tweak the shared lighting uniforms.
   scene.userData.forestShared = shared;
   const random = seededRandom(seed);
-  const { wood: trunks, leaves, clusters, flowers, turf, fronds, succulents, needles, reeds, layout, habitat, producers = [] } = createVegetation(seed);
-  const rocks = addRocks(scene, random, shared, placeRocks(seed, rockLayout(random))); // places:
+  // (The rocks are laid out first, so nothing is planted through one.)
+  const rockList = placeRocks(seed, rockLayout(random)); // places:
+  const { wood: trunks, leaves, clusters, flowers, turf, fronds, succulents, needles, reeds, layout, habitat, producers = [] } = createVegetation(seed, { avoid: rockFootprints(rockList) });
+  const rocks = addRocks(scene, random, shared, rockList); // places:
   const surf = createSurf(scene, rocks, shared, { light });
   const obstacles = obstaclesFor(layout, rocks);
   const groundOccluders = occludersFor(layout, rocks);
@@ -1803,6 +1805,38 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
 
 // What the cat collides with. Trunks are circles; rocks are domes it can
 // climb or jump onto (height above the centre falls off to their rim).
+// move: whether (x, z) is on a boulder that stands out of the ground, or
+// within `reach` metres of one: each rock as its scaled, turned ellipsoid
+// (the mesh is a unit icosahedron, cut and pitted), bucketed in 4 m cells.
+export function rockFootprints(rocks) {
+  const cells = new Map();
+  const key = (i, j) => i * 4096 + j;
+  for (const rock of rocks) {
+    const r = Math.max(rock.scale.x, rock.scale.z) + 0.6;
+    for (let i = Math.floor((rock.position.x - r) / 4); i <= Math.floor((rock.position.x + r) / 4); i++)
+      for (let j = Math.floor((rock.position.z - r) / 4); j <= Math.floor((rock.position.z + r) / 4); j++) {
+        if (!cells.has(key(i, j))) cells.set(key(i, j), []);
+        cells.get(key(i, j)).push(rock);
+      }
+  }
+  return (x, z, reach = 0) => {
+    const list = cells.get(key(Math.floor(x / 4), Math.floor(z / 4)));
+    if (!list) return false;
+    for (const rock of list) {
+      const dx = x - rock.position.x, dz = z - rock.position.z;
+      const c = Math.cos(rock.rotation.y), s = Math.sin(rock.rotation.y);
+      const lx = dx * c - dz * s, lz = dx * s + dz * c;
+      const sx = rock.scale.x + reach, sz = rock.scale.z + reach;
+      const q = (lx / sx) ** 2 + (lz / sz) ** 2;
+      if (q >= 1) continue;
+      // Above the ground there (a rock sunk below it is no obstacle).
+      const top = rock.position.y + rock.scale.y * Math.sqrt(1 - q);
+      if (top > terrainHeight(x, z) + 0.04) return true;
+    }
+    return false;
+  };
+}
+
 function obstaclesFor(layout, rocks) {
   const trunks = layout
     .filter((p) => p.kind === "tree")

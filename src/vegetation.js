@@ -46,7 +46,9 @@ const CANOPY = {
   points: 1.0,
 };
 
-export function createVegetation(seed) {
+// `avoid(x, z, reach)`: true where nothing may root (a boulder: forest.js
+// rockFootprints), for plants and turf alike.
+export function createVegetation(seed, { avoid = null } = {}) {
   const wood = [];
   const leaves = [];
   const clusters = [];
@@ -63,6 +65,13 @@ export function createVegetation(seed) {
   const parts = { wood, leaves, clusters, flowers, turf, fronds, succulents, needles, reeds };
   const lists = () => [wood, leaves, clusters, turf, fronds, succulents, needles, reeds, ...Object.values(flowers)];
   const layout = vegetationLayout(seed);
+  // move: nothing grows up through a boulder (a tree's trunk keeps clear
+  // of one by its own girth and a little).
+  if (avoid) {
+    let n = 0;
+    for (const p of layout) if (!avoid(p.x, p.z, p.kind === "tree" ? 0.25 + p.height * 0.034 : 0.05)) layout[n++] = p;
+    layout.length = n;
+  }
   const ecotypes = growthTraits(seed);
   const habitat = createHabitat(seed, layout);
   // Known crown volumes let neighbouring buds compete for space (crown shyness).
@@ -125,7 +134,7 @@ export function createVegetation(seed) {
     });
   }
   growTurf(seed, layout, turf);
-  { let n = 0; for (const t of turf) if (plantClear(seed, "grass", t.position.x, t.position.z)) turf[n++] = t; turf.length = n; } // places:
+  { let n = 0; for (const t of turf) if (plantClear(seed, "grass", t.position.x, t.position.z) && !avoid?.(t.position.x, t.position.z, 0)) turf[n++] = t; turf.length = n; } // places: move:
   return { ...parts, layout, habitat, producers: habitat.producers, plants: layout.length };
 }
 
