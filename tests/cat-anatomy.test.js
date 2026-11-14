@@ -11,6 +11,9 @@ import { CAT_SCALE as S } from "../src/cat-rig.js";
 function pose(extra = {}) {
   return { x: 0, z: 0, y: 0, heading: 0, speed: 0, turn: 0, gaitAmp: 0, running: false, vy: 0, air: 0, airPitch: 0, sit: 0, sleepy: 0, idle: 0, look: 0, lookUp: 0, tilt: 0, swish: 0, meowing: 0, waterY: -Infinity, water: 0, wade: 0, swim: 0, waterSlope: [0, 0], flow: [0, 0], rising: 0, soak: -1, shake: 0, ...extra };
 }
+// No triangle low on the legs may stretch past this (model metres) in any
+// gait: longer means skin webbing between paws that touched in the bind pose.
+const STRETCH = 0.025;
 const LIGHT = { night: 0, direct: 1, sunX: 0.3, sunZ: 0.4, sun: new THREE.Vector3(0.3, 0.85, 0.4).normalize() };
 
 // One cat for the whole file (meshing it takes a second); each check
@@ -46,7 +49,18 @@ function sample(p) {
     const at = cat.root.getObjectByName(`${name}Paw`).getWorldPosition(v);
     return [(at.x - p.x) / S, (at.z - p.z) / S];
   });
-  return { paws, points };
+  // The longest triangle edge low on the legs (below 6 cm): skin stretched
+  // into a web between paws that touched in the bind pose. (The inner
+  // thighs share skin under the belly by design; that stretch is hidden.)
+  const index = g.index.array;
+  let stretch = 0;
+  for (let t = 0; t < index.length; t += 3)
+    for (let e = 0; e < 3; e++) {
+      const a = points[index[t + e]], b = points[index[t + ((e + 1) % 3)]];
+      if (a.y > 0.06 || b.y > 0.06) continue;
+      stretch = Math.max(stretch, Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z));
+    }
+  return { paws, points, stretch };
 }
 const span = (list, k) => {
   let lo = Infinity, hi = -Infinity;
@@ -73,9 +87,25 @@ test("the standing cat has a shorthair's proportions", () => {
   const brisket = bottom(chest, "y");
   // The chest is about half the height at the withers, the legs the rest.
   within((withers - brisket) / withers, [0.42, 0.52], "chest depth / withers");
+  // A cat's head is big for its body: about a fifth of its length (nose to
+  // rump), two thirds as deep as its chest, a little narrower than its
+  // ribs, and it sits close to the shoulders on a short neck.
   const head = coat.filter((p) => p.head > 0.6);
-  within(span(head, "x"), [0.085, 0.105], "head width");
-  within(span(head, "y"), [0.07, 0.09], "head depth");
+  const body = coat.filter((p) => p.tail < 0.5);
+  const length = top(body, "z") - bottom(body, "z");
+  const chestDepth = withers - brisket;
+  // Nose tip to the back of the skull, measured over its upper half (below
+  // that the head's skin runs on into the throat).
+  const mid = (top(head, "y") + bottom(head, "y")) / 2;
+  const headLength = top(head, "z") - bottom(head.filter((p) => p.y > mid), "z");
+  within(headLength / length, [0.19, 0.235], "head length / body length");
+  within(span(head, "y") / chestDepth, [0.6, 0.78], "head depth / chest depth");
+  within(span(head, "x"), [0.09, 0.108], "head width");
+  // The visible neck: from the top of the shoulders to the back of the
+  // skull along the top line.
+  const skull = bottom(head.filter((p) => p.y > withers - 0.01), "z");
+  const neck = skull - 0.1;
+  within(neck, [0.02, 0.065], "visible neck");
   // From above: shoulders, a ribcage, a waist and hips, not a log; from
   // behind, the haunches no wider than the chest.
   const ribs = widest(0.0, 0.06);
@@ -83,7 +113,7 @@ test("the standing cat has a shorthair's proportions", () => {
   const haunch = widest(-0.2, -0.06);
   const shoulders = widest(0.09, 0.12);
   within(ribs, [0.1, 0.125], "ribcage width");
-  assert.ok(waist < ribs * 0.88, `a waist (${(waist * 100).toFixed(1)} cm) behind the ribs (${(ribs * 100).toFixed(1)} cm)`);
+  assert.ok(waist < ribs * 0.8, `a waist (${(waist * 100).toFixed(1)} cm) behind the ribs (${(ribs * 100).toFixed(1)} cm)`);
   assert.ok(shoulders < ribs, "shoulders narrower than the ribcage");
   assert.ok(haunch <= ribs + 0.003, `haunches (${(haunch * 100).toFixed(1)} cm) no wider than the chest`);
   // Slender legs and a tail that tapers.
@@ -111,7 +141,20 @@ test("the cat's paws reach the ground in every pose", () => {
   // Walking and running: paws in stance stay on the ground, none below it.
   for (const speed of [0.55, 1.5, 3.2])
     for (const frame of posed(150, (i, p) => { p.speed = speed; p.gaitAmp = 1; p.running = speed > 2; p.z += speed / 60; }, [119, 126, 132, 140, 149])) {
+      // The back line, rump to withers, is a smooth curve: no hump or
+      // spike (a shoulder blade lifting through the skin).
+      const line = new Map();
+      for (const q of frame.points)
+        if (q.part === 0 && q.head < 0.3 && q.tail < 0.3 && Math.abs(q.x) < 0.045) {
+          const z = Math.round(q.z * 100);
+          line.set(z, Math.max(line.get(z) ?? -1, q.y));
+        }
+      for (let z = -12; z <= 11; z++) {
+        const bump = line.get(z) - (line.get(z - 3) + line.get(z + 3)) / 2;
+        assert.ok(bump < 0.006, `${speed} m/s: back line bump ${(bump * 100).toFixed(1)} cm at ${z} cm`);
+      }
       const s = soles(frame);
+      assert.ok(frame.stretch < STRETCH, `${speed} m/s: no skin web (longest edge ${(frame.stretch * 100).toFixed(1)} cm)`);
       for (const y of s) assert.ok(y > -0.006, `${speed} m/s: no paw through the ground (${(y * 100).toFixed(1)} cm)`);
       assert.ok(Math.min(...s) < 0.004, `${speed} m/s: some paw on the ground`);
     }

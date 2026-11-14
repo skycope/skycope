@@ -75,8 +75,9 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   color += atmosphere.light.rgb * exp(-sun_distance * 90.0) * 0.12 * above_sea * sky_sample.a * (1.0 - night);
   if (ray.y > -0.001) {
     color += night_sky(ray, night, sky_sample.a * above_sea, dot(sky, vec3f(0.2126, 0.7152, 0.0722)));
-    // sea-sky-magic: the finale's storm of falling stars.
-    if (MAGIC_AWAKE && atmosphere.magic.w > 0.0 && night > 0.01 && ray.y > 0.0) {
+    // sea-sky-magic: the finale's storm of falling stars, only where the
+    // sky shows (above the sea's horizon, through the cloud).
+    if (MAGIC_AWAKE && atmosphere.magic.w > 0.0 && night > 0.01 && ray.y > 0.0 && sky_sample.a * above_sea > 0.0) {
       color += meteor_storm(ray) * night * sky_sample.a * above_sea * atmosphere.magic.w;
     }
   } else if (MAGIC_AWAKE && atmosphere.magic.y > 0.0 && night > 0.01) {

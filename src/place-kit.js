@@ -217,7 +217,7 @@ export function createMaterials(shared) {
   // limewash wearing thin in patches, grey rain runs down the walls, damp
   // and green algae rising from the ground.
   const paint = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82 });
-  patchMaterial(paint, shared);
+  patchMaterial(paint, shared, { grounded: true });
   extend(paint, "paint", {
     fragment: (s) => s.replace(
       "#include <color_fragment>",
@@ -234,8 +234,9 @@ export function createMaterials(shared) {
         diffuseColor.rgb *= 1.0 - bright * ( smoothstep( 0.55, 0.8, patchy ) * 0.12 + ( grain - 0.5 ) * 0.06 );
         // Rain runs: grey streaks down vertical faces.
         diffuseColor.rgb *= 1.0 - vertical * smoothstep( 0.55, 0.85, runs ) * mix( 0.1, 0.22, bright );
-        // Rising damp and green algae at the foot of a wall.
-        float above = vPlace.y - vPlaceAnchor;
+        // Rising damp and green algae at the foot of a wall (groundingH:
+        // height above the real ground, forest.js grounding).
+        float above = groundingH;
         float damp = ( 1.0 - smoothstep( 0.05, 0.55 + patchy * 0.4, above ) ) * vertical;
         diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.55, 0.6, 0.45 ), damp * 0.7 );
         // land-look: old limewash is never one white. Coats of different
@@ -271,8 +272,7 @@ export function createMaterials(shared) {
         float foot = 1.0 - smoothstep( 0.0, 1.1 + patchy * 0.4, above );
         diffuseColor.rgb *= mix( 1.0, 0.62, foot * foot * vertical );
       }`,
-    ).replace("void main() {", "varying float vPlaceAnchor;\nvoid main() {"),
-    vertex: (s) => s.replace("void main() {", "varying float vPlaceAnchor;\nvoid main() {\n  vPlaceAnchor = anchorHeight;"),
+    ),
   });
 
   // Weathered timber: silver-grey sun-bleached wood with grain and checks;
@@ -281,10 +281,9 @@ export function createMaterials(shared) {
   // vertex colour carries the paint, and saturation marks paint).
   // Cut at the sea surface: the water pass behind shows the rest.
   const wood = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, clippingPlanes: [new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.03)] });
-  patchMaterial(wood, shared);
+  patchMaterial(wood, shared, { grounded: true });
   extend(wood, "wood", {
-    vertex: (s) => s.replace("void main() {", "varying float vPlaceAnchor;\nvoid main() {\n  vPlaceAnchor = anchorHeight;"),
-    fragment: (s) => s.replace("void main() {", "varying float vPlaceAnchor;\nvoid main() {").replace(
+    fragment: (s) => s.replace(
       "#include <color_fragment>",
       `#include <color_fragment>
       {
@@ -305,35 +304,32 @@ export function createMaterials(shared) {
         // Paint flaking off to grey wood.
         float flake = smoothstep( 0.7, 0.76, blotch + ( grain - 0.5 ) * 0.2 ) * painted;
         diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.2, 0.18, 0.16 ) * ( 0.8 + grain * 0.4 ), flake * 0.8 );
-        // The tide's reach: wet, weed and shell below about 0.6 m above
-        // the sea, rising a little above the sand where the swash runs.
+        // land-look: bare timber above the tide bleaches silver-grey in the
+        // sun and salt, as old wreck wood on a beach does: not a dark shape
+        // on the sand.
+        float dryWood = ( 1.0 - painted ) * smoothstep( 0.15, 0.6, vPlace.y + ( blotch - 0.5 ) * 0.3 );
+        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.24, 0.23, 0.21 ) * ( 0.75 + grain * 0.4 + ( blotch - 0.5 ) * 0.3 ), dryWood * 0.6 );
+        // The tide's reach: weed and shell below about 0.6 m above the
+        // sea (the wet darkening and gloss are the shared grounding's).
         float y = vPlace.y + ( blotch - 0.5 ) * 0.3;
         float wet = 1.0 - smoothstep( 0.35, 0.9, y );
         float marine = wet * ( 1.0 - painted );
-        diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.45, 0.47, 0.42 ), marine );
+        diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.8, 0.82, 0.74 ), marine );
         float weed = smoothstep( 0.45, 0.7, blotch ) * ( 1.0 - smoothstep( 0.0, 0.5, y ) ) * marine;
         diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.07, 0.11, 0.03 ), weed * 0.85 );
         float shells = smoothstep( 0.72, 0.8, pOctave( vPlace, 28.0, px ) ) * smoothstep( 0.0, 0.25, y ) * ( 1.0 - smoothstep( 0.45, 0.75, y ) ) * marine;
         diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.5, 0.48, 0.44 ), shells * 0.4 );
         float mussels = smoothstep( 0.6, 0.72, pOctave( vPlace, 9.0, px ) ) * ( 1.0 - smoothstep( 0.05, 0.35, y ) ) * marine;
         diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.02, 0.02, 0.025 ), mussels * 0.9 );
-        // Contact: sand-scoured and damp where it meets the ground.
-        float above = vPlace.y - vPlaceAnchor;
-        diffuseColor.rgb *= mix( 0.6, 1.0, smoothstep( 0.0, 0.4, above ) );
       }`,
-    ).replace(
-      "#include <roughnessmap_fragment>",
-      `#include <roughnessmap_fragment>
-      roughnessFactor = mix( roughnessFactor, 0.45, 1.0 - smoothstep( 0.1, 0.7, vPlace.y ) );`,
     ),
   });
 
   // Rusted iron and gnarled bark share a rough, mottled finish.
   const rough = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93 });
-  patchMaterial(rough, shared);
+  patchMaterial(rough, shared, { grounded: true });
   extend(rough, "rough", {
-    vertex: (s) => s.replace("void main() {", "varying float vPlaceAnchor;\nvoid main() {\n  vPlaceAnchor = anchorHeight;"),
-    fragment: (s) => s.replace("void main() {", "varying float vPlaceAnchor;\nvoid main() {").replace(
+    fragment: (s) => s.replace(
       "#include <color_fragment>",
       `#include <color_fragment>
       {
@@ -347,8 +343,6 @@ export function createMaterials(shared) {
         float crust = smoothstep( 0.62, 0.7, pOctave( vPlace, 6.1, px ) + ( fine - 0.5 ) * 0.15 );
         float warm = step( diffuseColor.b * 1.6, diffuseColor.r );
         diffuseColor.rgb = mix( diffuseColor.rgb, mix( vec3( 0.42, 0.44, 0.38 ), vec3( 0.2, 0.085, 0.035 ), warm ), crust * mix( 0.3, 0.4, warm ) );
-        float above = vPlace.y - vPlaceAnchor;
-        diffuseColor.rgb *= mix( 0.55, 1.0, smoothstep( 0.0, 0.5, above ) );
       }`,
     ),
   });

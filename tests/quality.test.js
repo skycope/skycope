@@ -25,24 +25,28 @@ function run(state, { from = 0, seconds, cost, source = "gpu", fps = 60 }) {
 }
 
 test("the ladder sheds in the recommended order, land resolution last", () => {
-  const ladder = qualityLadder(baseSettings());
+  const ladder = qualityLadder(baseSettings({ dpr: 2 }));
   const order = [];
   for (let i = 1; i < ladder.length; i++) {
     const changed = Object.keys(ladder[i]).filter((k) => ladder[i][k] !== ladder[i - 1][k]);
-    order.push(...changed.filter((k) => !order.includes(k)));
+    order.push(...changed.map((k) => `${k}:${ladder[i][k]}`));
   }
-  assert.deepEqual(order, ["shadowSlices", "cloudSteps", "skyScale", "seaScale", "lodBias", "fps", "landScale"]);
-  const last = ladder[ladder.length - 1];
-  assert.equal(last.landScale, 0.85);
-  assert.equal(last.fps, 30);
-  // Desktop starts at MSAA 2, the alpha-to-coverage floor: never shed below it.
+  // Extra sharpness first, then detail, pacing, and the land's budget last.
+  assert.deepEqual(order, [
+    "landScale:1.12", "landScale:1", "shadowSlices:8", "cloudSteps:32", "skyScale:0.75", "seaScale:0.82",
+    "seaScale:0.68", "lodBias:0.85", "lodBias:0.72", "fps:30", "landScale:0.92", "landScale:0.85",
+  ]);
+  // A high-DPI desktop starts at MSAA 2, the alpha-to-coverage floor: never shed below it.
   assert.ok(ladder.every((l) => l.msaa === 2));
   // Every level differs from the one above (no wasted steps).
   for (let i = 1; i < ladder.length; i++) assert.notDeepEqual(ladder[i], ladder[i - 1]);
 });
 
-test("a budget that starts at MSAA 4 sheds it to 2 before pacing", () => {
-  const ladder = qualityLadder({ ...baseSettings(), msaa: 4 });
+test("a 1x screen starts at MSAA 4 with no sharpness tier, and sheds MSAA to 2 before pacing", () => {
+  const base = baseSettings({ dpr: 1 });
+  assert.equal(base.msaa, 4);
+  assert.equal(base.landScale, 1);
+  const ladder = qualityLadder(base);
   const msaa = ladder.findIndex((l) => l.msaa === 2);
   const fps = ladder.findIndex((l) => l.fps < 60);
   assert.ok(msaa > 0 && msaa < fps);
@@ -62,20 +66,23 @@ test("the light budget never gains MSAA and keeps its cheaper clouds", () => {
 });
 
 test("render sizes: land, sea and sky from one place", () => {
-  const settings = baseSettings();
+  const settings = baseSettings({ dpr: 2 });
   const retina = renderSizes({ width: 1440, height: 900, dpr: 2 }, settings);
-  // Capped by the pixel budgets, not the device pixel ratio.
-  assert.ok(retina.land[0] * retina.land[1] <= 1.62e6);
+  // A Retina laptop's land at 0.75 of native linear with headroom (the
+  // land's DPR cap), 0.61 at the budget proper; the sea by its own budget.
+  assert.deepEqual(retina.land, [2160, 1350]);
+  const ladder = qualityLadder(settings);
+  const budgeted = renderSizes({ width: 1440, height: 900, dpr: 2 }, ladder.find((l) => l.landScale === 1));
+  assert.ok(Math.abs(budgeted.land[0] * budgeted.land[1] - 1.94e6) < 0.02e6);
   assert.ok(retina.sea[0] * retina.sea[1] <= 1.52e6);
   assert.deepEqual(retina.cloud, [Math.ceil(retina.sky[0] / 2), Math.ceil(retina.sky[1] / 2)]);
   // A small window at 1x renders at its own size.
-  const small = renderSizes({ width: 800, height: 600, dpr: 1 }, settings);
+  const small = renderSizes({ width: 800, height: 600, dpr: 1 }, baseSettings({ dpr: 1 }));
   assert.deepEqual(small.land, [800, 600]);
   assert.deepEqual(small.sea, [800, 600]);
-  // The deepest shed keeps the land at 0.85 linear.
-  const ladder = qualityLadder(settings);
+  // The deepest shed keeps the land at 0.85 linear of its budget.
   const worst = renderSizes({ width: 1440, height: 900, dpr: 2 }, ladder[ladder.length - 1]);
-  assert.ok(Math.abs(worst.land[0] / retina.land[0] - 0.85) < 0.01);
+  assert.ok(Math.abs(worst.land[0] / budgeted.land[0] - 0.85) < 0.01);
   // The reveal puts every layer on one coarse grid; a photo overrides the budget.
   const reveal = renderSizes({ width: 1440, height: 900, dpr: 2, reveal: 1 / 8 }, settings);
   assert.deepEqual(reveal.land, [180, 113]);

@@ -214,7 +214,11 @@ export function skyDomeRatio(sun, width = 64) {
       const view = [(wx - localZ) * Math.SQRT1_2, y, (wx + localZ) * Math.SQRT1_2];
       const radiance = skyRadiance(view, sun, 5);
       const k = (j * width + i) * 3;
-      for (let c = 0; c < 3; c++) out[k + c] = Math.min(12, radiance[c] / Math.max(zenith[c], 1e-9));
+      // Capped as a whole, not per channel: a per-channel cap bleached the
+      // red glow round a low sun to grey.
+      const ratio = [0, 1, 2].map((c) => radiance[c] / Math.max(zenith[c], 1e-9));
+      const cap = Math.min(1, 12 / Math.max(...ratio));
+      for (let c = 0; c < 3; c++) out[k + c] = ratio[c] * cap;
     }
   }
   return out;

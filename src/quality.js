@@ -6,16 +6,21 @@
 // Under load the old scaler cut every canvas's resolution together, down to
 // half, and never shed anything else: slow and soft at once. This sheds in
 // order of what is least visible per millisecond saved (perf research,
-// November 2026): the shadow map's refresh cadence and the cloud march
-// steps; the sky and cloud scale (they upscale smoothly); the sea's scale;
-// vegetation detail distance (a LOD bias); MSAA 4 → 2; a steady 40 then
-// 30 fps; and only last the land's resolution, never below 0.85.
+// November 2026): first any extra land sharpness the budget was spending
+// headroom on (Retina laptops render the land up to 0.75 of native linear
+// when there is room, 0.61 otherwise); then the shadow map's refresh
+// cadence and the cloud march steps; the sky and cloud scale (they upscale
+// smoothly); the sea's scale; vegetation detail distance (a LOD bias); MSAA
+// 4 → 2; a steady 40 then 30 fps; and only last the land's resolution,
+// never below 0.85 of its budget.
 
 // Each step is applied on top of the ones before it. Steps that change
 // nothing for a budget (MSAA 4 → 2 where the base is 2) are dropped from
 // that budget's ladder, so every level costs less than the one above.
 export const STEPS = [
-  { shadowSlices: 6, cloudSteps: 32 },
+  { landScale: 1.12 },
+  { landScale: 1 },
+  { shadowSlices: 8, cloudSteps: 32 },
   { skyScale: 0.75 },
   { seaScale: 0.82 },
   { seaScale: 0.68 },
@@ -28,20 +33,25 @@ export const STEPS = [
   { landScale: 0.85 },
 ];
 
-// Full quality on each budget. `msaa` is the mesh layer's sample count
-// (rocks fade at the waterline by alpha-to-coverage, so the desktop floor
-// is 2); `shadowSlices` is how many frames a sun shadow refresh is spread
-// over; `lodBias` scales every vegetation LOD distance.
-export function baseSettings({ light = false } = {}) {
+// Full quality on each budget. `msaa` is the mesh layer's sample count:
+// 4 where the land renders at its native size (dpr ≤ 1.25), 2 on high-DPI
+// screens, where two samples at more pixels look sharper for the same cost
+// (rocks fade at the waterline by alpha-to-coverage, so 2 is the desktop
+// floor), none on the light budget. `shadowSlices` is how many frames a sun
+// shadow refresh is spread over; `lodBias` scales every vegetation LOD
+// distance; `landScale` above 1 is extra sharpness on high-DPI desktops
+// (renderSizes caps it at the land's DPR limit).
+export function baseSettings({ light = false, dpr = 2 } = {}) {
+  const hidpi = !light && dpr > 1.25;
   return {
-    shadowSlices: 3,
+    shadowSlices: 4,
     cloudSteps: light ? 32 : 44,
     skyScale: 1,
     seaScale: 1,
     lodBias: 1,
-    msaa: light ? 0 : 2,
+    msaa: light ? 0 : hidpi ? 2 : 4,
     fps: 60,
-    landScale: 1,
+    landScale: hidpi ? 1.25 : 1,
   };
 }
 
@@ -55,18 +65,21 @@ export function qualityLadder(base, { refresh = 60 } = {}) {
     const previous = ladder[ladder.length - 1];
     const next = { ...previous };
     for (const [key, value] of Object.entries(step)) {
-      // A step only ever sheds: never raises what the budget starts below.
-      next[key] = key === "msaa" && previous.msaa < value ? previous.msaa : value;
+      // A step only ever sheds: never raises what the budget starts below
+      // (more shadow slices is the cheaper direction).
+      next[key] = key === "shadowSlices" ? Math.max(previous[key], value) : Math.min(previous[key], value);
     }
     if (Object.keys(next).some((key) => next[key] !== previous[key])) ladder.push(next);
   }
   return ladder;
 }
 
-// Pixel budgets (pixels drawn, before any shed). The sky and clouds upscale
-// smoothly; the sea is sharper; the land sharpest (MSAA'd geometry).
+// Pixel budgets (pixels drawn at landScale 1). The sky and clouds upscale
+// smoothly; the sea is sharper; the land sharpest (MSAA'd geometry). The
+// desktop land budget (1.94 MP at MSAA 2) costs about what 1.6 MP at MSAA 4
+// did, measured whole-frame (November 2026).
 export const BUDGET = {
-  desktop: { landPixels: 1600000, landDpr: 1.5, seaPixels: 1500000, seaDpr: 1.5, skyPixels: 450000 },
+  desktop: { landPixels: 1940000, landDpr: 1.5, seaPixels: 1500000, seaDpr: 1.5, skyPixels: 450000 },
   light: { landPixels: 800000, landDpr: 1.5, seaPixels: 650000, seaDpr: 1.25, skyPixels: 220000 },
 };
 
@@ -86,7 +99,8 @@ export function renderSizes({ width, height, dpr = 1, light = false, reveal = 1,
     const sky = size(Math.min(1, Math.sqrt((budget.skyPixels * 2) / css)));
     return { land: photo, sea: photo, sky, cloud: half(sky) };
   }
-  const land = size(Math.min(dpr, budget.landDpr, Math.sqrt(budget.landPixels / css)) * settings.landScale);
+  const fit = Math.min(dpr, budget.landDpr, Math.sqrt(budget.landPixels / css));
+  const land = size(settings.landScale > 1 ? Math.min(dpr, budget.landDpr, fit * settings.landScale) : fit * settings.landScale);
   const sea = size(Math.min(dpr, budget.seaDpr, Math.sqrt(budget.seaPixels / css)) * settings.seaScale);
   const sky = size(Math.min(1, Math.sqrt(budget.skyPixels / css)) * settings.skyScale);
   return { land, sea, sky, cloud: half(sky) };

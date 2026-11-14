@@ -54,8 +54,9 @@ export const PULSE_SEA_REACH = 1.3;
 export const FINALE_SETTLE = { seconds: 60, rest: 0.3 };
 
 // The sky and water shaders carry `@id(7301) override MAGIC_AWAKE` (view.wgsl).
-// magicVariant(source, false) compiles every gift's code out; main.js and
-// render-sky.mjs run that while magicActive() is false.
+// magicVariant(source, false) compiles every gift's code out; main.js runs
+// that per pass while magicPasses() says the pass shows no gift, and
+// render-sky.mjs while magicActive() is false.
 export const MAGIC_OVERRIDE_ID = 7301;
 const OVERRIDE = /(@id\(\s*7301\s*\)\s*override\s+\w+\s*:\s*bool\s*=\s*)(true|false)/;
 export function magicVariant(source, awake) {
@@ -64,8 +65,20 @@ export function magicVariant(source, awake) {
   const out = wgsl.replace(OVERRIDE, `$1${awake ? "true" : "false"}`);
   return typeof source === "string" ? out : { ...source, wgsl: out };
 }
+// Which passes need their awake pipeline, gift by gift: the sky only for
+// the stars and the finale (figures, Milky Way, airglow); the water for any
+// gift's level, a waking's ring, the wisp's or the lantern's light on the
+// sea. The wisp glows through most of play, and it used to wake both.
+// (magic2 is read only with the stars; nothing reads the meow's clock yet.)
+export function magicPasses(uniforms) {
+  const on = (field, i) => (uniforms[field]?.[i] ?? 0) !== 0;
+  const sky = on("magic", 1) || on("magic", 3);
+  const water = [0, 1, 2, 3].some((i) => on("magic", i)) || on("pulse", 3) || on("wisp", 3) || on("lantern", 3);
+  return { sky, water };
+}
 export function magicActive(uniforms) {
-  return MAGIC_FIELDS.some((k) => uniforms[k]?.some((v) => v !== 0));
+  const passes = magicPasses(uniforms);
+  return passes.sky || passes.water;
 }
 
 export function quietMagicUniforms() {

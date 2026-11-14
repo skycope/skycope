@@ -90,3 +90,23 @@ test("magicVariant compiles the gifts in or out by the MAGIC_AWAKE override", as
   assert.equal(magicActive(quietMagicUniforms()), false);
   assert.equal(magicActive({ ...quietMagicUniforms(), wisp: [1, 2, 3, 0.5] }), true);
 });
+
+test("asleep gifts select the plain pipelines, pass by pass", async () => {
+  const { magicPasses, magicUniforms, quietMagicUniforms } = await import("../src/sea-sky-magic.js");
+  const quiet = quietMagicUniforms();
+  assert.deepEqual(magicPasses(quiet), { sky: false, water: false });
+  // Every gift asleep in a real record (no pulse, no wisp): both plain.
+  const asleep = createMagic();
+  asleep.update(1 / 60, 10);
+  assert.deepEqual(magicPasses(magicUniforms(asleep, { time: 10 })), { sky: false, water: false });
+  // The wisp lights the sea, not the sky: only the water wakes.
+  assert.deepEqual(magicPasses({ ...quiet, wisp: [1, 2, 3, 0.5] }), { sky: false, water: true });
+  assert.deepEqual(magicPasses({ ...quiet, lantern: [1, 2, 3, 0.5] }), { sky: false, water: true });
+  assert.deepEqual(magicPasses({ ...quiet, pulse: [1, 2, 3, 0.5] }), { sky: false, water: true });
+  // A meow alone draws nothing in either pass.
+  assert.deepEqual(magicPasses({ ...quiet, magic2: [0, 4, 0, 0] }), { sky: false, water: false });
+  // The stars and the finale wake both; tideglow and the lamp only the sea.
+  assert.deepEqual(magicPasses({ ...quiet, magic: [0, 1, 0, 0] }), { sky: true, water: true });
+  assert.deepEqual(magicPasses({ ...quiet, magic: [0, 0, 0, 0.3] }), { sky: true, water: true });
+  assert.deepEqual(magicPasses({ ...quiet, magic: [1, 0, 1, 0] }), { sky: false, water: true });
+});

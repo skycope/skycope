@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { HEAD, TAIL_BONES, TAIL_LENGTH, TAIL_ROOT } from "./cat-rig.js";
+import { HEAD, HEAD_SCALE, TAIL_BONES, TAIL_LENGTH, TAIL_ROOT } from "./cat-rig.js";
 
 // The cat's body is one closed, seamless surface: an anatomical signed
 // distance field (skull, cheeks and whisker pads, ribcage, loin and rump,
@@ -87,7 +87,9 @@ function anatomy(rig) {
     const B = o.body ? new THREE.Vector3(...bEnd) : world(b, bEnd);
     prims.push({ ...defaults, ...o, kind: 1, bone, a: A, b: B, ra, rb, c: A.clone().add(B).multiplyScalar(0.5), R: A.distanceTo(B) / 2 + Math.max(ra, rb) });
   };
-  const H = (p) => [p[0] + HEAD[0], p[1] + HEAD[1], p[2] + HEAD[2]];
+  // Head primitives: head-local centre, radii and blend, built HEAD_SCALE larger.
+  const H = (p) => [p[0] * HEAD_SCALE + HEAD[0], p[1] * HEAD_SCALE + HEAD[1], p[2] * HEAD_SCALE + HEAD[2]];
+  const hell = (bone, p, radii, o) => ell(bone, H(p), radii.map((r) => r * HEAD_SCALE), { ...o, k: o.k * HEAD_SCALE });
   const head = [1, 0, 0, 0];
   const leg = [0, 1, 0, 0];
   const paw = [0, 0, 0, 1];
@@ -95,21 +97,21 @@ function anatomy(rig) {
   // Trunk: rump, loin, a slim waist, the deep ribcage and the keel of the
   // chest. Deep and narrow, as a cat is: ~13 cm deep, ~10 cm wide.
   ell("hips", [0, 0.018, -0.13], [0.04, 0.057, 0.058], { k: 0 });
-  ell("hips", [0, 0.034, -0.077], [0.032, 0.047, 0.064], { k: 0.03 });
-  ell("spine", [0, 0.028, -0.02], [0.034, 0.042, 0.07], { k: 0.03 });
-  ell("ribs", [0, 0.02, 0.035], [0.053, 0.052, 0.08], { k: 0.035 });
+  ell("hips", [0, 0.034, -0.077], [0.029, 0.047, 0.064], { k: 0.03 });
+  ell("spine", [0, 0.028, -0.025], [0.031, 0.042, 0.065], { k: 0.022 });
+  ell("ribs", [0, 0.02, 0.035], [0.056, 0.052, 0.076], { k: 0.024 });
   ell("chest", [0, 0, 0.11], [0.041, 0.048, 0.052], { k: 0.03, comb: [0, -1, -0.2], fur: 1.15 });
   // The belly pouch hangs loose between the hind legs, and swings.
-  ell("pouch", [0, -0.02, -0.07], [0.03, 0.028, 0.055], { k: 0.03, comb: [0, -0.2, -1], fur: 1.3 });
+  ell("pouch", [0, -0.02, -0.07], [0.027, 0.028, 0.055], { k: 0.03, comb: [0, -0.2, -1], fur: 1.3 });
   // Neck and ruff.
-  cone("neck", [0, 0.03, 0.138], [0, 0.082, 0.2], 0.037, 0.032, { body: true, sx: 0.82, k: 0.03, comb: [0, -0.4, -1], fur: 1.2 });
-  ell("neck", [0, 0.022, 0.172], [0.03, 0.04, 0.036], { k: 0.025, comb: [0, -1, -0.1], fur: 1.25 });
+  cone("neck", [0, 0.03, 0.136], [0, 0.074, 0.186], 0.04, 0.034, { body: true, sx: 0.8, k: 0.03, comb: [0, -0.4, -1], fur: 1.2 });
+  ell("neck", [0, 0.022, 0.168], [0.03, 0.042, 0.034], { k: 0.03, comb: [0, -1, -0.1], fur: 1.25 });
 
   // Shoulder blades: flat plates on the withers, rolling as the legs swing.
   for (const leg of rig.legs.filter((l) => l.spec.front)) {
     const scapula = leg.scapula;
     const shoulder = leg.upper.position.toArray();
-    cone(scapula.name, [0, 0, 0], shoulder, 0.011, 0.02, { k: 0.022, sx: 0.55, comb: [0, -0.6, -0.8] });
+    cone(scapula.name, [0, 0, 0], shoulder, 0.008, 0.02, { k: 0.026, sx: 0.55, comb: [0, -0.6, -0.8] });
   }
 
   // Legs.
@@ -133,8 +135,8 @@ function anatomy(rig) {
     } else {
       // Thigh: the femur inside a broad, flat haunch muscle. Shin with the
       // calf behind, the heel's point at the hock, then the long hock.
-      cone(`${n}Upper`, [0, 0, 0], [0, -a, 0], 0.024, 0.017, { k: 0.02, sx: 0.75, region: [0, 0.4, 0, 0], comb: down(`${n}Upper`) });
-      ell(`${n}Upper`, [0, -a * 0.36, -0.004], [0.02, a * 0.64, 0.047], { axis: true, k: 0.025, region: [0, 0.35, 0, 0], comb: [0, -0.6, -0.8] });
+      cone(`${n}Upper`, [0, 0, 0], [0, -a, 0], 0.022, 0.014, { k: 0.02, sx: 0.7, region: [0, 0.4, 0, 0], comb: down(`${n}Upper`) });
+      ell(`${n}Upper`, [0, -a * 0.3, -0.004], [0.019, a * 0.54, 0.047], { axis: true, k: 0.025, region: [0, 0.35, 0, 0], comb: [0, -0.6, -0.8] });
       cone(`${n}Lower`, [0, 0, 0], [0, -b, 0], 0.016, 0.01, { k: 0.012, sx: 0.8, region: leg, comb: down(`${n}Lower`), fur: 0.4 });
       ell(`${n}Lower`, [0, -b * 0.3, -0.008], [0.014, b * 0.32, 0.017], { axis: true, k: 0.012, region: leg, comb: down(`${n}Lower`), fur: 0.75 });
       ell(`${n}Foot`, [0, 0.005, -0.008], [0.0075, 0.009, 0.0085], { axis: true, k: 0.008, region: leg, comb: [0, -1, 0], fur: 0.6 });
@@ -152,21 +154,21 @@ function anatomy(rig) {
   // Head (in the head's frame): a round cranium, the brow, broad cheeks,
   // a short muzzle with whisker pads, the nose leather, and the jaw hinged
   // beneath. Eye sockets are carved out for the eyes to sit in.
-  ell("head", H([0, 0.007, -0.008]), [0.035, 0.032, 0.04], { k: 0.03, region: head, comb: [0, 0.2, -1], fur: 0.6 });
-  ell("head", H([0, 0.0135, 0.013]), [0.029, 0.024, 0.027], { k: 0.016, region: head, comb: [0, 0.5, -0.9], fur: 0.5 });
+  hell("head", [0, 0.01, -0.003], [0.035, 0.034, 0.034], { k: 0.03, region: head, comb: [0, 0.2, -1], fur: 0.6 });
+  hell("head", [0, 0.016, 0.012], [0.029, 0.026, 0.026], { k: 0.016, region: head, comb: [0, 0.5, -0.9], fur: 0.5 });
   for (const side of [1, -1]) {
-    ell("head", H([0.022 * side, -0.012, 0.004]), [0.023, 0.021, 0.024], { k: 0.014, region: head, comb: [side * 0.9, -0.3, -0.5], fur: 0.85 });
-    ell("head", H([0.0082 * side, -0.0185, 0.0375 + MUZZLE]), [0.0106, 0.0092, 0.0104], { k: 0.007, region: head, comb: [side, -0.35, -0.25], fur: 0.45, fine: true });
+    hell("head", [0.022 * side, -0.012, 0.004], [0.024, 0.022, 0.025], { k: 0.014, region: head, comb: [side * 0.9, -0.3, -0.5], fur: 0.85 });
+    hell("head", [0.0082 * side, -0.0185, 0.0375 + MUZZLE], [0.0106, 0.0092, 0.0104], { k: 0.007, region: head, comb: [side, -0.35, -0.25], fur: 0.45, fine: true });
   }
-  ell("head", H([0, -0.0085, 0.032 + MUZZLE]), [0.0125, 0.0118, 0.0148], { k: 0.011, region: head, comb: [0, 0.4, -1], fur: 0.3, fine: true });
-  ell("head", H(NOSE), NOSE_RADII, { k: 0.0042, region: head, comb: [0, 0.4, -1], fur: 0, loft: 0.15, fine: true, nose: true });
-  ell("jaw", H([0, -0.0235, 0.012]), [0.0178, 0.0092, 0.024], { k: 0.01, region: head, comb: [0, -0.3, -1], fur: 0.5, fine: true });
-  ell("jaw", H([0, -0.0272, 0.0245 + MUZZLE]), [0.0092, 0.0062, 0.0095], { k: 0.006, region: head, comb: [0, -0.4, -1], fur: 0.35, fine: true });
+  hell("head", [0, -0.0085, 0.032 + MUZZLE], [0.0125, 0.0118, 0.0148], { k: 0.011, region: head, comb: [0, 0.4, -1], fur: 0.3, fine: true });
+  hell("head", NOSE, NOSE_RADII, { k: 0.0042, region: head, comb: [0, 0.4, -1], fur: 0, loft: 0.15, fine: true, nose: true });
+  hell("jaw", [0, -0.0235, 0.012], [0.0178, 0.0092, 0.024], { k: 0.01, region: head, comb: [0, -0.3, -1], fur: 0.5, fine: true });
+  hell("jaw", [0, -0.0272, 0.0245 + MUZZLE], [0.0092, 0.0062, 0.0095], { k: 0.006, region: head, comb: [0, -0.4, -1], fur: 0.35, fine: true });
   for (const side of [1, -1]) {
     const socket = new THREE.Matrix4()
       .makeRotationFromEuler(new THREE.Euler(0.05, side * 0.3, side * 0.16, "YXZ"))
       .invert();
-    ell("head", H([0.0184 * side, 0.0084, 0.0346]), [0.0099, 0.0099, 0.0086], {
+    hell("head", [0.0184 * side, 0.0084, 0.0346], [0.0099, 0.0099, 0.0086], {
       sub: true,
       // Opens with the brow's coat, so the lids stay snug round the globe.
       loft: 0.6,
@@ -181,7 +183,7 @@ function anatomy(rig) {
   // per bone, the tip rounded.
   // A cat's tail is nearly as thick at the tip as the root under its fur.
   const radius = (s) => 0.009 * (1 - 0.45 * THREE.MathUtils.smoothstep(s, 0.5, 1)) - Math.max(0, s - 0.93) * 0.05;
-  cone("tail0", [0, 0.034, -0.138], [TAIL_ROOT[0], TAIL_ROOT[1], TAIL_ROOT[2] - 0.03], 0.019, radius(0.1), { body: true, k: 0.02, region: [0, 0, 0.6, 0], comb: [0, 0.1, -1], fur: 1.3 });
+  cone("tail0", [0, 0.034, -0.138], [TAIL_ROOT[0], TAIL_ROOT[1], TAIL_ROOT[2] - 0.03], 0.015, radius(0.1), { body: true, k: 0.02, region: [0, 0, 0.6, 0], comb: [0, 0.1, -1], fur: 1.0 });
   for (let i = 0; i < TAIL_BONES; i++) {
     const s0 = i / TAIL_BONES;
     const s1 = (i + 1) / TAIL_BONES;
@@ -609,9 +611,9 @@ export function furFlow(position, normal, region, primitiveComb) {
 
 // Set forward with the coat round it (LOFT), so the globe fills its lids
 // rather than peering from a pit.
-export const EYE_RADIUS = 0.0098;
+export const EYE_RADIUS = 0.0098 * HEAD_SCALE;
 export function eyeCentre(side) {
-  return [0.019 * side, 0.0062, 0.0287];
+  return [0.019 * side * HEAD_SCALE, 0.0062 * HEAD_SCALE, 0.0287 * HEAD_SCALE];
 }
 export const EYE_GAZE = { yaw: 0.26, pitch: -0.04 };
 
@@ -648,7 +650,7 @@ function eyes(rig, detail = 1) {
 // the inner face pink skin with pale furnishings. coat.xyz = (u across,
 // v up, 1 on the inner face).
 
-export const EAR_HEIGHT = 0.05;
+export const EAR_HEIGHT = 0.05 * HEAD_SCALE;
 export function earPose(side) {
   return new THREE.Euler(-0.1, side * 0.14, -side * 0.3, "YXZ");
 }
@@ -662,8 +664,8 @@ function ears(rig, detail = 1) {
     const bone = rig.bones[side > 0 ? "earL" : "earR"];
     const base = bone.getWorldPosition(new THREE.Vector3());
     const pose = new THREE.Matrix4().makeRotationFromEuler(earPose(side));
-    const width = (v) => 0.0195 * (1 - v) * (1 + 1.2 * v);
-    const cup = (u, v) => -0.0085 * (1 - u * u) * (1 - 0.55 * v);
+    const width = (v) => 0.0195 * HEAD_SCALE * (1 - v) * (1 + 1.2 * v);
+    const cup = (u, v) => -0.0085 * HEAD_SCALE * (1 - u * u) * (1 - 0.55 * v);
     const sheets = [];
     for (const inner of [1, 0])
       for (let j = 0; j <= V; j++)
