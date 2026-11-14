@@ -994,7 +994,8 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
 // a time-step-independent approach avoids a jump when preview light changes.
 export function pupilResponse(current, light, dt) {
   const darkness = Math.max(light.night, 1 - clamp(light.direct, 0, 1));
-  const target = lerp(0.12, 0.66, darkness);
+  // A slit by day, but one that reads at a glance, not a pinprick.
+  const target = lerp(0.18, 0.66, darkness);
   return current + (target - current) * (1 - Math.exp(-Math.max(dt, 0) / 0.35));
 }
 
@@ -1017,10 +1018,11 @@ function whiskers() {
           droop: -0.1 - row * 0.1 + k * 0.03,
           length: 0.068 - row * 0.005 - k * 0.004,
           phase: Math.random() * 6.28,
+          alpha: 0.32,
         });
     for (let k = 0; k < 2; k++)
-      strands.push({ side, root: new THREE.Vector3(side * (0.013 + k * 0.005), 0.0175, 0.035), spread: 0.7 + k * 0.2, droop: 0.4, length: 0.024 - k * 0.005, phase: Math.random() * 6.28 });
-    strands.push({ side, root: new THREE.Vector3(side * 0.036, -0.004, 0.012), spread: 1.35, droop: 0.1, length: 0.02, phase: Math.random() * 6.28 });
+      strands.push({ side, root: new THREE.Vector3(side * (0.013 + k * 0.005), 0.0175, 0.035), spread: 0.9 + k * 0.25, droop: 0.6, length: 0.022 - k * 0.005, phase: Math.random() * 6.28, alpha: 0.16 });
+    strands.push({ side, root: new THREE.Vector3(side * 0.036, -0.004, 0.012), spread: 1.35, droop: 0.1, length: 0.02, phase: Math.random() * 6.28, alpha: 0.2 });
   }
   const vertices = strands.length * SEGMENTS * 2;
   const positions = new Float32Array(vertices * 3);
@@ -1029,7 +1031,7 @@ function whiskers() {
     for (let k = 0; k < SEGMENTS; k++)
       for (let e = 0; e < 2; e++) {
         const t = (k + e) / SEGMENTS;
-        colours.set([1, 1, 1, 0.6 * (1 - t * 0.85)], ((w * SEGMENTS + k) * 2 + e) * 4);
+        colours.set([1, 1, 1, strands[w].alpha * (1 - t * 0.85)], ((w * SEGMENTS + k) * 2 + e) * 4);
       }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage));

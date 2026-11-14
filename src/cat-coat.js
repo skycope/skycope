@@ -201,14 +201,16 @@ Coat coatAt( vec3 p, vec4 region, vec3 n, vec3 flow, float nose, float mouth ) {
   float feather = cNoise( ( p - lie * dot( p, lie ) * 0.82 ) * 850.0 ) - 0.5;
   p += lie * feather * 0.0014 * ( 1.0 - clamp( nose, 0.0, 1.0 ) );
   Coat c;
-  // Agouti: every hair is banded, so up close the ground colour is a warm
-  // grey-brown salt-and-pepper, redder low on the flanks.
-  vec3 agoutiLight = lin( vec3( 0.58, 0.52, 0.44 ) );
-  vec3 agoutiDark = lin( vec3( 0.40, 0.35, 0.29 ) );
-  vec3 stripe = lin( vec3( 0.2, 0.16, 0.12 ) );
-  vec3 cream = lin( vec3( 0.84, 0.76, 0.62 ) );
-  float tick = cNoise( p * 1400.0 ) * 0.55 + cNoise( p * 520.0 ) * 0.3 + cNoise( p * 90.0 ) * 0.15;
-  vec3 base = mix( agoutiDark, agoutiLight, 0.5 + ( smoothstep( 0.2, 0.8, tick ) - 0.5 ) * 0.6 );
+  // Agouti: every hair is banded black and warm ochre, so the ground colour
+  // is a warm brown flecked finely with dark tips, redder low on the flanks.
+  // The flecks are hair-sized: kept soft, so at a distance they average to
+  // the ground instead of reading as salt-and-pepper noise.
+  vec3 agoutiLight = lin( vec3( 0.6, 0.52, 0.41 ) );
+  vec3 agoutiDark = lin( vec3( 0.41, 0.35, 0.27 ) );
+  vec3 stripe = lin( vec3( 0.19, 0.145, 0.1 ) );
+  vec3 cream = lin( vec3( 0.88, 0.8, 0.64 ) );
+  float tick = cNoise( p * 1400.0 ) * 0.35 + cNoise( p * 520.0 ) * 0.35 + cNoise( p * 90.0 ) * 0.3;
+  vec3 base = mix( agoutiDark, agoutiLight, 0.5 + ( smoothstep( 0.2, 0.8, tick ) - 0.5 ) * 0.4 );
   float head = region.x;
   float leg = region.y;
   float tail = region.z;
@@ -233,9 +235,9 @@ Coat coatAt( vec3 p, vec4 region, vec3 n, vec3 flow, float nose, float mouth ) {
     // Mackerel stripes: narrow, many, falling from the spine and sweeping
     // back as they descend; forked, broken into dashes toward the belly.
     float warp = ( cNoise( p * 20.0 ) - 0.5 ) * 2.6 + ( cNoise( p * 60.0 ) - 0.5 ) * 0.9;
-    float wave = p.z * 235.0 - ( 0.07 - p.y ) * 38.0 + warp + ( cNoise( p * vec3( 8.0, 30.0, 12.0 ) ) - 0.5 ) * 2.4;
+    float wave = p.z * 190.0 - ( 0.07 - p.y ) * 32.0 + warp + ( cNoise( p * vec3( 8.0, 30.0, 12.0 ) ) - 0.5 ) * 2.4;
     float line = abs( fract( wave / 6.2832 ) - 0.5 ) * 2.0;
-    float width = mix( 0.15, 0.3, cNoise( p * vec3( 20.0, 44.0, 30.0 ) ) );
+    float width = mix( 0.28, 0.42, cNoise( p * vec3( 20.0, 44.0, 30.0 ) ) );
     float dash = smoothstep( 0.2, 0.45, cNoise( p * vec3( 30.0, 75.0, 48.0 ) ) );
     // Feathered: a stripe is where more of the hairs have dark tips, so its
     // edge is a gradient, not a line.
@@ -262,7 +264,7 @@ Coat coatAt( vec3 p, vec4 region, vec3 n, vec3 flow, float nose, float mouth ) {
     float ax = abs( h.x );
     float front = smoothstep( 0.0, 0.025, h.z );
     // The forehead "M" and fine lines back over the crown.
-    float crown = smoothstep( 0.012, 0.035, h.y );
+    float crown = smoothstep( 0.02, 0.04, h.y );
     float m = band( fract( h.x * 84.0 + 0.5 + sin( h.y * 150.0 ) * 0.12 + ( cNoise( h * 180.0 ) - 0.5 ) * 0.25 ) - 0.5, 0.2 ) * smoothstep( 0.034, 0.018, ax );
     float hd = m * crown * mix( 0.45, 0.75, front ) * smoothstep( 0.2, 0.55, cNoise( h * vec3( 60.0, 25.0, 60.0 ) ) + 0.2 );
     // Mascara line from the outer eye corner, the cheek swirl below it.
@@ -499,6 +501,9 @@ export function coatMaterial(uniforms, { shell = false, baked = false } = {}) {
             vec3 offsetNow = shellOffset;
           #endif
           shellCulled = facing > 0.38 && !inner;
+          // At the silhouette the outer shells stand further out: the coat's
+          // soft fringe against the sky, not a hard cut edge.
+          offsetNow *= inner || coat.w > 0.5 ? 1.0 : mix( 1.35, 1.0, smoothstep( 0.06, 0.34, facing ) );
           // The outer shells thin out toward where they are culled, so the
           // cut never shows as a contour line across the coat.
           vShellFade = inner ? 1.0 : 1.0 - smoothstep( 0.2, 0.36, facing );
@@ -643,7 +648,7 @@ const COMMON_COLOUR = /* glsl */ `
     irisColour *= 0.72 + fibre;
     // The collarette: a paler ring round the pupil.
     irisColour *= 1.0 + band( r - 0.26, 0.09 ) * 0.15;
-    irisColour *= 1.0 - smoothstep( 0.76, 0.94, r ) * 0.7;
+    irisColour *= 1.0 - smoothstep( 0.68, 0.92, r ) * 0.85;
     // Slit pupil, rounder as it opens.
     float pupil = 1.0 - smoothstep( 0.9, 1.1, length( vec2( q.x / max( catPupil, 0.05 ), q.y / mix( 0.64, 0.72, catPupil ) ) ) * 2.3 );
     coatColour = mix( lin( vec3( 0.18, 0.14, 0.1 ) ), irisColour, iris ) * ( 1.0 - pupil * 0.98 );
@@ -656,15 +661,17 @@ const COMMON_COLOUR = /* glsl */ `
     // Almond lids at rest (the outer corner a little higher), closing from
     // above and meeting a rising lower lid to blink.
     // The furred socket is the lid at rest; these only close to blink.
-    float upperRest = 0.88 + outer * 0.1 - outer * outer * 0.3;
-    float lowerRest = -0.62 + outer * 0.08 + outer * outer * 0.3;
+    // The upper lid rests over the top fifth of the iris; the lower lid
+    // just meets it.
+    float upperRest = 0.68 + outer * 0.1 - outer * outer * 0.3;
+    float lowerRest = -0.6 + outer * 0.08 + outer * outer * 0.3;
     float upper = mix( upperRest, lowerRest + 0.12, catBlink );
     float lower = mix( lowerRest, lowerRest + 0.1, catBlink );
     float lid = max( smoothstep( upper - 0.03, upper + 0.03, e.y ), smoothstep( lower + 0.03, lower - 0.03, e.y ) );
     // The lid margins are black; a wet line of tears sits on the lower one.
     float rim = band( e.y - upper, 0.032 ) + band( e.y - lower, 0.03 );
     eyeWet += band( e.y - lower - 0.05, 0.05 ) * 1.5;
-    coatColour = mix( coatColour, lin( vec3( 0.3, 0.26, 0.22 ) ), lid );
+    coatColour = mix( coatColour, lin( vec3( 0.5, 0.43, 0.34 ) ), lid );
     coatColour *= 1.0 - clamp( rim, 0.0, 1.0 ) * 0.88;
     furGloss *= 1.0 - lid;
     eyeWet *= 1.0 - lid;
@@ -739,7 +746,7 @@ const SHELL_COLOUR = /* glsl */ `
   // The coat was painted per vertex; roots sit in shade and agouti hairs
   // end in a darker tip. The cat's own shadow was looked up per vertex too.
   vec3 coatColour = vShellColour;
-  coatColour *= mix( 0.62, 1.05, vShell );
+  coatColour *= mix( 0.62, 0.97, vShell );
   coatColour *= 1.0 - smoothstep( 0.7, 1.0, vShell / strandLen ) * 0.25;
   coatColour *= mix( 1.0, vShellShadow, 0.65 ) * ( 1.0 - vWet * 0.45 );
   // Toward the tips strands are thinnest and let the most light through.
