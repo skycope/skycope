@@ -18,8 +18,14 @@
 // rich (no sun to bleach them), instead of the warm albedos turning the
 // whole land khaki.
 
+// TONE_GAIN is the camera's exposure on the eye's metered light. At 1.35
+// sunlit Cape sand (albedo ~0.5) came out at sRGB ~150, a stop under a
+// photograph, so the shade sat in the curve's toe (which takes 0.04 off,
+// most of a value of 0.06) and photographed near black. At 1.6 the sand is
+// ~165-200 and the noon zenith ~(120, 170, 225), as a camera shows them,
+// and shade lit by the sky comes up out of the toe, blue.
 // glsl: begin
-const TONE_GAIN: f32 = 1.35;
+const TONE_GAIN: f32 = 1.6;
 const VIBRANCE: f32 = 0.04;
 const OVERCAST_BALANCE: vec3f = vec3f(0.94, 0.99, 1.08);
 const OVERCAST_VIBRANCE: f32 = 0.14;

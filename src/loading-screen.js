@@ -86,7 +86,7 @@ export function wispRise(cat) {
 // ---- The light -------------------------------------------------------------
 
 // tone.wgsl's tone_curve, for one colour (tests check the constants agree).
-export const TONE = { gain: 1.35, vibrance: 0.04, overcastBalance: [0.94, 0.99, 1.08], overcastVibrance: 0.14 };
+export const TONE = { gain: 1.6, vibrance: 0.04, overcastBalance: [0.94, 0.99, 1.08], overcastVibrance: 0.14 };
 
 export function toneCurve(hdr, adapt) {
   return toneInto(hdr[0], hdr[1], hdr[2], adapt, [0, 0, 0]);
