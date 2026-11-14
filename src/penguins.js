@@ -495,9 +495,18 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
           const ox = b.x - o.x;
           const oz = b.z - o.z;
           const od = Math.hypot(ox, oz);
-          if (od < 0.3 && od > 1e-4) {
-            px += (ox / od) * (0.3 - od);
-            pz += (oz / od) * (0.3 - od);
+          if (od < 0.38 && od > 1e-4) {
+            px += (ox / od) * (0.38 - od);
+            pz += (oz / od) * (0.38 - od);
+          }
+        }
+        // solid: and from the cat's paws: a penguin brushed by the cat
+        // steps aside (it is a body the cat cannot walk through).
+        if (b.swim < 0.5) {
+          const cx = b.x - pose.x, cz = b.z - pose.z, cd = Math.hypot(cx, cz);
+          if (cd < 0.6 && cd > 1e-4) {
+            px += (cx / cd) * (0.6 - cd) * 2.5;
+            pz += (cz / cd) * (0.6 - cd) * 2.5;
           }
         }
         let nx = b.x + Math.sin(b.heading) * b.speed * dt + px * dt * 3;

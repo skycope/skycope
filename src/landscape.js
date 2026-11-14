@@ -112,6 +112,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   const critters = createCritters(land, seed, forest.obstacles.flowers, forest.rocks); // solid: one rock list
   // wildlife: encounters round the shore (see wildlife.js).
   const wildlife = createWildlife(land, seed, { obstacles: forest.obstacles, light });
+  forest.obstacles.bodies = wildlife.bodies; // solid: the animals, solid to the cat and the camera
   const wildEye = { x: 0, y: 0, z: 0 };
   const wisp = createWisp(land, { light }); // wisp: drawn from magic.wisp (thread.js follows it)
   // boat: the fisherman's boat afloat (boat.js), hidden until its gift wakes.
