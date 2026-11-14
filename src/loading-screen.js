@@ -486,6 +486,7 @@ export function createLoadingScreen({ document: doc = globalThis.document, stora
     draw(!reduced);
     key = next;
     if (first) {
+      view.performance?.mark?.("loading:painted");
       moveWisp(anchor, 0);
       timers.push(setTimeout(wander, 600));
     }
@@ -493,14 +494,19 @@ export function createLoadingScreen({ document: doc = globalThis.document, stora
   let resizeTimer = 0;
   view.addEventListener("resize", () => {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(repaint, 200);
+    resizeTimer = setTimeout(safeRepaint, 200);
   }, { signal: events.signal });
-  try {
-    repaint();
-  } catch (error) {
-    // A painting is not worth a broken page: the CSS gradient stays.
-    console.warn("loading veil:", error);
-  }
+  const safeRepaint = () => {
+    try {
+      repaint();
+    } catch (error) {
+      // A painting is not worth a broken page: the CSS gradient stays.
+      console.warn("loading veil:", error);
+    }
+  };
+  // Painted just before the next frame, so index.html has already asked for
+  // main.js and its download runs meanwhile.
+  view.requestAnimationFrame(safeRepaint);
 
   const setProgress = (value) => {
     progress = value;
@@ -532,11 +538,7 @@ export function createLoadingScreen({ document: doc = globalThis.document, stora
         if (next.weather.observedAt) remember(storage, next.weather);
       }
       if (next.view) scene.view = { ...next.view };
-      try {
-        repaint();
-      } catch (error) {
-        console.warn("loading veil:", error);
-      }
+      safeRepaint();
     },
     // The first frame is up: dissolve into it. The wisp drifts to where the
     // real one will rise ({ view, cat }) and goes into the sand.
