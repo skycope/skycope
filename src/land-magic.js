@@ -179,7 +179,10 @@ if ( magicOn > 0.0 ) {
       // Behind the front: a steady rim and sheen from the light itself.
       mWakeSpec = wakeColour * lit * ( edge * against * 0.35 * mix( vec3( 1.0 ), diffuseColor.rgb * 4.0, 0.7 ) + gloss * 2.0 );
       // The front: glints running outward…
-      mWakeSpec += wakeTint * band * ( edge * against * 0.5 + gloss * 1.2 + magicSparkle( mWorld, mView, 55.0, 0.97 ) * 3.0 );
+      // (The front's rim takes the surface's albedo and its gloss only wet or
+      // waxy surfaces: at a grazing view the band covered whole slopes of dry
+      // ground in a blue sheen that read as water.)
+      mWakeSpec += wakeTint * band * ( edge * against * 0.5 * min( diffuseColor.rgb * 2.5, vec3( 1.0 ) ) + gloss * 1.2 * smoothstep( 0.6, 0.35, rough ) + magicSparkle( mWorld, mView, 55.0, 0.97 ) * 3.0 );
       // …and a few that keep twinkling behind it.
       mWakeSpec += wakeTint * wakeFront.w * lit * magicSparkle( mWorld, mView, 55.0, 0.988 ) * 2.5;
       mWakeSpec = min( mWakeSpec, vec3( 0.6 ) );
