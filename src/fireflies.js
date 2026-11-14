@@ -20,15 +20,15 @@ import { terrainHeight, ISLAND } from "./terrain.js";
 export const FLY_KIND = { escort: 0, home: 1, roam: 2 };
 
 // Per-fly traits, deterministic by seed: [phase, reach, height, size] and
-// [kind, blink phase]. Shares: escort 22 %, home 40 %, roam the rest: the
-// milkwood's own colony is the densest.
+// [kind, blink phase]. Shares: escort 5 % (a few with the cat, not a
+// cloud), home 48 %, roam the rest: the milkwood's own colony is the densest.
 export function fireflyTraits(seed, count) {
   const random = seededRandom((seed ^ 0xf1ef1e5) >>> 0 || 1);
   const traits = new Float32Array(count * 4);
   const kinds = new Float32Array(count * 2);
   for (let i = 0; i < count; i++) {
     const share = i / count;
-    const kind = share < 0.22 ? FLY_KIND.escort : share < 0.62 ? FLY_KIND.home : FLY_KIND.roam;
+    const kind = share < 0.05 ? FLY_KIND.escort : share < 0.53 ? FLY_KIND.home : FLY_KIND.roam;
     traits[i * 4] = random();
     traits[i * 4 + 1] = random();
     traits[i * 4 + 2] = random();
@@ -250,7 +250,7 @@ void main() {
 // (walker.js surfaceOf), so no firefly sits inside a rock.
 export function createFireflies(scene, seed, { light = false, crown = null, summit = null, surface = null } = {}) {
   // Restraint: a real night has a few hundred, not a wall of them.
-  const count = light ? 260 : 600;
+  const count = light ? 216 : 500;
   const { traits, kinds } = fireflyTraits(seed, count);
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(count * 3), 3));
