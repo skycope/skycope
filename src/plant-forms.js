@@ -306,107 +306,117 @@ export function succulentGeometry(detail = 1) {
   return m.finish();
 }
 
-// A fynbos shrub as one rounded mass of foliage (renosterbos, blombos,
-// pelargonium, a sour-fig mat when squashed flat): a lumpy dome of leafy
-// surface, darker toward its foot and in the folds between lumps, with
-// leafy sprigs standing out of it so the outline is broken, not smooth.
-// Unit size: radius 1 across, 1 tall, the base ring a little below y = 0 so
-// it sits in sloping ground. Normals are bent to the mass (radial from a
-// point low in the dome), so it shades as one soft volume, not as cards;
-// the sprigs carry the mass's normal where they leave it. Vertex colour
-// bakes the occlusion (foot and folds) and each sprig's midrib, edge and
-// tip; `leafFlutter` lets only the sprigs' tips flutter. `detail` 2, 1, 0:
-// 150, 60 and 18 triangles.
-export function shrubMassGeometry(detail = 2) {
+// A fynbos shrub as one mass of foliage (renosterbos, blombos, pelargonium;
+// a sour-fig mat when squashed flat), grown the way a bush looks from a few
+// metres: a cluster of rounded leafy lumps, one over each branch system,
+// crowding round a central one and piled a little higher in the middle, so
+// the outline is a run of soft bulges rather than one smooth dome. Small
+// leafy sprigs stand off the lumps near the cat. Unit size: about 1 across
+// and 1 tall, the lumps' feet a little below y = 0 so the bush sits in
+// sloping ground.
+//
+// Shading: every normal is bent halfway from its lump toward the whole
+// mass (radial from a point low in the bush), so the bush shades as one
+// volume with its lumps modelled inside it, not as cards. Vertex colour
+// bakes the occlusion: dark at the foot, darker still in the creases where
+// lumps meet and on a lump's inward side, light on the crown; and each
+// sprig's lighter midrib and, on a few, a dry tip. `leafFlutter` lets only
+// the sprig tips flutter. `detail` 3, 2, 1, 0: 501, 242, 106 and 18
+// triangles (the finest only within a few metres of the eye).
+export function shrubMassGeometry(detail = 3) {
   const m = mesher();
-  const random = seededRandom(67 + detail);
-  const [sectors, rings, sprigs, sprigTris] = [[10, 3, 20, 4], [8, 2, 10, 2], [6, 1, 0, 0]][2 - detail];
-  const centre = new THREE.Vector3(0, 0.12, 0);
-  // Lumps: a few low-frequency bulges, the same at every detail level.
-  const lump = (a, e) => 1 + 0.11 * Math.sin(a * 3 + 0.7) * Math.cos(e * 2.2) + 0.07 * Math.sin(a * 5 + 2.1 + e * 3) + 0.05 * Math.cos(a * 2 - e * 4.1);
-  const at = (a, e) => {
-    const r = lump(a, e);
-    return new THREE.Vector3(Math.cos(a) * Math.cos(e) * r, Math.sin(e) * r * 1.0, Math.sin(a) * Math.cos(e) * r);
+  const random = seededRandom(67);
+  const centre = new THREE.Vector3(0, 0.15, 0);
+  // The lumps (centre x, y, z, radius), the same layout at every detail
+  // level; coarser levels keep the biggest and swell them to cover.
+  const lumps = [[0, 0.5, 0, 0.5]];
+  for (let i = 0; i < 5; i++) {
+    const a = i * 1.257 + 0.3 + (random() - 0.5) * 0.4;
+    const r = 0.36 + random() * 0.1;
+    lumps.push([Math.cos(a) * (0.98 - r), 0.24 + random() * 0.12, Math.sin(a) * (0.98 - r), r]);
+  }
+  lumps.push([0.12, 0.72, -0.1, 0.32]);
+  const [keep, sectors, rings, sprigs, grow] = [[7, 9, 3, 30, 1], [7, 6, 2, 16, 1], [5, 6, 1, 8, 1.1], [1, 6, 1, 0, 1.6]][3 - detail];
+  const occlusion = (p, n) => {
+    const foot = 0.36 + 0.64 * Math.pow(Math.min(1, Math.max(0, (p.y + 0.05) / 0.9)), 0.75);
+    // Facing into the bush (toward its axis) or down: a crease.
+    const out = p.clone().sub(centre).setY(0).normalize();
+    const crease = 0.72 + 0.28 * Math.min(1, Math.max(0, n.dot(out) * 0.7 + n.y * 0.6 + 0.35));
+    return foot * crease;
   };
-  // Occlusion baked in: the foot sees little sky, the crown a lot; folds
-  // between lumps a little less than the bulges either side.
-  const occlusion = (p, a, e) => {
-    const foot = 0.38 + 0.62 * Math.pow(Math.min(1, Math.max(0, (p.y + 0.06) / 0.85)), 0.7);
-    const fold = 0.86 + 0.14 * Math.min(1, Math.max(0, (lump(a, e) - 0.9) / 0.2));
-    return foot * fold;
-  };
-  const normals = [];
-  const vertex = (p, shade, tint = [1, 1, 1], phase = 0, hinge = 0, normal = null) => {
-    normals.push(normal ?? p.clone().sub(centre).normalize());
+  const normalsOut = [];
+  const vertex = (p, n, shade, tint = [1, 1, 1], phase = 0, hinge = 0) => {
+    normalsOut.push(n);
     return m.vertex(p, [shade * tint[0], shade * tint[1], shade * tint[2]], phase, hinge);
   };
-  // The dome: rings from just under the ground (e = -0.12) to near the top,
-  // then a cap vertex.
-  const grid = [];
-  for (let r = 0; r <= rings; r++) {
-    const e = -0.12 + (r / (rings + 0.6)) * (Math.PI / 2 + 0.12);
-    const row = [];
-    for (let s = 0; s < sectors; s++) {
-      const a = (s / sectors) * Math.PI * 2 + r * 0.37;
-      const p = at(a, e);
-      // Leaf-scale mottling per vertex (the shader adds finer speckle).
-      const mottle = 0.88 + random() * 0.24;
-      const hue = (random() - 0.5) * 0.12;
-      row.push(vertex(p, occlusion(p, a, e) * mottle, [1 + hue, 1, 1 - hue * 1.4]));
+  const bent = (p, lumpNormal) => p.clone().sub(centre).normalize().add(lumpNormal).normalize();
+  for (const [cx, cy, cz, radius] of lumps.slice(0, keep)) {
+    const r0 = radius * grow;
+    const c = new THREE.Vector3(cx, keep === 1 ? 0.42 : cy, cz);
+    const rowsOut = [];
+    // From under the neighbours (e = -0.55) to near the top, then a cap.
+    for (let ring = 0; ring <= rings; ring++) {
+      // (One ring above the foot sits at ~30°: a single ring higher up
+      // made each lump a cone.)
+      const e = rings === 1 ? (ring ? 0.5 : -0.55) : -0.55 + (ring / (rings + 0.55)) * (Math.PI / 2 + 0.55);
+      const row = [];
+      for (let s = 0; s < sectors; s++) {
+        const a = (s / sectors) * Math.PI * 2 + ring * 0.45 + cx * 3;
+        const n = new THREE.Vector3(Math.cos(a) * Math.cos(e), Math.sin(e), Math.sin(a) * Math.cos(e));
+        const wobble = 1 + (random() - 0.5) * 0.16;
+        const p = c.clone().addScaledVector(n, r0 * wobble);
+        if (keep === 1) p.y = Math.max(-0.08, p.y);
+        const hue = (random() - 0.5) * 0.1;
+        row.push(vertex(p, bent(p, n), occlusion(p, n) * (0.9 + random() * 0.2), [1 + hue, 1, 1 - hue * 1.4]));
+      }
+      rowsOut.push(row);
     }
-    grid.push(row);
+    const topN = new THREE.Vector3(0, 1, 0);
+    // The crown of a lump is flattened a little: leaves splay out on top.
+    const top = c.clone().addScaledVector(topN, r0 * (rings === 1 ? 0.86 : 0.94));
+    const cap = vertex(top, bent(top, topN), occlusion(top, topN) * 1.04);
+    for (let ring = 0; ring < rings; ring++)
+      for (let s = 0; s < sectors; s++) {
+        const s1 = (s + 1) % sectors;
+        m.tri(rowsOut[ring][s], rowsOut[ring + 1][s], rowsOut[ring][s1]);
+        m.tri(rowsOut[ring][s1], rowsOut[ring + 1][s], rowsOut[ring + 1][s1]);
+      }
+    for (let s = 0; s < sectors; s++) m.tri(rowsOut[rings][s], cap, rowsOut[rings][(s + 1) % sectors]);
   }
-  const top = at(0, Math.PI / 2);
-  const cap = vertex(top, 1.02);
-  for (let r = 0; r < rings; r++)
-    for (let s = 0; s < sectors; s++) {
-      const s1 = (s + 1) % sectors;
-      m.tri(grid[r][s], grid[r + 1][s], grid[r][s1]);
-      m.tri(grid[r][s1], grid[r + 1][s], grid[r + 1][s1]);
-    }
-  for (let s = 0; s < sectors; s++) m.tri(grid[rings][s], cap, grid[rings][(s + 1) % sectors]);
-  // Sprigs: leafy shoots leaving the surface up and out, most on the upper
-  // half where they break the skyline. Folded along the midrib (4 triangles)
-  // or a flat diamond (2); the midrib is lighter than the edges, a few tips
-  // are dry.
+  // Sprigs: small leafy shoots lying along the lumps and lifting off at the
+  // tip, so the outline frays near the cat. Two triangles each, a lighter
+  // midrib line from base to tip; a few dry tips.
   for (let i = 0; i < sprigs; i++) {
-    const a = i * GOLDEN_ANGLE + random() * 0.6;
-    const e = 0.15 + Math.pow((i + 0.5) / sprigs, 0.8) * 1.15;
-    const base = at(a, e).multiplyScalar(0.9);
-    const outward = base.clone().sub(centre).normalize();
-    const dir = outward.clone().lerp(new THREE.Vector3(0, 1, 0), 0.35 + random() * 0.2).normalize();
-    const side = new THREE.Vector3().crossVectors(dir, outward).normalize();
-    if (side.lengthSq() < 0.5) side.set(-Math.sin(a), 0, Math.cos(a));
-    const lift = new THREE.Vector3().crossVectors(side, dir).normalize();
-    const length = 0.34 + random() * 0.22;
-    const width = length * (0.3 + random() * 0.14);
-    const dry = random() < 0.14;
+    const [cx, cy, cz, radius] = lumps[i % lumps.length];
+    const a = i * GOLDEN_ANGLE + random() * 0.8;
+    // On the sides of the lumps, where they fray the outline.
+    const e = 0.05 + random() * 0.75;
+    const n = new THREE.Vector3(Math.cos(a) * Math.cos(e), Math.sin(e), Math.sin(a) * Math.cos(e));
+    const base = new THREE.Vector3(cx, cy, cz).addScaledVector(n, radius * 0.93);
+    const along = new THREE.Vector3(0, 1, 0).addScaledVector(n, -n.y);
+    if (along.lengthSq() < 0.04) along.set(-Math.sin(a), 0, Math.cos(a));
+    along.normalize();
+    const dir = along.multiplyScalar(0.95).addScaledVector(n, 0.32).normalize();
+    const side = new THREE.Vector3().crossVectors(dir, n).normalize();
+    const length = 0.13 + random() * 0.09;
+    const width = length * (0.42 + random() * 0.12);
+    const dry = random() < 0.15;
     const phase = random();
-    const shade = occlusion(base, a, e) * (0.95 + random() * 0.15);
+    const normal = bent(base, n);
+    const shade = occlusion(base, n);
     const hue = (random() - 0.5) * 0.14;
     const leafTint = [1 + hue, 1, 1 - hue * 1.4];
-    const tipTint = dry ? [1.55, 1.2, 0.62] : [1.06 + hue, 1.06, 0.9];
-    const point = (t, across) => base.clone().addScaledVector(dir, length * t).addScaledVector(side, across * width * Math.sin(Math.PI * Math.min(1, t * 1.1)))
-      .addScaledVector(lift, Math.abs(across) * width * 0.25 - length * 0.12 * t * t);
-    const n = outward;
-    const b = vertex(base, shade * 0.8, leafTint, phase, 0, n);
-    const l = vertex(point(0.45, -1), shade * 0.88, leafTint, phase, 0.45, n);
-    const r = vertex(point(0.45, 1), shade * 0.88, leafTint, phase, 0.45, n);
-    const tip = vertex(point(1, 0), shade * 1.04, tipTint, phase, 1, n);
-    if (sprigTris === 4) {
-      const mid = vertex(point(0.45, 0).addScaledVector(lift, -width * 0.12), shade * 1.12, leafTint, phase, 0.45, n);
-      m.tri(b, l, mid);
-      m.tri(b, mid, r);
-      m.tri(l, tip, mid);
-      m.tri(mid, tip, r);
-    } else {
-      m.tri(b, l, r);
-      m.tri(l, tip, r);
-    }
+    const b = vertex(base, normal, shade * 0.85, leafTint, phase, 0);
+    const l = vertex(base.clone().addScaledVector(dir, length * 0.45).addScaledVector(side, -width), normal, shade * 0.9, leafTint, phase, 0.45);
+    const r = vertex(base.clone().addScaledVector(dir, length * 0.45).addScaledVector(side, width), normal, shade * 0.9, leafTint, phase, 0.45);
+    const tip = vertex(base.clone().addScaledVector(dir, length).addScaledVector(n, length * 0.15), normal, shade * 1.1, dry ? [1.55, 1.2, 0.62] : [1.06 + hue, 1.06, 0.92], phase, 1);
+    // Split along the midrib (base to tip), so it shades as a line.
+    m.tri(b, l, tip);
+    m.tri(b, tip, r);
   }
   const geometry = m.finish();
   const normal = geometry.attributes.normal;
-  normals.forEach((n, i) => normal.setXYZ(i, n.x, n.y, n.z));
+  normalsOut.forEach((n, i) => normal.setXYZ(i, n.x, n.y, n.z));
   return geometry;
 }
 

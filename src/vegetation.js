@@ -250,7 +250,7 @@ export function vegetationLayout(seed) {
             : "grass";
     const height =
       kind === "shrub"
-        ? 0.7 + random() * 1.4
+        ? 0.6 + random() * 0.7
         : kind === "moss"
           ? 0.08 + random() * 0.16
           : 0.25 + random() * 0.85;
@@ -337,11 +337,11 @@ export function vegetationLayout(seed) {
 // shrubs stand in it, straw and ochre where plants are old or dry, and the
 // few flowers are small and muted.
 const SPECIES = {
-  renoster: { hsl: [0.19, 0.12, 0.29], spread: [0.26, 0.5], tall: [0.95, 1.35] },
-  erica: { hsl: [0.22, 0.24, 0.22], spread: [0.22, 0.42], tall: [0.9, 1.25], bloom: 0.4, flowers: [[0.87, 0.24, 0.6], [0.93, 0.22, 0.7], [0.12, 0.1, 0.86]] },
-  pelargonium: { hsl: [0.25, 0.26, 0.24], spread: [0.28, 0.48], tall: [0.8, 1.1], bloom: 0.35, flowers: [[0.85, 0.28, 0.66], [0.9, 0.2, 0.74]] },
-  blombos: { hsl: [0.27, 0.27, 0.19], spread: [0.4, 0.75], tall: [1.0, 1.4] },
-  restiold: { hsl: [0.11, 0.26, 0.33], spread: [0.22, 0.42], tall: [0.85, 1.2] },
+  renoster: { hsl: [0.2, 0.16, 0.29], spread: [0.3, 0.6], tall: [0.8, 1.1] },
+  erica: { hsl: [0.22, 0.24, 0.22], spread: [0.22, 0.42], tall: [0.85, 1.1], bloom: 0.4, flowers: [[0.87, 0.24, 0.6], [0.93, 0.22, 0.7], [0.12, 0.1, 0.86]] },
+  pelargonium: { hsl: [0.25, 0.26, 0.24], spread: [0.3, 0.55], tall: [0.8, 1.1], bloom: 0.35, flowers: [[0.85, 0.28, 0.66], [0.9, 0.2, 0.74]] },
+  blombos: { hsl: [0.27, 0.27, 0.19], spread: [0.4, 0.75], tall: [0.85, 1.15] },
+  restiold: { hsl: [0.13, 0.24, 0.31], spread: [0.22, 0.42], tall: [0.8, 1.05] },
   dune: { hsl: [0.17, 0.12, 0.33], spread: [0.25, 0.5], tall: [0.6, 0.9] },
   sourfig: { hsl: [0.2, 0.3, 0.24], spread: [0.4, 0.85], tall: [0.18, 0.28], bloom: 0.25, flowers: [[0.86, 0.3, 0.62], [0.14, 0.42, 0.66]] },
 };
@@ -358,7 +358,7 @@ const THICKET = ["blombos", "blombos", "pelargonium", "renoster", "erica"];
 // grid broken by a patch field, so they clump with gaps between them.
 function understoryLayout(seed, plants, patch) {
   const random = seededRandom(seed ^ 0x3c6ef372);
-  const cell = 0.82;
+  const cell = 0.72;
   // What is already rooted (trunks, rosettes, reeds): shrubs keep clear.
   const taken = new Map();
   const key = (x, z) => `${Math.floor(x / 2)},${Math.floor(z / 2)}`;
@@ -410,9 +410,9 @@ function understoryLayout(seed, plants, patch) {
       const granite = graniteAt(x, z, inland);
       // Clumps and gaps at a few metres: a patch field thins the cover.
       const clump = noise2(x * 0.42 + patch, z * 0.38 - patch) * 0.7 + noise2(x * 1.1 - 3, z * 1.1 + 7) * 0.3;
-      const open = smoothstep(0.22, 0.5, clump);
+      const open = smoothstep(0.14, 0.4, clump);
       // Closed fynbos inland, thinning toward the dunes and under crowns.
-      const cover = Math.max(scrub, smoothstep(4.5, 10, inland) * 0.45) * open * (1 - granite * 0.85) * (1 - shade * 0.55);
+      const cover = Math.max(scrub, smoothstep(4, 9, inland) * 0.95) * open * (1 - granite * 0.8) * (1 - shade * 0.3);
       let species = null;
       if (roll < cover * 0.92) {
         const site = noise2(x * 0.06 + drift, z * 0.05 - drift);
@@ -656,6 +656,8 @@ function growMass(plant, random, { masses, flowers }) {
     l * (0.85 + random() * 0.3) + dry * 0.05,
   );
   const squash = 0.85 + random() * 0.3;
+  // (forest.js coverFor paints the ground at its foot in this colour.)
+  plant.tint = color;
   masses.push({
     position: new THREE.Vector3(plant.x, seat, plant.z),
     scale: new THREE.Vector3(spread * squash, height, spread / squash),
@@ -918,6 +920,9 @@ function colonizeCrown(options) {
         crownCenter,
         occlusion,
       );
+      // Deep in the crown a shoot is hidden by the ones round it from any
+      // distance but underneath: forest.js draws it only near the eye.
+      if (depth < 0.55) clusters[clusters.length - 1].inner = true;
     }
   }
   // Weeping crowns hang leafy vines from their upper branches.

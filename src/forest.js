@@ -33,6 +33,7 @@ import {
   pincushionGeometry,
   proteaGeometry,
   daisyGeometry,
+  shrubMassGeometry,
 } from "./plant-forms.js";
 
 // All assets are built from geometry. No downloaded or generated images/textures.
@@ -86,7 +87,7 @@ export function createForest(scene, seed, { light = false } = {}) {
   const random = seededRandom(seed);
   // (The rocks are laid out first, so nothing is planted through one.)
   const rockList = placeRocks(seed, rockLayout(random)); // places:
-  const { wood: trunks, leaves, clusters, flowers, turf, fronds, succulents, needles, reeds, layout, habitat, producers = [] } = createVegetation(seed, { avoid: rockFootprints(rockList) });
+  const { wood: trunks, leaves, clusters, flowers, turf, fronds, succulents, needles, reeds, masses, layout, habitat, producers = [] } = createVegetation(seed, { avoid: rockFootprints(rockList) });
   const rocks = addRocks(scene, random, shared, rockList); // places:
   const surf = createSurf(scene, rocks, shared, { light });
   const obstacles = obstaclesFor(layout, rocks);
@@ -108,6 +109,7 @@ export function createForest(scene, seed, { light = false } = {}) {
   shadeFrom(clusters, 0.8);
   shadeFrom(turf);
   for (const list of [fronds, succulents, needles, reeds]) shadeFrom(list);
+  shadeFrom(masses, 0.85);
   for (const list of Object.values(flowers)) shadeFrom(list);
   const woodMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff,
@@ -169,10 +171,12 @@ export function createForest(scene, seed, { light = false } = {}) {
   // cards (a shoot is ~10 px there), from 48 m half of them.
   addInstances(scene, shootGeometry(10, 1), clusterMaterial, clusters, true, [
     { geometry: shootGeometry(7, 0), grow: 1.12, distance: 11 },
-    { geometry: shootGeometry(5, 0), grow: 1.2, distance: 22 },
-    { geometry: shootGeometry(3, 0), grow: 1.35, distance: 38 },
-    { geometry: shootGeometry(3, 0), grow: 1.35 * Math.SQRT2, keep: (c) => shootShare(c) < 0.5, distance: 60 },
-    { geometry: shootGeometry(1, 0), grow: 1.9 * Math.sqrt(3), keep: (c) => shootShare(c) < 0.34, distance: 100 },
+    // Shoots deep inside a crown (vegetation.js `inner`) are hidden by the
+    // outer ones from anywhere but under the tree: drawn near only.
+    { geometry: shootGeometry(5, 0), grow: 1.2, keep: (c) => !c.inner, distance: 22 },
+    { geometry: shootGeometry(3, 0), grow: 1.35, keep: (c) => !c.inner, distance: 38 },
+    { geometry: shootGeometry(3, 0), grow: 1.35 * Math.SQRT2, keep: (c) => !c.inner && shootShare(c) < 0.5, distance: 60 },
+    { geometry: shootGeometry(1, 0), grow: 1.9 * Math.sqrt(3), keep: (c) => !c.inner && shootShare(c) < 0.34, distance: 100 },
   ], { shadowGrow: SHADOW_GROW });
   const bladeMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff,
@@ -224,6 +228,30 @@ export function createForest(scene, seed, { light = false } = {}) {
     { geometry: needleGeometry(4), grow: 1.3, distance: 30 },
     { geometry: needleGeometry(4), grow: 1.5, keep: (c) => shootShare(c) < 0.5, distance: 60 },
   ], { shadowGrow: SHADOW_GROW, label: "needles" });
+  // Fynbos shrubs, one rounded mass each (plant-forms.js shrubMassGeometry):
+  // the understory. Leaves are drawn per pixel on the dome (MASS_LEAF_GLSL),
+  // sprigs break its outline near the cat; normals are baked to the mass,
+  // so the material bends them only a little toward the sky; the foot
+  // darkens into the soil (ROOTED and the baked occlusion). Past ~20 m a
+  // shrub is a lumpy 18-triangle dome, and from 70 m the painted scrub on
+  // the ground carries it alone.
+  const massMaterial = new THREE.MeshStandardMaterial({
+    name: "shrubs",
+    color: 0xffffff,
+    roughness: 0.75,
+    vertexColors: true,
+    side: THREE.DoubleSide,
+  });
+  // (A dome is smooth at leaf scale: its sun sparkle would be one broad
+  // white highlight, so it barely mirrors.)
+  patchMaterial(massMaterial, shared, { sway: true, flutter: 0.04, foliage: true, bent: 0.2, rooted: 0.22, sheen: 0.1, mass: true });
+  addInstances(scene, shrubMassGeometry(3), massMaterial, masses, true, [
+    { geometry: shrubMassGeometry(2), distance: 4 },
+    { geometry: shrubMassGeometry(1), distance: 9 },
+    { geometry: shrubMassGeometry(0), distance: 20 },
+    { geometry: shrubMassGeometry(0), keep: (m) => m.scale.x > 0.3 || shootShare(m) < 0.5, distance: 45 },
+    { keep: () => false, distance: 75 },
+  ], { chunk: 40 });
   // Aloe leaves are thick and waxy, not translucent: plain lit, a little
   // glossy, stiff in the wind.
   const succulentMaterial = new THREE.MeshStandardMaterial({
@@ -684,15 +712,18 @@ float massNoise( vec3 p ) {
     f.z );
 }
 void massLeaves( inout vec3 albedo ) {
-  vec3 q = vMassP * 21.0;
+  // Leaves about 1 cm: lit leaf faces as flecks over the darker gaps.
+  vec3 q = vMassP * 80.0;
   float fw = length( fwidth( q ) );
-  float near = 1.0 - smoothstep( 0.5, 1.4, fw );
-  if ( near <= 0.0 ) return;
+  float near = 1.0 - smoothstep( 0.45, 1.2, fw );
+  // The colour drift across a bush (a few leaves' worth) survives further.
+  float tone = massNoise( vMassP * 6.0 + 11.3 );
+  vec3 drift = vec3( 1.0 + ( tone - 0.5 ) * 0.12, 1.0, 1.0 - ( tone - 0.5 ) * 0.16 ) * ( 0.95 + tone * 0.1 );
+  if ( near <= 0.0 ) { albedo *= drift; return; }
+  // Sparse lit leaf tips over the darker body of the bush.
   float leaf = massNoise( q );
-  float tone = massNoise( q * 0.37 + 11.3 );
-  float gaps = smoothstep( 0.28, 0.62, leaf );
-  vec3 shaded = albedo * ( 0.58 + 0.56 * gaps ) * vec3( 1.0 + ( tone - 0.5 ) * 0.22, 1.0, 1.0 - ( tone - 0.5 ) * 0.3 );
-  albedo = mix( albedo, shaded, near );
+  float lit = smoothstep( 0.58, 0.78, leaf );
+  albedo *= drift * mix( 1.0, 0.86 + 0.42 * lit, near );
 }
 `;
 
@@ -2045,6 +2076,9 @@ function occludersFor(layout, rocks) {
     if (p.kind === "tree") {
       list.push({ x: p.x, z: p.z, r: Math.min(4, p.height * 0.32), k: 0.32 });
       list.push({ x: p.x, z: p.z, r: 0.7 + p.height * 0.03, k: 0.5 });
+    } else if (p.spread) {
+      // A fynbos shrub mass: its own contact shade, hugging its foot.
+      list.push({ x: p.x, z: p.z, r: p.spread * 1.15, k: 0.45 });
     } else if (p.kind === "shrub" || p.kind === "protea" || p.kind === "erica") {
       list.push({ x: p.x, z: p.z, r: p.height * 0.75, k: 0.42 });
     } else if (p.kind === "aloe" || p.kind === "restio" || p.kind === "fern") {
@@ -2107,6 +2141,14 @@ function coverFor(layout, turf) {
     if (p.kind === "moss")
       splat(p.x, p.z, 0.7 + p.height * 5, 1.4, grass, moss.setHSL(0.24 + noise2(p.x * 0.3, p.z * 0.3) * 0.1, 0.35, 0.26, THREE.SRGBColorSpace));
   for (const p of layout) {
+    if (p.spread && p.tint) {
+      // A fynbos shrub sheds its own dull leaves round its foot: the ground
+      // there takes the shrub's colour, darkened, so shrub and soil meet
+      // without a line; a little humus right under it.
+      splat(p.x, p.z, p.spread * 1.35, 0.8, grass, p.tint);
+      splat(p.x, p.z, p.spread * 0.8, 0.35, humus);
+      continue;
+    }
     if (p.kind === "tree") {
       splat(p.x, p.z, Math.min(5, 1 + p.height * 0.4), 0.9, humus);
       splat(p.x, p.z, 0.6 + p.height * 0.05, 1.2, humus);
