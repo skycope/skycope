@@ -177,6 +177,7 @@ function installCounters() {
   }
   const D = window.GPUDevice?.prototype;
   for (const kind of ["Buffer", "Texture", "RenderPipeline", "ComputePipeline", "BindGroup", "ShaderModule", "QuerySet", "Sampler"]) wrap(D, "create" + kind, c.gpu, kind + "Created", 1);
+  for (const kind of ["RenderPipeline", "ComputePipeline"]) wrap(D, "create" + kind + "Async", c.gpu, kind + "Created", 1);
   wrap(window.GPUBuffer?.prototype, "destroy", c.gpu, "BufferDestroyed", 1);
   wrap(window.GPUTexture?.prototype, "destroy", c.gpu, "TextureDestroyed", 1);
 }
