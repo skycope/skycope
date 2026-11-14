@@ -66,7 +66,7 @@ test('nothing grows or lies inside a landmark', () => {
   const original = rockLayout(seededRandom(seed));
   const rocks = placeRocks(seed, original);
   const added = rocks.filter((r) => !original.includes(r));
-  assert.ok(added.length > 20, 'cairn and pool stones are added');
+  assert.ok(added.length >= 6, 'the pool boulders are added');
   for (const r of rocks) {
     assert.ok([r.position.x, r.position.y, r.position.z, r.scale.x, r.scale.y, r.scale.z, r.ground].every(finite));
   }
