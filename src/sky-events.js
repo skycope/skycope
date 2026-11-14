@@ -261,9 +261,7 @@ export function strikeBrightness(strike, t, frame = 1 / 60) {
 const METEOR_SLOT = 3;
 const METEOR_LONGEST = 7;
 
-// `magic` (sea-sky-magic): { stars, finale, callAt } from src/magic.js. The
-// stars gift gives every meteor a long glowing train.
-export function meteorInSlot(seed, slot, conditions, forced = null, magic = null) {
+export function meteorInSlot(seed, slot, conditions, forced = null) {
   const r = (salt) => hash(seed, CHANNEL.meteor, slot, salt);
   const rate = (conditions.meteorRate * conditions.meteorVisibility * LINGER) / 3600;
   if (forced) {
@@ -303,9 +301,9 @@ export function meteorInSlot(seed, slot, conditions, forced = null, magic = null
     bearing, elevation, shower: fromShower ? conditions.shower.id : null,
     // Fast meteors burn green (Mg, O); slow ones yellow-orange (Na, Fe).
     green: smoothstep(35, 65, speed) * (0.4 + 0.6 * r(11)),
-    train: fireball ? 2.5 + 3 * r(12) : magic?.stars > 0 ? (1.5 + 2.5 * r(12)) * magic.stars : 0,
-    // Persistent train brightness per unit flux (the gift's are brighter).
-    glow: magic?.stars > 0 ? 0.0004 + 0.0016 * magic.stars : 0.0004,
+    train: fireball ? 2.5 + 3 * r(12) : 0,
+    // Persistent train brightness per unit flux.
+    glow: 0.0004,
   };
 }
 
@@ -402,9 +400,9 @@ const luminance = (c) => c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
 const FLASH_RADIANCE = 0.03;
 
 export function skyEventFrame({ seed, time, date = null, celestial, weather = null, sunlit = null, lighting = null, force = null, view = null, frameSeconds = 1 / 60, conditions = null, magic = null }) {
-  let c = conditions ?? skyConditions({ celestial, weather, sunlit, date });
-  // sea-sky-magic: the stars gift brings meteors twice as often.
-  if (magic?.stars > 0) c = { ...c, meteorRate: c.meteorRate * (1 + magic.stars) };
+  // The stars gift does not add meteors: the real rate is the point. It
+  // answers a meow with one (callAnswer). `magic`: { stars, callAt }.
+  const c = conditions ?? skyConditions({ celestial, weather, sunlit, date });
   const facing = view ? { bearing: ((view.azimuth / DEG) % 360 + 360) % 360, elevation: Math.max(15, (view.pitch / DEG) + 12) } : { bearing: 0, elevation: 35 };
   const forced = (name) => force === name || (Array.isArray(force) && force.includes(name));
   const u = quietSkyUniforms();
@@ -455,7 +453,7 @@ export function skyEventFrame({ seed, time, date = null, celestial, weather = nu
   const meteorForce = forced("meteor") || forced("fireball") ? { ...facing, fireball: forced("fireball") } : null;
   if (meteorForce || c.meteorVisibility > 0.01) {
     for (let slot = Math.floor((time - METEOR_LONGEST) / METEOR_SLOT); slot <= Math.floor(time / METEOR_SLOT); slot++) {
-      const meteor = meteorInSlot(seed, slot, c, meteorForce, magic);
+      const meteor = meteorInSlot(seed, slot, c, meteorForce);
       const state = meteor && meteorState(meteor, time);
       if (state && (!meteorNow || state.flux + state.train > meteorNow.state.flux + meteorNow.state.train)) meteorNow = { meteor, state };
     }
@@ -502,7 +500,7 @@ function callAnswer(seed, time, c, facing, magic) {
   const at = magic.callAt + CALL_ANSWER.delay;
   if (time < at || time > at + METEOR_LONGEST + 6) return null;
   const slot = 2 * (100000 + Math.floor(magic.callAt * 8));
-  const meteor = { ...meteorInSlot(seed, slot, c, { ...facing, fireball: false }, magic), at, magnitude: CALL_ANSWER.magnitude };
+  const meteor = { ...meteorInSlot(seed, slot, c, { ...facing, fireball: false }), at, magnitude: CALL_ANSWER.magnitude };
   const state = meteorState(meteor, time);
   return state ? { meteor, state } : null;
 }

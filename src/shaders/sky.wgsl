@@ -322,8 +322,8 @@ fn atmosphere_color(ray: vec3f, sun: vec3f, moon: vec3f, night: f32, exposure: f
 // src/star-catalog.js). Asleep: a faint blue-grey line, as they always were.
 // sea-sky-magic, the stars gift: each figure draws itself, a pen of light
 // running star to star over a few seconds (figures in turn), the lines
-// holding softly after with a shimmer running along them; strongest where
-// the camera looks. The finale lights every figure fully.
+// holding softly after with a shimmer running along them. Only the figure
+// the camera is looking straight at shows: one at a time, never a chart.
 const FIGURE_LINE: vec3f = vec3f(0.0324, 0.047, 0.0559);
 const FIGURE_LIGHT: vec3f = vec3f(0.74, 0.8, 1.0);
 const PEN_LIGHT: vec3f = vec3f(1.0, 0.86, 0.62);
@@ -346,11 +346,12 @@ fn constellation_lines(ray: vec3f) -> vec3f {
     // The pen's head: a bright bead with a short glowing wake.
     let pen = exp(-ahead * ahead * 900.0) * select(0.0, 1.0, progress < 1.01) + exp(-max(ahead, 0.0) * 30.0) * drawn * 0.6 * select(0.0, 1.0, progress < 1.1);
     let shimmer = 0.75 + 0.25 * sin(atlas.g * 70.0 - atmosphere.time * 2.2 + atlas.b * 40.0);
-    let forward = vec3f(sin(atmosphere.flight.w) * cos(atmosphere.pitch), sin(atmosphere.pitch), cos(atmosphere.flight.w) * cos(atmosphere.pitch));
-    // Few and faint: only the figures near where the camera looks, drawn
-    // once and then barely there (the finale lights them all, for a while).
-    let look = smoothstep(0.8, 0.97, dot(ray, forward));
-    let hold = (0.012 + 0.04 * atmosphere.magic.w) * shimmer * mix(look, 1.0, atmosphere.magic.w * 0.5);
+    // Few and faint: only the figure the cat would look up at (about 20°
+    // above the middle of the view), drawn once and then barely there.
+    let gaze = atmosphere.pitch + 0.35;
+    let forward = vec3f(sin(atmosphere.flight.w) * cos(gaze), sin(gaze), cos(atmosphere.flight.w) * cos(gaze));
+    let look = smoothstep(0.9, 0.98, dot(ray, forward));
+    let hold = 0.012 * shimmer * look;
     // A fine luminous thread: the filtered ridge's crest, sharpened, in a
     // faint wide glow of its own.
     let thread = smoothstep(0.42, 0.95, atlas.r) + atlas.r * 0.22;
@@ -363,7 +364,7 @@ fn constellation_lines(ray: vec3f) -> vec3f {
     // green), like the stars that make it: the sky is not one grey.
     let hue = 0.5 + 0.5 * cos(6.283185 * (atlas.b * 3.7 + vec3f(0.0, 0.33, 0.67)));
     let figure = mix(FIGURE_LIGHT, hue * 1.1, 0.4);
-    light = mix(light, figure * (lines + nodes) + PEN_LIGHT * (thread + glow) * pen * 0.6 * mix(look, 1.0, 0.3), gift);
+    light = mix(light, figure * (lines + nodes) + PEN_LIGHT * (thread + glow) * pen * 0.6 * look, gift);
   }
   // Never over the Moon's disc (drawn sharp in the water pass, on top).
   let moon_clear = smoothstep(0.019, 0.026, length(ray - atmosphere.moon));
