@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import {
   terrainHeight,
+  groundHeight,
   shoreDistance,
   GROUND,
   ISLAND,
@@ -50,6 +51,12 @@ export function createForest(scene, seed, { light = false } = {}) {
     swell: { value: new THREE.Vector4(...swellUniform(seed, [0, 0])) },
     // Where the cat is (coast x, z), how far it pushes, how hard.
     catPush: { value: new THREE.Vector4(0, 0, 0.4, 0) },
+    // move: where the cat has just been (x, z, how hard the plants there
+    // are still bent: 1 pressed, then a damped swing back through upright).
+    catTrail: { value: Array.from({ length: 3 }, () => new THREE.Vector4()) },
+    // move: the line of sight kept clear of leaves (FOLD_GLSL).
+    sightLine: { value: new THREE.Vector4() },
+    sightEye: { value: new THREE.Vector3() },
     // The cat's legs in the swash film (x, z, depth), and the water past
     // them: downstream direction (x, z), speed, and whether any is wet.
     catLegs: { value: Array.from({ length: 4 }, () => new THREE.Vector4()) },
@@ -237,6 +244,8 @@ export function createForest(scene, seed, { light = false } = {}) {
   addInstances(scene, pincushionGeometry(36, 1), petalMaterial, flowers.pincushion, true, [{ geometry: pincushionGeometry(14, 0), distance: 20 }, { keep: () => false, distance: 85 }], { chunk: 40 });
   addInstances(scene, spikeGeometry(), petalMaterial, flowers.spike, true, [{ geometry: spikeGeometry(14), distance: 45 }, { keep: () => false, distance: 95 }], { chunk: 40 });
   addInstances(scene, white(bellGeometry()), petalMaterial, flowers.bell, false, [halfDrift, { keep: () => false, distance: 45 }], { chunk: 40 });
+  // move: the cat's trail through the plants (pushAt).
+  const trail = { at: 0, head: 0, age: [9, 9, 9], from: [0, 0, 0] };
   return {
     habitat,
     // Trunks and boulders, for the cat to walk around (or climb).
@@ -270,12 +279,33 @@ export function createForest(scene, seed, { light = false } = {}) {
         shared.breezeDir.value.set(wind[0] / speed, wind[1] / speed);
     },
     // Leaves and blades bend away from the cat as it brushes through.
-    pushAt(x, z, strength) {
+    // move: plants part round the cat, stay pressed where it has just
+    // been, and swing back up behind it (a damped spring, overshooting
+    // upright a little), so a path through the scrub closes after the cat.
+    // `y` (the cat's paws) aims the line of sight kept clear of leaves.
+    pushAt(x, z, strength, y = groundHeight(x, z)) {
       nearGround.setCat(x, z);
+      shared.sightLine.value.set(x, y + 0.2, -z, SIGHT_RADIUS);
+      const now = (globalThis.performance?.now() ?? 0) / 1000;
+      const dt = trail.at ? Math.min(0.1, Math.max(0, now - trail.at)) : 0;
+      trail.at = now;
       const push = shared.catPush.value;
+      push.w += (strength - push.w) * (1 - Math.exp(-dt * 12));
       push.x = x;
       push.y = z;
-      push.w += (strength - push.w) * 0.2;
+      const points = shared.catTrail.value;
+      // A new trail point every 30 cm the cat moves while it presses.
+      const newest = points[trail.head];
+      if (push.w > 0.05 && Math.hypot(x - newest.x, z - newest.y) > 0.3) {
+        trail.head = (trail.head + 1) % points.length;
+        points[trail.head].set(x, z, 0, 0);
+        trail.age[trail.head] = 0;
+        trail.from[trail.head] = push.w;
+      }
+      for (let i = 0; i < points.length; i++) {
+        trail.age[i] += dt;
+        points[i].w = trail.from[i] * release(trail.age[i]);
+      }
     },
     updateNight(night) {
       shared.nightGlow.value = night;
@@ -308,6 +338,7 @@ export function createForest(scene, seed, { light = false } = {}) {
     // lod: each frame, the eye (world space) and the render budget's LOD
     // bias (quality.js lodBias, ≤ 1 pulls every level in).
     updateLod(eye, bias = 1) {
+      shared.sightEye.value.copy(eye);
       packLod(scene, eye, bias);
     },
   };
@@ -342,6 +373,11 @@ float gustAt( vec2 p ) {
 const WIND_GLSL = /* glsl */ `
 ${GUST_GLSL}
 uniform vec4 catPush;
+uniform vec4 catTrail[ 3 ];
+// move: the line of sight to the cat (world head position, cone radius at
+// the lens; w 0 off) and the eye it is seen from.
+uniform vec4 sightLine;
+uniform vec3 sightEye;
 // land-magic: a waking's ring (Three world x, z, radius, strength).
 uniform vec4 magicPulse;
 varying float vGlint;
@@ -393,29 +429,68 @@ vec3 windOffset(vec3 p) {
 // piece, away from where it is rooted (leaning each vertex away on its own
 // smeared a flower's head into a ring round the cat). Tall plants' crowns
 // are out of reach, so only the lower ~60 cm of any plant moves.
+// move: the trail behind the cat keeps plants bent where it has just been,
+// releasing them on a damped spring (catTrail.w swings through zero).
 const PUSH_GLSL = /* glsl */ `
 {
   #ifdef USE_INSTANCING
-    vec2 away = instanceMatrix[3].xz - catPush.xy;
+    vec2 pushRoot = instanceMatrix[3].xz;
   #else
-    vec2 away = mvPosition.xz - catPush.xy;
+    vec2 pushRoot = mvPosition.xz;
   #endif
-  float d = length( away ) + 1e-4;
   float above = max( mvPosition.y - anchorHeight, 0.0 );
   float reach = catPush.z;
-  float push = catPush.w * ( 1.0 - smoothstep( reach * 0.3, reach, d ) ) * smoothstep( 0.0, 0.25, above ) * ( 1.0 - smoothstep( 0.35, 0.65, above ) );
-  mvPosition.xz += away / d * push * reach * 0.55;
-  mvPosition.y -= push * above * 0.35;
+  vec2 away = pushRoot - catPush.xy;
+  float d = length( away ) + 1e-4;
+  vec2 shove = away / d * ( catPush.w * ( 1.0 - smoothstep( reach * 0.3, reach, d ) ) );
+  for ( int i = 0; i < 3; i++ ) {
+    vec2 back = pushRoot - catTrail[ i ].xy;
+    float b = length( back ) + 1e-4;
+    shove += back / b * ( catTrail[ i ].w * ( 1.0 - smoothstep( reach * 0.3, reach, b ) ) );
+  }
+  float amount = length( shove );
+  shove *= min( 1.0, 1.0 / max( amount, 1e-4 ) );
+  float lower = smoothstep( 0.0, 0.25, above ) * ( 1.0 - smoothstep( 0.35, 0.65, above ) );
+  mvPosition.xz += shove * lower * reach * 0.55;
+  mvPosition.y -= min( amount, 1.0 ) * lower * above * 0.35;
 }`;
+
+// move: the cleared cone's radius at the lens (metres).
+const SIGHT_RADIUS = 0.75;
+
+// move: how bent a plant is `age` seconds after the cat left it (1 → 0):
+// an underdamped spring (zeta 0.45, omega 9 rad/s), released from rest, so
+// it swings about 20% past upright and settles within a second.
+export function release(age) {
+  if (!(age < 1.4)) return 0;
+  const zeta = 0.45, omega = 9;
+  const wd = omega * Math.sqrt(1 - zeta * zeta);
+  return Math.exp(-zeta * omega * age) * (Math.cos(wd * age) + ((zeta * omega) / wd) * Math.sin(wd * age));
+}
 
 // Foliage the camera noses into folds out of its way: leaves and blades
 // within about a metre of the eye close up toward their own stem or base,
 // the way a hand pushed into a bush parts it, instead of slicing through
 // the lens as flat green planes. No discard: the geometry just moves.
+//
+// move: so do leaves between the lens and the cat (a cone round the line of
+// sight, widest at the lens, closing before the cat so the plants it stands
+// in still touch it), so the cat is never lost behind a bush. Only in the
+// view the eye sees (sightEye): the shadow pass keeps every leaf.
 const FOLD_GLSL = /* glsl */ `
 {
   vec3 foldWorld = ( modelMatrix * vec4( mvPosition.xyz, 1.0 ) ).xyz;
   float fold = 1.0 - smoothstep( 0.3, 1.1, length( foldWorld - cameraPosition ) );
+  if ( sightLine.w > 0.0 && distance( cameraPosition, sightEye ) < 0.01 ) {
+    vec3 sightAxis = sightLine.xyz - cameraPosition;
+    float sightLength = length( sightAxis ) + 1e-4;
+    float along = dot( foldWorld - cameraPosition, sightAxis ) / sightLength;
+    float across = length( foldWorld - cameraPosition - sightAxis * ( along / sightLength ) );
+    float radius = sightLine.w * mix( 1.0, 0.45, clamp( along / sightLength, 0.0, 1.0 ) );
+    float sight = ( 1.0 - smoothstep( radius * 0.55, radius, across ) )
+      * smoothstep( 0.0, 0.3, along ) * ( 1.0 - smoothstep( sightLength - 0.5, sightLength - 0.22, along ) );
+    fold = max( fold, sight );
+  }
   if ( fold > 0.0 ) {
     #ifdef USE_INSTANCING
       vec3 foldAnchor = instanceMatrix[3].xyz;
@@ -425,6 +500,21 @@ const FOLD_GLSL = /* glsl */ `
     mvPosition.xyz = mix( mvPosition.xyz, foldAnchor, fold * 0.94 );
   }
 }`;
+
+// move: twigs and thin limbs (radius under 3–6 cm) fold out of the lens and
+// the line of sight like the leaves; trunks and big limbs stay (the camera
+// arm keeps clear of those).
+const TWIG_FOLD_GLSL = /* glsl */ `
+#ifdef USE_INSTANCING
+{
+  float girth = length( instanceMatrix[0].xyz );
+  float thin = 1.0 - smoothstep( 0.03, 0.06, girth );
+  if ( thin > 0.0 ) {
+    ${FOLD_GLSL.replace("if ( fold > 0.0 ) {", "fold *= thin;\n  if ( fold > 0.0 ) {")}
+  }
+}
+#endif
+`;
 
 const PROJECT_GLSL = /* glsl */ `
 vec4 mvPosition = vec4( transformed, 1.0 );
@@ -1469,7 +1559,11 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
     if (sway)
       shader.vertexShader = shader.vertexShader.replace(
         "#include <project_vertex>",
-        foliage ? PROJECT_GLSL.replace("vAbove =", `${PUSH_GLSL}\n${FOLD_GLSL}\nvAbove =`) : PROJECT_GLSL,
+        foliage
+          ? PROJECT_GLSL.replace("vAbove =", `${PUSH_GLSL}\n${FOLD_GLSL}\nvAbove =`)
+          : bark
+            ? PROJECT_GLSL.replace("vAbove =", `${TWIG_FOLD_GLSL}\nvAbove =`)
+            : PROJECT_GLSL,
       );
     shader.vertexShader = shader.vertexShader.replace(
       "#include <worldpos_vertex>",

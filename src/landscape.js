@@ -363,7 +363,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       if (wake) forest.updateCatWater(wake.paws, wake.body.flow);
       if (water) forest.updateSurf(time, [flight.x, flight.y, flight.z], pixelScale, water);
       // Plants part round the cat as it walks through them.
-      forest.pushAt(pose.x, pose.z, pose.air > 0.05 ? 0 : 1);
+      forest.pushAt(pose.x, pose.z, pose.air > 0.05 ? 0 : 1, pose.y); // move: (y aims the line of sight)
       interest = critters.update(dt, time, pose, night);
       // wildlife: update, and the nearer of a critter and an animal holds the cat's eye.
       wildEye.x = flight.x; wildEye.y = flight.y; wildEye.z = flight.z;

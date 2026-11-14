@@ -525,7 +525,21 @@ export function createWalker(obstacles, sea = null, wake = null) {
   }
 
   function tryMove(nx, nz, drift = false) {
-    if (!grid.clearOfTrunks(nx, nz, CAT_RADIUS)) return false;
+    // A trunk is a wall like any other: remember its face (outward from its
+    // centre), so the cat slides along it and walks round it instead of
+    // snagging on it. A step out of a trunk the cat is already inside (a
+    // teleport, a landing) is always free.
+    if (!grid.clearOfTrunks(nx, nz, CAT_RADIUS)) {
+      const t = grid.trunk;
+      const away = Math.hypot(nx - t.x, nz - t.z);
+      if (!(away > Math.hypot(cat.x - t.x, cat.z - t.z) && Math.hypot(cat.x - t.x, cat.z - t.z) < t.r + CAT_RADIUS)) {
+        wall.x = away > 1e-6 ? (nx - t.x) / away : -Math.sin(cat.heading);
+        wall.z = away > 1e-6 ? (nz - t.z) / away : -Math.cos(cat.heading);
+        wall.top = Infinity;
+        wall.at = clock;
+        return false;
+      }
+    }
     // Out past the kelp is too far for a cat.
     if (shoreDistance(nx, nz) < -SWIM_LIMIT) return false;
     const next = surface(nx, nz);
@@ -989,10 +1003,17 @@ function spatialGrid({ trunks, domes }) {
         }
       return n;
     },
+    // Whether a body of `radius` at (x, z) is clear of every trunk; when it
+    // is not, `trunk` is the one in the way.
+    trunk: null,
     clearOfTrunks(x, z, radius) {
       const c = at(x, z);
       if (!c) return true;
-      for (const t of c.trunks) if (Math.hypot(x - t.x, z - t.z) < t.r + radius) return false;
+      for (const t of c.trunks)
+        if (Math.hypot(x - t.x, z - t.z) < t.r + radius) {
+          this.trunk = t;
+          return false;
+        }
       return true;
     },
     // The highest rock surface here (bilinear within each rock's tile).
