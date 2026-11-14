@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
-import { terrainHeight, islandPoint, ISLAND, shoreDistance } from "./terrain.js";
+import { terrainHeight, groundHeight, islandPoint, ISLAND, shoreDistance } from "./terrain.js";
 
 // Granite: the rock layout, its shapes, and what the sea needs to know about
 // the boulders at the waterline. No three.js scene objects here, so the
@@ -23,7 +23,7 @@ export function rockLayout(random) {
     // Half sunk in the sand, a joint face roughly down: stones on a beach
     // settle onto their flattest side and the sand drifts up round them.
     rocks.push({
-      position: new THREE.Vector3(x, terrainHeight(x, z) + sy * (0.1 + random() * 0.35), z),
+      position: new THREE.Vector3(x, bedHeight(x, z, size) + sy * (0.1 + random() * 0.35), z),
       scale: new THREE.Vector3(size, sy, size * (0.75 + random() * 0.3)),
       rotation: new THREE.Euler((random() - 0.5) * 0.7, random() * Math.PI * 2, (random() - 0.5) * 0.7),
       color: new THREE.Color().setHSL(0.08 + random() * 0.02, 0.06, 0.27 + random() * 0.12),
@@ -81,7 +81,7 @@ export function rockLayout(random) {
         tiltX = -Math.sin(a) * lean + (random() - 0.5) * 0.08;
         tiltZ = Math.cos(a) * lean + (random() - 0.5) * 0.08;
       }
-      const ground = Math.max(terrainHeight(x, z), -0.6);
+      const ground = Math.max(bedHeight(x, z, size), -0.6);
       // Sunk up to half its height in sand or the seabed; stacked ones
       // sit in the saddle of the stone below.
       const y = base !== null
@@ -100,7 +100,9 @@ export function rockLayout(random) {
         variant: (c * 2 + i) % ROCK_VARIANTS,
       };
       rocks.push(member);
-      members.push({ x, z, reach, sy, top: y + sy * 0.8 });
+      members.push({ x, z, reach, sy, top: y + sy * 0.8, rock: member });
+      // A stone perched on another moves with it when it is bedded.
+      if (parent && stack) member.restsOn = parent.rock;
     }
   }
   // Loose stones near an outcrop are its fragments: its mineral colour.
@@ -113,6 +115,65 @@ export function rockLayout(random) {
       if (d < distance) { distance = d; nearest = parent; }
     }
     if (nearest) fragment.color.lerp(nearest.color, 0.65);
+  }
+  return bedRocks(rocks);
+}
+
+// solid: what a stone settles to: the lowest ground under its footprint,
+// not the ground at its centre. Set by the centre on a slope, a stone's
+// downhill side hung in the air (a lit gap under it); bedded to the lowest
+// point it sinks into the slope uphill, as stones do. Also place-rocks.js.
+export function bedHeight(x, z, size) {
+  let low = terrainHeight(x, z);
+  const r = size * 0.7;
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2;
+    low = Math.min(low, terrainHeight(x + Math.cos(a) * r, z + Math.sin(a) * r));
+  }
+  return low;
+}
+
+// solid: bed every stone that stands on the ground so no part of its
+// underside (inside the footprint, above the sea's cut) shows daylight: a
+// tilted or lopsided stone is lowered by its largest gap, up to 45% of its
+// height. Stones perched on others go down with the one under them. One
+// pass for every rock (rocks.js layout, place-rocks.js stones).
+const bedShapes = new Map();
+const _bm = new THREE.Matrix4(), _bq = new THREE.Quaternion(), _bv = new THREE.Vector3(), _bn = new THREE.Vector3();
+export function rockGap(rock) {
+  if (!bedShapes.has(rock.variant ?? 0)) bedShapes.set(rock.variant ?? 0, rockGeometry(4, rock.variant ?? 0));
+  const g = bedShapes.get(rock.variant ?? 0);
+  const pos = g.attributes.position, nor = g.attributes.normal;
+  _bq.setFromEuler(rock.rotation);
+  _bm.compose(rock.position, _bq, rock.scale);
+  const reach = Math.max(rock.scale.x, rock.scale.z) * 0.7;
+  let gap = 0;
+  for (let i = 0; i < pos.count; i++) {
+    _bv.fromBufferAttribute(pos, i).applyMatrix4(_bm);
+    _bn.fromBufferAttribute(nor, i).applyQuaternion(_bq);
+    if (_bn.y > -0.35 || _bv.y < 0.12) continue;
+    if (Math.hypot(_bv.x - rock.position.x, _bv.z - rock.position.z) > reach) continue;
+    gap = Math.max(gap, _bv.y - groundHeight(_bv.x, _bv.z));
+  }
+  return gap;
+}
+export function bedRocks(rocks) {
+  const sink = new Map();
+  for (const r of rocks) {
+    if (r.restsOn) continue;
+    const d = Math.min(rockGap(r), r.scale.y * 0.9);
+    if (d > 0.005) {
+      r.position.y -= d;
+      sink.set(r, d);
+    }
+  }
+  for (const r of rocks) {
+    let base = r.restsOn, d = 0;
+    while (base) { d += sink.get(base) ?? 0; base = base.restsOn; }
+    if (d > 0) {
+      r.position.y -= d;
+      if (r.ground !== undefined) r.ground -= d;
+    }
   }
   return rocks;
 }

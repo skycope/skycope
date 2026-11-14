@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { rockGeometry, rockLayout, shoreRockData, ROCK_VARIANTS, ROCK_CORE, SHORE_ROCK_FLOATS } from '../src/rocks.js';
+import { rockGeometry, rockLayout, shoreRockData, bedHeight, ROCK_VARIANTS, ROCK_CORE, SHORE_ROCK_FLOATS } from '../src/rocks.js';
 import { terrainHeight } from '../src/terrain.js';
 
 const random = (seed) => () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
@@ -30,7 +30,9 @@ test('outcrop fragments inherit bedding and shoreline descriptors follow geometr
     else groups.set(rock.cluster, rock.jointYaw);
     assert.ok(Math.abs(rock.rotation.y - rock.jointYaw) < .12);
     assert.ok(rock.position.y - rock.scale.y * .6 < rock.ground, 'base embedded in the sand or the stone below');
-    assert.ok(rock.ground >= Math.max(terrainHeight(rock.position.x, rock.position.z), -.6) - 1e-9);
+    // Bedded to the lowest ground under its footprint (rocks.js bedHeight),
+    // then lowered with the stone it rests on (bedRocks).
+    if (!rock.restsOn) assert.ok(rock.ground >= Math.max(bedHeight(rock.position.x, rock.position.z, rock.scale.x), -.6) - 1e-9);
   }
   // Scattered stones share one shape per 20 m ground chunk (one draw each).
   const cells = new Map();
