@@ -16,6 +16,7 @@ import { createPlaces } from "./places.js"; // places:
 import { createWisp } from "./wisp.js"; // wisp: the little light that leads the cat
 import { surfaceOf } from "./walker.js"; // solid: boulder tops for the fireflies
 import { createLandMagic, lightWithMagic, finaleBlaze } from "./land-magic.js"; // land-magic:
+import { WAKE_LIGHT, wakingSource } from "./waking.js"; // waking:
 import { createFireflies } from "./fireflies.js"; // land-magic:
 import { groundHeight } from "./terrain.js"; // land-magic:
 import { createBoat } from "./boat.js"; // boat: the fisherman's boat afloat
@@ -94,7 +95,19 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   // land-look: the ground darkens round the landmarks' feet (forest.js).
   forest.groundContact(land, [places.group]);
   // land-magic: the gifts' light on the land (uniforms in forest.js shared).
-  const landMagic = createLandMagic({ shared: land.userData.forestShared, lamps: places.lamps, beacon: places.beacon, light });
+  // waking: each keepsake's small steady light, what its waking resolves
+  // into (waking-light.md 3.7): the furnace ember, the pool lit from below,
+  // the boat's lantern ashore. (The milkwood's is its crown; the lamp's, the
+  // lamps and beams.)
+  const practicals = [
+    ["tideglow", WAKE_LIGHT.tideglow.tint, 1.6, 0.35],
+    ["seafolk", WAKE_LIGHT.seafolk.tint, 2.2, 0.45],
+    ["boat", WAKE_LIGHT.boat.tint, 2.6, 0.6],
+  ].map(([gift, colour, reach, power]) => {
+    const at = wakingSource(gift, { pois: places.pois, blockers: places.blockers, surface: groundHeight });
+    return at && { x: at[0], y: at[1] + (gift === "seafolk" ? 0.25 : 0), z: at[2], colour, reach, power, gift };
+  }).filter(Boolean);
+  const landMagic = createLandMagic({ shared: land.userData.forestShared, lamps: places.lamps, practicals, beacon: places.beacon, light });
   const fauna = createFauna(land, seed);
   const cat = createCat(land, { light });
   const critters = createCritters(land, seed, forest.obstacles.flowers, forest.rocks); // solid: one rock list
@@ -292,8 +305,8 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       fauna.update(time, wind, night, boat?.afloatNow ?? null); // boat: the pod rides its bow
       // land-magic: the fireflies fly, then every gift's light is set.
       const levels = magic?.levels;
-      const flies = fireflies.update({ dt, time, pose, night, level: levels?.fireflies ?? 0, finale: finaleBlaze(magic), call: magic?.call ?? null, eye: camera.position, pixelScale: flyPixels });
-      const gifts = landMagic.update({ magic, time, dt, night, pose, flies, reduced: reducedMotion }); // land-magic: (waking: reduced motion)
+      const flies = fireflies.update({ dt, time, pose, night, level: levels?.fireflies ?? 0, finale: finaleBlaze(magic), call: magic?.call ?? null, eye: camera.position, pixelScale: flyPixels, born: magic?.waking?.gift === "fireflies" ? magic.waking : null }); // waking: out of the hollow
+      const gifts = landMagic.update({ magic, time, dt, night, pose, flies, reduced: reducedMotion, afloat: Boolean(boat?.afloatNow) }); // land-magic: (waking: reduced motion, the boat afloat)
       starLevel = levels?.stars ?? 0; // land-look: the stars gift lifts the night
       // The cat's coat and the animals take the same light (their
       // materials are built lazily: wrapped at load and once more later).

@@ -122,6 +122,7 @@ float groundAt( vec3 w ) {
   return texture2D( ground, clamp( uv, 0.0, 1.0 ) ).r;
 }
 uniform vec4 column;   // summit (Three world), height
+uniform vec4 born;     // waking: the hollow (Three world), w seconds since it woke (99 none)
 varying vec3 vColour;
 varying float vGlow;
 varying float vSoft;
@@ -176,6 +177,15 @@ void main() {
     present = 1.0 - smoothstep( 0.75, 1.0, max( e.x, e.y ) );
     float blink = pow( max( 0.0, sin( t * ( 0.7 + r * 0.5 ) + kind.y * 6.2832 ) ), 10.0 );
     glow = 0.1 + 0.9 * blink;
+  }
+  // waking: they come out of the hollow, one after another over five
+  // seconds (the crown's first, then the roamers, the escort last), and
+  // drift out to where they live.
+  if ( born.w < 20.0 ) {
+    float order = kind.x < 0.5 ? 0.6 + 0.4 * a : kind.x < 1.5 ? 0.5 * a : 0.3 + 0.5 * a;
+    float k = smoothstep( 0.0, 1.0, clamp( ( born.w - 1.5 - order * 5.0 ) / 2.5, 0.0, 1.0 ) );
+    p = mix( born.xyz + vec3( sin( a * 40.0 ), h, cos( r * 40.0 ) ) * 0.15, p, k );
+    glow *= mix( 1.6, 1.0, k ) * smoothstep( 1.2, 1.5, born.w - order * 5.0 + k * 9.0 );
   }
   // A meow: every light on the island answers at once.
   glow = mix( glow, 1.4, call * ( kind.x < 0.5 ? 1.0 : 0.6 ) );
@@ -293,6 +303,8 @@ export function createFireflies(scene, seed, { light = false, crown = null, summ
     homeSpan: { value: crown ? crown.top - crown.ground : 8 },
     roam: { value: new THREE.Vector4() },
     column: { value: summit ? new THREE.Vector4(summit.x, summit.y + 2, -summit.z, 34) : new THREE.Vector4(58, 30, -70, 75) },
+    // waking: the hollow they come out of (Three world), w its age (99 none).
+    born: { value: new THREE.Vector4(0, -100, 0, 99) },
   };
   const material = new THREE.ShaderMaterial({
     uniforms,
@@ -327,7 +339,12 @@ export function createFireflies(scene, seed, { light = false, crown = null, summ
     steer,
     glow,
     // `level`: magic.levels.fireflies; `finale`: magic.levels.finale.
-    update({ dt, time, pose, night, level = 0, finale = 0, call = null, eye, pixelScale }) {
+    // `born`: the fireflies' waking ({ x, y, z coast, age }) while it plays.
+    update({ dt, time, pose, night, level = 0, finale = 0, call = null, eye, pixelScale, born = null }) {
+      // (The first out of the hollow are not dim while the level eases up.)
+      if (born) level = Math.max(level, THREE.MathUtils.smoothstep(born.age, 1.2, 2.0));
+      if (born) uniforms.born.value.set(born.x, born.y, -born.z, born.age);
+      else uniforms.born.value.w = 99;
       const on = Math.max(level, finale);
       points.visible = on > 0.002;
       if (!points.visible) {

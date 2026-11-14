@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { PRINT_MAGIC } from "./cat-ground.js";
-import { WAKE_LIGHT, wakingAt, lampCatch, lampSpin } from "./waking.js";
+import { WAKE_LIGHT, wakingAt, frontArrival, practicalLevel, lampCatch, lampSpin } from "./waking.js";
+import { CAT_SCALE } from "./cat-rig.js";
 
 // The island's gifts as light on the land. magic.js records which gifts are
 // awake; this turns the levels into a handful of uniforms every patched
@@ -62,6 +63,25 @@ float magicSparkle( vec3 world, vec3 view, float scale, float rare ) {
   return step( rare, h ) * spot * small
     * ( 0.5 + 0.5 * sin( h * 40.0 + magicBeam.w * ( 1.5 + 3.0 * h ) + dot( view, vec3( 30.0 ) ) ) );
 }
+#ifdef WAKE_CAT_SHADOW
+// The cat in the kindled light (ground only): does the ray from this point
+// to the source pass through it? Two spheres, chest and haunch (Three
+// world, w the shadow's strength); the penumbra widens with distance.
+uniform vec4 wakeCat[ 2 ];
+float wakeCatShade( vec3 world ) {
+  float shade = 0.0;
+  vec3 pl = wakeSource.xyz - world;
+  float pl2 = max( dot( pl, pl ), 1e-4 );
+  for ( int i = 0; i < 2; i++ ) {
+    vec3 pc = wakeCat[ i ].xyz - world;
+    float t = clamp( dot( pc, pl ) / pl2, 0.0, 1.0 );
+    float miss = length( pc - pl * t );
+    float along = t * sqrt( pl2 );
+    shade = max( shade, ( 1.0 - smoothstep( 0.17, 0.3 + along * 0.06, miss ) ) * smoothstep( 0.05, 0.3, along ) );
+  }
+  return 1.0 - shade * wakeCat[ 0 ].w * 0.85;
+}
+#endif
 // The kindled light's front at a world point (0 away from it), for the
 // sun-glint gates (forest.js FOLIAGE_GLSL, SAND_GLINT_GLSL).
 float wakeBandAt( vec3 world ) {
@@ -130,11 +150,21 @@ if ( magicOn > 0.0 ) {
       float ripple = 1.0 + wakeShape.x * sin( dot( mWorld.xz, vec2( 5.1, 3.7 ) ) + magicBeam.w * 2.3 ) * sin( dot( mWorld.xz, vec2( -2.9, 4.6 ) ) - magicBeam.w * 1.7 );
       // (Windowed: the body light lights its own place, wakeShape.z metres.)
       float mWin = 1.0 - smoothstep( wakeShape.z * 0.45, wakeShape.z, d );
-      mWake = wakeColour * ( fall * lam * reached * ripple * mWin );
+      float body = fall * lam * reached * ripple * mWin;
+      #ifdef WAKE_CAT_SHADOW
+        body *= wakeCatShade( mWorld );
+      #endif
+      mWake = wakeColour * body;
       if ( wakeShape.y > 0.5 ) wakeSheenReach = reached;
       // What catches: edges seen against the light, and gloss (wet sand,
       // wet rock, waxy leaves: their roughness is already low).
-      float edge = pow( 1.0 - abs( dot( mN, mView ) ), 3.0 );
+      // (Not on leaf cards: a flat card seen edge-on is all edge, and it
+      // whitened whole cards. Leaves catch by gloss alone.)
+      #ifdef WAKE_FOLIAGE
+        float edge = 0.0;
+      #else
+        float edge = pow( 1.0 - abs( dot( mN, mView ) ), 3.0 );
+      #endif
       float against = clamp( dot( -mView, wl ) * 0.5 + 0.5, 0.0, 1.0 );
       #ifdef STANDARD
         float rough = material.roughness;
@@ -191,6 +221,7 @@ export function magicUniforms() {
     wakeColour: { value: new THREE.Color(0, 0, 0) },
     wakeTint: { value: new THREE.Color(0, 0, 0) },
     wakeShape: { value: new THREE.Vector4(0, 0, 0, 0) },
+    wakeCat: { value: [new THREE.Vector4(0, -1000, 0, 0), new THREE.Vector4(0, -1000, 0, 0)] },
   };
 }
 
@@ -261,7 +292,7 @@ export function nearestLights(lights, x, z, out, count = 1) {
 // `shared`: forest.js's uniform set (magicUniforms merged in). `lamps`: the
 // island's lamps from places.js ({ x, y, z, colour, size } in coast metres);
 // `beacon`: the lighthouse lamp ({ x, y, z }) or null.
-export function createLandMagic({ shared, lamps = [], beacon = null, light = false } = {}) {
+export function createLandMagic({ shared, lamps = [], practicals = [], beacon = null, light = false } = {}) {
   const u = shared;
   let beamAngle = 0;
   let lastClock = null;
@@ -277,7 +308,7 @@ export function createLandMagic({ shared, lamps = [], beacon = null, light = fal
   };
   return {
     state,
-    update({ magic = null, time = 0, dt = 0, night = 0, pose = null, flies = null, reduced = false }) {
+    update({ magic = null, time = 0, dt = 0, night = 0, pose = null, flies = null, reduced = false, afloat = false }) {
       const levels = magic?.levels ?? ASLEEP;
       const clock = magic?.clock ?? time;
       const step = lastClock === null ? 0 : Math.max(0, Math.min(0.25, clock - lastClock));
@@ -329,13 +360,34 @@ export function createLandMagic({ shared, lamps = [], beacon = null, light = fal
         colours[2].setRGB(wisp.colour[0] * k, wisp.colour[1] * k, wisp.colour[2] * k);
         on = 1;
       } else colours[2].setRGB(0, 0, 0);
-      // 3: whichever of the island's lamps is nearest the cat.
-      if (state.lampLights > 0 && lamps.length && pose) {
-        nearestLights(lamps, pose.x, pose.z, near, 1);
-        const l = lamps[near[0]];
-        glows[3].set(l.x, l.y, -l.z, l.reach ?? 3.5);
-        const k = state.lampLights * (l.power ?? 0.7) * (0.25 + 0.75 * night);
-        colours[3].setRGB(l.colour[0] * k, l.colour[1] * k, l.colour[2] * k);
+      // 3: whichever of the island's practicals is lit and nearest the cat:
+      // the lamps (lit with the lighthouse) and each keepsake's own small
+      // steady light, the waking's resolve (`practicals`: { x, y, z,
+      // colour, reach, power, gift }, lit by its gift by night; the waking
+      // hands over to it, practicalLevel).
+      let best = null, bestK = 0, bestD = Infinity;
+      if (pose) {
+        if (state.lampLights > 0 && lamps.length) {
+          nearestLights(lamps, pose.x, pose.z, near, 1);
+          const l = lamps[near[0]];
+          best = l;
+          bestK = state.lampLights * (l.power ?? 0.7) * (0.25 + 0.75 * night);
+          bestD = (l.x - pose.x) ** 2 + (l.z - pose.z) ** 2;
+        }
+        const nightGate = THREE.MathUtils.smoothstep(night, 0.05, 0.4);
+        for (const p of practicals) {
+          if (p.gift === "boat" && afloat) continue;
+          const lvl = levels[p.gift] ?? 0;
+          if (lvl <= 0 || nightGate <= 0) continue;
+          const handover = magic?.waking?.gift === p.gift ? practicalLevel(magic.waking.age) : 1;
+          const k = lvl * handover * nightGate * p.power;
+          const d = (p.x - pose.x) ** 2 + (p.z - pose.z) ** 2;
+          if (k > 0.003 && d < bestD) [best, bestK, bestD] = [p, k, d];
+        }
+      }
+      if (best) {
+        glows[3].set(best.x, best.y, -best.z, best.reach ?? 3.5);
+        colours[3].setRGB(best.colour[0] * bestK, best.colour[1] * bestK, best.colour[2] * bestK);
         on = 1;
       } else colours[3].setRGB(0, 0, 0);
 
@@ -355,9 +407,32 @@ export function createLandMagic({ shared, lamps = [], beacon = null, light = fal
         u.wakeFront.value.set(0, 1, 0, 0);
         u.wakeColour.value.setRGB(0, 0, 0);
       }
+      // The cat's shadow from it, on the ground, by night and while the
+      // light on the cat is enough to cast one (chest and haunch).
+      let catLight = 0;
+      if (w && pose && w.inside > 0) {
+        const dx = pose.x - waking.x, dy = (pose.y ?? 0) - waking.y, dz = pose.z - waking.z;
+        const d2 = dx * dx + dy * dy + dz * dz, a2 = spec.core * spec.core;
+        catLight = Math.sqrt(d2) < w.radius ? w.inside * (a2 / (d2 + a2)) : 0;
+      }
+      const shadow = night * THREE.MathUtils.smoothstep(catLight, 0.02, 0.12);
+      const cats = u.wakeCat.value;
+      if (shadow > 0) {
+        const fx = Math.sin(pose.heading ?? 0) * 0.17 * CAT_SCALE, fz = Math.cos(pose.heading ?? 0) * 0.17 * CAT_SCALE;
+        const y = (pose.y ?? 0) + 0.22 * CAT_SCALE;
+        cats[0].set(pose.x + fx, y, -(pose.z + fz), shadow);
+        cats[1].set(pose.x - fx, y, -(pose.z - fz), shadow);
+      } else cats[0].w = 0;
+      state.catLight = catLight;
 
-      // The cat's steps answer the tideglow alone: blue, on wet sand.
-      PRINT_MAGIC.level.value = 0.4 * (levels.tideglow ?? 0) * (1 + finale * 0.3);
+      // The cat's steps answer the tideglow alone: blue, on wet sand. As
+      // its waking's front crosses them they flash once in turn.
+      let printFlash = 0;
+      if (waking?.gift === "tideglow" && pose && !reduced) {
+        const tCat = frontArrival(Math.hypot(pose.x - waking.x, pose.z - waking.z), spec);
+        if (Number.isFinite(tCat)) printFlash = 0.6 * Math.exp(-((waking.age - tCat) ** 2) / 0.3);
+      }
+      PRINT_MAGIC.level.value = 0.4 * (levels.tideglow ?? 0) * (1 + finale * 0.3) + printFlash;
       PRINT_MAGIC.night.value = night;
       PRINT_MAGIC.colour.value.setRGB(...WAKE_LIGHT.tideglow.tint);
 

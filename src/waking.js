@@ -35,7 +35,7 @@ export const WAKING = { start: 0.35, tau: 1.5, hold: 3.0, fade: 3.0, end: 16 };
 // exposure, and an unwindowed inverse square washed whole beaches.
 export const WAKE_LIGHT = {
   fireflies: { tint: [1.0, 0.74, 0.28], body: 10, core: 1.8, reach: 24, night: 4.2, day: 0.9, front: 0.5, frontDay: 0.25, glint: 0.5, rest: 0, sea: 0 },
-  tideglow: { tint: [0.1, 0.55, 1.0], body: 7, core: 1.6, reach: 30, night: 1.6, day: 0.5, front: 0.7, frontDay: 0.35, glint: 0.8, rest: 0, sea: 120, seaHold: 8 },
+  tideglow: { tint: [0.1, 0.55, 1.0], body: 5, core: 1.2, reach: 30, night: 1.4, day: 0.5, front: 0.7, frontDay: 0.35, glint: 0.8, rest: 0, sea: 120, seaHold: 8 },
   lamp: { tint: [1.0, 0.66, 0.26], body: 24, core: 5.0, reach: 46, night: 5.5, day: 0.8, front: 0.45, frontDay: 0.2, glint: 0.3, rest: 0, sea: 150, catch: 1, tau: 2.2 },
   stars: { tint: [0.62, 0.72, 1.0], body: 20, core: 1.2, reach: 60, night: 1.5, day: 0.2, front: 0.35, frontDay: 0.3, glint: 1.0, rest: 0, sea: 0, up: 1 },
   seafolk: { tint: [0.2, 0.8, 0.6], body: 6, core: 1.4, reach: 14, night: 3.0, day: 0.5, front: 0.4, frontDay: 0.2, glint: 0.4, rest: 0, sea: 90, ripple: 0.4 },
@@ -139,19 +139,38 @@ export function practicalLevel(s) {
 }
 
 // Where each gift's light is kindled (coast metres), from what places.js
-// exposes: pois [{ id, x, z }], crown { x, z, ground, top }, beacon (the
-// lighthouse lamp { x, y, z }). surface(x, z): ground height.
-// Until the prop contract gives every keepsake a `lights[0]`, these are the
-// places' existing anchors.
+// exposes: pois [{ id, x, z }], crown { x, z }, beacon (the lighthouse
+// lamp { x, y, z }), blockers (its solids: the wreck's boiler drum is one).
+// surface(x, z): the land's own ground height. toward [x, z]: where the
+// visitor comes from (the cat), so a recess faces them. Until the prop
+// contract gives each keepsake a `lights[0]`, these are the places' own
+// anchors.
 export const SOURCE_POI = { fireflies: "milkwood", tideglow: "wreck", lamp: "lighthouse", stars: "beacon", seafolk: "pool", boat: "boat" };
-export function wakingSource(gift, { pois = [], crown = null, beacon = null, surface = () => 0 } = {}) {
-  const poi = pois.find((p) => p.id === SOURCE_POI[gift]);
-  if (gift === "fireflies" && crown) return [crown.x, surface(crown.x, crown.z) + 1.6, crown.z];
+const ISLAND = [58, 70];
+export function wakingSource(gift, { pois = [], crown = null, beacon = null, blockers = [], surface = () => 0, toward = ISLAND } = {}) {
   if (gift === "lamp" && beacon) return [beacon.x, beacon.y, beacon.z];
+  // The milkwood's hollow: in the bole's face (~0.95 m round its centre,
+  // place-milkwood.js) on the visitor's side, 1.6 m up.
+  if (gift === "fireflies" && crown) {
+    const dx = toward[0] - crown.x, dz = toward[1] - crown.z, d = Math.hypot(dx, dz);
+    const x = crown.x + (d > 1.2 ? (dx / d) * 1.05 : 0), z = crown.z + (d > 1.2 ? (dz / d) * 1.05 : 0);
+    return [x, surface(x, z) + 1.6, z];
+  }
+  const poi = pois.find((p) => p.id === SOURCE_POI[gift]);
   if (!poi) return null;
-  const ground = surface(poi.x, poi.z);
-  const lift = { fireflies: 1.6, tideglow: 0.6, lamp: 16.4, stars: 2.0, seafolk: -0.15, boat: 0.9 }[gift] ?? 1;
-  return [poi.x, ground + lift, poi.z];
+  // The wreck's ember: in the boiler's furnace mouth, the end of the iron
+  // drum (the capsule of radius ~0.64 by the wreck) facing the visitor.
+  if (gift === "tideglow") {
+    const drum = blockers.find((b) => b.k === 2 && Math.abs(b.rad - 0.64) < 0.03 && Math.hypot(b.x - poi.x, b.z - poi.z) < 10);
+    if (drum) {
+      const far = (x, z) => Math.hypot(toward[0] - x, toward[1] - z);
+      const [ex, ez, ox, oz] = far(drum.ax, drum.az) < far(drum.bx, drum.bz) ? [drum.ax, drum.az, drum.bx, drum.bz] : [drum.bx, drum.bz, drum.ax, drum.az];
+      const ux = ex - ox, uz = ez - oz, ul = Math.hypot(ux, uz) || 1;
+      return [ex + (ux / ul) * 0.42, (drum.ay + drum.by) / 2 + 0.22, ez + (uz / ul) * 0.42];
+    }
+  }
+  const lift = { tideglow: 0.6, stars: 2.0, seafolk: -0.15, boat: 0.9 }[gift] ?? 1;
+  return [poi.x, surface(poi.x, poi.z) + lift, poi.z];
 }
 
 // A new waking record.

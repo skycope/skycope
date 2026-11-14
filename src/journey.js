@@ -177,9 +177,9 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
     colourFor(gift);
     onChange();
     // waking: the gift's light is kindled at its source and reaches out
-    // (waking.js). The finale's own light is not a blast from the wisp
-    // (story-and-wow.md 9): it has none.
-    if (gift !== "finale" && c.source) {
+    // (waking.js). Not the finale (no blast from the wisp) and not the stars
+    // (the beacon has no waking of its own; its light is the ending's, story-and-wow.md 9).
+    if (gift !== "finale" && gift !== "stars" && c.source) {
       magic.waking = createWaking(gift, c.source, { follow: gift === "boat" ? boatLantern : null });
       cues = wakingCues(gift, c.source);
     }
@@ -421,21 +421,13 @@ export function wakingSourceFor(state, gift) {
     const l = state.boat?.lantern;
     if (l && l[3] > 0.001) return [l[0], l[1], l[2]];
   }
-  const at = wakingSource(gift, { pois: land.pois ?? [], crown: land.wakingPlaces?.crown, beacon: land.wakingPlaces?.beacon, surface: state.walker?.surface ?? (() => 0) });
-  // The milkwood's hollow is in the bole's face, on the side the cat came
-  // from (the bole is ~0.95 m round its centre: place-milkwood.js), not
-  // inside the wood. (Until the prop contract gives it a recess.)
+  // (The hollow faces the cat; the furnace mouth faces inland, since the
+  // practical it resolves into must stay put.)
   const cat = state.walker?.cat;
-  if (at && gift === "fireflies" && cat) {
-    const dx = cat.x - at[0], dz = cat.z - at[2], d = Math.hypot(dx, dz);
-    if (d > 1.2) {
-      at[0] += (dx / d) * 1.05;
-      at[2] += (dz / d) * 1.05;
-    }
-    // (The land's own ground there, not the root mound's collision top.)
-    at[1] = groundHeight(at[0], at[2]) + 1.6;
-  }
-  return at;
+  return wakingSource(gift, {
+    pois: land.pois ?? [], crown: land.wakingPlaces?.crown, beacon: land.wakingPlaces?.beacon, blockers: land.obstacles?.blockers ?? [],
+    surface: groundHeight, toward: gift === "fireflies" && cat ? [cat.x, cat.z] : undefined,
+  });
 }
 
 // `?perf` QA (waking-light.md section 9): skycope.waking.

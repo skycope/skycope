@@ -27,6 +27,7 @@ export function createThread({ state, signal, reduced, capture, preview, light =
   let lastInput = performance.now();
   let spectacles = () => [];
   let gaze = null;
+  const wakingGaze = { x: 0, y: 0, z: 0, near: false, kind: "light" }; // waking: the kindled light
   let nextGaze = 12;
   let attached = false;
   let walkFrom = null;
@@ -158,6 +159,13 @@ export function createThread({ state, signal, reduced, capture, preview, light =
     // What the cat's head follows: a critter if there is one, or now and
     // then, while it sits, the direction of the nearest place not yet found.
     interest(critter) {
+      // waking: for its first five seconds the cat watches the light being
+      // kindled (not near: it does not crouch or stalk it).
+      const w = state.magic?.waking;
+      if (w && w.age < 5) {
+        wakingGaze.x = w.x; wakingGaze.y = w.y; wakingGaze.z = w.z;
+        return wakingGaze;
+      }
       return critter ?? gaze;
     },
     // Keys first come here; true means taken.

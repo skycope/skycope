@@ -87,7 +87,13 @@ test("sources sit at each keepsake; the practical hands over without a gap", () 
   const pois = [{ id: "wreck", x: 1, z: 2 }, { id: "pool", x: 3, z: 4 }];
   assert.deepEqual(wakingSource("tideglow", { pois, surface: () => 1 }), [1, 1.6, 2]);
   assert.ok(wakingSource("seafolk", { pois, surface: () => 1 })[1] < 1, "under the pool's surface");
-  assert.deepEqual(wakingSource("fireflies", { crown: { x: 5, z: 6, ground: 2 }, surface: () => 2 }), [5, 3.6, 6]);
+  // The hollow sits in the bole's face toward the visitor, not inside it.
+  const hollow = wakingSource("fireflies", { crown: { x: 5, z: 6 }, surface: () => 2, toward: [5, 16] });
+  assert.ok(Math.abs(hollow[0] - 5) < 1e-9 && Math.abs(hollow[2] - 7.05) < 1e-9 && hollow[1] === 3.6);
+  // The wreck's ember: the furnace end of the boiler drum facing the visitor.
+  const drum = { k: 2, rad: 0.64, ax: 0, ay: 0.3, az: 2, bx: 2, by: 0.3, bz: 2, x: 1, z: 2 };
+  const ember = wakingSource("tideglow", { pois, blockers: [drum], toward: [10, 2] });
+  assert.ok(ember[0] > 2 && Math.abs(ember[2] - 2) < 1e-9, "past the drum's near end");
   assert.equal(wakingSource("boat", { pois }), null);
   assert.equal(practicalLevel(0), 0);
   assert.equal(practicalLevel(8), 1);

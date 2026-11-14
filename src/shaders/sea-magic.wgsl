@@ -293,7 +293,7 @@ export fn waking_on_sea(s: SeaPoint, waking: vec4f, light: vec4f, time: f32, day
   let reached = 1.0 - smoothstep(waking.z - width, waking.z, d);
   let peak = max(light.r, max(light.g, light.b));
   let tint = light.rgb / max(peak, 1e-4);
-  var out = point_light_on_sea(s, at, light.rgb * 6.0, 2.2) * reached;
+  var out = point_light_on_sea(s, at, light.rgb * 1.5, 2.2) * reached;
   let fb = (d - waking.z) / width;
   let band = exp(-fb * fb) * waking.w;
   let l = normalize(at - s.p);

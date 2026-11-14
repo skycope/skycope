@@ -1546,7 +1546,7 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, shared);
     const defines = (pliant ? "#define PLIANT\n" : "") + (rooted ? `#define ROOTED ${rooted.toFixed(3)}\n` : "") + `#define SHEEN ${sheen.toFixed(2)}\n` +
-      `#define WAKE_WRAP ${foliage ? "0.6" : "0.85"}\n`; // waking: thin leaves let the kindled light round
+      `#define WAKE_WRAP ${foliage ? "0.6\n#define WAKE_FOLIAGE" : "0.85"}\n` + (ground ? "#define WAKE_CAT_SHADOW\n" : ""); // waking: thin leaves let the kindled light round; the cat shades the ground
     shader.vertexShader = defines + OCCLUSION_VERTEX_GLSL + WIND_GLSL +
       shader.vertexShader.replace(
         "#include <begin_vertex>",
