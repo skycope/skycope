@@ -1,6 +1,7 @@
 import { Atmosphere, view_ray } from "./view.wgsl";
 import { ocean_view, OceanSettings } from "./ocean.wgsl";
-import { tonemap, sun_radiance } from "./atmosphere.wgsl";
+import { sun_radiance } from "./atmosphere.wgsl";
+import { tonemap, tone_adapt } from "./tone.wgsl";
 import { equatorial_from_local, catalog_stars, faint_stars, moon_disc } from "./night.wgsl";
 import { lightning_bolt, meteor_light, satellite_light } from "./phenomena.wgsl";
 
@@ -91,7 +92,7 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   // layers, drawn last by the land layer (landscape.js). This keeps only a
   // one-level dither against banding in the sky's gradients.
   let dither = (hash2(floor(uv * atmosphere.resolution)).x - 0.5) / 255.0;
-  return vec4f(tonemap(color, night) + dither, 1.0);
+  return vec4f(tonemap(color, tone_adapt(night, atmosphere.weather.w)) + dither, 1.0);
 }
 
 // The Moon and stars need full-resolution pixels: the cloud pass is

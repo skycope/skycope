@@ -72,7 +72,9 @@ reduced-motion mode, background/resume, and with the weather endpoint blocked.
 | `src/land-field.js`      | The island as the sea reflects it: height, albedo, distance to land      |
 | `src/rocks.js`           | Rock layout and corestone shapes; the waterline boulders for the sea     |
 | `src/shaders/rocks.wgsl` | Lapping rings, collar foam, rock reflections/shadows, hidden-sea skip    |
-| `src/shaders/atmosphere.wgsl` | Rayleigh/Mie/ozone scattering, transmittance, the one tonemap       |
+| `src/shaders/atmosphere.wgsl` | Rayleigh/Mie/ozone scattering, transmittance                       |
+| `src/shaders/tone.wgsl`  | The one tonemap and grade, for sea, sky and (as GLSL) the land          |
+| `src/tone-glsl.js`       | Translates tone.wgsl's shared block to the land layer's GLSL            |
 | `src/sunlight.js`        | CPU twin of the scattering model: exposure, sun and sky light per frame  |
 | `src/shaders/sky-table.wgsl` | Per-frame sky-view table of the scattering integral (sun and moon)   |
 | `src/shaders/clouds.wgsl` | Quarter-resolution, jittered cloud march                                |
