@@ -137,7 +137,7 @@ test("sailed straight at the beach, it grounds on the sand and stops", () => {
   assert.ok(grounded, "the bow grounds");
 });
 
-test("the ride: launch on waking, board by pushing at the hull, steer, jump out, beach", async () => {
+test("the ride: woken, launched by a push, board by pushing at the hull, steer, jump out, beach", async () => {
   const { createBoatRide, RIDE } = await import("../src/boat-ride.js");
   const { createMagic } = await import("../src/magic.js");
   const { walker, sea, tick, places } = world(1847);
@@ -160,9 +160,15 @@ test("the ride: launch on waking, board by pushing at the hull, steer, jump out,
   assert.equal(ride.ride.state, "asleep");
   assert.equal(ride.deck(ride.state.x, ride.state.z), -Infinity, "no deck while asleep");
   magic.wake("boat");
-  run(0.2);
+  run(3);
+  assert.equal(ride.ride.state, "ready", "woken, it waits on its logs for the cat");
+  // The cat pushes at the upturned hull from beside it.
+  const fx0 = Math.sin(landmark.facing), fz0 = Math.cos(landmark.facing);
+  Object.assign(cat, { x: landmark.x + fz0 * 1.15, z: landmark.z - fx0 * 1.15, air: 0 });
+  cat.y = walker.surface(cat.x, cat.z);
+  run(0.1, { move: [0, 1], run: false, jump: false }, Math.atan2(landmark.x - cat.x, landmark.z - cat.z));
   assert.equal(ride.ride.state, "launching");
-  run(RIDE.launch + 0.5);
+  for (let k = 0; k < 40 && ride.ride.state === "launching"; k++) run(0.5);
   assert.equal(ride.ride.state, "waiting");
   assert.ok(Number.isFinite(ride.deck(ride.state.x, ride.state.z)), "a deck afloat");
   // The cat beside the hull, pushing toward it.
@@ -252,4 +258,120 @@ test("where the boat was left is remembered per seed, falling back to the cove",
   const c = createBoatRide({ landmark, sea, bed: walker.bed, solids: walker.solids, magic: awake(), seed: 1847, storage });
   c.update(1 / 30, none, cat);
   assert.ok(Math.hypot(c.state.x - c.cove.x, c.state.z - c.cove.z) < 0.5, "the cove again");
+});
+
+// ---- Buoyancy, the launch and the painter (boat-dynamics.js, boat-launch.js).
+
+test("afloat, the hull's waterline stays with the swell it is drawn in", () => {
+  for (const [seed, wind] of [[1847, [4, 2]], [1, [14, 6]]]) {
+    const { walker, sea, tick, boatPoi } = world(seed, wind);
+    const m = findMooring(boatPoi.x, boatPoi.z, walker.bed);
+    const boat = createBoatDynamics({ sea, bed: walker.bed, solids: walker.solids });
+    tick(0);
+    boat.place(m.x, m.z, m.heading);
+    const s = boat.state;
+    let worst = 0, worstTilt = 0;
+    const dir = [Math.sin(m.heading + Math.PI), Math.cos(m.heading + Math.PI)];
+    for (let t = 0; t < 90; t += 1 / 30) {
+      tick(t);
+      // Moored for a while, then rowed out and along.
+      boat.step(1 / 30, t < 30 ? {} : { dir, throttle: 1 });
+      const mean = s.water.reduce((a, b) => a + b, 0) / 9;
+      // (In the shallows, the sand holds it up in a trough.)
+      if (t < 2 || s.grounded > 0.05 || walker.bed(s.x, s.z) + BOAT.draft > mean - 0.05) continue;
+      worst = Math.max(worst, Math.abs(s.y - mean));
+      // The drawn surface under the middle, against the hull's.
+      const drawn = sea.drawn(s.x, s.z);
+      assert.ok(Math.abs(drawn - s.water[4]) < 1e-6, "the grid's middle is the drawn sea");
+      const along = (s.water[7] - s.water[1]) / (2 * 0.85 * BOAT.length / 2);
+      worstTilt = Math.max(worstTilt, Math.abs(Math.atan(along) * 0.85 - s.pitch));
+    }
+    assert.ok(worst < 0.06, `seed ${seed}: heave within 6 cm of the swell's mean under it (${worst.toFixed(3)})`);
+    assert.ok(worstTilt < 0.12, `seed ${seed}: pitch follows the swell (${worstTilt.toFixed(3)} rad)`);
+  }
+});
+
+test("the launch: nothing moves until the cat touches it, and the hull always bears on the logs, the sand or the water", async () => {
+  const { createBoatRide } = await import("../src/boat-ride.js");
+  const { createMagic } = await import("../src/magic.js");
+  const { hullPoint } = await import("../src/boat-forms.js");
+  const { LAUNCH } = await import("../src/boat-launch.js");
+  const { groundHeight } = await import("../src/terrain.js");
+  const { seabedDepth, shoreAlong } = await import("../src/sea-surface.js");
+  // The bare sand and seabed (not the upturned hull's own walk tile).
+  const sand = (x, z) => (shoreDistance(x, z) < 0 ? Math.max(groundHeight(x, z), -seabedDepth(-shoreDistance(x, z), shoreAlong(x, z))) : groundHeight(x, z));
+  const points = [];
+  for (const s of [-0.95, -0.5, 0, 0.5, 0.9]) for (const t of [0, 0.25, 0.5, 0.75, 1]) for (const side of [-1, 1]) points.push(new THREE.Vector3(...hullPoint(s, t, side)));
+  const euler = new THREE.Euler(0, 0, 0, "YXZ");
+  const v = new THREE.Vector3();
+  for (const seed of SEEDS) {
+    const { walker, sea, tick, places } = world(seed);
+    const landmark = places.layout.find((p) => p.id === "boat");
+    const magic = createMagic();
+    const ride = createBoatRide({ landmark, sea, bed: walker.bed, solids: walker.solids, magic });
+    const cat = { ...walker.cat, x: landmark.x + 6, z: landmark.z + 6, y: 5, air: 0 };
+    const none = { move: [0, 0] };
+    let t = 0;
+    magic.wake("boat");
+    for (; t < 10; t += 1 / 30) {
+      tick(t);
+      ride.update(1 / 30, none, cat);
+    }
+    assert.equal(ride.ride.state, "ready", `seed ${seed}: still on its logs, untouched`);
+    ride.launch();
+    let lowestGap = Infinity, frames = 0, phase = "";
+    for (let k = 0; k < 40 * 30 && ride.ride.state === "launching"; k++, t += 1 / 30) {
+      tick(t);
+      ride.update(1 / 30, none, cat);
+      const p = ride.ride.pose;
+      if (ride.ride.state !== "launching") break;
+      phase = p.phase;
+      euler.set(-p.pitch, p.heading, -p.roll);
+      // The gap between its lowest point and what is under that point.
+      // On the logs (rocking, and rolling off them) it bears on the highest
+      // sand under its length plus the logs; sliding, on the sand under each
+      // point, or floats (its keel a draft into the water).
+      let gap = Infinity, sunk = Infinity, top = -Infinity;
+      const world = points.map((q) => q.clone().applyEuler(euler).add(new THREE.Vector3(p.x, p.y, p.z)));
+      for (const w of world) top = Math.max(top, sand(w.x, w.z));
+      for (const w of world) {
+        const floor = sand(w.x, w.z);
+        const water = sea.drawn(w.x, w.z);
+        const under = p.phase === "slide" ? Math.max(floor, Number.isFinite(water) ? water - 0.25 : -Infinity) : top + LAUNCH.logs;
+        gap = Math.min(gap, w.y - under);
+        sunk = Math.min(sunk, w.y - floor);
+      }
+      lowestGap = Math.min(lowestGap, gap);
+      assert.ok(gap < 0.09, `seed ${seed}: ${p.phase} at ${(t).toFixed(2)} s, its lowest point ${gap.toFixed(3)} m above what bears it`);
+      assert.ok(sunk > -0.12, `seed ${seed}: ${p.phase}, ${(-sunk).toFixed(3)} m into the sand`);
+      frames++;
+    }
+    assert.equal(ride.ride.state, "waiting", `seed ${seed}: afloat in the end (${phase})`);
+    assert.ok(frames > 60, "a launch you can watch");
+    assert.ok(ride.tether, "on its painter");
+  }
+});
+
+test("on its painter the boat swings to the wind but stays by its post", async () => {
+  const { createBoatRide, RIDE } = await import("../src/boat-ride.js");
+  const { createMagic } = await import("../src/magic.js");
+  for (const wind of [[0, 0], [7, 0], [-5, 5]]) {
+    const { walker, sea, places } = world(1847);
+    const landmark = places.layout.find((p) => p.id === "boat");
+    const ride = createBoatRide({ landmark, sea, bed: walker.bed, solids: walker.solids, magic: createMagic({ force: ["boat"] }) });
+    const swell = (await import("../src/swell.js")).swellUniform(1847, wind);
+    const modes = createWaveModes(1847);
+    const cat = { ...walker.cat, x: landmark.x + 6, z: landmark.z + 6, y: 5, air: 0 };
+    let far = 0;
+    const s = ride.state;
+    for (let t = 0; t < 120; t += 1 / 30) {
+      modes.update(t, wind);
+      sea.set(t, swell, wind);
+      ride.update(1 / 30, { move: [0, 0] }, cat);
+      const stem = { x: s.x + Math.sin(s.heading) * 2.32, z: s.z + Math.cos(s.heading) * 2.32 };
+      far = Math.max(far, Math.hypot(stem.x - ride.post.x, stem.z - ride.post.z));
+      assert.ok(shoreDistance(s.x, s.z) < 0, "afloat");
+    }
+    assert.ok(far < RIDE.painter + 0.35, `wind ${wind}: the stem within its painter of the post (${far.toFixed(2)} m)`);
+  }
 });

@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { part, merge, sweep, lathe, place, srgb, hash, smooth01 } from "./place-kit.js";
 import { BOAT } from "./boat-dynamics.js";
 
@@ -159,6 +160,13 @@ export function buildBoatForms({ light = false } = {}) {
     return out;
   };
   const nrm = [0, 0, 0];
+  // The skin the sea meets (outer planking, keel, stem, transom's face,
+  // rubbing strake, gunwale): the hull's shader cuts it at the water. The
+  // rest is inside a dry hull (see boat.js).
+  const outer = [];
+  // The lantern's pole: inside the hull, and faded out of the way when it
+  // stands between the camera and the cat (boat.js).
+  const pole = [];
 
   // ---- Outer skin: strake by strake, lapped.
   for (const side of [-1, 1]) {
@@ -194,7 +202,7 @@ export function buildBoatForms({ light = false } = {}) {
       g.setIndex(index);
       g.computeVertexNormals();
       const cols = colours;
-      hull.push(part(g, { colour: indexedColour(g, cols), shade: 0 }));
+      outer.push(part(g, { colour: indexedColour(g, cols), shade: 0 }));
     }
   }
 
@@ -234,27 +242,25 @@ export function buildBoatForms({ light = false } = {}) {
 
   // ---- Transom: outside blue (antifouling low), inside buff.
   {
-    const positions = [];
+    const outside = [], inside = [];
     const n = 10;
     const z = -H;
     for (let j = 0; j < n; j++) {
       const a0 = hullPoint(-1, j / n, -1, [0, 0, 0]), a1 = hullPoint(-1, j / n, 1, [0, 0, 0]);
       const b0 = hullPoint(-1, (j + 1) / n, -1, [0, 0, 0]), b1 = hullPoint(-1, (j + 1) / n, 1, [0, 0, 0]);
       // Outside face (toward −z), then the inside face a plank further in.
-      positions.push(...a0, ...b0, ...a1, ...a1, ...b0, ...b1);
+      outside.push(...a0, ...b0, ...a1, ...a1, ...b0, ...b1);
       const i0 = [a0[0], a0[1], z + 0.03], i1 = [a1[0], a1[1], z + 0.03], j0 = [b0[0], b0[1], z + 0.03], j1 = [b1[0], b1[1], z + 0.03];
-      positions.push(...i0, ...i1, ...j0, ...i1, ...j1, ...j0);
+      inside.push(...i0, ...i1, ...j0, ...i1, ...j1, ...j0);
     }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-    g.computeVertexNormals();
-    hull.push(part(g, {
-      colour: (v, n2, out) => {
-        if (v.z > -H + 0.015) return out.copy(BUFF);
-        return out.copy(v.y < -0.035 ? ANTIFOUL : v.y < 0.02 ? BOOT : TOPSIDE);
-      },
-      shade: (v) => (v.z > -H + 0.015 ? insideShade(v.y, -1) : 0),
-    }));
+    const face = (positions) => {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      g.computeVertexNormals();
+      return g;
+    };
+    outer.push(part(face(outside), { colour: (v, n2, out) => out.copy(v.y < -0.035 ? ANTIFOUL : v.y < 0.02 ? BOOT : TOPSIDE) }));
+    hull.push(part(face(inside), { colour: BUFF, shade: (v) => insideShade(v.y, -1) }));
     // A varnished capping on the transom's top edge.
     const pts = [];
     for (let k = 0; k <= 8; k++) {
@@ -271,7 +277,7 @@ export function buildBoatForms({ light = false } = {}) {
       const s = -1 + (k / 16) * 1.97;
       keelPts.push(new THREE.Vector3(0, keel(s) - 0.02, s * H));
     }
-    hull.push(part(sweep(keelPts, keelPts.map(() => [0.03, 0.035]), 5), { colour: ANTIFOUL }));
+    outer.push(part(sweep(keelPts, keelPts.map(() => [0.03, 0.035]), 5), { colour: ANTIFOUL }));
     // The stem: from the forefoot up past the sheer, a little raked.
     const stem = [];
     for (let k = 0; k <= 8; k++) {
@@ -279,7 +285,7 @@ export function buildBoatForms({ light = false } = {}) {
       const y = keel(0.985) - 0.01 + (sheer(1) + 0.08 - keel(0.985)) * f;
       stem.push(new THREE.Vector3(0, y, H * 0.985 + 0.04 * f * f + 0.02));
     }
-    hull.push(part(sweep(stem, stem.map((v, i) => [0.026, i > 6 ? 0.03 : 0.04]), 6), { colour: (v, n, out) => out.copy(v.y < -0.035 ? ANTIFOUL : v.y < 0.02 ? BOOT : v.y > sheer(1) - 0.02 ? VARNISH : TOPSIDE) }));
+    outer.push(part(sweep(stem, stem.map((v, i) => [0.026, i > 6 ? 0.03 : 0.04]), 6), { colour: (v, n, out) => out.copy(v.y < -0.035 ? ANTIFOUL : v.y < 0.02 ? BOOT : v.y > sheer(1) - 0.02 ? VARNISH : TOPSIDE) }));
     // The bilge: a dark floor just under the boards, so the sea never shows
     // between them.
     const positions = [];
@@ -325,9 +331,9 @@ export function buildBoatForms({ light = false } = {}) {
       hullPoint(s, 0.9, side, q);
       rub.push(new THREE.Vector3(q[0] + side * 0.022 * fade, q[1], q[2]));
     }
-    hull.push(part(sweep(out, out.map(() => [0.02, 0.026]), 5), { colour: VARNISH }));
+    outer.push(part(sweep(out, out.map(() => [0.02, 0.026]), 5), { colour: VARNISH }));
     hull.push(part(sweep(inw, inw.map(() => [0.016, 0.03]), 4), { colour: VARNISH, shade: 0.2 }));
-    hull.push(part(sweep(rub, rub.map(() => [0.014, 0.022]), 4), { colour: RUBBING }));
+    outer.push(part(sweep(rub, rub.map(() => [0.014, 0.022]), 4), { colour: RUBBING }));
   }
 
   // ---- Floorboards: five boards with fine gaps, over the bilge.
@@ -444,9 +450,9 @@ export function buildBoatForms({ light = false } = {}) {
   {
     const base = new THREE.Vector3(0, sheer(1) + 0.02, H * 0.97);
     const pts = [base, new THREE.Vector3(0, base.y + 0.3, H + 0.04), new THREE.Vector3(0, LANTERN.pivot[1] - 0.02, H + 0.16), new THREE.Vector3(0, LANTERN.pivot[1] + 0.02, LANTERN.pivot[2] - 0.04), new THREE.Vector3(0, LANTERN.pivot[1] - 0.03, LANTERN.pivot[2] + 0.02)];
-    hull.push(part(sweep(pts, [0.016, 0.014, 0.013, 0.012, 0.01], 5), { colour: IRON }));
+    pole.push(part(sweep(pts, [0.016, 0.014, 0.013, 0.012, 0.01], 5), { colour: IRON }));
     // Lashed to the stem with a few turns of line.
-    for (let k = 0; k < 4; k++) hull.push(part(new THREE.TorusGeometry(0.03, 0.007, 3, 8), { matrix: place(0, base.y + 0.02 + k * 0.025, H * 0.985, { pitch: Math.PI / 2 }), colour: ROPE }));
+    for (let k = 0; k < 4; k++) pole.push(part(new THREE.TorusGeometry(0.03, 0.007, 3, 8), { matrix: place(0, base.y + 0.02 + k * 0.025, H * 0.985, { pitch: Math.PI / 2 }), colour: ROPE }));
   }
 
   // ---- The hurricane lantern itself (its own piece: it swings). Local
@@ -476,11 +482,60 @@ export function buildBoatForms({ light = false } = {}) {
   }
 
   return {
-    hull: merge(hull),
+    hull: skins(merge(outer), merge(hull), merge(pole)),
     lamp: merge(lamp),
     glass: merge(glass),
   };
 }
+
+// The cove's mooring post: a weathered timber pile driven into the bottom
+// (world y from `bottom` to POST.top, its own frame at the post), leaning a
+// little, weed-dark below the tide line, a few turns of line at its ring.
+// `skin` 2: cut at the sea's level at the post (boat.js).
+export const POST = { top: 0.88, ring: 0.45, radius: 0.075 };
+export function buildPost(bottom, seed = 1) {
+  const lean = 0.04 + 0.03 * hash(seed, 3.1);
+  const dir = hash(seed, 7.7) * Math.PI * 2;
+  const at = (y) => (y - bottom) / (POST.top - bottom);
+  const pts = [];
+  for (let k = 0; k <= 6; k++) {
+    const y = bottom + ((POST.top - bottom) * k) / 6;
+    pts.push(new THREE.Vector3(Math.cos(dir) * lean * at(y), y, Math.sin(dir) * lean * at(y)));
+  }
+  const parts = [];
+  const timber = srgb("#77705f"), weed = srgb("#2f3322");
+  parts.push(part(sweep(pts, pts.map((q, k) => POST.radius * (1 - 0.12 * (k / 6))), 7), {
+    colour: (v, n, out) => out.copy(timber).lerp(weed, 1 - smooth01(-0.05, 0.25, v.y)).multiplyScalar(0.85 + 0.3 * hash(Math.floor(v.y * 9), 2.2)),
+  }));
+  const ringAt = POST.ring;
+  const off = new THREE.Vector3(Math.cos(dir) * lean * at(ringAt), 0, Math.sin(dir) * lean * at(ringAt));
+  for (let k = 0; k < 3; k++)
+    parts.push(part(new THREE.TorusGeometry(POST.radius + 0.008, 0.009, 3, 9), { matrix: place(off.x, ringAt - 0.02 + k * 0.02, off.z, { pitch: Math.PI / 2 }), colour: ROPE }));
+  const g = merge(parts);
+  g.setAttribute("skin", new THREE.BufferAttribute(new Float32Array(g.attributes.position.count).fill(2), 1));
+  return g;
+}
+
+// One geometry with a per-vertex `skin`: 1 outside (the sea meets it), 0
+// inside,
+// −1: inside, and fades when it would hide the cat (the lantern's pole).
+function skins(outside, inside, fading) {
+  for (const [g, v] of [[outside, 1], [inside, 0], [fading, -1]]) g.setAttribute("skin", new THREE.BufferAttribute(new Float32Array(g.attributes.position.count).fill(v), 1));
+  const merged = mergeGeometries([outside, inside, fading], false);
+  outside.dispose();
+  inside.dispose();
+  fading.dispose();
+  merged.computeBoundingSphere();
+  return merged;
+}
+
+// The hull's half-breadth where it meets the water (local y = 0, outside
+// the planking) at stations s = −1 … 1 in WATERPLANE.length steps: the
+// shader's test of whether a ray reached the inside from above the water.
+export const WATERPLANE = Array.from({ length: 9 }, (_, i) => {
+  const s = -1 + i / 4;
+  return s >= 0.985 ? 0 : breadthAt(Math.min(s, 0.98), 0) + HULL.plank;
+});
 
 // The girth parameter of the skin at (s, y): inverse of hullPoint's height.
 function girthOf(s, y) {

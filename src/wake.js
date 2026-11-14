@@ -7,11 +7,23 @@
 //   …  four paws: x, z, depth in the water
 //   …  splash rings: x, z, birth time, strength
 //   …  the water's velocity past the cat: x, z
+//   boat (boat.js; its own texels, so a cat can swim beside it):
+//   52 its bounding circle (x, z, radius; 0 = none), trail count
+//   53 the hull: x, z, heading, its waterline's height
+//   54 speed through the water, sideways speed, chop (0…1), heave rate
+//   55… its path, newest first: x, z, birth time, strength
 // Coast metres, on the sea's clock (main.js state.time).
-export const WAKE = { width: 64, trail: 28, paws: 4, rings: 16 };
+export const WAKE = { width: 64, trail: 28, paws: 4, rings: 16, boatTrail: 9 };
 const PAWS = 3 + WAKE.trail;
 const RINGS = PAWS + WAKE.paws;
 const FLOW = RINGS + WAKE.rings;
+const BOAT = FLOW + 1;
+const BOAT_TRAIL = BOAT + 3;
+// The boat drops a point of its path every this many metres or seconds;
+// its wake lives as long.
+const BOAT_STEP = 1.6;
+const BOAT_EVERY = 1.4;
+const BOAT_LIFE = 14;
 // How long foam and ripples outlive their source.
 const TRAIL_LIFE = 11;
 const RING_LIFE = 3;
@@ -25,6 +37,10 @@ export function createWake() {
   // boat: trailBack drops the trail that many metres behind the body's
   // middle (a boat's transom), so its foam starts where the water leaves it.
   const body = { x: 0, z: 0, heading: 0, immersion: 0, speed: 0, half: 0.2, radius: 0.08, strength: 0, flow: [0, 0], trailBack: 0 };
+  // The boat afloat (boat.js `boat(...)` each frame it floats; `on` false
+  // once it is out of the water).
+  const boat = { on: false, x: 0, z: 0, heading: 0, level: 0, speed: 0, sway: 0, chop: 0, heave: 0 };
+  const boatTrail = [];
   let now = 0;
   let idle = false;
 
@@ -68,6 +84,25 @@ export function createWake() {
         if (trail.length > WAKE.trail) trail.pop();
       }
     },
+    // The boat each frame it floats (coast metres; speed through the water
+    // along and across its heading, m/s): its hull in the water and its
+    // path, which the water pass turns into its wake.
+    boat(x, z, heading, level, speed, sway, chop, heave) {
+      if (![x, z, heading, level, speed, sway, chop, heave].every(Number.isFinite)) return;
+      Object.assign(boat, { on: true, x, z, heading, level, speed, sway, chop: Math.max(0, Math.min(1, chop)), heave });
+      // The path from the transom.
+      const sx = x - Math.sin(heading) * 2.2, sz = z - Math.cos(heading) * 2.2;
+      const strength = Math.min(1.5, Math.max(0, speed) / 1.5);
+      const last = boatTrail[0];
+      if (!last || Math.hypot(sx - last[0], sz - last[1]) > BOAT_STEP || now - last[2] > BOAT_EVERY) {
+        boatTrail.unshift([sx, sz, now, strength]);
+        if (boatTrail.length > WAKE.boatTrail) boatTrail.pop();
+      }
+    },
+    // Out of the water (ashore or asleep): its wake still fades out.
+    noBoat() {
+      boat.on = false;
+    },
     paw(i, x, z, depth) {
       if (!Number.isInteger(i) || i < 0 || i >= WAKE.paws || ![x, z, depth].every(Number.isFinite)) return;
       depth = Math.max(0, depth);
@@ -85,8 +120,9 @@ export function createWake() {
     pack() {
       while (trail.length && now - trail[trail.length - 1][2] > TRAIL_LIFE) trail.pop();
       while (rings.length && now - rings[rings.length - 1][2] > RING_LIFE) rings.pop();
+      while (boatTrail.length && now - boatTrail[boatTrail.length - 1][2] > BOAT_LIFE) boatTrail.pop();
       const wading = paws.some((p) => p[2] > 0.005);
-      const active = body.immersion > 0.01 || wading || trail.length || rings.length;
+      const active = body.immersion > 0.01 || wading || trail.length || rings.length || boat.on || boatTrail.length;
       if (!active) {
         if (idle) return null;
         idle = true;
@@ -114,6 +150,26 @@ export function createWake() {
       // Paws in a passing wash trail froth downstream, farther the faster it runs.
       const rush = Math.min(Math.hypot(body.flow[0], body.flow[1]), 2.5);
       for (const p of paws) if (p[2] > 0.005) encloseSource(bound, p[0], p[1], 0.925 + 0.25 * rush);
+      // The boat: its hull and reflection reach, and its wake's wedge
+      // (spreading ~0.35 m a side per metre astern) out to where it fades.
+      const boatBound = BOAT_BOUND;
+      boatBound[2] = -1;
+      if (boat.on) encloseSource(boatBound, boat.x, boat.z, 2.3 + 2.4 + Math.min(Math.abs(boat.speed), 3) * 0.6);
+      let along = 0;
+      for (let i = 0; i < boatTrail.length; i++) {
+        const t = boatTrail[i];
+        const prev = i ? boatTrail[i - 1] : boat.on ? [boat.x - Math.sin(boat.heading) * 2.2, boat.z - Math.cos(boat.heading) * 2.2] : t;
+        along += Math.hypot(t[0] - prev[0], t[1] - prev[1]);
+        if (t[3] > 0.02) encloseSource(boatBound, t[0], t[1], 1.6 + along * 0.4);
+      }
+      if (boatBound[2] > 0) {
+        if (bound[2] < 0) bound.set(boatBound);
+        else encloseSource(bound, boatBound[0], boatBound[1], boatBound[2]);
+        data.set([boatBound[0], boatBound[1], boatBound[2], boatTrail.length], BOAT * 4);
+        data.set([boat.x, boat.z, boat.heading, boat.on ? boat.level : -100], (BOAT + 1) * 4);
+        data.set([boat.speed, boat.sway, boat.chop, boat.heave], (BOAT + 2) * 4);
+        boatTrail.forEach((t, i) => data.set(t, (BOAT_TRAIL + i) * 4));
+      }
       data.set(bound, 8);
       data[11] = rings.length;
       trail.forEach((t, i) => data.set(t, (3 + i) * 4));
@@ -124,6 +180,8 @@ export function createWake() {
     },
   };
 }
+
+const BOAT_BOUND = new Float64Array(3);
 
 // Conservative circle union using one reusable CPU scratch buffer.
 function encloseSource(bound, x, z, radius) {

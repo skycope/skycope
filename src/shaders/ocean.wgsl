@@ -1,7 +1,7 @@
 import { band_variance, cascade_size, SEA_TILE } from "./spectrum.wgsl";
 import { lut_uv, overcast_sky } from "./skyview.wgsl";
 import { rock_slots, rock_sea, rock_traces, rock_hides, RockSea, RockHit, RockHits } from "./rocks.wgsl";
-import { cat_near, cat_sea } from "./wake.wgsl";
+import { cat_near, cat_sea, boat_hull, boat_sea, hull_mirror, hull_radiance, hull_sunk, hull_shade, Hull } from "./wake.wgsl";
 import { archipelago_hit, archipelago_sun, archipelago_radiance } from "./archipelago.wgsl";
 import { SeaPoint, tideglow, lamp_on_sea, pulse_on_sea, wisp_on_sea, lantern_on_sea } from "./sea-magic.wgsl";
 
@@ -159,7 +159,30 @@ export fn ocean_view(
   // The cat swimming or wading: its collar, trail, ripples and splashes.
   // sea-sky-magic: how much it stirs the water, for the tideglow.
   var stir = 0.0;
+  // boat: the hull and its wake (wake.wgsl), inside the same circle.
+  var hull: Hull;
+  hull.pose.w = -100.0;
   if (cat_near(p.xz, cat_wake)) {
+    hull = boat_hull(p.xz, cat_wake);
+    if (hull.near > 0.0) {
+      let boat = boat_sea(p.xz, near_pixel, settings.time, cat_wake, hull);
+      let terms = vec4f(boat.height, boat.slope, boat.variance) + vec4f(boat.foam, boat.bubbles, boat.occlusion, 0.0);
+      if (all_finite(terms)) {
+        sea.height += boat.height;
+        sea.slope += boat.slope;
+        sea.variance += boat.variance;
+        if (boat.foam > rock.foam) {
+          rock.foam = boat.foam;
+          rock.lace = boat.lace;
+        }
+        rock.bubbles = max(rock.bubbles, boat.bubbles);
+        rock.occlusion = max(rock.occlusion, boat.occlusion);
+        rock.edge = min(rock.edge, boat.edge);
+        if (MAGIC_AWAKE) { stir = clamp(max(boat.foam, boat.bubbles) + length(boat.slope) * 3.0, 0.0, 1.5); }
+      } else {
+        hull.pose.w = -100.0;
+      }
+    }
     let cat = cat_sea(p.xz, near_pixel, settings.time, cat_wake);
     // A bad texel (a clock jump, a zero-width ring) must never blank the sea:
     // drop the whole contribution when any term is not finite. An exponent
@@ -179,7 +202,7 @@ export fn ocean_view(
     }
   }
   return ocean(p, metrics, direction, light, sky, sea, footprint, distance, settings, noise, filtering, sky_texture,
-    waves1, waves2, waves3, foam_layer, rock, slots, shore_rocks, sky_table, land_field, island_table, stir);
+    waves1, waves2, waves3, foam_layer, rock, slots, shore_rocks, sky_table, land_field, island_table, stir, hull);
 }
 
 fn ocean(
@@ -188,7 +211,7 @@ fn ocean(
   noise: texture_3d<f32>, filtering: sampler, sky_texture: texture_2d<f32>,
   waves1: texture_2d<f32>, waves2: texture_2d<f32>, waves3: texture_2d<f32>, foam_layer: texture_2d<f32>,
   rock: RockSea, slots: vec4u, shore_rocks: texture_2d<f32>, sky_table: texture_2d<f32>,
-  land_field: texture_2d<f32>, island_table: texture_2d<f32>, stir: f32,
+  land_field: texture_2d<f32>, island_table: texture_2d<f32>, stir: f32, hull: Hull,
 ) -> vec3f {
   // Keep most wave slope even at grazing angles: distant water must stay
   // textured so the sun path breaks into streaks instead of a smooth band.
@@ -317,6 +340,13 @@ fn ocean(
       reflection = mix(reflection, rock_radiance(traced.mirrored, light, direct * sun_up, settings.skylight), traced.mirrored.cover);
     }
   }
+  // boat: its topsides in the water beside it.
+  if (hull.pose.w > -50.0) {
+    let mirrored = hull_mirror(p, reflected, hull);
+    if (mirrored.x > 0.0) {
+      reflection = mix(reflection, hull_radiance(mirrored, light, direct * sun_up, settings.skylight), mirrored.x);
+    }
+  }
 
   // ---- Transmission: refract into the water column and onto the seabed. ----
   let refracted = refract(ray, normal, 0.7519);
@@ -371,8 +401,20 @@ fn ocean(
       sun_bed = direct * sun_up * max(light.y, 0.0) * 0.3183 * exp(-ABSORPTION * bed_depth / light_down)
         * focus * (1.0 - foam.y * 0.5) * sun_seen;
     }
+    // boat: its shadow on the sand.
+    if (hull.pose.w > -50.0) { sun_bed *= hull_shade(bed, bed_depth, -sun_down, hull); }
     let bed_light = (sun_bed + settings.skylight * sky_seen * exp(-ABSORPTION * bed_depth * 1.2)) * seabed_shadows(bed, bed_metrics, settings, noise, filtering);
     bed_colour = mix(seabed(bed, bed_metrics, offshore, settings, noise, filtering) * bed_light * smoothstep(0.005, 0.015, bed_seen), bed_colour, sunk.cover);
+  }
+  // boat: its body under the surface, before the bed: dark antifouling,
+  // lit by what light gets under the hull.
+  if (hull.pose.w > -50.0) {
+    let sunk_hull = hull_sunk(p, refracted, hull);
+    if (sunk_hull.x > 0.0 && sunk_hull.y < column_path) {
+      let lit = settings.skylight * sky_seen * 0.3 * exp(-ABSORPTION * sunk_hull.z * 1.2) + direct * sun_up * sun_seen * 0.02;
+      bed_colour = mix(bed_colour, vec3f(0.12, 0.035, 0.022) * lit, sunk_hull.x);
+      column_path = mix(column_path, sunk_hull.y, sunk_hull.x);
+    }
   }
   let column_t = exp(-(ABSORPTION + SCATTERING) * column_path);
   // Single scattering in the water column: sunlight scattered back toward the

@@ -4,9 +4,9 @@ import { groundHeight } from "./terrain.js";
 import { patchMaterial } from "./forest.js";
 import { glowMaterial, smooth01 } from "./place-kit.js";
 import { markSolid, SOLID_ORDER } from "./cat-coat.js";
-import { buildBoatForms, HULL, LANTERN, sheer } from "./boat-forms.js";
+import { buildBoatForms, HULL, LANTERN, WATERPLANE, POST, buildPost, sheer } from "./boat-forms.js";
 import { createBoatRide, RIDE } from "./boat-ride.js";
-import { BOAT } from "./boat-dynamics.js";
+import { BOAT, WATER_GRID } from "./boat-dynamics.js";
 import { SWIM_LIMIT } from "./walker.js";
 import { createJellies } from "./boat-jellies.js";
 
@@ -15,11 +15,20 @@ import { createJellies } from "./boat-jellies.js";
 // the landscape (hidden until its gift wakes); attach() joins it to the
 // walker once that exists.
 //
-// Draws: the hull (one mesh, ~12k triangles, cut at the sea's surface by a
-// clip plane fitted to the swell under it, so the hull sits IN the water
-// the WebGPU pass draws behind), the swinging hurricane lantern (metal and
-// glass), and one additive mesh for the lantern's halo and the wisp's
-// thread of light. Nothing draws, updates or allocates while it sleeps.
+// Draws: the hull (one mesh, ~12.5k triangles), the swinging hurricane
+// lantern (metal and glass), and one additive mesh for the lantern's halo
+// and the wisp's thread of light. Nothing draws, updates or allocates while
+// it sleeps.
+//
+// The waterline: the sea is drawn behind, by the WebGPU pass, so the hull
+// must leave a hole wherever water would hide it. Its shader knows the sea
+// surface under it (nine heights over the waterplane, sampled on the CPU
+// from the surface exactly as the water pass displaces it, sea-surface.js
+// `drawn`, and interpolated biquadratically per fragment). The outer skin is
+// cut where it is under water; the inside of the hull is dry, so it stays,
+// unless the eye can only have reached it through water (the ray crossed
+// the surface outside the hull's waterplane), so no sea is ever drawn
+// inside the boat and no inside is seen through the sea.
 //
 // Values for others (coast metres):
 //   magic.afloat  null ashore; aboard { x, z, heading, speed, lamp: [x, y, z],
@@ -35,13 +44,24 @@ const LANTERN_COLOUR = new THREE.Color(1.0, 0.5, 0.16);
 
 export function createBoat(land, { light = false, shared, landmark, hull = null, seed = 1 }) {
   const forms = buildBoatForms({ light });
-  const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   const lampUniforms = {
     boatLamp: { value: new THREE.Vector4(0, 0, 0, 0) },
     boatLampColour: { value: LANTERN_COLOUR.clone() },
+    // The sea under the hull (see the header): nine heights (world y) on
+    // the WATER_GRID round the hull's pose (coast x, z, sin and cos of its
+    // heading), and the waterplane's half-breadths along it.
+    boatWater: { value: new Float32Array(9).fill(-100) },
+    boatPose: { value: new THREE.Vector4(0, 0, 0, 1) },
+    boatGrid: { value: new THREE.Vector3(WATER_GRID.u, WATER_GRID.v, HULL.half) },
+    boatPlane: { value: Float32Array.from(WATERPLANE) },
+    boatPostSea: { value: -100 },
+    // How far the lantern and its pole are faded (they stood between the
+    // camera and the cat), 0…1.
+    boatFade: { value: 0 },
   };
-  const wood = boatMaterial(shared, plane, lampUniforms);
-  const glassMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, fog: false });
+  const wood = boatMaterial(shared, lampUniforms, true);
+  const iron = boatMaterial(shared, lampUniforms, false);
+  const glassMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, fog: false, transparent: true, depthWrite: true });
 
   const group = new THREE.Group();
   group.name = "boat";
@@ -50,7 +70,7 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
   const hullMesh = new THREE.Mesh(forms.hull, wood);
   const pivot = new THREE.Group();
   pivot.position.set(...LANTERN.pivot);
-  const lampMesh = new THREE.Mesh(forms.lamp, wood);
+  const lampMesh = new THREE.Mesh(forms.lamp, iron);
   const glassMesh = new THREE.Mesh(forms.glass, glassMaterial);
   pivot.add(lampMesh, glassMesh);
   group.add(hullMesh, pivot);
@@ -64,6 +84,13 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
 
   const glow = glowMesh();
   land.add(glow.mesh);
+  // The painter, and the cove's mooring post (shown once the boat is out).
+  const painter = painterMesh(shared);
+  land.add(painter.mesh);
+  let postMesh = null;
+  let walkerRef = null;
+  let postBody = null;
+  let seaRef = null;
   // Where only the boat goes (boat-jellies.js).
   const jellies = createJellies(land, seed, { coveTheta: Math.atan2(landmark.z - 70, landmark.x - 58), light });
   const eye = [0, 0, 0];
@@ -74,10 +101,9 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
   const scale = new THREE.Vector3(1, 1, 1);
   const pos = new THREE.Vector3();
   const flame = new THREE.Vector3();
+  const ring = new THREE.Vector3();
   const flameCoast = new THREE.Vector3();
   const stemCoast = new THREE.Vector3();
-  const normal = new THREE.Vector3();
-  const point = new THREE.Vector3();
   const swing = { x: 0, z: 0, vx: 0, vz: 0 };
   let ride = null;
   let hullBody = null;
@@ -93,35 +119,68 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
   let slapAt = 0;
   let clock = 0;
 
-  // The pose during the launch: off its logs, rolled upright in the air,
-  // gliding down the beach and settling on the water at its mooring.
-  function launchPose(k, out) {
-    const rest = groundHeight(landmark.x, landmark.z) + 0.25 + sheer(0);
-    const m = ride.moor;
-    const lift = smooth01(0, 0.14, k) * 0.45 + smooth01(0.14, 0.42, k) * 0.9;
-    const roll = Math.PI * (1 - smooth01(0.14, 0.42, k));
-    const glide = smooth01(0.42, 0.92, k);
-    const x = landmark.x + (m.x - landmark.x) * glide;
-    const z = landmark.z + (m.z - landmark.z) * glide;
-    const over = Math.max(groundHeight(x, z), 0);
-    const air = rest + lift;
-    const settle = smooth01(0.85, 1, k);
-    out.x = x;
-    out.z = z;
-    out.y = (air * (1 - glide) + (over + 1.1) * glide) * (1 - settle) + ride.state.level * settle;
-    out.heading = landmark.facing + wrap(m.heading - landmark.facing) * smooth01(0.4, 0.9, k);
-    // A tremble as it wakes, and a nod as it touches the water.
-    out.roll = roll + Math.sin(k * 160) * 0.03 * (1 - smooth01(0, 0.14, k));
-    out.pitch = Math.sin(Math.PI * glide) * -0.12 + Math.sin(Math.PI * settle) * 0.08;
-    return out;
-  }
   const pose = { x: 0, y: 0, z: 0, heading: 0, pitch: 0, roll: 0 };
+  // The aboard camera's hints (see the api) and the pole's segment.
+  const hints = {
+    active: false,
+    // Frame the cat at the bow from astern and a little above: arm length
+    // (m) and elevation (rad) that keep the whole hull and the lantern in
+    // the picture without the pole crossing the cat.
+    arm: { distance: 4.2, elevation: 0.3, min: 2.6 },
+    // Where to look (the cat at its station) and the bow's heading.
+    target: [0, 0, 0],
+    heading: 0,
+    // Capsules that may stand between lens and cat: { a, b, r } (coast).
+    occluders: [
+      { name: "lantern-pole", a: [0, 0, 0], b: [0, 0, 0], r: 0.06 },
+      { name: "lantern", a: [0, 0, 0], b: [0, 0, 0], r: 0.12 },
+      { name: "mooring-post", a: [0, -100, 0], b: [0, -100, 0], r: 0.1 },
+    ],
+    // 0…1: how far boat.js has dissolved them this frame.
+    faded: 0,
+  };
+  const hintA = new THREE.Vector3(), hintB = new THREE.Vector3();
+  function updateHints(camera, dt) {
+    const cat = walkerRef?.cat;
+    hints.active = Boolean(ride?.aboard);
+    const [pole, lantern, post] = hints.occluders;
+    if (postMesh?.visible) {
+      post.a = [ride.post.x, ride.post.bed, ride.post.z];
+      post.b = [ride.post.x, POST.top, ride.post.z];
+    }
+    hintA.set(0, sheer(1) + 0.02, HULL.half * 0.97).applyMatrix4(group.matrix);
+    hintB.set(0, LANTERN.pivot[1], LANTERN.pivot[2]).applyMatrix4(group.matrix);
+    pole.a = [hintA.x, hintA.y, hintA.z];
+    pole.b = [hintB.x, hintB.y, hintB.z];
+    lantern.a = [hintB.x, hintB.y, hintB.z];
+    lantern.b = [flameCoast.x, flameCoast.y - 0.12, flameCoast.z];
+    hints.heading = pose.heading;
+    let want = 0;
+    if (cat && hints.active) {
+      hints.target = [cat.x, cat.y + 0.3, cat.z];
+      // The lens (coast) to the cat's head: how near it passes the pole
+      // and the lantern.
+      const ex = camera.position.x, ey = camera.position.y, ez = -camera.position.z;
+      let nearest = Infinity;
+      for (const o of hints.occluders)
+        for (let i = 0; i <= 8; i++) {
+          const t = i / 8;
+          const px = ex + (hints.target[0] - ex) * t, py = ey + (hints.target[1] - ey) * t, pz = ez + (hints.target[2] - ez) * t;
+          nearest = Math.min(nearest, segmentDistance(px, py, pz, o.a, o.b) - o.r);
+        }
+      want = 1 - smooth01(0.05, 0.3, nearest);
+    }
+    hints.faded += (want * 0.85 - hints.faded) * Math.min(1, dt * 6);
+    lampUniforms.boatFade.value = hints.faded;
+  }
 
   const api = {
     group,
     events,
     lamp,
     pois: [jellies.poi],
+    // Where it lies ashore ({ x, z, facing }).
+    landmark,
     // magic.afloat's record while the cat is aboard, else null (fauna.js).
     get afloatNow() {
       return magic?.afloat ?? null;
@@ -137,6 +196,11 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
     get ride() {
       return ride;
     },
+    // For the follow camera aboard (walker.js owns it): where to frame,
+    // a clear arm, and what could stand in the way (coast metres). The
+    // lantern and pole already dissolve themselves when they hide the cat,
+    // and any boat timber within ~0.6 m of the lens dithers out.
+    aboardCameraHints: hints,
     // Joins the walker, the sea and the shared record (main.js, once the
     // walker exists).
     attach({ walker, sea, magic: record, wake: wakeRecord }) {
@@ -149,6 +213,18 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
       // by the ride, so it does not stop the cat.
       hullBody = capsule({ x: 0, y: -100, z: 0 }, { x: 0, y: -100, z: 0 }, 0.6, { body: false, live: false });
       walker.solids.bodies.push(hullBody);
+      // The post in the cove: the cat swims round it, the boat fends off it.
+      const p = ride.post;
+      postBody = capsule({ x: p.x, y: p.bed - 0.3, z: p.z }, { x: p.x, y: POST.top, z: p.z }, 0.09, { live: false });
+      walker.solids.bodies.push(postBody);
+      postMesh = new THREE.Mesh(buildPost(p.bed - 0.3, seed), wood);
+      postMesh.matrixAutoUpdate = false;
+      postMesh.matrix.makeTranslation(p.x, 0, p.z);
+      postMesh.visible = false;
+      postMesh.renderOrder = SOLID_ORDER;
+      land.add(postMesh);
+      seaRef = sea;
+      walkerRef = walker;
       record.afloat = null;
       return api;
     },
@@ -156,9 +232,18 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
     // aboard the wisp flies ahead of the bow, towing.
     afterThread(dt, night = 0) {
       events.length = 0;
-      if (!ride || !ride.afloat) return;
+      if (ride) for (const e of ride.events) if (e.type === "knock" || e.type === "scrape" || e.type === "launch") events.push(e);
+      if (!ride || !ride.afloat) {
+        // Scraping into the shallows: its keel already in the water.
+        const p = ride?.ride.pose;
+        if (ride?.ride.state === "launching" && p.phase === "slide") wake?.boat(p.x, p.z, p.heading, p.y, Math.hypot(p.vx, p.vz), 0, 0.3, 0);
+        else wake?.noBoat();
+        return;
+      }
       clock += dt;
-      for (const e of ride.events) events.push(e);
+      for (const e of ride.events) if (e.type !== "knock" && e.type !== "scrape" && e.type !== "launch") events.push(e);
+      // Floated off: the sea parts round it.
+      if (events.some((e) => e.type === "launch")) wake?.ring(ride.state.x, ride.state.z, 1.6);
       const s = ride.state;
       const aboard = ride.ride.state === "aboard";
       tow += ((aboard ? 1 : 0) - tow) * Math.min(1, dt * (aboard ? 1.2 : 0.6));
@@ -215,17 +300,8 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
         w.glow += (0.3 - 0.08 * night - w.glow) * tow;
         w.visible = true;
       } else towPos.set = false;
-      // The wake: the hull's waterline in the sea while it moves.
-      if (wake && ride.ride.state === "aboard") {
-        const speed = Math.max(0, s.u);
-        wake.body.half = 1.6;
-        wake.body.flow = WAKE_FLOW;
-        WAKE_FLOW[0] = -Math.sin(s.heading) * s.u;
-        WAKE_FLOW[1] = -Math.cos(s.heading) * s.u;
-        const strength2 = 0.6 + 1.4 * Math.min(1, speed / 1.2);
-        wake.body.trailBack = 1.9;
-        wake.move(s.x + Math.sin(s.heading) * 0.15, s.z + Math.cos(s.heading) * 0.15, s.heading, 1, speed, strength2, 0.5);
-      }
+      // The hull in the sea and its wake (wake.js, wake.wgsl).
+      wake?.boat(s.x, s.z, s.heading, s.y, s.u, s.v, s.chop, s.vy);
     },
     // Every frame, before the scene renders (landscape.js): pose, clip,
     // lantern and thread. camera: the Three camera (view matrix current).
@@ -241,9 +317,11 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
         launched = true;
         hull?.launch();
         group.visible = true;
+        if (postMesh) postMesh.visible = true;
+        if (postBody) postBody.live = true;
       }
       const s = ride.state;
-      if (ride.ride.state === "launching") launchPose(ride.ride.launch, pose);
+      if (ride.ride.state === "launching") Object.assign(pose, ride.ride.pose);
       else {
         pose.x = s.x;
         pose.y = s.y;
@@ -271,15 +349,13 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
       pivot.rotation.set(swing.x, 0, swing.z);
       group.updateMatrixWorld(true);
 
-      // The clip: the sea's plane under the hull (coast → the land group's
-      // frame is the same; the group's world is z-mirrored, and three's
-      // clip planes are in world space).
-      const afloatNow = ride.ride.state !== "launching" || ride.ride.launch > 0.88;
-      if (afloatNow) {
-        normal.set(-s.slopeX, 1, s.slopeZ).normalize();
-        point.set(s.x, s.level - 0.015, -s.z);
-        plane.setFromNormalAndCoplanarPoint(normal, point);
-      } else plane.set(normal.set(0, 1, 0), 50);
+      // The sea under the hull, for its waterline: the dynamics' own nine
+      // heights when it is floating (taken at this pose), else sampled
+      // here (on the sand: none, where the beach is dry).
+      const water = ride.ride.state === "launching" ? ride.dynamics.sampleWater(pose.x, pose.z, pose.heading) : s.water;
+      const grid = lampUniforms.boatWater.value;
+      for (let i = 0; i < 9; i++) grid[i] = Number.isFinite(water[i]) ? water[i] : -100;
+      lampUniforms.boatPose.value.set(pose.x, pose.z, Math.sin(pose.heading), Math.cos(pose.heading));
 
       // The lantern: lit from dusk, a small steady flame by day.
       const lit = 0.18 + 0.82 * smooth01(0.02, 0.35, night);
@@ -288,6 +364,8 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
       // The globe glows amber (its form stays readable); the bright core
       // is the halo mesh's.
       glassMaterial.color.copy(LANTERN_COLOUR).multiplyScalar(0.7 * strength + 0.06);
+      // Dissolved with its lantern when it hides the cat.
+      glassMaterial.opacity = 1 - hints.faded;
       // Its flame in coast metres and in the camera's view.
       flame.set(0, -LANTERN.drop - 0.05, 0);
       glassMesh.localToWorld(flame);
@@ -302,6 +380,19 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
       // The thread: from the pole's head to the wisp.
       stemCoast.set(0, LANTERN.pivot[1] + 0.02, LANTERN.pivot[2] - 0.05).applyMatrix4(group.matrix);
       glow.update(time, flame, strength, night, stemCoast, magic?.wisp, tow, ride.ride.throttle);
+      // The lantern and its pole between the lens and the cat: fade them.
+      updateHints(camera, dt);
+      // The painter: from the ring on the stem head to the post's ring or
+      // down to its anchor, hanging in its slack.
+      if (postMesh?.visible && seaRef?.drawn) {
+        const h = seaRef.drawn(ride.post.x, ride.post.z);
+        lampUniforms.boatPostSea.value = Number.isFinite(h) ? h : -100;
+      }
+      const tether = ride.ride.state === "waiting" ? ride.tether : null;
+      if (tether) {
+        ring.set(0, sheer(1) + 0.03, HULL.half + 0.02).applyMatrix4(group.matrix);
+        painter.update(ring, tether, seaRef);
+      } else painter.hide();
 
     },
     dispose() {
@@ -309,32 +400,66 @@ export function createBoat(land, { light = false, shared, landmark, hull = null,
       forms.lamp.dispose();
       forms.glass.dispose();
       wood.dispose();
+      iron.dispose();
       glassMaterial.dispose();
       glow.dispose();
+      painter.dispose();
+      postMesh?.geometry.dispose();
       jellies.dispose();
-      land.remove(group, glow.mesh);
+      land.remove(group, glow.mesh, painter.mesh);
+      if (postMesh) land.remove(postMesh);
     },
   };
   return api;
 }
-const WAKE_FLOW = [0, 0];
 
 // The boat's timber and paint: the places' shared light model (fog, aerial
 // perspective, baked occlusion) plus grain along the planks in the boat's
 // own frame (so it rides with the hull), paint worn at the edges, and the
-// lantern's warm light.
-function boatMaterial(shared, plane, uniforms) {
-  const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72, clippingPlanes: [plane] });
+// lantern's warm light. `water`: the hull's waterline (see the header); the
+// lantern, always above the sea, goes without.
+function boatMaterial(shared, uniforms, water) {
+  const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72 });
   patchMaterial(material, shared);
   markSolid(material);
   const base = material.onBeforeCompile;
-  material.customProgramCacheKey = () => "boat-hull-v1";
+  material.customProgramCacheKey = () => (water ? "boat-hull-v2" : "boat-iron-v2");
   material.onBeforeCompile = (shader, renderer) => {
     base?.(shader, renderer);
     Object.assign(shader.uniforms, uniforms);
-    shader.vertexShader = shader.vertexShader.replace("void main() {", "varying vec3 vBoatP;\nvoid main() {\n  vBoatP = position;");
+    shader.vertexShader = shader.vertexShader
+      .replace("void main() {", "attribute float skin;\nvarying vec3 vBoatP;\nvarying vec3 vBoatW;\nvarying float vSkin;\nvoid main() {\n  vBoatP = position;\n  vSkin = skin;")
+      .replace("#include <worldpos_vertex>", "#include <worldpos_vertex>\n  vBoatW = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;");
     shader.fragmentShader = shader.fragmentShader
-      .replace("void main() {", `${BOAT_NOISE}\nvarying vec3 vBoatP;\nuniform vec4 boatLamp;\nuniform vec3 boatLampColour;\nvoid main() {`)
+      .replace("void main() {", `${BOAT_NOISE}\n${water ? BOAT_WATER : ""}\nvarying vec3 vBoatP;\nvarying vec3 vBoatW;\nvarying float vSkin;\nuniform vec4 boatLamp;\nuniform vec3 boatLampColour;\nuniform float boatFade;\nvoid main() {`)
+      .replace(
+        "#include <clipping_planes_fragment>",
+        /* glsl */ `#include <clipping_planes_fragment>
+        {
+          // Never a wall of timber in the lens: whatever is right at the
+          // camera, and the lantern and its pole when they hide the cat,
+          // dissolve (an ordered dither, so it stays opaque and sorted).
+          float near = 1.0 - smoothstep( 0.3, 0.75, length( vBoatW - cameraPosition ) );
+          float fade = max( near, ${water ? "vSkin < -0.5 || vSkin > 1.5 ? boatFade : 0.0" : "boatFade"} );
+          vec2 cell = mod( floor( gl_FragCoord.xy ), 4.0 );
+          float bayer = mod( cell.x * 2.0 + cell.y * 3.0 + floor( cell.x * 0.5 ) * 5.0, 8.0 ) / 8.0 + 0.0625;
+          if ( fade > bayer ) discard;
+        }
+        `,
+      )
+      .replace(
+        "#include <clipping_planes_fragment>",
+        water
+          ? /* glsl */ `#include <clipping_planes_fragment>
+        // The post (skin 2) stands outside the hull's grid: its own level.
+        float boatAbove = vBoatW.y - ( vSkin > 1.5 ? boatPostSea : boatSea( vBoatW ) );
+        if ( boatAbove < 0.0 ) {
+          // The sea is drawn behind: under water, the outside leaves a hole
+          // for it, and so does any inside the eye reached through water.
+          if ( vSkin > 0.5 || !boatSeenFromAbove( vBoatW, boatAbove ) ) discard;
+        }`
+          : "#include <clipping_planes_fragment>",
+      )
       .replace(
         "#include <color_fragment>",
         /* glsl */ `#include <color_fragment>
@@ -357,14 +482,27 @@ function boatMaterial(shared, plane, uniforms) {
           diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.16, 0.14, 0.11 ) * ( 0.8 + grain * 0.4 ), wear * 0.7 );
           // A green-brown tide line of weed at the boot-top.
           float tide = exp( -pow( ( vBoatP.y + 0.035 ) / 0.02, 2.0 ) ) * smoothstep( 0.4, 0.7, blotch );
-          diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.08, 0.1, 0.04 ), tide * 0.6 );
+          float outside = clamp( vSkin, 0.0, 1.0 );
+          diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.08, 0.1, 0.04 ), tide * 0.6 * outside );
+          // Soaked timber below the line the water keeps it at (darker,
+          // a little green), and a dry crust of salt just above it where
+          // spray dries on the paint.
+          float soaked = 1.0 - smoothstep( 0.0, 0.07 + ( blotch - 0.5 ) * 0.04, vBoatP.y );
+          diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.62, 0.68, 0.6 ), soaked * outside );
+          float salt = smoothstep( 0.06, 0.1, vBoatP.y ) * ( 1.0 - smoothstep( 0.12, 0.24, vBoatP.y ) ) * smoothstep( 0.45, 0.75, fine * 0.5 + blotch * 0.7 );
+          diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.62, 0.62, 0.58 ), salt * 0.22 * outside );
+          ${water ? /* glsl */ `
+          // Wet just above the water it rides in: darker where it laps.
+          float wet = min( vSkin, 1.0 ) * ( 1.0 - smoothstep( 0.0, 0.05, boatAbove ) );
+          diffuseColor.rgb *= 1.0 - 0.45 * wet;` : ""}
         }`,
       )
       .replace(
         "#include <roughnessmap_fragment>",
         /* glsl */ `#include <roughnessmap_fragment>
         // Varnish and fresh paint have a sheen; wet near the water.
-        roughnessFactor = mix( roughnessFactor, 0.38, 1.0 - smoothstep( -0.05, 0.2, vBoatP.y ) );`,
+        roughnessFactor = mix( roughnessFactor, 0.38, ( 1.0 - smoothstep( -0.05, 0.2, vBoatP.y ) ) * min( vSkin, 1.0 ) );
+        ${water ? "roughnessFactor = mix( roughnessFactor, 0.12, min( vSkin, 1.0 ) * ( 1.0 - smoothstep( 0.0, 0.025, boatAbove ) ) );" : ""}`,
       )
       .replace(
         "#include <lights_fragment_end>",
@@ -377,12 +515,52 @@ function boatMaterial(shared, plane, uniforms) {
           vec3 L = toL * inversesqrt( max( d2, 1e-4 ) );
           float ndl = clamp( dot( normal, L ) * 0.75 + 0.25, 0.0, 1.0 );
           // Inverse square beyond the lantern's own size (~0.4 m).
-          reflectedLight.directDiffuse += boatLampColour * boatLamp.w * ndl * diffuseColor.rgb * 0.31831 * 2.2 / ( 1.0 + d2 * 6.0 );
+          reflectedLight.directDiffuse += boatLampColour * boatLamp.w * ndl * diffuseColor.rgb * 0.31831 * 2.6 / ( 1.0 + d2 * 2.2 );
         }`,
       );
   };
   return material;
 }
+
+// The sea under the hull, in Three world (x, y, −z coast). Nine heights on
+// a grid along (u) and across (v) the hull's heading, Lagrange-quadratic
+// between them (a little beyond the grid, held).
+const BOAT_WATER = /* glsl */ `
+uniform float boatWater[9];
+uniform vec4 boatPose;
+uniform vec3 boatGrid;
+uniform float boatPlane[9];
+uniform float boatPostSea;
+vec2 boatLocal( vec3 w ) {
+  vec2 d = vec2( w.x, -w.z ) - boatPose.xy;
+  return vec2( d.x * boatPose.z + d.y * boatPose.w, d.x * boatPose.w - d.y * boatPose.z );
+}
+vec3 boatWeights( float t ) {
+  t = clamp( t, -1.3, 1.3 );
+  return vec3( 0.5 * t * ( t - 1.0 ), 1.0 - t * t, 0.5 * t * ( t + 1.0 ) );
+}
+float boatSea( vec3 w ) {
+  vec2 uv = boatLocal( w );
+  vec3 a = boatWeights( uv.x / boatGrid.x );
+  vec3 b = boatWeights( uv.y / boatGrid.y );
+  vec3 r0 = vec3( boatWater[0], boatWater[1], boatWater[2] );
+  vec3 r1 = vec3( boatWater[3], boatWater[4], boatWater[5] );
+  vec3 r2 = vec3( boatWater[6], boatWater[7], boatWater[8] );
+  return a.x * dot( r0, b ) + a.y * dot( r1, b ) + a.z * dot( r2, b );
+}
+// Whether the ray from the eye to a point under water at w crossed the
+// water's level inside the hull's waterplane (it came in over the side).
+bool boatSeenFromAbove( vec3 w, float below ) {
+  float h = cameraPosition.y - w.y;
+  if ( h <= -below ) return true;
+  vec3 q = mix( cameraPosition, w, ( h + below ) / h );
+  vec2 uv = boatLocal( q );
+  float s = clamp( ( uv.x / boatGrid.z + 1.0 ) * 4.0, 0.0, 8.0 );
+  int i = int( min( floor( s ), 7.0 ) );
+  float halfB = mix( boatPlane[i], boatPlane[i + 1], s - float( i ) );
+  return abs( uv.y ) < halfB + 0.015 && abs( uv.x ) < boatGrid.z;
+}
+`;
 
 const BOAT_NOISE = /* glsl */ `
 float bHash3( vec3 p ) {
@@ -533,6 +711,118 @@ function glowMesh() {
       material.dispose();
     },
   };
+}
+
+// The painter: a manila line (one tube, 20 × 4 quads) placed in the vertex
+// shader from its two ends and its sag, so nothing is uploaded but a few
+// uniforms. Parabolic sag from the slack (a shallow catenary): s with
+// L ≈ D + 8s²/3D. Under the sea's surface (sampled along it on the CPU) it is
+// not drawn: the water pass shows the sea there.
+const PAINTER = { segments: 20, sides: 4, radius: 0.011, slack: 0.3 };
+const ROPE_VERTEX = /* glsl */ `
+attribute vec2 rope;
+uniform vec3 ropeA;
+uniform vec3 ropeB;
+uniform float ropeSag;
+uniform float ropeWater[11];
+varying float vRopeSea;
+varying float vRopeY;
+vec3 ropeAt( float t ) {
+  vec3 p = mix( ropeA, ropeB, t );
+  p.y -= ropeSag * 4.0 * t * ( 1.0 - t );
+  return p;
+}
+`;
+const ROPE_BEGIN = /* glsl */ `
+  vec3 ropeC = ropeAt( rope.x );
+  vec3 ropeT = normalize( ropeAt( min( rope.x + 0.02, 1.0 ) ) - ropeAt( max( rope.x - 0.02, 0.0 ) ) + vec3( 0.0, 1e-5, 0.0 ) );
+  vec3 ropeS = normalize( cross( ropeT, vec3( 0.0, 1.0, 0.0 ) ) + vec3( 1e-4, 0.0, 0.0 ) );
+  vec3 ropeU = cross( ropeS, ropeT );
+  vec3 ropeN = ropeS * cos( rope.y ) + ropeU * sin( rope.y );
+  float ropeF = rope.x * 10.0;
+  int ropeI = int( min( floor( ropeF ), 9.0 ) );
+  vRopeSea = mix( ropeWater[ ropeI ], ropeWater[ ropeI + 1 ], ropeF - float( ropeI ) );
+  vRopeY = ropeC.y;
+`;
+
+function painterMesh(shared) {
+  const { segments, sides } = PAINTER;
+  const ropeAttr = [];
+  const index = [];
+  for (let i = 0; i <= segments; i++) for (let j = 0; j <= sides; j++) ropeAttr.push(i / segments, (j / sides) * Math.PI * 2);
+  for (let i = 0; i < segments; i++)
+    for (let j = 0; j < sides; j++) {
+      const a = i * (sides + 1) + j, b = a + 1, c = a + sides + 1, d = c + 1;
+      index.push(a, c, b, b, c, d);
+    }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(ropeAttr.length * 1.5), 3));
+  geometry.setAttribute("rope", new THREE.Float32BufferAttribute(ropeAttr, 2));
+  geometry.setIndex(index);
+  const uniforms = {
+    ropeA: { value: new THREE.Vector3() },
+    ropeB: { value: new THREE.Vector3() },
+    ropeSag: { value: 0 },
+    ropeWater: { value: new Float32Array(11).fill(-100) },
+  };
+  const material = new THREE.MeshStandardMaterial({ color: new THREE.Color(0.32, 0.26, 0.17), roughness: 0.9 });
+  patchMaterial(material, shared);
+  const base = material.onBeforeCompile;
+  material.customProgramCacheKey = () => "boat-painter-v1";
+  material.onBeforeCompile = (shader, renderer) => {
+    base?.(shader, renderer);
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace("void main() {", `${ROPE_VERTEX}\nvoid main() {\n${ROPE_BEGIN}`)
+      .replace("#include <beginnormal_vertex>", "vec3 objectNormal = ropeN;\n#ifdef USE_TANGENT\nvec3 objectTangent = ropeT;\n#endif")
+      .replace("#include <begin_vertex>", `vec3 transformed = ropeC + ropeN * ${PAINTER.radius.toFixed(4)};`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace("void main() {", "varying float vRopeSea;\nvarying float vRopeY;\nvoid main() {\n  if ( vRopeY < vRopeSea ) discard;")
+      .replace(
+        "#include <color_fragment>",
+        // Wet and dark where it has been in the water.
+        "#include <color_fragment>\n  diffuseColor.rgb *= 1.0 - 0.45 * ( 1.0 - smoothstep( 0.0, 0.25, vRopeY - vRopeSea ) );",
+      );
+  };
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.frustumCulled = false;
+  mesh.matrixAutoUpdate = false;
+  mesh.visible = false;
+  mesh.renderOrder = SOLID_ORDER;
+  const water = uniforms.ropeWater.value;
+  return {
+    mesh,
+    // a: the stem's ring (coast); tether { x, z, y, length }; sea: for the
+    // water along it.
+    update(a, tether, sea) {
+      mesh.visible = true;
+      uniforms.ropeA.value.copy(a);
+      const b = uniforms.ropeB.value.set(tether.x, tether.y, tether.z);
+      const d = a.distanceTo(b);
+      const length = Math.max(d, Math.hypot(tether.length, a.y - tether.y) + PAINTER.slack);
+      uniforms.ropeSag.value = Math.min(1.2, Math.sqrt((3 * d * Math.max(0, length - d)) / 8));
+      for (let i = 0; i <= 10; i++) {
+        const t = i / 10;
+        const h = sea?.drawn ? sea.drawn(a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t) : -100;
+        water[i] = Number.isFinite(h) ? h : -100;
+      }
+    },
+    hide() {
+      mesh.visible = false;
+    },
+    dispose() {
+      geometry.dispose();
+      material.dispose();
+    },
+  };
+}
+
+// Distance from a point to the segment a–b (arrays).
+function segmentDistance(px, py, pz, a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
+  const l = dx * dx + dy * dy + dz * dz || 1e-9;
+  const t = Math.max(0, Math.min(1, ((px - a[0]) * dx + (py - a[1]) * dy + (pz - a[2]) * dz) / l));
+  return Math.hypot(px - a[0] - dx * t, py - a[1] - dy * t, pz - a[2] - dz * t);
 }
 
 function wrap(a) {
