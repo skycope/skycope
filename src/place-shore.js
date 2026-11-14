@@ -398,26 +398,50 @@ export function buildPool(p, materials, { light = false, seed = 1 } = {}) {
   const outerR = (a) => POOL.shelf + wob(a, 4.1) * 1.2;
   // Height of the shelf at (r, a): the floor, the basin wall, the worn top,
   // and the outer flank running down under the sand.
+  // The rim is not a moulded tub: two joint cracks run across it (granite
+  // splits along its sheeting joints) and on the sea side the water has
+  // worn a spill notch down nearly to its level.
+  const gsx = ground(0.5, 0) - ground(-0.5, 0), gsz = ground(0, 0.5) - ground(0, -0.5);
+  const seaward = Math.atan2(-gsz, -gsx);
+  const cracks = [seaward + 1.9 + random() * 0.4, seaward - 2.0 - random() * 0.5];
+  const angular = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+  const cut = (r, a) => {
+    const rb = basinR(a);
+    if (r < rb - 0.05) return 0;
+    let d = 0;
+    const notch = angular(a, seaward) * r;
+    d = Math.max(d, (shelf - level + 0.015) * (1 - smooth01(0.16, 0.34, notch)));
+    for (const c of cracks) d = Math.max(d, 0.13 * (1 - smooth01(0.02, 0.07, angular(a, c) * r)));
+    return d * smooth01(rb - 0.05, rb + 0.08, r);
+  };
   const height = (r, a) => {
     const rb = basinR(a), ro = outerR(a);
     if (r < rb - 0.12) return floor;
-    if (r < rb + 0.12) return floor + (shelf - floor) * smooth01(rb - 0.12, rb + 0.12, r);
-    if (r < ro - 0.5) return shelf + Math.sin(a * 7 + r * 3) * 0.04 - 0.06 * smooth01(rb, ro, r);
-    return shelf - 0.06 + (gmin - 0.35 - shelf) * smooth01(ro - 0.5, ro + 0.25, r);
+    if (r < rb + 0.12) return floor + (shelf - cut(r, a) - floor) * smooth01(rb - 0.12, rb + 0.12, r);
+    if (r < ro - 0.5) return shelf + Math.sin(a * 7 + r * 3) * 0.04 + Math.sin(a * 13 + r * 5) * 0.025 + Math.sin(a * 23 - r * 7) * 0.012 - 0.06 * smooth01(rb, ro, r) - cut(r, a);
+    return shelf - 0.06 - cut(r, a) + (gmin - 0.35 - shelf) * smooth01(ro - 0.5, ro + 0.25, r);
   };
-  // The shelf: a polar grid from the basin wall outward.
+  // The shelf: a polar grid from the basin wall outward, with extra spokes
+  // either side of each crack and the notch so they stay sharp.
   const radial = light ? 40 : 64, rings = 14;
+  const spokes = [];
+  for (let j = 0; j < radial; j++) spokes.push((j / radial) * Math.PI * 2);
+  const wrap = (a) => ((a % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  for (const c of cracks) for (const d of [-0.025, -0.012, 0, 0.012, 0.025]) spokes.push(wrap(c + d));
+  for (const d of [-0.11, -0.07, -0.035, 0, 0.035, 0.07, 0.11]) spokes.push(wrap(seaward + d));
+  spokes.sort((x, y) => x - y);
   const positions = [], index = [];
   for (let i = 0; i <= rings; i++)
-    for (let j = 0; j < radial; j++) {
-      const a = (j / radial) * Math.PI * 2;
+    for (let j = 0; j < spokes.length; j++) {
+      const a = spokes[j];
       const rb = basinR(a) - 0.2, ro = outerR(a) + 0.3;
       const r = rb + (ro - rb) * (i / rings) ** 0.9;
       positions.push(Math.cos(a) * r, height(r, a), Math.sin(a) * r);
     }
+  const n = spokes.length;
   for (let i = 0; i < rings; i++)
-    for (let j = 0; j < radial; j++) {
-      const a = i * radial + j, b = i * radial + ((j + 1) % radial), c = a + radial, d = b + radial;
+    for (let j = 0; j < n; j++) {
+      const a = i * n + j, b = i * n + ((j + 1) % n), c = a + n, d = b + n;
       index.push(a, b, c, b, d, c);
     }
   const shelfGeometry = new THREE.BufferGeometry();
@@ -566,6 +590,12 @@ export function buildPool(p, materials, { light = false, seed = 1 } = {}) {
     // solid: the camera keeps above the pool's still water (it slid under
     // the surface and saw it as a flat green board).
     surfaces: { tiles: domes, solids: [cylinder(p.x, p.z, POOL.basin + 0.15, floor - 0.3, level + 0.05, { body: false })] },
+    affordances: (() => {
+      // The rim on the landward side, looking into the water: where a cat
+      // sits still and the anemones and klipfish come back.
+      const a = seaward + Math.PI, r = basinR(a) + 0.35;
+      return [{ id: "pool-rim", kind: "sit-near", x: p.x + Math.cos(a) * r, y: height(r, a), z: p.z + Math.sin(a) * r, r: 0.9, facing: Math.atan2(-Math.cos(a), -Math.sin(a)), hint: "anemones close as a paw comes near" }];
+    })(),
     update({ time, eye, pose }) {
       if (!eye || Math.hypot(eye[0] - p.x, eye[2] - p.z) > 22) return;
       const dt = Math.min(0.1, Math.max(0, time - last));
