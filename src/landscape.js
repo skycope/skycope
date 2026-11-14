@@ -37,7 +37,12 @@ THREE.ShaderChunk.tonemapping_pars_fragment =
 // land-look: night light on the land (see updateLighting), exposed linear
 // units: the moonless key, what a full moon adds, and the sky fill's lift.
 // `?perf`: landscape.nightLand tunes them live.
-const NIGHT_LAND = { key: 0.1, moon: 0.14, fill: 6 };
+// grade: more key, less fill, at about the same overall level. With the
+// fill six times the dome the night beach was one even grey-blue: a rock
+// had no lit side. Moonlight is directional (a crescent still throws
+// shadows a dark-adapted eye reads); the fill keeps the shade blue, not
+// black.
+const NIGHT_LAND = { key: 0.25, moon: 0.3, fill: 4.5 };
 const MOON_KEY = new THREE.Color(0.62, 0.74, 1.0);
 // land-look: the sky dome as the land's ambient (buildEnvironment): how much
 // of its chroma reaches the land with the sun high and with it low, and how

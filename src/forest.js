@@ -1197,6 +1197,11 @@ diffuseColor.rgb *= mix( 0.72, 1.0, smoothstep( 0.0, 0.5, up + mid * 0.3 ) );
   float crust = smoothstep( 0.66, 0.72, mix( dNoise3( q * 12.0 + 31.0 ), 0.5, smoothstep( 0.2, 0.5, footprint * 12.0 ) ) );
   diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 1.25, 1.25, 1.18 ), crust * 0.5 * smoothstep( 0.3, 0.7, up ) );
   float skirt = 1.0 - smoothstep( 0.04, 0.5 + ( blot - 0.5 ) * 0.4, vRockAbove );
+  // grade: the skirt is damp wicked up from wet sand: a beach boulder's.
+  // Up the island a stone stands on dry soil and keeps its pale foot (a
+  // summit cairn, every stone under half a metre up, read as dark lumps
+  // at a quarter of the sand's brightness; granite is about half).
+  skirt *= 1.0 - 0.75 * smoothstep( 6.0, 14.0, dShore( coast ) );
   diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.6, 0.62, 0.56 ), skirt * 0.75 );
 }
 // Joint cracks and exfoliation seams: thin dark lines, faded with distance.
