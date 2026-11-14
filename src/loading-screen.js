@@ -70,6 +70,12 @@ export function project(view, [x, y, z], aspect) {
   return [0.5 + (0.5 * dot(d, r)) / (depth * TAN * aspect), 0.5 - (0.5 * dot(d, u)) / (depth * TAN)];
 }
 
+// A point far out on the sea straight ahead of a camera.
+function ahead(view) {
+  const turn = view.azimuth + Math.PI / 4;
+  return [view.x + Math.sin(turn) * 4000, 0, view.z + Math.cos(turn) * 4000];
+}
+
 // Where the wisp first rises: out of the sand ahead of the cat.
 export function wispRise(cat) {
   const x = cat.x + Math.sin(cat.heading) * 5.5;
@@ -218,7 +224,8 @@ export function paint(width, height, { celestial, weather = null, view = homeVie
   // Lambert, as the land layer lights itself: the sun's share over π, the
   // sky's whole.
   const lit = light.direct.map((v) => (v * Math.max(0, sunCoast[1]) * (1 - 0.85 * cover)) / Math.PI);
-  const ambient = light.sky;
+  // By night the land layer adds a cool key from the sky's bright side.
+  const ambient = light.sky.map((v) => v * (1 + 2.5 * light.night));
   // The pixel's ray, into `d`.
   const d = [0, 0, 0];
   const ray = (i, j) => {
@@ -272,7 +279,7 @@ export function paint(width, height, { celestial, weather = null, view = homeVie
       const trees = canopy > 0.4;
       const albedo = sea ? null : trees ? CANOPY : inland < 1.4 ? WET_SAND : mixColour(SAND, DUNE, smoothstep(3, 9, inland));
       // Crowns: lit on top, dappled, dark beneath.
-      const dapple = trees ? 0.6 + 0.8 * noise2(x * 0.8, z * 0.8) : 1;
+      const dapple = trees ? 0.65 + 0.7 * noise2(x * 0.35, z * 0.35) : 1;
       for (let j = Math.max(0, row); j < reached; j++) {
         const k = (j * width + i) * 3;
         let reflected = null;
@@ -287,7 +294,7 @@ export function paint(width, height, { celestial, weather = null, view = homeVie
           d[1] = cos;
           reflected = sky.at(normalize(d));
         }
-        const sunlit = trees ? dapple * (1.3 - 0.9 * Math.min(1, (j - row) / 5)) : 1;
+        const sunlit = trees ? dapple * (1.2 - 0.6 * Math.min(1, (j - row) / 8)) : 1;
         for (let q = 0; q < 3; q++) {
           const c = sea
             ? reflected[q] * fresnel + (DEEP[q] + (SHALLOW[q] - DEEP[q]) * shallow) * (ambient[q] + lit[q]) * (1 - fresnel)
@@ -371,6 +378,8 @@ export function createLoadingScreen({ document: doc = globalThis.document, stora
   let progress = 0;
   let state = "loading";
   let anchor = [0.5, 0.6];
+  let painted = null;
+  let trackFrame = 0;
   let wanderTimer = 0;
   let pointerTimer = 0;
   const hideTimers = [0, 0];
@@ -450,10 +459,9 @@ export function createLoadingScreen({ document: doc = globalThis.document, stora
     const old = canvases[front];
     hideTimers[front] = setTimeout(() => delete old.dataset.shown, fade ? 1600 : 0);
     front = index;
-    // The wisp keeps to the sea just under the horizon.
-    const horizon = project(scene.view, [scene.view.x + Math.sin(scene.view.azimuth + Math.PI / 4) * 4000, 0, scene.view.z + Math.cos(scene.view.azimuth + Math.PI / 4) * 4000], width / height);
-    anchor = [0.5, clamp((horizon?.[1] ?? 0.4) + 0.1, 0.25, 0.75)];
-    root.style.setProperty("--horizon", `${((horizon?.[1] ?? 0.4) * 100).toFixed(2)}%`);
+    // The wisp keeps to just under the horizon.
+    painted = { ...scene.view };
+    anchor = [0.5, clamp((project(painted, ahead(painted), width / height)?.[1] ?? 0.4) + 0.1, 0.25, 0.75)];
   };
   const repaint = () => {
     if (state !== "loading") return;
@@ -533,10 +541,34 @@ export function createLoadingScreen({ document: doc = globalThis.document, stora
       setProgress(1);
       root.dataset.state = "leaving";
       if (reduced) return finish(0.9);
-      const rise = camera && cat ? project(camera, wispRise(cat), view.innerWidth / Math.max(1, view.innerHeight)) : null;
-      const target = rise && rise[0] > 0 && rise[0] < 1 && rise[1] > 0 && rise[1] < 1 ? rise : null;
-      if (target) moveWisp(target, 1.7);
-      timers.push(setTimeout(() => (root.dataset.state = "settling"), target ? 1500 : 600));
+      // The real camera still eases into place over the first frames: the
+      // painting follows it as it fades, so the horizons stay together,
+      // and the wisp's mark is re-aimed as it goes.
+      const picture = root.querySelector(".veil-paint");
+      const started = performance.now();
+      let aimed = -1;
+      const track = () => {
+        const aspect = view.innerWidth / Math.max(1, view.innerHeight);
+        const t = (performance.now() - started) / 1000;
+        if (camera && painted && picture) {
+          const was = project(painted, ahead(painted), aspect);
+          const now = project(camera, ahead(painted), aspect);
+          if (was && now) {
+            const dx = now[0] - was[0];
+            const dy = now[1] - was[1];
+            picture.style.transformOrigin = `${(was[0] * 100).toFixed(1)}% ${(was[1] * 100).toFixed(1)}%`;
+            picture.style.transform = `translate(${(dx * 100).toFixed(2)}vw, ${(dy * 100).toFixed(2)}vh) scale(${(1 + 2 * Math.max(Math.abs(dx), Math.abs(dy))).toFixed(3)})`;
+          }
+        }
+        const rise = camera && cat && t < 1.4 && Math.floor(t / 0.35) > aimed ? project(camera, wispRise(cat), aspect) : null;
+        if (rise && rise[0] > 0.02 && rise[0] < 0.98 && rise[1] > 0.02 && rise[1] < 0.98) {
+          aimed = Math.floor(t / 0.35);
+          moveWisp(rise, 1.7 - t);
+        }
+        if (t < 2.4) trackFrame = view.requestAnimationFrame(track);
+      };
+      track();
+      timers.push(setTimeout(() => (root.dataset.state = "settling"), aimed >= 0 ? 1500 : 600));
       finish(3.4);
     },
     // No world after all: fade to the static fallback sky.
@@ -552,6 +584,7 @@ export function createLoadingScreen({ document: doc = globalThis.document, stora
       clearTimeout(wanderTimer);
       clearTimeout(pointerTimer);
       clearTimeout(resizeTimer);
+      view.cancelAnimationFrame?.(trackFrame);
       timers.concat(hideTimers).forEach(clearTimeout);
       root.hidden = true;
     },
