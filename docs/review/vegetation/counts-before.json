@@ -1,122 +1,44 @@
 {
  "750-forest-slope": {
-  "triangles": 2248857,
-  "calls": 302,
+  "triangles": 2230393,
+  "calls": 294,
   "parts": {
-   "ground-detail": 13296,
-   "near-ground": 49164,
-   "wood": 240630,
-   "shoots": 1111418,
-   "needles": 40412,
-   "blades": 24808,
-   "fronds": 123012,
-   "turf": 208155,
-   "reeds": 9226,
-   "succulents": 49408,
-   "flowers": 167255,
-   "other": 59310,
-   "rock": 16280,
-   "ground": 105579
+   "other": 2206619
   }
  },
  "750-meadow": {
-  "triangles": 2150282,
-  "calls": 323,
+  "triangles": 2000974,
+  "calls": 324,
   "parts": {
-   "ground-detail": 8656,
-   "near-ground": 50964,
-   "wood": 203612,
-   "needles": 49442,
-   "shoots": 789150,
-   "blades": 26964,
-   "fronds": 148698,
-   "reeds": 11382,
-   "turf": 208950,
-   "succulents": 56948,
-   "flowers": 218225,
-   "other": 223288,
-   "rock": 17520,
-   "ground": 105579
+   "other": 1977200
   }
  },
  "750-shore-scrub": {
-  "triangles": 890503,
-  "calls": 155,
+  "triangles": 897102,
+  "calls": 143,
   "parts": {
-   "ground-detail": 3404,
-   "near-ground": 30576,
-   "wood": 54348,
-   "shoots": 403514,
-   "needles": 16336,
-   "fronds": 44680,
-   "blades": 9848,
-   "turf": 46455,
-   "reeds": 5516,
-   "succulents": 7440,
-   "flowers": 49925,
-   "other": 50616,
-   "rock": 31360,
-   "ground": 105579
+   "other": 866196
   }
  },
  "750-hilltop": {
-  "triangles": 2226699,
-  "calls": 340,
+  "triangles": 2199649,
+  "calls": 329,
   "parts": {
-   "ground-detail": 8952,
-   "near-ground": 29808,
-   "wood": 213888,
-   "shoots": 1012548,
-   "needles": 48618,
-   "fronds": 154792,
-   "blades": 24512,
-   "turf": 242055,
-   "reeds": 13902,
-   "succulents": 53960,
-   "flowers": 192019,
-   "other": 67892,
-   "rock": 34400,
-   "ground": 105579
+   "other": 2175875
   }
  },
  "750-milkwood-under": {
-  "triangles": 2180956,
-  "calls": 346,
+  "triangles": 2057167,
+  "calls": 342,
   "parts": {
-   "ground-detail": 9028,
-   "near-ground": 52812,
-   "wood": 210534,
-   "shoots": 841886,
-   "needles": 35514,
-   "fronds": 128276,
-   "blades": 22720,
-   "reeds": 9450,
-   "turf": 183495,
-   "succulents": 52480,
-   "flowers": 217178,
-   "other": 260580,
-   "rock": 20520,
-   "ground": 105579
+   "other": 2026263
   }
  },
  "750-cat-plants": {
-  "triangles": 2046418,
-  "calls": 273,
+  "triangles": 2047137,
+  "calls": 275,
   "parts": {
-   "ground-detail": 9404,
-   "near-ground": 50076,
-   "wood": 185732,
-   "shoots": 891206,
-   "needles": 40348,
-   "blades": 32888,
-   "fronds": 97942,
-   "turf": 246195,
-   "reeds": 10906,
-   "succulents": 50940,
-   "flowers": 203070,
-   "other": 79278,
-   "rock": 19080,
-   "ground": 105579
+   "other": 2016233
   }
  }
 }

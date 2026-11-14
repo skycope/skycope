@@ -537,7 +537,9 @@ async function prepareBase(ref, name = "perf-base") {
   await mkdir(dir, { recursive: true });
   execFileSync("sh", ["-c", `git archive ${ref} src index.html | tar -x -C ${name}`], { cwd: ROOT });
   const html = await readFile(join(dir, "index.html"), "utf8");
-  await writeFile(join(dir, "index.html"), html.replace('src="/src/main.js"', `src="/${name}/src/main.js"`));
+  // Every absolute /src/ reference (the module script, the loading veil's
+  // dynamic import) points at the snapshot.
+  await writeFile(join(dir, "index.html"), html.replaceAll('"/src/', `"/${name}/src/`));
   return `/${name}/`;
 }
 
