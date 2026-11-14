@@ -200,3 +200,38 @@ test("no web of skin between the thighs mid-stride", () => {
     assert.ok(longest < 0.075, `${speed} m/s: longest inner-thigh edge ${(longest * 100).toFixed(1)} cm`);
   }
 });
+
+// Paws never skate: in stance a paw stays where it landed, at a walk, trot
+// and gallop and turning on the spot (where planted paws used to be dragged
+// round at 3.6 m/s), and a cat that stops steps its paws home rather than
+// sliding them.
+test("planted paws do not slide", () => {
+  const names = ["lfPaw", "rfPaw", "lhPaw", "rhPaw"].map((n) => cat.root.getObjectByName(n));
+  const v = new THREE.Vector3();
+  const slide = (step, frames = 240) => {
+    const p = pose();
+    let last = null;
+    let total = 0;
+    for (let f = 0; f < frames; f++) {
+      step(f, p);
+      cat.update(p, 1 / 60, f / 60, () => 0, () => 0, LIGHT);
+      cat.root.updateMatrixWorld(true);
+      const now = names.map((b, i) => {
+        const at = b.getWorldPosition(v);
+        const leg = cat.debug.legs[i];
+        return { x: at.x, z: at.z, down: leg.stance && !leg.settle };
+      });
+      if (last && f > 60) now.forEach((q, i) => q.down && last[i].down && (total += Math.hypot(q.x - last[i].x, q.z - last[i].z)));
+      last = now;
+    }
+    return total / S;
+  };
+  for (const speed of [0.3, 0.55, 1, 1.5, 2.4, 3.2]) {
+    const total = slide((f, p) => { p.speed = speed; p.gaitAmp = 1; p.running = speed > 2; p.z += speed / 60; });
+    assert.ok(total < 0.01, `${speed} m/s: paws slid ${(total * 100).toFixed(1)} cm in stance`);
+  }
+  const turning = slide((f, p) => { p.turn = 2; p.heading = (f / 60) * 2; p.gaitAmp = 0.5; });
+  assert.ok(turning < 0.01, `turning on the spot: paws slid ${(turning * 100).toFixed(1)} cm`);
+  const stopping = slide((f, p) => { const s = f < 120 ? 0.55 : 0; p.speed = s; p.gaitAmp = f < 120 ? 1 : Math.max(0, 1 - (f - 120) / 20); p.z += s / 60; });
+  assert.ok(stopping < 0.03, `stopping: paws slid ${(stopping * 100).toFixed(1)} cm`);
+});

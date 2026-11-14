@@ -304,6 +304,15 @@ async function poses(prefix, minutes) {
   await saveSheet(`${prefix}-turnaround`, ids, VIEWS.length, `${prefix} ${TAG}: rows stand, walk, run, sit${boat ? ", boat stand, boat sit" : ""}; columns follow, side, rear, front, top`);
 }
 
+const BOARD = `(() => {
+  const b = skycope.boat; if (!b) return false;
+  b.ride.wake(false);
+  const r = b.ride, w = skycope.walker, c = w.cat, s = r.state;
+  c.x = s.x + 0.8; c.z = s.z; c.y = w.surface(c.x, c.z); c.air = 0;
+  r.ride.state = 'boarding'; r.ride.t = 0; Object.assign(r.ride.hop, { x: c.x, y: c.y, z: c.z, heading: c.heading });
+  return true;
+})()`;
+
 // Silhouettes of the standing cat (side, top, front, rear) beside lit side
 // and top views: for judging proportions against a real cat.
 if (mode === "sil") {
@@ -323,6 +332,9 @@ if (mode === "exp") {
   await setTime(Number(process.env.DAY ?? 1090));
   await place(JSON.parse(process.env.PLACE ?? "{}"));
   if (process.env.KEYS) await keys(JSON.parse(process.env.KEYS));
+  // SETUP=boat: hop aboard first.
+  if (process.env.SETUP === "boat") await evaluate(BOARD);
+  else if (process.env.SETUP) await evaluate(process.env.SETUP);
   await sleep(Number(process.env.WAIT ?? 1800));
   const exps = JSON.parse(process.env.EXP ?? '[["now", ""]]');
   const views = JSON.parse(process.env.VIEWS_EXP ?? '["side"]');
