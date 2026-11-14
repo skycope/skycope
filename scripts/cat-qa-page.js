@@ -286,5 +286,65 @@
     return { rows, metresPerPx, size };
   }
 
-  window.catQA = { sample, shot, sheet, topProfile, PARTS };
+  // How dark the cat's shadow is against the land's own shade, in the game
+  // view: the land's sky share (frame with the sun off / frame) on sunlit
+  // ground, against the cat's shadow core (frame / frame without the cat).
+  function shadowMatch({ scale = 0.5 } = {}) {
+    const camera = L.camera;
+    const canvas = renderer.domElement;
+    const w = Math.round(canvas.width * scale), h = Math.round(canvas.height * scale);
+    const t = target(w, h);
+    const n = w * h * 4;
+    const F = new Float32Array(n), N = new Float32Array(n), S = new Float32Array(n), C = new Float32Array(n);
+    const cat = [...debug.meshes];
+    catRoot.traverse((o) => o.isLineSegments && cat.push(o));
+    const contact = [];
+    scene.traverse((o) => o.material?.uniforms?.catBody && contact.push(o));
+    const suns = [];
+    scene.traverse((o) => o.isDirectionalLight && o.visible && suns.push(o));
+    const coat = cat[0];
+    const saved = { mat: coat.material, order: coat.renderOrder, autoClear: renderer.autoClear };
+    renderer.autoClear = false;
+    cat[2].visible = false;
+    renderInto(t, camera, F);
+    cat.forEach((m) => (m.visible = false));
+    contact.forEach((m) => (m.visible = false));
+    renderInto(t, camera, N);
+    suns.forEach((l) => (l.visible = false));
+    renderInto(t, camera, S);
+    suns.forEach((l) => (l.visible = true));
+    coat.visible = true;
+    coat.material = idMaterial;
+    coat.renderOrder = 0;
+    if (idMaterial.userData.shader) idMaterial.userData.shader.uniforms.partOf.value.set(partTable());
+    renderInto(t, camera, C);
+    coat.material = saved.mat;
+    coat.renderOrder = saved.order;
+    cat.forEach((m) => (m.visible = true));
+    contact.forEach((m) => (m.visible = true));
+    renderer.autoClear = saved.autoClear;
+    const lum = (b, i) => 0.2126 * b[i] + 0.7152 * b[i + 1] + 0.0722 * b[i + 2];
+    const catShade = [], skyShare = [];
+    for (let i = 0; i < n; i += 4) {
+      if (C[i + 3] > 0.5 && (C[i] > 0.9 || C[i + 1] > 0.9 || C[i + 2] > 0.9)) continue; // the cat itself
+      const ln = lum(N, i);
+      if (!(ln > 1e-4)) continue;
+      const share = lum(S, i) / ln;
+      if (share < 0.85) skyShare.push(share); // sunlit ground
+      const r = lum(F, i) / ln;
+      if (r < 0.98) catShade.push({ r, share });
+    }
+    catShade.sort((a, b) => a.r - b.r);
+    skyShare.sort((a, b) => a - b);
+    const q = (list, f) => list.length ? list[Math.floor(list.length * f)] : null;
+    const core = catShade.slice(0, Math.max(1, Math.floor(catShade.length * 0.15)));
+    return {
+      landSkyShare: { p10: q(skyShare, 0.1), median: q(skyShare, 0.5), p90: q(skyShare, 0.9), n: skyShare.length },
+      catShadowCore: core.length ? core.reduce((s, c) => s + c.r, 0) / core.length : null,
+      landSkyShareUnderCat: core.length ? core.reduce((s, c) => s + c.share, 0) / core.length : null,
+      shaded: catShade.length,
+    };
+  }
+
+  window.catQA = { sample, shot, sheet, topProfile, shadowMatch, PARTS };
 })();

@@ -20,11 +20,12 @@ const SUN_SHADOW = /* glsl */ `
     sunColour = directionalLights[ 0 ].color;
     sunDir = directionalLights[ 0 ].direction;
   #endif
-  // Skylight irradiance / π on level ground (landscape.js sets it: the sky
+  // Skylight irradiance on level ground, π × its mean radiance, in the
+  // same units as the sun's colour (landscape.js sets it: the sky
   // is image-based, so there is no hemisphere light to read).
   vec3 skyColour = catSky;
   float sunLum = dot( sunColour, vec3( 0.2126, 0.7152, 0.0722 ) );
-  float skyLum = dot( skyColour, vec3( 0.2126, 0.7152, 0.0722 ) ) * 3.14159;
+  float skyLum = dot( skyColour, vec3( 0.2126, 0.7152, 0.0722 ) );
 `;
 
 // π × the mean skylight radiance on level ground, set per frame by

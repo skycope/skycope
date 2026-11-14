@@ -212,6 +212,24 @@ const scenarios = {
     await sleep(1500);
     await sweep("close", { dists: [0.7], els: [0.05, 0.4, 1.2] });
   },
+  // The cat's shadow is as dark as the land's own shade (the same sun and
+  // sky share), at noon and at golden hour.
+  async shadow() {
+    for (const t of [750, 1090]) {
+      await setTime(t);
+      await place({ el: 0.9, dist: 2.5 });
+      await sleep(2000);
+      const m = await evaluate("catQA.shadowMatch()");
+      const ratio = m.catShadowCore / m.landSkyShareUnderCat;
+      const line = `shadow t${t}: cat core ${m.catShadowCore?.toFixed(3)} vs land sky share ${m.landSkyShareUnderCat?.toFixed(3)} (×${ratio.toFixed(2)})`;
+      samples++;
+      if (!(ratio > 0.7 && ratio < 1.3)) {
+        failures.push({ label: line });
+        console.log("FAIL", line);
+      } else console.log("ok  ", line);
+    }
+    await setTime(T);
+  },
   async boat() {
     const ok = await evaluate(`(() => {
       const b = skycope.boat; if (!b) return false;
