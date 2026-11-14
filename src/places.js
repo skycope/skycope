@@ -37,42 +37,44 @@ export function createPlaces(group, seed, { light = false, shared } = {}) {
   for (const p of layout) {
     const build = BUILDERS[p.kind];
     if (!build) continue;
+    // Every builder returns the prop contract (place-kit.js prop()).
     const b = build(p, materials, { light, seed });
     const lod = new THREE.LOD();
     lod.position.set(p.x, 0, p.z);
-    lod.addLevel(b.near, 0);
-    if (b.far) lod.addLevel(b.far, b.farDistance ?? 45, 0.1);
+    lod.addLevel(b.lod.near, 0);
+    if (b.lod.far) lod.addLevel(b.lod.far, b.lod.farDistance, 0.1);
     // Small places are a few pixels across the island: gone past cullDistance.
-    if (b.cullDistance) lod.addLevel(new THREE.Object3D(), b.cullDistance, 0.1);
+    if (b.lod.cullDistance) lod.addLevel(new THREE.Object3D(), b.lod.cullDistance, 0.1);
     lod.updateMatrix();
     lod.matrixAutoUpdate = false;
     root.add(lod);
-    for (const child of [b.near, b.far]) child?.traverse((o) => { o.matrixAutoUpdate = false; o.updateMatrix(); });
+    for (const child of [b.lod.near, b.lod.far]) child?.traverse((o) => { o.matrixAutoUpdate = false; o.updateMatrix(); });
     if (b.extra) root.add(b.extra);
-    obstacles.trunks.push(...(b.obstacles?.trunks ?? []));
-    obstacles.domes.push(...(b.obstacles?.domes ?? []));
-    blockers.push(...(b.blockers ?? []));
+    obstacles.trunks.push(...b.surfaces.trunks);
+    obstacles.domes.push(...b.surfaces.tiles);
+    blockers.push(...b.surfaces.solids);
     built.push({ place: p, ...b });
   }
 
-  // solid: walls, timbers and bark hide the cat outright: no see-through
-  // silhouette through them (cat-coat.js markSolid).
-  const solids = new Set([materials.paint, materials.stone, materials.wood, materials.rough]);
+  // solid: walls, timbers, iron and bark hide the cat outright: no
+  // see-through silhouette through them (cat-coat.js markSolid).
+  const solids = new Set([materials.limewash, materials.rubble, materials.timber, materials.iron, materials.rust, materials.bark]);
   for (const m of solids) markSolid(m);
   root.traverse((o) => { if (o.isMesh && solids.has(o.material)) o.renderOrder = SOLID_ORDER; });
 
-  const beam = built.find((b) => b.lamp) ? lampLights(built.find((b) => b.lamp).lamp) : null;
+  const allLights = built.flatMap((b) => b.lights);
+  const lampLight = allLights.find((l) => l.kind === "lamp");
+  const beam = lampLight ? lampLights(lampLight) : null;
   if (beam) root.add(beam.group);
-  const haloList = built.flatMap((b) => b.halos ?? []);
-  // land-magic: the island's lamps (coast metres), which light the land
-  // round them once the lighthouse's gift wakes (land-magic.js slot 3).
-  const lamps = haloList.map((h) => ({ x: h.x, y: h.y, z: h.z, colour: h.colour, reach: h.reach ?? 3.2, power: h.power ?? 0.8 }));
-  const lighthouse = built.find((b) => b.lamp);
-  if (lighthouse?.cottage) lamps.push(lighthouse.cottage);
+  // land-magic: the island's other lamps (coast metres), which light the
+  // land round them once the lighthouse's gift wakes (land-magic.js slot 3).
+  const lamps = allLights.filter((l) => l.kind !== "lamp").map((h) => ({ x: h.x, y: h.y, z: h.z, colour: h.colour, reach: h.reach ?? 3.2, power: h.power ?? 0.8 }));
+  const haloList = allLights.filter((l) => l.kind === "lantern");
   const halos = haloList.length ? haloMesh(haloList) : null;
   if (halos) root.add(halos.mesh);
   paintGround(group, layout);
   const eyeWorld = new THREE.Vector3();
+  const crownOf = built.find((b) => b.crown);
 
   return {
     group: root,
@@ -80,22 +82,30 @@ export function createPlaces(group, seed, { light = false, shared } = {}) {
     pois: layout.map(({ id, title, x, z, r }) => ({ id, title, x, z, r })),
     obstacles,
     blockers,
+    // The prop contracts' data, for the systems that will read it:
+    // covers for precipitation.js, affordances for affordances.js.
+    covers: built.flatMap((b) => b.covers.map((c) => ({ place: b.place.id, ...c }))),
+    affordances: built.flatMap((b) => b.affordances.map((a) => ({ place: b.place.id, ...a }))),
     // boat: the fisherman's boat's hull ({ launch() }, place-shore.js).
     boatHull: built.find((b) => b.hull)?.hull ?? null,
     // land-magic: the lighthouse lamp (coast metres) and the island's lamps.
-    beacon: lighthouse?.lamp ?? null,
+    beacon: lampLight ? { x: lampLight.x, y: lampLight.y, z: lampLight.z, radius: lampLight.radius } : null,
     lamps,
     // land-magic: the old milkwood's crown (coast x, z; radius; top y), the
     // fireflies' home.
-    crown: (() => { const m = built.find((b) => b.crown); return m ? { x: m.place.x, z: m.place.z, radius: m.crown.radius, top: m.crown.top, ground: m.crown.ground ?? m.crown.top - 10 } : null; })(),
+    crown: crownOf ? { x: crownOf.place.x, z: crownOf.place.z, radius: crownOf.crown.radius, top: crownOf.crown.top, ground: crownOf.crown.ground ?? crownOf.crown.top - 10 } : null,
     // land-magic: `lamp` is land-magic.js's lamp state ({ lit, angle,
     // strength }) and `lights` the other lamps' level: everything here is
     // dark until the lighthouse's gift wakes (without them, it stays dark).
     update({ time = 0, night = 0, wind = [0, 0], eye = null, pose = null, lamp = null, lights = 0 } = {}) {
-      const lit = lights;
+      // Glow is a night thing: panes, lanterns and the beam are dark by
+      // day (a lamp lit at noon reads as a glowing prop), coming up through
+      // dusk.
+      const dark = smooth01(0.05, 0.5, night);
+      const lit = lights * dark;
       materials.lights.value = lit;
       if (eye) eyeWorld.set(eye[0], eye[1], -eye[2]);
-      beam?.update(lamp, night, eyeWorld);
+      beam?.update(lamp, night, eyeWorld, dark);
       halos?.update(time, lit);
       for (const b of built) b.update?.({ time, night, wind, eye, pose, lit });
     },
@@ -233,12 +243,12 @@ function lampLights(lamp) {
     group,
     // land-magic: dark until the lamp's gift wakes; the angle comes from
     // land-magic.js so the light on the land and the visible beams agree.
-    update(lamp, night, eye) {
-      group.visible = !!lamp && lamp.lit > 0.01;
+    update(lamp, night, eye, dark = 1) {
+      group.visible = !!lamp && lamp.lit * dark > 0.01;
       if (!group.visible) return;
       const a = lamp.angle;
       uniforms.angle.value = a;
-      uniforms.strength.value = lamp.lit * (0.1 + 0.26 * night);
+      uniforms.strength.value = lamp.lit * dark * (0.1 + 0.26 * night);
       // Warm gold by day; deeper amber by night, where the tonemap's night
       // vision would otherwise grey it to blue-white.
       beamMaterial.uniforms.glowColour.value.setRGB(1.0, 0.8 - 0.1 * night, 0.55 - 0.22 * night);

@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { groundHeight } from "./terrain.js";
 import { capsule, cylinder, setCapsule } from "./blockers.js";
 import { seededRandom } from "./random.js";
-import { part, merge, sweep, lathe, place, smooth01, srgb, staticMesh, glowMaterial } from "./place-kit.js";
+import { part, merge, sweep, lathe, place, smooth01, srgb, staticMesh, glowMaterial, prop } from "./place-kit.js";
 import { heightTile, discTile, timberTile } from "./place-lighthouse.js";
 import { CAIRN, POOL } from "./place-rocks.js";
 
@@ -191,11 +191,11 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
   pool.place(p.x, p.z);
 
   const near = new THREE.Group();
-  near.add(staticMesh(merge(wood), materials.wood), staticMesh(merge(paint), materials.paint), staticMesh(merge(net), materials.net), staticMesh(merge(glow), materials.glow, { cast: false }));
+  near.add(staticMesh(merge(wood), materials.timber), staticMesh(merge(paint), materials.limewash), staticMesh(merge(net), materials.net), staticMesh(merge(glow), materials.glow, { cast: false }));
   const far = new THREE.Group();
-  far.add(staticMesh(merge(woodFar), materials.wood));
+  far.add(staticMesh(merge(woodFar), materials.timber));
   // boat: the hull's meshes, near and far.
-  const hullNear = staticMesh(merge(hullParts), materials.wood), hullFarMesh = staticMesh(merge(hullFar), materials.wood);
+  const hullNear = staticMesh(merge(hullParts), materials.timber), hullFarMesh = staticMesh(merge(hullFar), materials.timber);
   near.add(hullNear);
   far.add(hullFarMesh);
   const hullBlockers = [];
@@ -220,12 +220,11 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
     const a = Math.asin(Math.min(1, Math.abs(v) / b));
     return keelAt(s) + 0.12 * s * s * 0.4 - depth * (1 - Math.cos(a)) - 0.12 * s * s * (a / (Math.PI / 2)) + 0.02;
   })];
-  return {
+  return prop({
     // solid: no cull. Gone at 80 m, the hull popped out of the cove in
     // plain view; its far level is one draw of a few hundred triangles.
-    near, far, farDistance: 40,
-    obstacles: { trunks, domes: [...domes, ...lowTiles] },
-    blockers,
+    lod: { near, far, farDistance: 40 },
+    surfaces: { trunks, tiles: [...domes, ...lowTiles], solids: blockers },
     // boat: launch() takes the hull off its logs for good (boat.js then
     // draws the boat): its meshes hide, its camera solids sink out of
     // reach (static blockers cannot be removed) and its standing tile goes.
@@ -236,12 +235,12 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
         domes[0].heights.fill(-Infinity);
       },
     },
-    halos: [{ x: p.x + lamp.x, y: lamp.y, z: p.z + lamp.z, size: 1.5, colour: [1.0, 0.6, 0.24], flicker: true }],
+    lights: [{ kind: "lantern", x: p.x + lamp.x, y: lamp.y, z: p.z + lamp.z, size: 1.5, colour: [1.0, 0.6, 0.24], flicker: true }],
     extra: pool.mesh,
     update({ time, lit }) {
       pool.update(time, lit);
     },
-  };
+  });
 }
 
 const POOL_VERTEX = /* glsl */ `
@@ -338,12 +337,12 @@ export function buildBeacon(p, materials) {
   paint.push(part(new THREE.CylinderGeometry(0.012, 0.012, 0.44, 4), { matrix: place(ax / 2, top + 1.35, az / 2, { yaw: armA, pitch: Math.PI / 2 }), colour: srgb("#26241f") }));
   const lantern = hurricaneLantern(paint, glow, ax, top + 1.35 - 0.33, az);
   const near = new THREE.Group();
-  near.add(staticMesh(merge(paint), materials.paint), staticMesh(merge(glow), materials.glow, { cast: false }));
-  return {
-    near,
-    obstacles: { trunks: [{ x: p.x, z: p.z, r: 0.25 }], domes: [] },
-    halos: [{ x: p.x + lantern.x, y: lantern.y, z: p.z + lantern.z, size: 1.4, colour: [1.0, 0.66, 0.3], flicker: true, reach: 3.6 }],
-  };
+  near.add(staticMesh(merge(paint), materials.limewash), staticMesh(merge(glow), materials.glow, { cast: false }));
+  return prop({
+    lod: { near },
+    surfaces: { trunks: [{ x: p.x, z: p.z, r: 0.25 }] },
+    lights: [{ kind: "lantern", x: p.x + lantern.x, y: lantern.y, z: p.z + lantern.z, size: 1.4, colour: [1.0, 0.66, 0.3], flicker: true, reach: 3.6 }],
+  });
 }
 
 // ---- The rock pool ---------------------------------------------------------------
@@ -505,7 +504,7 @@ export function buildPool(p, materials, { light = false, seed = 1 } = {}) {
   fishGeometry.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0.06, 0.012, 0.006, 0, -0.012, 0.006, 0, 0, 0.012, 0.005, 0, -0.004, 0.0, 0, 0, -0.05, 0.016, 0.004, -0.065, -0.016, 0.004, -0.065], 3));
   fishGeometry.setIndex([0, 1, 3, 0, 3, 2, 0, 4, 1, 0, 2, 4, 1, 5, 3, 3, 5, 2, 1, 4, 5, 2, 5, 4, 5, 6, 7, 5, 7, 6]);
   fishGeometry.computeVertexNormals();
-  const fishMaterial = materials.paint;
+  const fishMaterial = materials.limewash;
   const fish = new THREE.InstancedMesh(fishGeometry, fishMaterial, fishCount);
   fishGeometry.setAttribute("color", new THREE.Float32BufferAttribute(new Array(8).fill(0).flatMap(() => [0.34, 0.3, 0.2]), 3));
   fish.frustumCulled = false;
@@ -515,10 +514,10 @@ export function buildPool(p, materials, { light = false, seed = 1 } = {}) {
   const o = new THREE.Object3D();
 
   const near = new THREE.Group();
-  near.add(staticMesh(merge(stone), materials.stone), staticMesh(merge(life), materials.paint, { cast: false }), fish);
+  near.add(staticMesh(merge(stone), materials.rubble), staticMesh(merge(life), materials.limewash, { cast: false }), fish);
   near.add(staticMesh(water, materials.water, { cast: false, receive: false }));
   const far = new THREE.Group();
-  far.add(staticMesh(part(shelfGeometry.clone(), { colour: srgb("#6f6962"), anchor: (q) => ground(q.x, q.z) }), materials.stone));
+  far.add(staticMesh(part(shelfGeometry.clone(), { colour: srgb("#6f6962"), anchor: (q) => ground(q.x, q.z) }), materials.rubble));
 
   const domes = [heightTile(p.x, p.z, POOL.shelf + 0.9, 0.08, (x, z) => {
     const lx = x - p.x, lz = z - p.z;
@@ -527,13 +526,12 @@ export function buildPool(p, materials, { light = false, seed = 1 } = {}) {
     return height(r, a);
   })];
   let last = 0;
-  return {
+  return prop({
     // solid: culled where the fog has the shelf (it popped at 70 m).
-    near, far, farDistance: 30, cullDistance: 115,
-    obstacles: { trunks: [], domes },
+    lod: { near, far, farDistance: 30, cullDistance: 115 },
     // solid: the camera keeps above the pool's still water (it slid under
     // the surface and saw it as a flat green board).
-    blockers: [cylinder(p.x, p.z, POOL.basin + 0.15, floor - 0.3, level + 0.05, { body: false })],
+    surfaces: { tiles: domes, solids: [cylinder(p.x, p.z, POOL.basin + 0.15, floor - 0.3, level + 0.05, { body: false })] },
     update({ time, eye, pose }) {
       if (!eye || Math.hypot(eye[0] - p.x, eye[2] - p.z) > 22) return;
       const dt = Math.min(0.1, Math.max(0, time - last));
@@ -561,7 +559,7 @@ export function buildPool(p, materials, { light = false, seed = 1 } = {}) {
       }
       fish.instanceMatrix.needsUpdate = true;
     },
-  };
+  });
 }
 
 // land-magic: a hurricane lantern like the boat's (a glass globe in a wire

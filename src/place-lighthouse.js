@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { groundHeight } from "./terrain.js";
-import { part, merge, place, lathe, smooth01, srgb, staticMesh } from "./place-kit.js";
+import { part, merge, place, lathe, smooth01, srgb, staticMesh, prop } from "./place-kit.js";
 import { box, cylinder } from "./blockers.js";
 
 // A small whitewashed lighthouse on the point, as on the Cape's own
@@ -226,9 +226,9 @@ export function buildLighthouse(p, materials, { light = false } = {}) {
   const meshes = (lists) => {
     const group = new THREE.Group();
     const g = merge(lists.paint);
-    if (g) group.add(staticMesh(g, materials.paint));
+    if (g) group.add(staticMesh(g, materials.limewash));
     const s = merge(lists.stone);
-    if (s) group.add(staticMesh(s, materials.stone));
+    if (s) group.add(staticMesh(s, materials.rubble));
     const l = merge(lists.glow);
     if (l) group.add(staticMesh(l, materials.glow, { cast: false }));
     return group;
@@ -281,15 +281,15 @@ export function buildLighthouse(p, materials, { light = false } = {}) {
     const [ax, az] = at(du, dv);
     blockers.push(box(m.x, m.z, Math.atan2(ax, az), Math.hypot(du, dv) / 2 + 0.05, 0.25, Math.min(ga, gb) - 0.8, Math.max(ga, gb) + 0.9, { body: false }));
   }
-  return {
-    near: nearGroup,
-    far: farGroup,
-    lamp: { x: p.x, y: yLamp, z: p.z, radius: 1.24 },
-    // land-magic: the cottage's lit windows spill warm light on the yard.
-    cottage: (() => { const [x, z] = at(cu + depth / 2 + 1.2, cv); return { x: p.x + x, y: floor + 1.5, z: p.z + z, colour: [1.0, 0.62, 0.3], reach: 4.5, power: 0.9 }; })(),
-    obstacles: { trunks, domes: [...domes, plinthTile] },
-    blockers,
-  };
+  return prop({
+    lod: { near: nearGroup, far: farGroup },
+    surfaces: { trunks, tiles: [...domes, plinthTile], solids: blockers },
+    lights: [
+      { kind: "lamp", x: p.x, y: yLamp, z: p.z, radius: 1.24, colour: [1.0, 0.8, 0.5] },
+      // land-magic: the cottage's lit windows spill warm light on the yard.
+      (() => { const [x, z] = at(cu + depth / 2 + 1.2, cv); return { kind: "window", x: p.x + x, y: floor + 1.5, z: p.z + z, colour: [1.0, 0.62, 0.3], reach: 4.5, power: 0.9 }; })(),
+    ],
+  });
 }
 
 // A wall along a rounded rectangle in (u, v): returns its geometry (local

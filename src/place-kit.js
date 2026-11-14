@@ -22,8 +22,10 @@ const _c = new THREE.Color();
 // One part of a merged mesh: `geometry` (indexed or not), placed by `matrix`,
 // coloured by a Color or fn(position, normal, out Color). `shade` (0–1 or
 // fn(position, normal)) is baked sky occlusion. `anchor` sets each vertex's
-// anchorHeight (ground height for contact shading; rock material).
-export function part(geometry, { matrix = null, colour = 0xffffff, shade = 0, anchor = 0 } = {}) {
+// anchorHeight (ground height for contact shading; rock material). `weep`
+// (0–1 or fn(position, normal)): rust weeping from an iron fixture above
+// (the kit's weathering).
+export function part(geometry, { matrix = null, colour = 0xffffff, shade = 0, anchor = 0, weep = 0 } = {}) {
   let g = geometry.index ? geometry.toNonIndexed() : geometry.clone();
   if (geometry.index) geometry.dispose();
   for (const name of Object.keys(g.attributes)) if (name !== "position" && name !== "normal") g.deleteAttribute(name);
@@ -34,6 +36,7 @@ export function part(geometry, { matrix = null, colour = 0xffffff, shade = 0, an
   const colours = new Float32Array(position.count * 3);
   const shades = new Float32Array(position.count);
   const anchors = new Float32Array(position.count);
+  const weeps = new Float32Array(position.count);
   const fixed = typeof colour === "function" ? null : _c.set(colour).clone();
   for (let i = 0; i < position.count; i++) {
     _p.fromBufferAttribute(position, i);
@@ -45,10 +48,12 @@ export function part(geometry, { matrix = null, colour = 0xffffff, shade = 0, an
     colours[i * 3 + 2] = _c.b;
     shades[i] = typeof shade === "function" ? shade(_p, _v) : shade;
     anchors[i] = typeof anchor === "function" ? anchor(_p) : anchor;
+    weeps[i] = typeof weep === "function" ? weep(_p, _v) : weep;
   }
   g.setAttribute("color", new THREE.BufferAttribute(colours, 3));
   g.setAttribute("canopyShade", new THREE.BufferAttribute(shades, 1));
   g.setAttribute("anchorHeight", new THREE.BufferAttribute(anchors, 1));
+  g.setAttribute("placeWeep", new THREE.BufferAttribute(weeps, 1));
   return g;
 }
 
@@ -209,88 +214,164 @@ function extend(material, key, { vertex = null, fragment = null, uniforms = {} }
   return material;
 }
 
+// ---- The material kit --------------------------------------------------------
+//
+// Five surfaces build every made thing on the island, each one real stuff
+// that has stood a few decades by the sea:
+//   limewash   whitewashed render and the paint on it (walls, tower, the
+//              cupola, doors, sills: the vertex colour says which paint)
+//   rubble     dressed and drystone granite, in the rocks' own shader
+//              (aprons, steps, footings, the cairn's capstone, the pool shelf)
+//   iron       corrugated sheet: red-oxide roofs and the galvanised tank;
+//              the corrugation is per pixel (a flat sheet of two triangles)
+//   timber     weathered wood: silver above the tide, weed and shell below,
+//              painted where the vertex colour is saturated (the boat)
+//   rust       wrought and cast iron gone to rust: the boiler, bolts, lamp
+//              tin, the beacon's vanes and railings
+// and one weathering block (placeWeathering) they share on top of the
+// shared grounding term (forest.js: drift, dust, contact, the sea's wet
+// band): rain runs down every vertical face; the sea side is salt-greyed
+// up to about 1.5 m; rust weeps down from iron fixtures (a part's `weep`).
+// Glow (lamps, panes, lanterns) is its own material and is lit only by
+// night (places.js update gates `lights`).
+// The milkwood's bark, leaves and lichen, the trap netting and the pool's
+// water are the other, non-kit materials.
+
+const WEATHER_GLSL = /* glsl */ `
+varying float vPlaceWeep;
+// n: world normal (three's frame); bright: how pale the albedo is.
+vec3 placeWeathering( vec3 albedo, vec3 n, float px, float above, float bright ) {
+  float vertical = 1.0 - abs( n.y );
+  // Rain runs: long grey streaks down vertical faces.
+  float runs = pOctave( vec3( vPlace.x * 3.0, vPlace.y * 0.22, vPlace.z * 3.0 ), 1.0, px * 3.0 );
+  albedo *= 1.0 - vertical * smoothstep( 0.55, 0.85, runs ) * mix( 0.08, 0.2, bright );
+  // Salt: faces turned to the open sea are greyed and chalky to about
+  // 1.5 m above the ground, patchily.
+  vec2 seaDir = normalize( vPlace.xz - vec2( 58.0, 70.0 ) + 1e-4 );
+  float seaSide = smoothstep( -0.05, 0.6, dot( vec2( n.x, -n.z ), seaDir ) ) * vertical;
+  float salt = seaSide * ( 1.0 - smoothstep( 0.3, 1.6, above ) ) * ( 0.55 + 0.45 * pOctave( vPlace, 2.7, px ) );
+  float luma = dot( albedo, vec3( 0.3, 0.59, 0.11 ) );
+  albedo = mix( albedo, vec3( luma ) * vec3( 0.98, 0.99, 1.0 ) + 0.035, salt * 0.5 );
+  // Rust weep: thin orange-brown streaks hanging below iron fixtures.
+  float streak = smoothstep( 0.52, 0.82, pOctave( vec3( vPlace.x * 11.0, vPlace.y * 0.3, vPlace.z * 11.0 ), 1.0, px * 11.0 ) );
+  albedo = mix( albedo, albedo * vec3( 0.7, 0.5, 0.33 ), vPlaceWeep * streak * vertical * 0.75 );
+  return albedo;
+}
+`;
+const WEEP_VERTEX = (s) => s
+  .replace("void main() {", "attribute float placeWeep;\nvarying float vPlaceWeep;\nvoid main() {\n  vPlaceWeep = placeWeep;");
+
 export function createMaterials(shared) {
   const lights = { value: 0 };
-  const time = shared.breezeTime;
-  // Lime-washed masonry and paint: the colour is per vertex (white walls,
-  // red cupola, black iron, the green door), the weathering per pixel:
-  // limewash wearing thin in patches, grey rain runs down the walls, damp
-  // and green algae rising from the ground.
-  const paint = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82 });
-  patchMaterial(paint, shared, { grounded: true });
-  extend(paint, "paint", {
-    fragment: (s) => s.replace(
-      "#include <color_fragment>",
-      `#include <color_fragment>
-      {
+  const kit = (material, key, fragment, extra = {}) => extend(material, key, {
+    vertex: (s) => WEEP_VERTEX(extra.vertex ? extra.vertex(s) : s),
+    fragment: (s) => fragment(s.replace("void main() {", `${WEATHER_GLSL}\nvoid main() {`)),
+    uniforms: extra.uniforms,
+  });
+  const preamble = /* glsl */ `
         float px = max( fwidth( vPlace.x ), max( fwidth( vPlace.y ), fwidth( vPlace.z ) ) );
         vec3 n = normalize( ( vec4( vNormal, 0.0 ) * viewMatrix ).xyz );
         float vertical = 1.0 - abs( n.y );
+        float above = groundingH;`;
+
+  // Limewash: the colour is per vertex (white walls, red cupola, the green
+  // door), the wear per pixel: coats of different ages drifting from warm
+  // cream to cool grey, flaking to the grey render beneath, strong paint
+  // sun-faded and chalky, and rising damp with green algae at the foot.
+  const limewash = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.86 });
+  patchMaterial(limewash, shared, { grounded: true });
+  kit(limewash, "limewash", (s) => s.replace(
+    "#include <color_fragment>",
+    `#include <color_fragment>
+      {${preamble}
         float bright = smoothstep( 0.3, 0.6, max( diffuseColor.r, max( diffuseColor.g, diffuseColor.b ) ) );
         float patchy = pOctave( vPlace, 0.9, px ) * 0.6 + pOctave( vPlace, 3.1, px ) * 0.4;
-        float runs = pOctave( vec3( vPlace.x * 3.0, vPlace.y * 0.22, vPlace.z * 3.0 ), 1.0, px * 3.0 );
         float grain = pOctave( vPlace, 41.0, px );
-        // Limewash: patchy coats, thinner and greyer where it has worn.
-        diffuseColor.rgb *= 1.0 - bright * ( smoothstep( 0.55, 0.8, patchy ) * 0.12 + ( grain - 0.5 ) * 0.06 );
-        // Rain runs: grey streaks down vertical faces.
-        diffuseColor.rgb *= 1.0 - vertical * smoothstep( 0.55, 0.85, runs ) * mix( 0.1, 0.22, bright );
-        // Rising damp and green algae at the foot of a wall (groundingH:
-        // height above the real ground, forest.js grounding).
-        float above = groundingH;
-        float damp = ( 1.0 - smoothstep( 0.05, 0.55 + patchy * 0.4, above ) ) * vertical;
-        diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.55, 0.6, 0.45 ), damp * 0.7 );
-        // land-look: old limewash is never one white. Coats of different
-        // ages drift from warm cream to a cool grey over a few metres; rain
-        // has drawn long grey-brown stains down from every ledge and the
-        // gallery; salt bloom and flaking show the darker render beneath;
-        // and the foot of each wall, where splash and soil reach, sits in a
-        // soft, damp shadow.
+        diffuseColor.rgb *= 1.0 - bright * ( smoothstep( 0.55, 0.8, patchy ) * 0.1 + ( grain - 0.5 ) * 0.06 );
         if ( bright > 0.01 ) {
           float drift = pOctave( vPlace * vec3( 0.35, 0.18, 0.35 ), 1.0, px );
           diffuseColor.rgb *= mix( vec3( 1.0 ), mix( vec3( 0.9, 0.92, 0.95 ), vec3( 1.02, 0.97, 0.88 ), drift ), bright );
-          float stain = smoothstep( 0.42, 0.8, pOctave( vec3( vPlace.x * 4.5, vPlace.y * 0.12, vPlace.z * 4.5 ), 1.0, px * 4.5 ) )
-            * smoothstep( 0.35, 0.75, pOctave( vec3( vPlace.x * 1.3, vPlace.y * 0.5, vPlace.z * 1.3 ) + 5.0, 1.0, px ) );
-          diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.68, 0.64, 0.58 ), vertical * stain * 0.55 * bright );
           float flake = smoothstep( 0.74, 0.8, patchy + ( grain - 0.5 ) * 0.3 );
-          diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.46, 0.43, 0.38 ), flake * 0.6 * bright );
-          // A whitewashed wall is bright but not paper: a touch under white.
+          diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.46, 0.43, 0.38 ), flake * 0.55 * bright );
+          // Bright but not paper: a touch under white.
           diffuseColor.rgb *= mix( 1.0, 0.9, bright );
         }
-        // land-look: paint by the sea is never shop-fresh. Strong colours
-        // (the cupola, the roof, the door) are sun-faded and salt-dulled,
-        // grimed in patches; the corrugated roof bleeds rust down its runs.
         {
           float top = max( diffuseColor.r, max( diffuseColor.g, diffuseColor.b ) );
           float sat = ( top - min( diffuseColor.r, min( diffuseColor.g, diffuseColor.b ) ) ) / max( top, 1e-3 );
           float luma = dot( diffuseColor.rgb, vec3( 0.3, 0.59, 0.11 ) );
           diffuseColor.rgb = mix( diffuseColor.rgb, vec3( luma ) * vec3( 1.04, 1.0, 0.95 ), sat * 0.32 );
           diffuseColor.rgb *= 1.0 - smoothstep( 0.45, 0.85, patchy ) * 0.2 * sat;
-          float redRoof = smoothstep( 0.4, 0.7, sat ) * step( diffuseColor.b * 1.6, diffuseColor.r ) * ( 1.0 - vertical );
-          float rust = smoothstep( 0.5, 0.8, runs ) * redRoof;
-          diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.2, 0.09, 0.04 ), rust * 0.5 );
         }
-        float foot = 1.0 - smoothstep( 0.0, 1.1 + patchy * 0.4, above );
-        diffuseColor.rgb *= mix( 1.0, 0.62, foot * foot * vertical );
+        diffuseColor.rgb = placeWeathering( diffuseColor.rgb, n, px, above, bright );
+        float damp = ( 1.0 - smoothstep( 0.05, 0.5 + patchy * 0.4, above ) ) * vertical;
+        diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.58, 0.62, 0.48 ), damp * 0.6 );
       }`,
-    ),
-  });
+  ));
 
-  // Weathered timber: silver-grey sun-bleached wood with grain and checks;
-  // below the tide's reach it goes dark and wet, green with weed and crusted
-  // with barnacles and black mussels (wrecks), or stays as painted (boats:
-  // vertex colour carries the paint, and saturation marks paint).
-  // Cut at the sea surface: the water pass behind shows the rest.
-  const wood = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, clippingPlanes: [new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.03)] });
-  patchMaterial(wood, shared, { grounded: true });
-  extend(wood, "wood", {
-    fragment: (s) => s.replace(
-      "#include <color_fragment>",
-      `#include <color_fragment>
+  // Corrugated iron: red-oxide roofs and the galvanised tank. The ribs are
+  // a per-pixel normal (76 mm pitch) across the sheet: along the ridge on a
+  // roof, round the drum on a tank; they fade out once finer than a pixel.
+  // Galvanised (unsaturated vertex colour) goes dull grey with white zinc
+  // bloom; red oxide fades chalky; both bleed rust down the troughs and
+  // along the lower edge.
+  const iron = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0.0 });
+  patchMaterial(iron, shared, { grounded: true });
+  kit(iron, "iron", (s) => s.replace(
+    "#include <color_fragment>",
+    `#include <color_fragment>
+      float ironGalv = 0.0;
+      {${preamble}
+        float top = max( diffuseColor.r, max( diffuseColor.g, diffuseColor.b ) );
+        float sat = ( top - min( diffuseColor.r, min( diffuseColor.g, diffuseColor.b ) ) ) / max( top, 1e-3 );
+        ironGalv = 1.0 - smoothstep( 0.15, 0.35, sat );
+        float blotch = pOctave( vPlace, 1.4, px ) * 0.6 + pOctave( vPlace, 4.3, px ) * 0.4;
+        vec3 world = vec3( vPlace.x, vPlace.y, -vPlace.z );
+        vec3 across = n.y > 0.3 ? normalize( cross( vec3( 0.0, 1.0, 0.0 ), n ) + 1e-4 ) : vec3( 0.0, 1.0, 0.0 );
+        float phase = dot( world, across ) * 82.7;
+        float trough = smoothstep( 0.2, 1.0, -sin( phase ) ) * ( 1.0 - smoothstep( 0.3, 0.6, px * 13.0 ) );
+        // Red oxide: faded and chalky. Galvanised: grey, zinc-bloomed.
+        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( dot( diffuseColor.rgb, vec3( 0.3, 0.59, 0.11 ) ) ) * vec3( 1.06, 0.98, 0.92 ), ( 1.0 - ironGalv ) * 0.25 );
+        diffuseColor.rgb *= 0.85 + blotch * 0.3;
+        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.42, 0.43, 0.42 ), ironGalv * smoothstep( 0.6, 0.8, blotch ) * 0.4 );
+        // Rust: down the troughs, in blooms, and heaviest low on a sheet.
+        float runs = pOctave( vec3( world.x * 6.0, world.y * 0.5, world.z * 6.0 ), 1.0, px * 6.0 );
+        float rust = clamp( smoothstep( 0.55, 0.85, runs ) * ( 0.4 + trough * 0.6 ) + smoothstep( 0.72, 0.85, blotch ) * 0.6, 0.0, 1.0 );
+        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.19, 0.085, 0.04 ) * ( 0.8 + blotch * 0.4 ), rust * mix( 0.55, 0.35, ironGalv ) );
+        diffuseColor.rgb = placeWeathering( diffuseColor.rgb, n, px, above, 0.0 );
+      }`,
+  ).replace(
+    "#include <normal_fragment_maps>",
+    `#include <normal_fragment_maps>
       {
+        vec3 nW = normalize( ( vec4( normal, 0.0 ) * viewMatrix ).xyz );
         float px = max( fwidth( vPlace.x ), max( fwidth( vPlace.y ), fwidth( vPlace.z ) ) );
-        vec3 n = normalize( ( vec4( vNormal, 0.0 ) * viewMatrix ).xyz );
-        // Grain runs along the timber: it streaks the fastest-varying axis
-        // least. Ribs are near vertical, planks and keels horizontal.
+        vec3 world = vec3( vPlace.x, vPlace.y, -vPlace.z );
+        vec3 across = abs( nW.y ) > 0.3 ? normalize( cross( vec3( 0.0, 1.0, 0.0 ), nW ) + 1e-4 ) : vec3( 0.0, 1.0, 0.0 );
+        float amp = 0.55 * ( 1.0 - smoothstep( 0.3, 0.6, px * 13.0 ) );
+        nW = normalize( nW + across * cos( dot( world, across ) * 82.7 ) * amp );
+        normal = normalize( ( viewMatrix * vec4( nW, 0.0 ) ).xyz );
+      }`,
+  ).replace(
+    "#include <roughnessmap_fragment>",
+    `#include <roughnessmap_fragment>
+      roughnessFactor = mix( roughnessFactor, 0.5, ironGalv );`,
+  ).replace(
+    "#include <metalnessmap_fragment>",
+    `#include <metalnessmap_fragment>
+      metalnessFactor = ironGalv * 0.35;`,
+  ));
+
+  // Weathered timber: silver-grey sun-bleached wood with grain and end
+  // checks; below the tide's reach dark, weedy, crusted with barnacles and
+  // black mussels; paint (saturated vertex colour) faded and flaking.
+  // Cut at the sea surface: the water pass behind shows the rest.
+  const timber = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, clippingPlanes: [new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.03)] });
+  patchMaterial(timber, shared, { grounded: true });
+  kit(timber, "timber", (s) => s.replace(
+    "#include <color_fragment>",
+    `#include <color_fragment>
+      {${preamble}
         vec3 a = abs( n );
         vec3 stretch = a.y > 0.7 ? vec3( 9.0, 1.0, 0.6 ) : vec3( 9.0, 0.7, 9.0 );
         float grain = pOctave( vPlace * stretch, 6.0, px * 6.0 * 9.0 );
@@ -299,21 +380,14 @@ export function createMaterials(shared) {
         float top = max( diffuseColor.r, max( diffuseColor.g, diffuseColor.b ) );
         float painted = smoothstep( 0.18, 0.4, ( top - min( diffuseColor.r, min( diffuseColor.g, diffuseColor.b ) ) ) / max( top, 1e-3 ) );
         diffuseColor.rgb *= 0.82 + grain * mix( 0.36, 0.12, painted ) - checks * 0.3 + ( blotch - 0.5 ) * 0.2;
-        // land-look: boat paint faded by sun and salt: less chroma, chalky.
         diffuseColor.rgb = mix( diffuseColor.rgb, vec3( dot( diffuseColor.rgb, vec3( 0.3, 0.59, 0.11 ) ) ) * vec3( 1.05, 1.0, 0.94 ), painted * 0.3 );
-        // Paint flaking off to grey wood.
         float flake = smoothstep( 0.7, 0.76, blotch + ( grain - 0.5 ) * 0.2 ) * painted;
         diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.2, 0.18, 0.16 ) * ( 0.8 + grain * 0.4 ), flake * 0.8 );
-        // land-look: bare timber above the tide bleaches silver-grey in the
-        // sun and salt, as old wreck wood on a beach does: not a dark shape
-        // on the sand.
+        // Bare timber above the tide bleaches silver-grey.
         float dryWood = ( 1.0 - painted ) * smoothstep( 0.15, 0.6, vPlace.y + ( blotch - 0.5 ) * 0.3 );
-        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.24, 0.23, 0.21 ) * ( 0.75 + grain * 0.4 + ( blotch - 0.5 ) * 0.3 ), dryWood * 0.6 );
-        // The tide's reach: weed and shell below about 0.6 m above the
-        // sea (the wet darkening and gloss are the shared grounding's).
+        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.26, 0.25, 0.23 ) * ( 0.75 + grain * 0.4 + ( blotch - 0.5 ) * 0.3 ), dryWood * 0.6 );
         float y = vPlace.y + ( blotch - 0.5 ) * 0.3;
-        float wet = 1.0 - smoothstep( 0.35, 0.9, y );
-        float marine = wet * ( 1.0 - painted );
+        float marine = ( 1.0 - smoothstep( 0.35, 0.9, y ) ) * ( 1.0 - painted );
         diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.8, 0.82, 0.74 ), marine );
         float weed = smoothstep( 0.45, 0.7, blotch ) * ( 1.0 - smoothstep( 0.0, 0.5, y ) ) * marine;
         diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.07, 0.11, 0.03 ), weed * 0.85 );
@@ -321,14 +395,34 @@ export function createMaterials(shared) {
         diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.5, 0.48, 0.44 ), shells * 0.4 );
         float mussels = smoothstep( 0.6, 0.72, pOctave( vPlace, 9.0, px ) ) * ( 1.0 - smoothstep( 0.05, 0.35, y ) ) * marine;
         diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.02, 0.02, 0.025 ), mussels * 0.9 );
+        diffuseColor.rgb = placeWeathering( diffuseColor.rgb, n, px, above, 0.3 );
       }`,
-    ),
-  });
+  ));
 
-  // Rusted iron and gnarled bark share a rough, mottled finish.
-  const rough = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93 });
-  patchMaterial(rough, shared, { grounded: true });
-  extend(rough, "rough", {
+  // Rusted iron: dark brown scale with orange blooms where it is still
+  // flaking, pitted, near black where wet.
+  const rust = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 });
+  patchMaterial(rust, shared, { grounded: true });
+  kit(rust, "rust", (s) => s.replace(
+    "#include <color_fragment>",
+    `#include <color_fragment>
+      {${preamble}
+        float coarse = pOctave( vPlace, 1.7, px ) * 0.55 + pOctave( vPlace, 5.3, px ) * 0.45;
+        float fine = pOctave( vPlace, 23.0, px );
+        float pits = smoothstep( 0.66, 0.74, pOctave( vPlace, 47.0, px ) );
+        diffuseColor.rgb *= 0.7 + coarse * 0.45 + ( fine - 0.5 ) * 0.3 - pits * 0.25;
+        float bloom = smoothstep( 0.6, 0.72, pOctave( vPlace, 3.1, px ) + ( fine - 0.5 ) * 0.2 );
+        float warm = step( diffuseColor.b * 1.4, diffuseColor.r );
+        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.24, 0.1, 0.035 ), bloom * 0.45 * warm );
+        diffuseColor.rgb = placeWeathering( diffuseColor.rgb, n, px, above, 0.0 );
+      }`,
+  ));
+
+  // Bark (the milkwood): fissured plates running up the limb, grey with
+  // pale crustose lichen and dark furrows.
+  const bark = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93 });
+  patchMaterial(bark, shared, { grounded: true });
+  extend(bark, "bark", {
     fragment: (s) => s.replace(
       "#include <color_fragment>",
       `#include <color_fragment>
@@ -336,23 +430,19 @@ export function createMaterials(shared) {
         float px = max( fwidth( vPlace.x ), max( fwidth( vPlace.y ), fwidth( vPlace.z ) ) );
         float coarse = pOctave( vPlace, 1.7, px ) * 0.55 + pOctave( vPlace, 5.3, px ) * 0.45;
         float fine = pOctave( vPlace, 23.0, px );
-        // Bark: fissured plates running up the limb (ridges of the vertical
-        // noise), grey with pale crustose lichen and darker furrows.
         float ridge = 1.0 - abs( pOctave( vec3( vPlace.x * 7.0, vPlace.y * 1.6, vPlace.z * 7.0 ), 1.0, px * 7.0 ) * 2.0 - 1.0 );
         diffuseColor.rgb *= 0.62 + coarse * 0.5 + ( fine - 0.5 ) * 0.3 + ridge * 0.22;
         float crust = smoothstep( 0.62, 0.7, pOctave( vPlace, 6.1, px ) + ( fine - 0.5 ) * 0.15 );
-        float warm = step( diffuseColor.b * 1.6, diffuseColor.r );
-        diffuseColor.rgb = mix( diffuseColor.rgb, mix( vec3( 0.42, 0.44, 0.38 ), vec3( 0.2, 0.085, 0.035 ), warm ), crust * mix( 0.3, 0.4, warm ) );
+        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.42, 0.44, 0.38 ), crust * 0.3 );
       }`,
     ),
   });
 
-  // Granite in the rocks' own shader (lichen above the spray, the splash
-  // band, barnacles and the swash's wet line), for plinths, steps, the pool
-  // platform and the cairn's footing.
-  const stone = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 });
-  patchMaterial(stone, shared, { rock: true });
-  stone.customProgramCacheKey = () => "places-stone";
+  // Rubble: granite in the rocks' own shader (lichen above the spray, the
+  // splash band, barnacles and the swash's wet line).
+  const rubble = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 });
+  patchMaterial(rubble, shared, { rock: true });
+  rubble.customProgramCacheKey = () => "places-rubble";
 
   // Glass that glows: lamp lenses, windows and lanterns. The vertex colour is
   // the light each gives when lit; unlit it is dark, reflective glass.
@@ -451,7 +541,7 @@ export function createMaterials(shared) {
     ),
   });
 
-  return { paint, wood, rough, stone, glow, foliage, lichen, net, water, lights };
+  return { limewash, rubble, iron, timber, rust, bark, glow, foliage, lichen, net, water, lights };
 }
 
 // Additive glows: unlit, depth-tested, no depth writes, no fog (lights carry
@@ -489,3 +579,53 @@ export function staticMesh(geometry, material, { cast = true, receive = true } =
 }
 
 export { _m as scratchMatrix, _n as scratchNormalMatrix };
+
+// ---- The prop contract ---------------------------------------------------------
+//
+// Every landmark builder (place-*.js) returns one of these, through prop():
+//
+//   lod: { near, far = null, farDistance = 45, cullDistance = 0 }
+//       near/far: Object3Ds in the place's frame (coast x, z relative to
+//       its centre; y absolute). cullDistance > 0 drops it entirely there.
+//   surfaces: { trunks = [], tiles = [], solids = [] }
+//       trunks: { x, z, r } posts the cat walks round (walker.js);
+//       tiles: height tiles it stands on, hops onto, jumps over (heightTile);
+//       solids: blockers.js primitives the camera keeps out of (and the
+//       cat's body, unless `body: false`).
+//   covers: [{ kind, x, z, yaw = 0, hu, hv, y }]  (or { kind, x, z, r, y })
+//       shelter: below height y inside the box (half-lengths hu along
+//       (sin yaw, cos yaw), hv across) or circle, no rain falls. kind:
+//       "roof" | "eave" | "crown". Data for precipitation.js.
+//   lights: [{ kind, x, y, z, colour: [r, g, b], size, reach, power, flicker }]
+//       kind: "lamp" (the lighthouse's lantern, which carries the beams),
+//       "window" (lights the yard only: no halo), "lantern" (a halo too).
+//       All lit by night only (places.js gates them).
+//   affordances: [{ id, kind, x, y, z, r, facing?, hint? }]
+//       Named spots a later src/affordances.js turns into events (walker
+//       emits on-top, inside, sat-near, meow-near, bumped, ran-at; props
+//       answer). Data only for now. kind:
+//         "on-top"   standing on a surface (the hull, the boiler, a sill)
+//         "inside"   within a volume (the boiler's furnace, under the crown)
+//         "sit-near" sitting within r (the pool rim, the beacon's top step)
+//         "meow-near" a meow within r (the lighthouse, the boiler)
+//         "perch"    a seat reached by a route (the milkwood fork, a sill)
+//       x, y, z: coast metres, y the standing height; r: reach in metres;
+//       facing: the radians a seated cat looks (sin, cos); hint: what in
+//       the world says the spot is there.
+//   update?({ time, night, wind, eye, pose, lit }), extra?, and the
+//   place-specific handles (hull, crown) places.js passes on.
+export function prop({ lod, surfaces = {}, covers = [], lights = [], affordances = [], ...rest }) {
+  if (!lod?.near) throw new Error("prop: lod.near is required");
+  for (const a of affordances) {
+    if (!["on-top", "inside", "sit-near", "meow-near", "perch"].includes(a.kind)) throw new Error(`prop: affordance kind ${a.kind}`);
+    if (![a.x, a.y, a.z, a.r].every(Number.isFinite)) throw new Error(`prop: affordance ${a.id} not finite`);
+  }
+  return {
+    lod: { far: null, farDistance: 45, cullDistance: 0, ...lod },
+    surfaces: { trunks: [], tiles: [], solids: [], ...surfaces },
+    covers,
+    lights,
+    affordances,
+    ...rest,
+  };
+}

@@ -31,7 +31,7 @@ const rows = [];
 for (const p of placesLayout(seed)) {
   const build = BUILDERS[p.kind];
   const b = build(p, materials, { light, seed });
-  const near = count(b.near), far = count(b.far);
+  const near = count(b.lod.near), far = count(b.lod.far);
   const extra = count(b.extra);
   const stones = added.filter((r) => Math.hypot(r.position.x - p.x, r.position.z - p.z) < 8).length;
   rows.push({ place: p.id, nearTris: near.triangles + extra.triangles, nearDraws: near.draws + extra.draws, farTris: far.triangles, farDraws: far.draws, stones });

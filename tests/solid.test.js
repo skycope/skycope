@@ -108,7 +108,7 @@ test('the lighthouse foundations reach into the ground at every footprint corner
     const built = buildLighthouse(p, materials, { seed });
     // Every upright solid (plinth, cottage, tank, wall runs) starts below
     // the ground all round its footprint.
-    for (const b of built.blockers) {
+    for (const b of built.surfaces.solids) {
       if (b.k === 2 || b.k === 3 || b.above) continue;
       const corners = [];
       if (b.k === 1) for (let i = 0; i < 12; i++) corners.push([b.x + Math.cos(i / 2) * b.rad, b.z + Math.sin(i / 2) * b.rad]);

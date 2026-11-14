@@ -92,7 +92,7 @@ await send("Runtime.enable");
 await send("Emulation.setDeviceMetricsOverride", { width: W, height: H, deviceScaleFactor: 1, mobile: false, screenWidth: 1440, screenHeight: 900 });
 await send("Page.navigate", { url: `http://127.0.0.1:${port}/?perf&seed=${SEED}&weather=clear&magic=${process.env.MAGIC ?? "lamp"}` });
 for (let i = 0; i < 150; i++) { if (await evaluate("!!(window.skycope && skycope.walker && skycope.landscape)")) break; await sleep(200); }
-await sleep(3000);
+await sleep(6000);
 
 const counts = {};
 for (const t of TIMES)

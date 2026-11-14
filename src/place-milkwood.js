@@ -3,7 +3,7 @@ import { groundHeight } from "./terrain.js";
 import { capsule, roof } from "./blockers.js";
 import { heightTile } from "./place-lighthouse.js";
 import { seededRandom } from "./random.js";
-import { part, merge, sweep, smooth01, srgb, hsl, staticMesh } from "./place-kit.js";
+import { part, merge, sweep, smooth01, srgb, hsl, staticMesh, prop } from "./place-kit.js";
 
 // One ancient white milkwood (Sideroxylon inerme), the kind that is a
 // landmark in its own right on the Cape coast: low and immensely wide, a
@@ -256,17 +256,15 @@ export function buildMilkwood(p, materials, { light = false, seed = 1 } = {}) {
   }
 
   const nearGroup = new THREE.Group();
-  nearGroup.add(staticMesh(merge(woodNear), materials.rough), leafNear, beardMesh);
+  nearGroup.add(staticMesh(merge(woodNear), materials.bark), leafNear, beardMesh);
   const farGroup = new THREE.Group();
-  farGroup.add(staticMesh(merge(woodFar), materials.rough), leafFar);
-  return {
-    near: nearGroup,
-    far: farGroup,
-    farDistance: 34,
-    obstacles: { trunks, domes: [rootTile] },
-    blockers,
+  farGroup.add(staticMesh(merge(woodFar), materials.bark), leafFar);
+  return prop({
+    lod: { near: nearGroup, far: farGroup, farDistance: 34 },
+    surfaces: { trunks, tiles: [rootTile], solids: blockers },
+    covers: [{ kind: "crown", x: p.x, z: p.z, r: maxReach * 0.8, y: g0 + 2.5 }],
     crown: { radius: maxReach, top, ground: g0 }, // land-magic: the fireflies' home
-  };
+  });
 }
 
 // An instanced set (one draw), with the per-instance attributes the forest's
