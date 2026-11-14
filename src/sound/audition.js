@@ -82,6 +82,9 @@ export function mount(root = document.body) {
     // A new engine each time, so nothing from the last cue lingers.
     s.update({ ...AUDITION_BASE, beds: false });
     const begun = performance.now();
+    let frame = 0;
+    if (cue.music) s.setMusic(true);
+    cue.setup?.(s);
     if (cue.scene) s.update(sceneInput(s, cue, 0));
     else startCue(s, cue);
     button.classList.add("playing");
@@ -97,6 +100,7 @@ export function mount(root = document.body) {
         status.textContent = `${cue.number} done`;
         return;
       }
+      cue.script?.(s, t, frame++);
       s.update(cue.scene ? sceneInput(s, cue, t) : { ...AUDITION_BASE, beds: false });
       running.frame = requestAnimationFrame(tick);
     };

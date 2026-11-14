@@ -10,7 +10,7 @@ import { renderEntry } from "./render.js";
 test("the catalogue: unique ids, every checklist item has cues, every cue says what it should sound like", () => {
   const ids = new Set(CUES.map((c) => c.id));
   assert.equal(ids.size, CUES.length);
-  for (let n = 1; n <= 12; n++) assert.ok(CUES.some((c) => c.n === n), `item ${n}`);
+  for (let n = 1; n <= 13; n++) assert.ok(CUES.some((c) => c.n === n), `item ${n}`);
   for (const c of CUES) assert.ok(c.says && c.name && c.seconds > 0 && (c.play || c.scene), c.id);
 });
 

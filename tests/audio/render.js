@@ -57,10 +57,12 @@ export async function renderEntry(cue, { seed = 7, seconds = cue.seconds + 0.3 }
   return render({
     seconds,
     seed,
+    music: !!cue.music,
     conditions: (t, frame, sound) => (cue.scene ? sceneInput(sound, cue, t) : { ...AUDITION_BASE, beds: false }),
     script: (sound, t, frame) => {
       if (frame === 0) cue.setup?.(sound);
       if (frame === 1 && cue.play) cue.play(sound);
+      cue.script?.(sound, t, frame);
     },
   });
 }

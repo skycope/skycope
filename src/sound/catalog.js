@@ -10,6 +10,7 @@
 // Positioned cues are placed relative to a listener at the origin facing
 // +z (the camera 3 m behind), so "10 m right" means x = 10.
 import { SURFACE } from "./patches.js";
+import { WALK } from "./walk.js";
 
 export const CHECKLIST = [
   { n: 1, title: "The home beach at noon, standing still" },
@@ -24,6 +25,7 @@ export const CHECKLIST = [
   { n: 10, title: "Waking a gift" },
   { n: 11, title: "The animals" },
   { n: 12, title: "The story's moments" },
+  { n: 13, title: "All together: a 60 s walk" },
 ];
 
 const CAT = { x: 0, y: 0, z: 0, speed: 0, sit: 0 };
@@ -148,6 +150,7 @@ export const CUES = [
   { id: "pool-drip", n: 12, name: "The rock pool: drip and suck", says: "a drip, then water sucking in rock", seconds: 1.6, play: (s) => s.poolDrip(right(2)) },
   { id: "shutter", n: 12, name: "A loose shutter in wind (10 m)", says: "a wooden knock or two, irregular", seconds: 1.5, play: (s) => s.shutter(right(10)) },
   { id: "whale-near", n: 12, name: "The whale beside the boat (15 m)", says: "a deep hollow exhale with wet in it, then a long inhale", seconds: 4, play: (s) => s.whaleBlowNear(right(15)) },
+  { id: "walk", n: 13, name: "Beach → grass (a bush, a meow) → rock (a jump) → wading and a swim → the boat (scene, 60 s)", says: "the whole mix: quiet, the sea underneath, each surface answering the paws; nothing you want to turn off", seconds: 60, scene: WALK.conditions, script: WALK.script, setup: WALK.setup, music: true },
   { id: "ending-arrive", n: 12, name: "The ending's arrival", says: "one soft high bell and its octave below", seconds: 5, play: (s) => s.endingArrive() },
 ];
 
