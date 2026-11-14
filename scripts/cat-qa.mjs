@@ -233,7 +233,125 @@ const scenarios = {
   },
 };
 
-if (mode !== "sheets") {
+// Sheets: each row one pose, each column one view, rendered in one go so
+// every view shows the same instant. TAG names the files (before/after).
+const TAG = process.env.TAG ?? "now";
+const VIEWS = ["follow", "side", "rear", "front", "top"];
+async function row(label, views = VIEWS, opts = {}) {
+  const id = `__row${Math.random().toString(36).slice(2, 8)}`;
+  await evaluate(`window.${id} = ${JSON.stringify(views)}.map((view) => ({ img: catQA.shot({ view, ...${JSON.stringify(opts)} }), label: ${JSON.stringify(label)} + ' · ' + view }))`);
+  return id;
+}
+async function saveSheet(name, ids, cols, title) {
+  const url = await evaluate(`catQA.sheet([${ids.map((i) => `...window.${i}`).join(",")}], ${cols}, ${JSON.stringify(title)})`);
+  await writeFile(`${out}/${name}-${TAG}.png`, Buffer.from(url.split(",")[1], "base64"));
+  console.log("wrote", `${out}/${name}-${TAG}.png`);
+}
+async function poses(prefix, minutes) {
+  await setTime(minutes);
+  const ids = [];
+  await place();
+  await sleep(1800);
+  ids.push(await row("stand"));
+  await place({ at: [HOME, 4] });
+  await keys(["w"]);
+  await sleep(1400);
+  ids.push(await row("walk"));
+  await keys([]);
+  await place({ at: [HOME + 0.3, 6] });
+  await keys(["w", "shift"]);
+  await sleep(1400);
+  ids.push(await row("run"));
+  await keys([]);
+  await place();
+  await evaluate("skycope.walker.cat.idle = 6");
+  await sleep(3500);
+  ids.push(await row("sit"));
+  const boat = await evaluate(`(() => {
+    const b = skycope.boat; if (!b) return false;
+    b.ride.wake(false);
+    const r = b.ride, w = skycope.walker, c = w.cat, s = r.state;
+    c.x = s.x + 0.8; c.z = s.z; c.y = w.surface(c.x, c.z); c.air = 0;
+    r.ride.state = 'boarding'; r.ride.t = 0; Object.assign(r.ride.hop, { x: c.x, y: c.y, z: c.z, heading: c.heading });
+    return true;
+  })()`);
+  if (boat) {
+    await sleep(2500);
+    ids.push(await row("boat stand"));
+    await sleep(6500);
+    ids.push(await row("boat sit"));
+    // Ashore again for the next run.
+    await evaluate("(() => { const r = skycope.boat.ride.ride; r.state = 'waiting'; })()");
+  }
+  await saveSheet(`${prefix}-turnaround`, ids, VIEWS.length, `${prefix} ${TAG}: rows stand, walk, run, sit${boat ? ", boat stand, boat sit" : ""}; columns follow, side, rear, front, top`);
+}
+
+// Silhouettes of the standing cat (side, top, front, rear) beside lit side
+// and top views: for judging proportions against a real cat.
+if (mode === "sil") {
+  await load();
+  await setTime(Number(process.env.DAY ?? 1090));
+  await place();
+  await sleep(1800);
+  const a = await row("stand", ["side", "top", "front", "rear"], { alone: true, size: 420 });
+  const b = await row("stand", ["side", "top", "quarter", "follow"], { size: 420 });
+  await saveSheet("silhouettes", [a, b], 4, `standing cat ${TAG}: silhouettes, then lit (narrow lens, ~orthographic; frame 0.95 m = 0.68 m cat-sized)`);
+}
+
+// Experiments: EXP is a JSON list of [label, setup code] run just before
+// each shot (in the same task as the render), VIEWS_EXP the views.
+if (mode === "exp") {
+  await load();
+  await setTime(Number(process.env.DAY ?? 1090));
+  await place(JSON.parse(process.env.PLACE ?? "{}"));
+  if (process.env.KEYS) await keys(JSON.parse(process.env.KEYS));
+  await sleep(Number(process.env.WAIT ?? 1800));
+  const exps = JSON.parse(process.env.EXP ?? '[["now", ""]]');
+  const views = JSON.parse(process.env.VIEWS_EXP ?? '["side"]');
+  const opts = JSON.parse(process.env.OPTS ?? '{"size": 420}');
+  await evaluate("window.__cells = []");
+  for (const [label, code] of exps)
+    await evaluate(`(() => { const dbg = skycope.landscape.scene.getObjectByName('cat').userData.debug; const u = dbg.uniforms; ${code}; for (const view of ${JSON.stringify(views)}) __cells.push({ img: catQA.shot({ view, ...${JSON.stringify(opts)} }), label: ${JSON.stringify(label)} + ' · ' + view }); })()`);
+  const url = await evaluate(`catQA.sheet(__cells, ${views.length}, ${JSON.stringify(process.env.TITLE ?? "experiment")})`);
+  await writeFile(`${out}/exp-${TAG}.png`, Buffer.from(url.split(",")[1], "base64"));
+  if (process.env.DUMP) console.log(JSON.stringify(await evaluate(process.env.DUMP)));
+  console.log("wrote", `${out}/exp-${TAG}.png`);
+}
+
+if (mode === "sheets" || mode === "both" || mode === "close") {
+  await load();
+  if (mode !== "close") {
+    await poses("day", Number(process.env.DAY ?? 1090));
+    await poses("night", 1320);
+  }
+  await setTime(1090);
+  // Close-ups: the face (eyes, lids), and the inner thighs mid-stride.
+  const ids = [];
+  await place();
+  await sleep(1800);
+  ids.push(await row("stand", ["face", "quarter"], { size: 360, fov: 9 }));
+  await place({ at: [HOME, 4] });
+  await keys(["w"]);
+  for (let k = 0; k < 3; k++) {
+    await sleep(170);
+    ids.push(await row(`walk ${k}`, ["thighs", "under"], { size: 360 }));
+  }
+  await keys(["w", "shift"]);
+  await sleep(1200);
+  ids.push(await row("run", ["thighs", "under"], { size: 360 }));
+  await keys([]);
+  await saveSheet("closeups", ids, 2, `closeups ${TAG}: face and quarter at stand; inner thighs and from behind mid-walk and mid-run`);
+  // Width along the body from straight above (cat-sized metres).
+  await place();
+  await sleep(1500);
+  const prof = await evaluate("catQA.topProfile()");
+  const nonzero = prof.rows.map((w, i) => [i, w]).filter(([, w]) => w > 0);
+  const step = Math.max(1, Math.round(nonzero.length / 24));
+  console.log("top-view width profile (nose→tail, cm):", nonzero.filter((_, i) => i % step === 0).map(([, w]) => (w * 100).toFixed(1)).join(" "));
+  await writeFile(`${out}/top-profile-${TAG}.json`, JSON.stringify(prof.rows));
+}
+
+if (mode === "detect" || mode === "both") {
   await load();
   for (const [name, run] of Object.entries(scenarios)) {
     if (only && !only.includes(name)) continue;

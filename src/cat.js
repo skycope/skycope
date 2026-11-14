@@ -37,7 +37,7 @@ const POSTURE = {
   stand: { height: STAND_HEIGHT, pitch: 0 },
   // Sitting: haunches on the ground, the back rounded (pelvis steep, chest
   // upright), front legs straight under the shoulders.
-  sit: { height: 0.152, pitch: 0.8, chest: 0.18, hips: 0.3, front: [0.026, 0.15], hind: [0.05, 0.045] },
+  sit: { height: 0.138, pitch: 0.72, chest: 0.16, hips: 0.32, front: [0.026, 0.155], hind: [0.05, 0.045] },
   // Lying (a sphinx): belly on the ground, forearms flat along it with the
   // paws under the chin, hind legs folded beside the belly.
   lie: { height: 0.062, pitch: 0.03, front: [0.024, 0.19], hind: [0.045, -0.07] },
@@ -84,6 +84,11 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
   fur.depthWrite = false;
   const depth = new THREE.MeshDepthMaterial({ side: THREE.DoubleSide });
   const meshes = [];
+  // Dev: the lab's benchmark toggles parts to attribute cost; QA captures
+  // can hold the lids open (blink: 0) and find it from the scene graph
+  // (scripts/cat-qa.mjs; `healed` counts frames the springs were reset).
+  const debug = { meshes, shells: null, blink: null, healed: 0, uniforms };
+  root.userData.debug = debug;
   let shellGeometry = null;
   const maxShells = light ? 4 : 5;
 
@@ -94,6 +99,8 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
   let still = false;
   function attach(geometries) {
     lods = geometries;
+    debug.lods = lods;
+    debug.materials = { coat, coatFar, coatFarthest, fur };
     const bindMatrix = new THREE.Matrix4();
     const skinned = (g, material, order) => {
       const mesh = new THREE.SkinnedMesh(g, material);
@@ -259,10 +266,6 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
   const tailN = Array.from({ length: TAIL_BONES + 1 }, () => new THREE.Vector3(1, 0, 0));
   const tailRoot = new THREE.Vector3(...TAIL_ROOT).sub(b.spine.position).sub(b.hips.position);
   let firstFrame = true;
-  // Dev: the lab's benchmark toggles parts to attribute cost; QA captures
-  // can hold the lids open (blink: 0) and find it from the scene graph.
-  const debug = { meshes, shells: null, blink: null, healed: 0 };
-  root.userData.debug = debug;
 
   return {
     root,

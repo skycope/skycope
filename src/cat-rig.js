@@ -25,8 +25,8 @@ export const HEAD_SCALE = 1.06;
 // three bones (humerus/forearm/pastern, thigh/shin/hock), and `lean`: how far
 // the last bone tilts so the joint above it sits behind the paw.
 export const LEGS = [
-  { name: "lf", side: 1, hip: [0.029, -0.022, 0.13], bones: [0.085, 0.09, 0.036], lean: 0.2, front: true },
-  { name: "rf", side: -1, hip: [-0.029, -0.022, 0.13], bones: [0.085, 0.09, 0.036], lean: 0.2, front: true },
+  { name: "lf", side: 1, hip: [0.029, -0.004, 0.152], bones: [0.085, 0.09, 0.036], lean: 0.2, front: true },
+  { name: "rf", side: -1, hip: [-0.029, -0.004, 0.152], bones: [0.085, 0.09, 0.036], lean: 0.2, front: true },
   { name: "lh", side: 1, hip: [0.027, 0.0, -0.125], bones: [0.1, 0.105, 0.07], lean: 0.12, front: false },
   { name: "rh", side: -1, hip: [-0.027, 0.0, -0.125], bones: [0.1, 0.105, 0.07], lean: 0.12, front: false },
 ];
@@ -38,7 +38,7 @@ const CHEST = [0, 0.02, 0.005];
 const RIBS = [0, 0.012, 0.06];
 const POUCH = [0, -0.03, -0.075];
 const NECK = [0, 0.045, 0.158];
-export const HEAD = [0, 0.1, 0.206];
+export const HEAD = [0, 0.09, 0.205];
 const JAW = [0, -0.017, -0.012].map((v) => v * HEAD_SCALE); // head-local
 const EAR = [0.024, 0.03, -0.004].map((v) => v * HEAD_SCALE); // head-local, mirrored
 const SCAPULA = [0.027, 0.05, 0.088]; // top of the blade, mirrored
@@ -48,7 +48,7 @@ const SCAPULA = [0.027, 0.05, 0.088]; // top of the blade, mirrored
 export function neutralFoot(spec) {
   // The point of the shoulder sits forward: a cat stands on its front paws
   // under the elbow, well behind it.
-  return [spec.hip[0] * 0.72, spec.hip[2] + (spec.front ? -0.062 : -0.004)];
+  return [spec.hip[0] * 0.72, spec.hip[2] + (spec.front ? -0.058 : -0.004)];
 }
 
 export function createRig() {

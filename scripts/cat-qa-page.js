@@ -157,11 +157,15 @@
   // Sheets: tone-mapped sRGB renders from cameras placed round the cat.
   let shotTarget = null;
   const shotCamera = new THREE.PerspectiveCamera(20, 1, 0.02, 400);
-  function shot({ view = "side", size = 360, fov = 9, distance = null, background = null, aim = null } = {}) {
+  // alone: only the cat's body, for silhouettes (pixels: cat white, else black).
+  function shot({ view = "side", size = 360, fov = 9, distance = null, background = null, aim = null, alone = false } = {}) {
     if (!shotTarget || shotTarget.width !== size) {
       shotTarget?.dispose();
       shotTarget = new THREE.WebGLRenderTarget(size, size, { depthBuffer: true, stencilBuffer: true });
+      // Flagged as XR so three tone-maps and sRGB-encodes in the shader (as
+      // for the canvas); stored as plain RGBA8 so it is not encoded twice.
       shotTarget.texture.colorSpace = THREE.SRGBColorSpace;
+      shotTarget.texture.internalFormat = "RGBA8";
       shotTarget.isXRRenderTarget = true;
     }
     catRoot.updateMatrixWorld(true);
@@ -199,7 +203,9 @@
     shotCamera.up.set(0, 1, 0);
     if (view === "top") shotCamera.up.copy(fwd);
     shotCamera.lookAt(look);
-    shotCamera.near = Math.max(0.02, d - 3);
+    // Anything more than half a metre in front of the cat is clipped away,
+    // so a rock or a hull between the lens and the cat never hides it.
+    shotCamera.near = Math.max(0.02, d - 0.5);
     shotCamera.far = d + 60;
     shotCamera.updateProjectionMatrix();
     shotCamera.updateMatrixWorld();
@@ -207,7 +213,14 @@
     if (background) scene.background = new THREE.Color(background);
     renderer.autoClear = true;
     renderer.setRenderTarget(shotTarget);
+    const coat = debug.meshes[0];
+    if (alone) {
+      coat.layers.set(7);
+      shotCamera.layers.set(7);
+    }
     renderer.render(scene, shotCamera);
+    coat.layers.set(0);
+    shotCamera.layers.set(0);
     const px = new Uint8Array(size * size * 4);
     renderer.readRenderTargetPixels(shotTarget, 0, 0, size, size, px);
     renderer.setRenderTarget(saved.target);
@@ -219,7 +232,7 @@
       for (let x = 0; x < size; x++) {
         const s = ((size - 1 - y) * size + x) * 4, o = (y * size + x) * 4;
         const a = px[s + 3] / 255;
-        for (let k = 0; k < 3; k++) img.data[o + k] = px[s + k] + (1 - a) * 128;
+        for (let k = 0; k < 3; k++) img.data[o + k] = alone ? (a > 0.5 ? 255 : 0) : px[s + k] + (1 - a) * 128;
         img.data[o + 3] = 255;
       }
     return img;
@@ -252,7 +265,7 @@
   function topProfile() {
     const size = 400;
     const fov = 9;
-    const img = shot({ view: "top", size, fov, background: 0xff00ff });
+    const img = shot({ view: "top", size, fov, alone: true });
     const span = 0.95;
     const metresPerPx = span / size / window.__CAT_SCALE;
     const rows = [];
@@ -261,7 +274,7 @@
       let lo = -1, hi = -1;
       for (let x = 0; x < size; x++) {
         const o = (y * size + x) * 4;
-        const bg = img.data[o] > 200 && img.data[o + 1] < 60 && img.data[o + 2] > 200;
+        const bg = img.data[o] < 128;
         if (!bg) {
           if (lo < 0) lo = x;
           hi = x;

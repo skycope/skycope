@@ -40,6 +40,10 @@ export function bakeShellColours(renderer, geometry) {
       in vec4 furInfo;
       in vec3 comb;
       out vec3 colour;
+      // One sample per vertex (7-12 mm apart): only the markings, not the
+      // hair-sized ticking, or it aliases into contour rings that follow the
+      // mesh's vertex rows round every bulge (shoulders, haunches).
+      #define COAT_FILTERED
       ${PATTERN_GLSL}
       void main() {
         int x = gl_VertexID % ${BAKE_WIDTH};
@@ -198,8 +202,10 @@ Coat coatAt( vec3 p, vec4 region, vec3 n, vec3 flow, float nose, float mouth ) {
   // Pigment borders break along hairs; identical coordinates feed the bake
   // and close shader, so a distance switch does not repaint the markings.
   vec3 lie = normalize( flow + vec3( 1e-5 ) );
+  #ifndef COAT_FILTERED
   float feather = cNoise( ( p - lie * dot( p, lie ) * 0.82 ) * 850.0 ) - 0.5;
   p += lie * feather * 0.0014 * ( 1.0 - clamp( nose, 0.0, 1.0 ) );
+  #endif
   Coat c;
   // Agouti: every hair is banded black and warm ochre, so the ground colour
   // is a warm brown flecked finely with dark tips, redder low on the flanks.
@@ -209,7 +215,12 @@ Coat coatAt( vec3 p, vec4 region, vec3 n, vec3 flow, float nose, float mouth ) {
   vec3 agoutiDark = lin( vec3( 0.41, 0.35, 0.27 ) );
   vec3 stripe = lin( vec3( 0.19, 0.145, 0.1 ) );
   vec3 cream = lin( vec3( 0.88, 0.8, 0.64 ) );
+  #ifdef COAT_FILTERED
+  // (Their average.)
+  float tick = 0.5;
+  #else
   float tick = cNoise( p * 1400.0 ) * 0.35 + cNoise( p * 520.0 ) * 0.35 + cNoise( p * 90.0 ) * 0.3;
+  #endif
   vec3 base = mix( agoutiDark, agoutiLight, 0.5 + ( smoothstep( 0.2, 0.8, tick ) - 0.5 ) * 0.4 );
   float head = region.x;
   float leg = region.y;
@@ -322,7 +333,11 @@ Coat coatAt( vec3 p, vec4 region, vec3 n, vec3 flow, float nose, float mouth ) {
   dark = clamp( dark, 0.0, 1.0 );
   pale = clamp( pale, 0.0, 1.0 );
   // Banded hairs fleck the markings too: nothing is solid black.
+  #ifdef COAT_FILTERED
+  dark *= 0.965;
+  #else
   dark *= 1.0 - 0.3 * smoothstep( 0.5, 0.85, tick );
+  #endif
   vec3 col = mix( base, stripe * ( 0.8 + tick * 0.45 ), dark );
   col = mix( col, cream * ( 0.9 + tick * 0.15 ), pale );
   // Paw pads: dark, faintly pink-brown leather.
@@ -517,7 +532,11 @@ export function coatMaterial(uniforms, { shell = false, baked = false } = {}) {
         // Depth under the local surface, which wobbles with little ripples.
         vWaterP = vec3( catWorld.xz, min( catWater.x + dot( catWater.yz, catWorld.xz - catWaterAt ) - catWorld.y
           + 0.005 * sin( dot( catWorld.xz, vec2( 23.0, 17.0 ) ) - catTime * 5.1 ) + 0.004 * sin( dot( catWorld.xz, vec2( -13.0, 29.0 ) ) - catTime * 3.7 ), catWaterDepth - ( catWorld.y - catGroundY ) + 0.02 ) );
-        vCatShadow = catShadowMatrix * catWorld;
+        // Looked up a shadow texel and a half out along the normal (5 mm
+        // texels): at a low sun the 4-tap lookup otherwise caught the coarse
+        // caster's own facets on every bulge, contour rings round the
+        // shoulders and haunches (shadow acne).
+        vCatShadow = catShadowMatrix * ( catWorld + vec4( normalize( ( vec4( transformedNormal, 0.0 ) * viewMatrix ).xyz ) * 0.008, 0.0 ) );
         vGroundH = catWorld.y - catGroundY;
         ${shell ? `{
           vec3 sc = vCatShadow.xyz / vCatShadow.w;

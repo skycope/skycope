@@ -98,14 +98,16 @@ function anatomy(rig) {
   // chest. Deep and narrow, as a cat is: ~13 cm deep, ~10 cm wide.
   ell("hips", [0, 0.018, -0.13], [0.04, 0.057, 0.058], { k: 0 });
   ell("hips", [0, 0.034, -0.077], [0.029, 0.047, 0.064], { k: 0.03 });
-  ell("spine", [0, 0.028, -0.025], [0.031, 0.042, 0.065], { k: 0.022 });
-  ell("ribs", [0, 0.02, 0.035], [0.056, 0.052, 0.076], { k: 0.024 });
+  ell("spine", [0, 0.031, -0.025], [0.031, 0.042, 0.065], { k: 0.022 });
+  ell("ribs", [0, 0.023, 0.035], [0.056, 0.054, 0.076], { k: 0.024 });
   ell("chest", [0, 0, 0.11], [0.041, 0.048, 0.052], { k: 0.03, comb: [0, -1, -0.2], fur: 1.15 });
-  // The belly pouch hangs loose between the hind legs, and swings.
-  ell("pouch", [0, -0.02, -0.07], [0.027, 0.028, 0.055], { k: 0.03, comb: [0, -0.2, -1], fur: 1.3 });
+  // The belly pouch hangs loose in front of the hind legs, and swings. Kept
+  // narrower than the gap between the thighs, so a stride never stretches
+  // skin from one inner thigh to the other.
+  ell("pouch", [0, -0.018, -0.062], [0.021, 0.026, 0.046], { k: 0.03, comb: [0, -0.2, -1], fur: 1.3 });
   // Neck and ruff.
-  cone("neck", [0, 0.03, 0.136], [0, 0.074, 0.186], 0.04, 0.034, { body: true, sx: 0.8, k: 0.03, comb: [0, -0.4, -1], fur: 1.2 });
-  ell("neck", [0, 0.022, 0.168], [0.03, 0.042, 0.034], { k: 0.03, comb: [0, -1, -0.1], fur: 1.25 });
+  cone("neck", [0, 0.03, 0.136], [0, 0.066, 0.186], 0.036, 0.031, { body: true, sx: 0.8, k: 0.03, comb: [0, -0.4, -1], fur: 1.2 });
+  ell("neck", [0, 0.02, 0.168], [0.028, 0.039, 0.034], { k: 0.03, comb: [0, -1, -0.1], fur: 1.25 });
 
   // Shoulder blades: flat plates on the withers, rolling as the legs swing.
   for (const leg of rig.legs.filter((l) => l.spec.front)) {
@@ -118,6 +120,7 @@ function anatomy(rig) {
   for (const l of rig.legs) {
     const [a, b, c] = l.spec.bones;
     const n = l.spec.name;
+    const first = prims.length;
     const down = (bone) => {
       const top = world(bones[bone], [0, 0, 0]);
       const end = world(bones[bone], [0, -1, 0]);
@@ -136,7 +139,9 @@ function anatomy(rig) {
       // Thigh: the femur inside a broad, flat haunch muscle. Shin with the
       // calf behind, the heel's point at the hock, then the long hock.
       cone(`${n}Upper`, [0, 0, 0], [0, -a, 0], 0.022, 0.014, { k: 0.02, sx: 0.7, region: [0, 0.4, 0, 0], comb: down(`${n}Upper`) });
-      ell(`${n}Upper`, [0, -a * 0.3, -0.004], [0.019, a * 0.54, 0.047], { axis: true, k: 0.025, region: [0, 0.35, 0, 0], comb: [0, -0.6, -0.8] });
+      // (Set out from the femur: the haunch bulges to the side, and the inner
+      // thighs keep clear of each other.)
+      ell(`${n}Upper`, [l.spec.side * 0.007, -a * 0.3, -0.004], [0.019, a * 0.54, 0.048], { axis: true, k: 0.025, region: [0, 0.35, 0, 0], comb: [0, -0.6, -0.8] });
       cone(`${n}Lower`, [0, 0, 0], [0, -b, 0], 0.016, 0.01, { k: 0.012, sx: 0.8, region: leg, comb: down(`${n}Lower`), fur: 0.4 });
       ell(`${n}Lower`, [0, -b * 0.3, -0.008], [0.014, b * 0.32, 0.017], { axis: true, k: 0.012, region: leg, comb: down(`${n}Lower`), fur: 0.75 });
       ell(`${n}Foot`, [0, 0.005, -0.008], [0.0075, 0.009, 0.0085], { axis: true, k: 0.008, region: leg, comb: [0, -1, 0], fur: 0.6 });
@@ -149,12 +154,15 @@ function anatomy(rig) {
     ell(`${n}Paw`, [0, -0.0045, 0.006 * len], [0.0155 * w, 0.0092, 0.018 * len], { axis: true, k: 0.01, region: paw, comb: [0, -0.3, 1], fur: 0.4, fine: true });
     for (const [x, z] of [[-0.0102, 0.0185], [-0.0036, 0.0238], [0.0036, 0.0238], [0.0102, 0.0185]])
       ell(`${n}Paw`, [x * w, -0.0068, z * len], [0.0058, 0.0062, 0.0062], { axis: true, k: 0.0045, region: paw, comb: [0, -0.3, 1], fur: 0.35, fine: true });
+    // Which side of the body: a leg blends into the trunk but never into its
+    // opposite number (createField).
+    for (let i = first; i < prims.length; i++) prims[i].side = l.spec.side;
   }
 
   // Head (in the head's frame): a round cranium, the brow, broad cheeks,
   // a short muzzle with whisker pads, the nose leather, and the jaw hinged
   // beneath. Eye sockets are carved out for the eyes to sit in.
-  hell("head", [0, 0.01, -0.003], [0.035, 0.034, 0.034], { k: 0.03, region: head, comb: [0, 0.2, -1], fur: 0.6 });
+  hell("head", [0, 0.01, -0.001], [0.035, 0.034, 0.032], { k: 0.03, region: head, comb: [0, 0.2, -1], fur: 0.6 });
   hell("head", [0, 0.016, 0.012], [0.029, 0.026, 0.026], { k: 0.016, region: head, comb: [0, 0.5, -0.9], fur: 0.5 });
   for (const side of [1, -1]) {
     hell("head", [0.022 * side, -0.012, 0.004], [0.024, 0.022, 0.025], { k: 0.014, region: head, comb: [side * 0.9, -0.3, -0.5], fur: 0.85 });
@@ -265,14 +273,28 @@ function createField(prims) {
     if (bound > 0.03) return bound - loft;
     return (p.kind === 0 ? ellipsoidDistance(p, x, y, z) : coneDistance(p, x, y, z)) - loft;
   };
+  // Each leg blends smoothly into the trunk, head and tail, but the left
+  // and right legs only meet as a hard union: smoothly blended into each
+  // other, the inner thighs (and the forearms under the brisket) fused into
+  // one sheet of skin down to the hocks, which webbed as the legs swung
+  // apart. So the field keeps three running blends, the body with its left
+  // legs and with its right legs (the same until the first leg), and takes
+  // the nearer; the groin is then a crease under the belly.
   const evaluate = (x, y, z, list = prims, record = false) => {
-    let d = BIG;
+    let left = BIG;
+    let right = BIG;
     for (const p of list) {
       const di = primDistance(p, x, y, z);
       if (record) each[p.index] = di;
-      d = p.sub ? -smin(-d, di, p.k) : smin(d, di, p.k);
+      if (p.sub) {
+        left = -smin(-left, di, p.k);
+        right = -smin(-right, di, p.k);
+      } else {
+        if (p.side !== -1) left = smin(left, di, p.k);
+        if (p.side !== 1) right = smin(right, di, p.k);
+      }
     }
-    return d;
+    return Math.min(left, right);
   };
   // Primitives that can matter within r of a point.
   const near = (x, y, z, r = 0.05) => prims.filter((p) => Math.hypot(x - p.c.x, y - p.c.y, z - p.c.z) - p.R < r);
@@ -464,6 +486,12 @@ function bake(mesh, field, prims, rig) {
   const { verts, tris } = mesh;
   const count = verts.length;
   const boneIndex = new Map(rig.list.map((b, i) => [b.name, i]));
+  // Each leg bone's side, and the trunk bone that takes over its skin where
+  // that skin lies across the body's midline (see below).
+  const legBone = new Map();
+  for (const leg of rig.legs)
+    for (const part of ["Upper", "Lower", "Foot", "Paw"])
+      legBone.set(boneIndex.get(`${leg.spec.name}${part}`), { side: leg.spec.side, trunk: boneIndex.get(leg.spec.front ? "chest" : "hips") });
   const jaw = boneIndex.get("jaw");
   const out = part(count);
   const g = [0, 0, 0];
@@ -502,6 +530,21 @@ function bake(mesh, field, prims, rig) {
       if (p.nose) nose += w;
       total += w;
     }
+    // Skin on the midline between a pair of legs (the groin, under the
+    // brisket) belongs to the trunk, not to either leg: weighted to both
+    // legs, it stretched into a web between the thighs as they swung apart
+    // mid-stride. Above the hocks and wrists, a leg's weight fades out
+    // across the last few millimetres before the midline and passes to the
+    // trunk. (The paws, close together, keep their own.)
+    if (y > -0.11)
+      for (const [bone, w] of [...weights]) {
+        const leg = legBone.get(bone);
+        if (!leg) continue;
+        const keep = THREE.MathUtils.smoothstep(x * leg.side, 0.001, 0.012);
+        if (keep >= 1) continue;
+        weights.set(bone, w * keep);
+        weights.set(leg.trunk, Math.max(weights.get(leg.trunk) ?? 0, w * (1 - keep)));
+      }
     // Four strongest bones.
     const top = [...weights].sort((a, b) => b[1] - a[1]).slice(0, 4);
     const sum = top.reduce((s, [, w]) => s + w, 0);
