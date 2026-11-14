@@ -39,7 +39,7 @@ function wrong(walker) {
   for (const q of solids.list) {
     if (q.body === false) continue;
     if (Math.abs(q.x - cat.x) > q.r + 0.5 || Math.abs(q.z - cat.z) > q.r + 0.5) continue;
-    if (primitiveDistance(q, cat.x, cat.y + 0.17, cat.z) < -0.06) return 'inside solid';
+    if (primitiveDistance(q, cat.x, cat.y + 0.17, cat.z) < -0.06) { wrong.last = { k: q.k, x: +q.x.toFixed(2), z: +q.z.toFixed(2), y0: +q.y0.toFixed(2), y1: +q.y1.toFixed(2), rad: q.rad, catY: +cat.y.toFixed(2) }; return 'inside solid'; }
   }
   return null;
 }
@@ -88,7 +88,7 @@ export function sweep(seed, { points = startPoints(seed), headings = 8, seconds 
     seen.add(key);
     const nearest = places.layout.map((p) => ({ id: p.id, d: Math.hypot(p.x - x, p.z - z) })).sort((a, b) => a.d - b.d)[0];
     const trunk = obstacles.trunks.find((t) => Math.hypot(t.x - x, t.z - z) < t.r + 0.6);
-    found.push({ kind, x: +x.toFixed(2), z: +z.toFixed(2), near, place: `${nearest.id} ${nearest.d.toFixed(1)} m`, trunk: trunk ? `trunk r${trunk.r.toFixed(2)}` : '' });
+    found.push({ kind, x: +x.toFixed(2), z: +z.toFixed(2), near, place: `${nearest.id} ${nearest.d.toFixed(1)} m`, trunk: trunk ? `trunk r${trunk.r.toFixed(2)}` : '', ...(kind === 'inside solid' && wrong.last ? { solid: wrong.last } : {}) });
   };
   for (const p of points) {
     const s = walker.surface(p.x, p.z);

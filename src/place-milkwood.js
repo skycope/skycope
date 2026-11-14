@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { groundHeight } from "./terrain.js";
 import { capsule, roof } from "./blockers.js";
-import { heightTile } from "./place-kit.js";
+import { heightTile, timberTile } from "./place-kit.js";
 import { seededRandom } from "./random.js";
 import { part, merge, sweep, smooth01, srgb, hsl, staticMesh, prop } from "./place-kit.js";
 
@@ -65,6 +65,7 @@ export function buildMilkwood(p, materials, { light = false, seed = 1 } = {}) {
   };
 
   const main = light ? 5 : 6;
+  let ramp = null; // the limb a cat walks up
   const azimuth0 = random() * Math.PI * 2;
   for (let i = 0; i < main; i++) {
     const az = azimuth0 + (i / main) * Math.PI * 2 + (random() - 0.5) * 0.5;
@@ -73,6 +74,22 @@ export function buildMilkwood(p, materials, { light = false, seed = 1 } = {}) {
     const dir = new THREE.Vector3(Math.cos(az) * Math.cos(el), Math.sin(el), Math.sin(az) * Math.cos(el));
     const length = 9 + random() * 3.5;
     const limb = grow(base, dir, length, 0.42 + random() * 0.1, 0, { droop: 0.15, gnarl: 0.24, step: 0.5 });
+    // The first limb comes down to the ground as a ramp: an even slope from
+    // the fork to an elbow sunk in the leaf litter 4.5 m out, which a cat
+    // walks up to sit in the fork.
+    if (i === 0) {
+      const e = limb.points.findIndex((q) => Math.hypot(q.x, q.z) >= 4.5);
+      if (e > 2) {
+        const q = limb.points[e];
+        const yE = ground(q.x, q.z) + limb.radii[e] * 0.45;
+        const y0 = limb.points[0].y;
+        for (let k = 1; k <= e; k++) limb.points[k].y = y0 + (yE - y0) * (k / e);
+        // Past the elbow it rises again from there, as it grew.
+        const lift = limb.points[e + 1] ? limb.points[e + 1].y - yE : 0;
+        for (let k = e + 1; k < limb.points.length; k++) limb.points[k].y = Math.max(limb.points[k].y - Math.max(0, lift - 0.25), ground(limb.points[k].x, limb.points[k].z) + limb.radii[k] * 0.6);
+        ramp = { limb: limbs[limbs.length - 1], end: e, start: 1 };
+      }
+    }
     // Side branches: alternate, reaching up and out toward the light.
     let along = 1.0 + random() * 0.5;
     let side = random() < 0.5 ? -1 : 1;
@@ -123,7 +140,7 @@ export function buildMilkwood(p, materials, { light = false, seed = 1 } = {}) {
   // The bole: a fluted lathe, flared at the foot into buttress roots.
   const boleY = (t) => g0 - 0.4 + t * (boleTop - g0 + 0.6);
   {
-    const rings = 9, radial = light ? 12 : 18;
+    const rings = 9, radial = light ? 12 : 15;
     const positions = [];
     const index = [];
     for (let j = 0; j <= rings; j++) {
@@ -146,9 +163,11 @@ export function buildMilkwood(p, materials, { light = false, seed = 1 } = {}) {
     woodNear.push(part(bole.clone(), { colour: barkColour, shade: 0.45, anchor }));
     woodFar.push(part(bole, { colour: barkColour, shade: 0.45, anchor }));
   }
+  // The ramp limb's back is worn pale where paws go (its hint).
+  const wornColour = (q, n, out) => { barkColour(q, n, out); if (n.y > 0.55) out.lerp(srgb("#8f897d"), smooth01(0.55, 0.9, n.y) * 0.7); };
   for (const limb of limbs) {
-    const radialNear = limb.depth === 0 ? (light ? 7 : 10) : limb.depth === 1 ? 6 : 4;
-    woodNear.push(part(sweep(limb.points, limb.radii, radialNear), { colour: barkColour, shade: barkShade, anchor }));
+    const radialNear = limb.depth === 0 ? 7 : limb.depth === 1 ? 5 : 3;
+    woodNear.push(part(sweep(limb.points, limb.radii, radialNear), { colour: limb === ramp?.limb ? wornColour : barkColour, shade: barkShade, anchor }));
     if (limb.depth < 2) {
       const keep = limb.points.map((_, k) => k).filter((k) => k % 2 === 0 || k === limb.points.length - 1);
       woodFar.push(part(sweep(keep.map((k) => limb.points[k]), keep.map((k) => limb.radii[k]), limb.depth === 0 ? 6 : 4), { colour: barkColour, shade: barkShade, anchor }));
@@ -157,7 +176,8 @@ export function buildMilkwood(p, materials, { light = false, seed = 1 } = {}) {
 
   // ---- Leaves --------------------------------------------------------------
   const clumps = [];
-  const per = light ? 4 : 7;
+  // Fewer, fuller shoots (178k triangles near became under 60k).
+  const per = light ? 2 : 3;
   let top = g0;
   for (const s of spots) top = Math.max(top, s.y);
   const centre = new THREE.Vector3(0, g0 + (top - g0) * 0.35, 0);
@@ -167,6 +187,10 @@ export function buildMilkwood(p, materials, { light = false, seed = 1 } = {}) {
       if (q.y < ground(q.x, q.z) + 0.6) continue;
       clumps.push(q);
     }
+  // A ceiling on the crown: the shoots spread evenly over a few more than
+  // 2,500, whatever the limbs grew (the near level stays under 60k).
+  const cap = light ? 1500 : 2550;
+  if (clumps.length > cap) { const step = clumps.length / cap; const kept = Array.from({ length: cap }, (_, i) => clumps[Math.floor(i * step)]); clumps.length = 0; clumps.push(...kept); }
   // Shade within the dome: deep inside and low, little sky.
   let maxReach = 0;
   for (const q of clumps) maxReach = Math.max(maxReach, Math.hypot(q.x, q.z));
@@ -180,7 +204,7 @@ export function buildMilkwood(p, materials, { light = false, seed = 1 } = {}) {
     leafColour.copy(hsl(0.25 + Math.abs(variation) * 0.04, 0.42 + exposure * 0.08, 0.14 + exposure * 0.05 + Math.abs(variation) * 0.03));
     return {
       position: q,
-      scale: new THREE.Vector3(1, 1, 1).multiplyScalar((0.78 + Math.abs(variation) * 0.25) * grow),
+      scale: new THREE.Vector3(1, 1, 1).multiplyScalar((1.1 + Math.abs(variation) * 0.3) * grow),
       rotation: new THREE.Euler((Math.abs(variation) - 0.5) * 1.2, Math.atan2(out.x, out.z) + variation * 2, (Math.abs(variation * 7) % 1 - 0.5) * 0.9),
       color: leafColour.clone(),
       ground: q.y - 1.0,
@@ -190,7 +214,7 @@ export function buildMilkwood(p, materials, { light = false, seed = 1 } = {}) {
   });
   const near = toInstances(clumps);
   const far = toInstances(clumps.filter((_, i) => i % 3 === 0), 1.7);
-  const leafNear = instanced(shootGeometry(6, 1), materials.foliage, near, true);
+  const leafNear = instanced(shootGeometry(7, 1), materials.foliage, near, true);
   const leafFar = instanced(shootGeometry(3, 0), materials.foliage, far, true);
 
   // ---- Old man's beard -------------------------------------------------------
@@ -209,7 +233,7 @@ export function buildMilkwood(p, materials, { light = false, seed = 1 } = {}) {
       });
     }
   }
-  const beardMesh = instanced(beardGeometry(), materials.lichen, strands.slice(0, light ? 250 : 600), false);
+  const beardMesh = instanced(beardGeometry(), materials.lichen, strands.slice(0, light ? 150 : 260), false);
 
   const rootTile = heightTile(p.x, p.z, 2.4, 0.08, (x, z) => {
     const lx = x - p.x, lz = z - p.z;
@@ -235,7 +259,12 @@ export function buildMilkwood(p, materials, { light = false, seed = 1 } = {}) {
     const every = limb.depth === 0 ? 4 : 6;
     for (let k = 0; k + 1 < limb.points.length; k += every) {
       const e = Math.min(limb.points.length - 1, k + every);
-      blockers.push(capsule(at(limb.points[k]), at(limb.points[e]), Math.max(0.08, (limb.radii[k] + limb.radii[e]) / 2), { body: limb.depth === 0 }));
+      // (The ramp is walked on: its tile carries the cat, not its body.)
+      const onRamp = limb === ramp?.limb;
+      // Nor are the limbs' roots in the fork: the bole stops the cat there,
+      // and a body round each root caught a cat stepping off the ramp.
+      const inFork = k === 0;
+      blockers.push(capsule(at(limb.points[k]), at(limb.points[e]), Math.max(0.08, (limb.radii[k] + limb.radii[e]) / 2), { body: limb.depth === 0 && !onRamp && !inFork }));
     }
   }
   blockers.push(capsule(at(new THREE.Vector3(0, g0 - 0.5, 0)), at(new THREE.Vector3(0, boleTop, 0)), 1.0, { body: false }));
@@ -255,13 +284,30 @@ export function buildMilkwood(p, materials, { light = false, seed = 1 } = {}) {
     blockers.push(roof(p.x + x0, p.z + z0, cell, n, under, over));
   }
 
+  // The ramp to walk up, and the seat at its top by the fork.
+  const rampTiles = [];
+  let perch = null;
+  if (ramp) {
+
+    // The whole limb, out past the elbow and up again (as one surface it
+    // cannot be walked under; low past the elbow it is stepped over).
+    const pts = ramp.limb.points.slice(ramp.start).map((q) => ({ x: p.x + q.x, y: q.y, z: p.z + q.z }));
+    const r = ramp.limb.radii.slice(0, ramp.end + 1).reduce((a, b) => a + b, 0) / (ramp.end + 1);
+    rampTiles.push(timberTile(pts, r));
+    // The seat: just clear of the bole, where the limb leaves the fork.
+    const k = Math.max(1, ramp.limb.points.findIndex((q) => Math.hypot(q.x, q.z) >= 1.3));
+    const q = ramp.limb.points[k];
+    const d = ramp.limb.points[0].clone().sub(q);
+    perch = { x: p.x + q.x, y: q.y + ramp.limb.radii[k], z: p.z + q.z, facing: Math.atan2(-d.x, -d.z) };
+  }
   const nearGroup = new THREE.Group();
   nearGroup.add(staticMesh(merge(woodNear), materials.bark), leafNear, beardMesh);
   const farGroup = new THREE.Group();
   farGroup.add(staticMesh(merge(woodFar), materials.bark), leafFar);
   return prop({
     lod: { near: nearGroup, far: farGroup, farDistance: 34 },
-    surfaces: { trunks, tiles: [rootTile], solids: blockers },
+    surfaces: { trunks, tiles: [rootTile, ...rampTiles], solids: blockers },
+    affordances: perch ? [{ id: "milkwood-fork", kind: "perch", ...perch, r: 0.5, hint: "bark worn pale along the top of one low limb" }] : [],
     covers: [{ kind: "crown", x: p.x, z: p.z, r: maxReach * 0.8, y: g0 + 2.5 }],
     crown: { radius: maxReach, top, ground: g0 }, // land-magic: the fireflies' home
   });
@@ -331,7 +377,9 @@ function shootGeometry(leaves = 8, detail = 1) {
       colours.push(base.r, base.g, base.b);
     }
     flutter.push(i / leaves, 0, i / leaves, 0.7, i / leaves, 0.7, i / leaves, 0.5, i / leaves, 1);
-    if (detail) index.push(o, o + 1, o + 3, o, o + 3, o + 2, o + 1, o + 4, o + 3, o + 3, o + 4, o + 2);
+    // Two triangles folded along the midrib (the side points sit below
+    // the base–tip line): the fold reads without a midrib vertex.
+    if (detail) index.push(o, o + 1, o + 4, o, o + 4, o + 2);
     else index.push(o, o + 1, o + 4, o, o + 4, o + 2);
   }
   const g = new THREE.BufferGeometry();

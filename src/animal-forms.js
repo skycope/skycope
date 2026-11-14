@@ -502,6 +502,7 @@ void turnAbout( inout vec3 p, inout vec3 n, vec3 pivot, mat3 m, float w ) {
 }
 `;
 
+export const WORLD_SCALE = 1.4; // the island is drawn 1.4x life (the cat is CAT_SCALE 1.4): animals take the same
 // One placement helper for every module (no allocation per call).
 const _position = new THREE.Vector3();
 const _quaternion = new THREE.Quaternion();
