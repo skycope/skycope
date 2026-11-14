@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { CAT_SCALE, PAW_LIFT, STAND_HEIGHT, TAIL_BONES, TAIL_LENGTH, TAIL_ROOT, createRig, neutralFoot, solveLeg } from "./cat-rig.js";
-import { buildCatGeometry } from "./cat-body.js";
+import { buildCatGeometry, MUZZLE } from "./cat-body.js";
 import { bakeShellColours, catUniforms, coatMaterial, ghostMaterial, CAT_SEA } from "./cat-coat.js";
 import { createContactShadow, createDust, createPawPrints, createSpray, SPLASH } from "./cat-ground.js";
 
@@ -31,13 +31,16 @@ const GALLOP = { lh: 0, rh: 0.1, lf: 0.5, rf: 0.6 };
 // Swimming: a dog paddle in diagonal pairs, as swimming quadrupeds use.
 const PADDLE = { lf: 0, rh: 0.08, rf: 0.5, lh: 0.58 };
 // Postures (body frame, before scaling): the height of the mid-back over
-// the ground, the body's pitch, and where the paws rest [x, z].
+// the ground, the body's pitch, where the paws rest [x, z], and how the
+// spine curls (radians the chest bends forward and the pelvis tucks under).
 const POSTURE = {
   stand: { height: STAND_HEIGHT, pitch: 0 },
-  // Sitting: haunches on the ground, front legs straight, ~40° up.
-  sit: { height: 0.145, pitch: 0.72, front: [0.02, 0.1], hind: [0.042, 0.045] },
-  // Loaf: belly down, paws tucked.
-  lie: { height: 0.082, pitch: 0.03, front: [0.022, 0.13], hind: [0.045, -0.07] },
+  // Sitting: haunches on the ground, the back rounded (pelvis steep, chest
+  // upright), front legs straight under the shoulders.
+  sit: { height: 0.152, pitch: 0.8, chest: 0.18, hips: 0.3, front: [0.026, 0.15], hind: [0.05, 0.045] },
+  // Lying (a sphinx): belly on the ground, forearms flat along it with the
+  // paws under the chin, hind legs folded beside the belly.
+  lie: { height: 0.062, pitch: 0.03, front: [0.024, 0.19], hind: [0.045, -0.07] },
   // Stalking: low, the rump a touch higher than the shoulders.
   crouch: { height: 0.15, pitch: -0.07 },
 };
@@ -52,10 +55,6 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
   const skeleton = new THREE.Skeleton(rig.list);
   const b = rig.bones;
   const bind = Object.fromEntries(rig.list.map((bone) => [bone.name, bone.position.clone()]));
-  // Proportions tuned after binding: a cat's head and paws are big for
-  // its body.
-  b.head.scale.setScalar(1.1);
-  for (const leg of rig.legs) leg.paw.scale.setScalar(1.05);
 
   const root = new THREE.Group();
   root.name = "cat";
@@ -398,11 +397,11 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       const wiggle = crouch * Math.max(0, Math.sin(time * 0.9)) * Math.sin(time * 11) * 0.09;
       // Paddling works the spine a little: shoulders and hips roll in turn.
       const paddleRoll = Math.sin(strokeC) * 0.07 * swim;
-      b.chest.rotation.set(-flex * 0.6 + 0.04 * sitW, bend, -walkRoll * 0.7 - paddleRoll + shakeWave(0.02) * 0.32 * shakeBody);
+      b.chest.rotation.set(-flex * 0.6 + POSTURE.sit.chest * sitW, bend, -walkRoll * 0.7 - paddleRoll + shakeWave(0.02) * 0.32 * shakeBody);
       // Flexing shortens the back and stretching lengthens it.
       b.hips.position.copy(bind.hips).setZ(bind.hips.z - ext * 0.022);
       b.chest.position.copy(bind.chest).setZ(bind.chest.z + ext * 0.01);
-      b.hips.rotation.set(flex - 0.22 * sitW - 0.05 * lieW + Math.sin(strokeC * 2) * 0.03 * swim, -bend * 0.8, walkRoll + wiggle + paddleRoll - shakeWave(0.06) * 0.26 * shakeBody);
+      b.hips.rotation.set(flex - POSTURE.sit.hips * sitW - 0.05 * lieW + Math.sin(strokeC * 2) * 0.03 * swim, -bend * 0.8, walkRoll + wiggle + paddleRoll - shakeWave(0.06) * 0.26 * shakeBody);
       // Breathing: slow at rest, deeper after running, and quick when purring.
       state.breath += step * Math.PI * 2 * lerp(0.33, 1.1, state.exertion);
       const breath = Math.sin(state.breath) * lerp(0.012, 0.03, state.exertion) + (pose.sit > 0.9 && pose.idle > 8 ? Math.sin(time * 150) * 0.002 : 0);
@@ -607,7 +606,7 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
           const weight = leg.stance ? 1 : 0;
           leg.scapLift = (leg.scapLift ?? 0) + (weight - (leg.scapLift ?? 0)) * Math.min(1, step * 10);
           // (At a gallop the blade swings with the arm, adding to its reach.)
-          leg.scapula.rotation.x = -(leg.lastUpper ?? 0) * lerp(0.3, 0.5, gallop);
+          leg.scapula.rotation.x = -((leg.lastUpper ?? leg.restUpper) - leg.restUpper) * lerp(0.3, 0.5, gallop) * (1 - pose.sit);
           leg.scapula.position.copy(bind[leg.scapula.name]).setY(bind[leg.scapula.name].y + (leg.scapLift - 0.5) * 0.006 * amp);
           leg.scapula.updateMatrixWorld(true);
         }
@@ -648,23 +647,15 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
           }
           leg.lastPhase = phase;
         }
-        // Sitting: the hind hocks lie flat on the ground.
+        // Sitting and lying, the hind hocks lie flat on the ground, heel
+        // back; lying, the forearms do too, wrist back.
         if (!spec.front) flexLeg = lerp(flexLeg, spec.lean - (Math.PI / 2 - pitch - 0.12), sitW + lieW * 0.9);
+        else flexLeg = lerp(flexLeg, spec.lean - (Math.PI / 2 - pitch - 0.45), lieW);
         const solved = solveLeg(leg, local.x, local.z, local.y, flexLeg);
         leg.lastUpper = solved.upperAngle;
-        // A loaf folds every leg underneath.
-        if (lieW > 0.01) {
-          // Front: upper arm back, forearm and pastern forward under the
-          // chest. Hind: thigh forward, shin back, hock folded flat forward.
-          const tuck = spec.front ? [1.25, -2.6, 0.1, 1.5] : [-1.0, 2.6, -3.05, 1.45];
-          leg.upper.rotation.x = lerp(leg.upper.rotation.x, tuck[0], lieW);
-          leg.lower.rotation.x = lerp(leg.lower.rotation.x, tuck[1], lieW);
-          leg.foot.rotation.x = lerp(leg.foot.rotation.x, tuck[2], lieW);
-          leg.paw.rotation.x = lerp(leg.paw.rotation.x, tuck[3], lieW);
-        }
         // Planted paws lie flat on the ground, on slopes and rock too.
         leg.upper.updateMatrixWorld(true);
-        const planted = (leg.stance ? 1 : 1 - leg.swing) * (1 - lieW) * (pose.air > 0.01 ? 0 : 1) * (1 - swim);
+        const planted = (leg.stance ? 1 : 1 - leg.swing) * (pose.air > 0.01 ? 0 : 1) * (1 - swim);
         if (planted > 0.01) {
           const e = 0.03;
           up.set(ground(wx - e, wz) - ground(wx + e, wz), 2 * e, ground(wx, wz - e) - ground(wx, wz + e)).normalize();
@@ -716,8 +707,9 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
       const hipsToCoast = inverse.multiplyMatrices(toCoast, b.hips.matrixWorld);
       for (let i = 0; i < TAIL_BONES; i++) {
         const s = i / TAIL_BONES;
-        // Walking: up like a question mark, the tip hooked over forward.
-        const carried = 0.55 + smooth(s, 0, 0.45) * 0.95 + smooth(s, 0.72, 1) * 0.75;
+        // Walking: carried in a relaxed curve, out and up from the rump to
+        // about 50°, the tip curling higher (not a raised pole).
+        const carried = 0.2 + smooth(s, 0, 0.6) * 0.7 + smooth(s, 0.65, 1) * 0.6;
         // At a gallop: out behind, a little low at the root, curving up
         // toward the tip.
         const streaming = lerp(0.15 - s * 0.1, -0.02 + smooth(s, 0.2, 1) * 0.38, gallop);
@@ -1002,7 +994,8 @@ export function createCat(parent, { light = false, sync = typeof Worker === "und
 // a time-step-independent approach avoids a jump when preview light changes.
 export function pupilResponse(current, light, dt) {
   const darkness = Math.max(light.night, 1 - clamp(light.direct, 0, 1));
-  const target = lerp(0.12, 0.66, darkness);
+  // A slit by day, but one that reads at a glance, not a pinprick.
+  const target = lerp(0.18, 0.66, darkness);
   return current + (target - current) * (1 - Math.exp(-Math.max(dt, 0) / 0.35));
 }
 
@@ -1020,15 +1013,16 @@ function whiskers() {
       for (let k = 0; k < 3; k++)
         strands.push({
           side,
-          root: new THREE.Vector3(side * (0.0105 + k * 0.0022), -0.0158 - row * 0.0026, 0.0435 - k * 0.0025),
+          root: new THREE.Vector3(side * (0.0105 + k * 0.0022), -0.0158 - row * 0.0026, 0.0435 + MUZZLE - k * 0.0025),
           spread: 0.85 + row * 0.12 + k * 0.05,
           droop: -0.1 - row * 0.1 + k * 0.03,
           length: 0.068 - row * 0.005 - k * 0.004,
           phase: Math.random() * 6.28,
+          alpha: 0.32,
         });
     for (let k = 0; k < 2; k++)
-      strands.push({ side, root: new THREE.Vector3(side * (0.013 + k * 0.005), 0.0175, 0.035), spread: 0.7 + k * 0.2, droop: 0.4, length: 0.024 - k * 0.005, phase: Math.random() * 6.28 });
-    strands.push({ side, root: new THREE.Vector3(side * 0.036, -0.004, 0.012), spread: 1.35, droop: 0.1, length: 0.02, phase: Math.random() * 6.28 });
+      strands.push({ side, root: new THREE.Vector3(side * (0.013 + k * 0.005), 0.0175, 0.035), spread: 0.9 + k * 0.25, droop: 0.6, length: 0.022 - k * 0.005, phase: Math.random() * 6.28, alpha: 0.16 });
+    strands.push({ side, root: new THREE.Vector3(side * 0.036, -0.004, 0.012), spread: 1.35, droop: 0.1, length: 0.02, phase: Math.random() * 6.28, alpha: 0.2 });
   }
   const vertices = strands.length * SEGMENTS * 2;
   const positions = new Float32Array(vertices * 3);
@@ -1037,7 +1031,7 @@ function whiskers() {
     for (let k = 0; k < SEGMENTS; k++)
       for (let e = 0; e < 2; e++) {
         const t = (k + e) / SEGMENTS;
-        colours.set([1, 1, 1, 0.6 * (1 - t * 0.85)], ((w * SEGMENTS + k) * 2 + e) * 4);
+        colours.set([1, 1, 1, strands[w].alpha * (1 - t * 0.85)], ((w * SEGMENTS + k) * 2 + e) * 4);
       }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage));
