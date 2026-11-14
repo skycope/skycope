@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import {
   terrainHeight,
+  groundHeight,
   shoreDistance,
   GROUND,
   ISLAND,
@@ -50,6 +51,12 @@ export function createForest(scene, seed, { light = false } = {}) {
     swell: { value: new THREE.Vector4(...swellUniform(seed, [0, 0])) },
     // Where the cat is (coast x, z), how far it pushes, how hard.
     catPush: { value: new THREE.Vector4(0, 0, 0.4, 0) },
+    // move: where the cat has just been (x, z, how hard the plants there
+    // are still bent: 1 pressed, then a damped swing back through upright).
+    catTrail: { value: Array.from({ length: 3 }, () => new THREE.Vector4()) },
+    // move: the line of sight kept clear of leaves (FOLD_GLSL).
+    sightLine: { value: new THREE.Vector4() },
+    sightEye: { value: new THREE.Vector3() },
     // The cat's legs in the swash film (x, z, depth), and the water past
     // them: downstream direction (x, z), speed, and whether any is wet.
     catLegs: { value: Array.from({ length: 4 }, () => new THREE.Vector4()) },
@@ -73,8 +80,10 @@ export function createForest(scene, seed, { light = false } = {}) {
   // `?perf` QA: the console can read and tweak the shared lighting uniforms.
   scene.userData.forestShared = shared;
   const random = seededRandom(seed);
-  const { wood: trunks, leaves, clusters, flowers, turf, fronds, succulents, needles, reeds, layout, habitat, producers = [] } = createVegetation(seed);
-  const rocks = addRocks(scene, random, shared, placeRocks(seed, rockLayout(random))); // places:
+  // (The rocks are laid out first, so nothing is planted through one.)
+  const rockList = placeRocks(seed, rockLayout(random)); // places:
+  const { wood: trunks, leaves, clusters, flowers, turf, fronds, succulents, needles, reeds, layout, habitat, producers = [] } = createVegetation(seed, { avoid: rockFootprints(rockList) });
+  const rocks = addRocks(scene, random, shared, rockList); // places:
   const surf = createSurf(scene, rocks, shared, { light });
   const obstacles = obstaclesFor(layout, rocks);
   const groundOccluders = occludersFor(layout, rocks);
@@ -237,6 +246,8 @@ export function createForest(scene, seed, { light = false } = {}) {
   addInstances(scene, pincushionGeometry(36, 1), petalMaterial, flowers.pincushion, true, [{ geometry: pincushionGeometry(14, 0), distance: 20 }, { keep: () => false, distance: 85 }], { chunk: 40 });
   addInstances(scene, spikeGeometry(), petalMaterial, flowers.spike, true, [{ geometry: spikeGeometry(14), distance: 45 }, { keep: () => false, distance: 95 }], { chunk: 40 });
   addInstances(scene, white(bellGeometry()), petalMaterial, flowers.bell, false, [halfDrift, { keep: () => false, distance: 45 }], { chunk: 40 });
+  // move: the cat's trail through the plants (pushAt).
+  const trail = { at: 0, head: 0, age: [9, 9, 9], from: [0, 0, 0] };
   return {
     habitat,
     // Trunks and boulders, for the cat to walk around (or climb).
@@ -270,12 +281,33 @@ export function createForest(scene, seed, { light = false } = {}) {
         shared.breezeDir.value.set(wind[0] / speed, wind[1] / speed);
     },
     // Leaves and blades bend away from the cat as it brushes through.
-    pushAt(x, z, strength) {
+    // move: plants part round the cat, stay pressed where it has just
+    // been, and swing back up behind it (a damped spring, overshooting
+    // upright a little), so a path through the scrub closes after the cat.
+    // `y` (the cat's paws) aims the line of sight kept clear of leaves.
+    pushAt(x, z, strength, y = groundHeight(x, z)) {
       nearGround.setCat(x, z);
+      shared.sightLine.value.set(x, y + 0.2, -z, SIGHT_RADIUS);
+      const now = (globalThis.performance?.now() ?? 0) / 1000;
+      const dt = trail.at ? Math.min(0.1, Math.max(0, now - trail.at)) : 0;
+      trail.at = now;
       const push = shared.catPush.value;
+      push.w += (strength - push.w) * (1 - Math.exp(-dt * 12));
       push.x = x;
       push.y = z;
-      push.w += (strength - push.w) * 0.2;
+      const points = shared.catTrail.value;
+      // A new trail point every 30 cm the cat moves while it presses.
+      const newest = points[trail.head];
+      if (push.w > 0.05 && Math.hypot(x - newest.x, z - newest.y) > 0.3) {
+        trail.head = (trail.head + 1) % points.length;
+        points[trail.head].set(x, z, 0, 0);
+        trail.age[trail.head] = 0;
+        trail.from[trail.head] = push.w;
+      }
+      for (let i = 0; i < points.length; i++) {
+        trail.age[i] += dt;
+        points[i].w = trail.from[i] * release(trail.age[i]);
+      }
     },
     updateNight(night) {
       shared.nightGlow.value = night;
@@ -308,6 +340,7 @@ export function createForest(scene, seed, { light = false } = {}) {
     // lod: each frame, the eye (world space) and the render budget's LOD
     // bias (quality.js lodBias, ≤ 1 pulls every level in).
     updateLod(eye, bias = 1) {
+      shared.sightEye.value.copy(eye);
       packLod(scene, eye, bias);
     },
   };
@@ -342,6 +375,11 @@ float gustAt( vec2 p ) {
 const WIND_GLSL = /* glsl */ `
 ${GUST_GLSL}
 uniform vec4 catPush;
+uniform vec4 catTrail[ 3 ];
+// move: the line of sight to the cat (world head position, cone radius at
+// the lens; w 0 off) and the eye it is seen from.
+uniform vec4 sightLine;
+uniform vec3 sightEye;
 // land-magic: a waking's ring (Three world x, z, radius, strength).
 uniform vec4 magicPulse;
 varying float vGlint;
@@ -393,29 +431,68 @@ vec3 windOffset(vec3 p) {
 // piece, away from where it is rooted (leaning each vertex away on its own
 // smeared a flower's head into a ring round the cat). Tall plants' crowns
 // are out of reach, so only the lower ~60 cm of any plant moves.
+// move: the trail behind the cat keeps plants bent where it has just been,
+// releasing them on a damped spring (catTrail.w swings through zero).
 const PUSH_GLSL = /* glsl */ `
 {
   #ifdef USE_INSTANCING
-    vec2 away = instanceMatrix[3].xz - catPush.xy;
+    vec2 pushRoot = instanceMatrix[3].xz;
   #else
-    vec2 away = mvPosition.xz - catPush.xy;
+    vec2 pushRoot = mvPosition.xz;
   #endif
-  float d = length( away ) + 1e-4;
   float above = max( mvPosition.y - anchorHeight, 0.0 );
   float reach = catPush.z;
-  float push = catPush.w * ( 1.0 - smoothstep( reach * 0.3, reach, d ) ) * smoothstep( 0.0, 0.25, above ) * ( 1.0 - smoothstep( 0.35, 0.65, above ) );
-  mvPosition.xz += away / d * push * reach * 0.55;
-  mvPosition.y -= push * above * 0.35;
+  vec2 away = pushRoot - catPush.xy;
+  float d = length( away ) + 1e-4;
+  vec2 shove = away / d * ( catPush.w * ( 1.0 - smoothstep( reach * 0.3, reach, d ) ) );
+  for ( int i = 0; i < 3; i++ ) {
+    vec2 back = pushRoot - catTrail[ i ].xy;
+    float b = length( back ) + 1e-4;
+    shove += back / b * ( catTrail[ i ].w * ( 1.0 - smoothstep( reach * 0.3, reach, b ) ) );
+  }
+  float amount = length( shove );
+  shove *= min( 1.0, 1.0 / max( amount, 1e-4 ) );
+  float lower = smoothstep( 0.0, 0.25, above ) * ( 1.0 - smoothstep( 0.35, 0.65, above ) );
+  mvPosition.xz += shove * lower * reach * 0.55;
+  mvPosition.y -= min( amount, 1.0 ) * lower * above * 0.35;
 }`;
+
+// move: the cleared cone's radius at the lens (metres).
+const SIGHT_RADIUS = 0.75;
+
+// move: how bent a plant is `age` seconds after the cat left it (1 → 0):
+// an underdamped spring (zeta 0.45, omega 9 rad/s), released from rest, so
+// it swings about 20% past upright and settles within a second.
+export function release(age) {
+  if (!(age < 1.4)) return 0;
+  const zeta = 0.45, omega = 9;
+  const wd = omega * Math.sqrt(1 - zeta * zeta);
+  return Math.exp(-zeta * omega * age) * (Math.cos(wd * age) + ((zeta * omega) / wd) * Math.sin(wd * age));
+}
 
 // Foliage the camera noses into folds out of its way: leaves and blades
 // within about a metre of the eye close up toward their own stem or base,
 // the way a hand pushed into a bush parts it, instead of slicing through
 // the lens as flat green planes. No discard: the geometry just moves.
+//
+// move: so do leaves between the lens and the cat (a cone round the line of
+// sight, widest at the lens, closing before the cat so the plants it stands
+// in still touch it), so the cat is never lost behind a bush. Only in the
+// view the eye sees (sightEye): the shadow pass keeps every leaf.
 const FOLD_GLSL = /* glsl */ `
 {
   vec3 foldWorld = ( modelMatrix * vec4( mvPosition.xyz, 1.0 ) ).xyz;
   float fold = 1.0 - smoothstep( 0.3, 1.1, length( foldWorld - cameraPosition ) );
+  if ( sightLine.w > 0.0 && distance( cameraPosition, sightEye ) < 0.01 ) {
+    vec3 sightAxis = sightLine.xyz - cameraPosition;
+    float sightLength = length( sightAxis ) + 1e-4;
+    float along = dot( foldWorld - cameraPosition, sightAxis ) / sightLength;
+    float across = length( foldWorld - cameraPosition - sightAxis * ( along / sightLength ) );
+    float radius = sightLine.w * mix( 1.0, 0.6, clamp( along / sightLength, 0.0, 1.0 ) );
+    float sight = ( 1.0 - smoothstep( radius * 0.55, radius, across ) )
+      * smoothstep( 0.0, 0.3, along ) * ( 1.0 - smoothstep( sightLength - 0.5, sightLength - 0.22, along ) );
+    fold = max( fold, sight );
+  }
   if ( fold > 0.0 ) {
     #ifdef USE_INSTANCING
       vec3 foldAnchor = instanceMatrix[3].xyz;
@@ -425,6 +502,21 @@ const FOLD_GLSL = /* glsl */ `
     mvPosition.xyz = mix( mvPosition.xyz, foldAnchor, fold * 0.94 );
   }
 }`;
+
+// move: twigs and thin limbs (radius under 3–6 cm) fold out of the lens and
+// the line of sight like the leaves; trunks and big limbs stay (the camera
+// arm keeps clear of those).
+const TWIG_FOLD_GLSL = /* glsl */ `
+#ifdef USE_INSTANCING
+{
+  float girth = length( instanceMatrix[0].xyz );
+  float thin = 1.0 - smoothstep( 0.03, 0.06, girth );
+  if ( thin > 0.0 ) {
+    ${FOLD_GLSL.replace("if ( fold > 0.0 ) {", "fold *= thin;\n  if ( fold > 0.0 ) {")}
+  }
+}
+#endif
+`;
 
 const PROJECT_GLSL = /* glsl */ `
 vec4 mvPosition = vec4( transformed, 1.0 );
@@ -1188,8 +1280,10 @@ if ( rockSandy > 0.01 && vRockAbove < 0.3 ) {
   float driftTop = 0.012 + 0.045 * windward * windward + ( relief - 0.5 ) * 0.02 + ( mid - 0.5 ) * 0.02
     + ( mix( dNoise3( q * 23.0 ), 0.5, smoothstep( 0.2, 0.5, footprint * 23.0 ) ) - 0.5 ) * 0.015;
   drift = ( 1.0 - smoothstep( driftTop - 0.015, driftTop + 0.004, vRockAbove ) ) * rockSandy;
-  vec3 sandTone = mix( vec3( 0.41, 0.36, 0.26 ), vec3( 0.29, 0.24, 0.16 ), smoothstep( 4.0, 9.0, rockInland ) );
-  diffuseColor.rgb = mix( diffuseColor.rgb, sandTone * ( 0.85 + relief * 0.3 ), drift );
+  // The sand it is: the ground's own baked albedo right there, darkened
+  // as the ground is round the rock's foot (a fixed bright tone read as a
+  // pale band against the shaded sand beside it).
+  diffuseColor.rgb = mix( diffuseColor.rgb, rockSandAlbedo( coast ) * ( 0.85 + relief * 0.3 ), drift );
 }
 float detailHeight = macro * 0.05 + mid * 0.018 + relief * 0.022 + feldspar * 0.0006 - biotite * 0.0004 - seam * 0.006 + barnacles * 0.0015 + lichen * 0.002;
 float detailRoughness = mix( mix( mix( 0.82, 0.95, max( barnacles, lichen ) ), 0.55, damp ), 0.32, sheet );
@@ -1467,7 +1561,11 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
     if (sway)
       shader.vertexShader = shader.vertexShader.replace(
         "#include <project_vertex>",
-        foliage ? PROJECT_GLSL.replace("vAbove =", `${PUSH_GLSL}\n${FOLD_GLSL}\nvAbove =`) : PROJECT_GLSL,
+        foliage
+          ? PROJECT_GLSL.replace("vAbove =", `${PUSH_GLSL}\n${FOLD_GLSL}\nvAbove =`)
+          : bark
+            ? PROJECT_GLSL.replace("vAbove =", `${TWIG_FOLD_GLSL}\nvAbove =`)
+            : PROJECT_GLSL,
       );
     shader.vertexShader = shader.vertexShader.replace(
       "#include <worldpos_vertex>",
@@ -1630,18 +1728,49 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
     if (rock) {
       // The foot sees almost no sky where it meets the sand (or the stone it
       // rests on): contact shadow, like the bark foot.
+      // Height above the sand under each vertex (the ground field), not
+      // above the instance's anchor: that is the terrain at the rock's
+      // centre, so on a sloping beach the whole downhill foot read as below
+      // the sand and drew as a pale, sky-lit band of drift. A rock resting
+      // on another (its anchor well above the sand at its centre) keeps the
+      // anchor: its foot is on stone.
       shader.vertexShader = shader.vertexShader
-        .replace("void main() {", "varying float vRockAbove;\nvoid main() {")
-        .replace("vWorld = ( modelMatrix * detailWorld ).xyz;", "vWorld = ( modelMatrix * detailWorld ).xyz;\n          vRockAbove = vWorld.y - anchorHeight;");
+        .replace("void main() {", "varying float vRockAbove;\nuniform sampler2D groundField;\nuniform vec4 groundRect;\nvoid main() {")
+        .replace(
+          "vWorld = ( modelMatrix * detailWorld ).xyz;",
+          `vWorld = ( modelMatrix * detailWorld ).xyz;
+          {
+            float sandHere = texture2D( groundField, ( vec2( vWorld.x, -vWorld.z ) - groundRect.xy ) * groundRect.zw ).r;
+            #ifdef USE_INSTANCING
+              vec3 rockCentre = ( modelMatrix * vec4( instanceMatrix[3].xyz, 1.0 ) ).xyz;
+              float sandCentre = texture2D( groundField, ( vec2( rockCentre.x, -rockCentre.z ) - groundRect.xy ) * groundRect.zw ).r;
+              float rockFoot = anchorHeight > sandCentre + 0.08 ? anchorHeight : sandHere;
+            #else
+              float rockFoot = sandHere;
+            #endif
+            vRockAbove = vWorld.y - rockFoot;
+          }`,
+        );
       shader.fragmentShader = shader.fragmentShader
-        .replace("void main() {", "varying float vRockAbove;\nvoid main() {")
+        .replace(
+          "void main() {",
+          `varying float vRockAbove;
+          uniform sampler2D groundField;
+          uniform vec4 groundRect;
+          vec3 rockSandAlbedo( vec2 p ) {
+            vec4 f = texture2D( groundField, ( p - groundRect.xy ) * groundRect.zw );
+            return mix( vec3( ${SOIL_TINT.map((v) => v.toFixed(3)).join(", ")} ), vec3( ${SAND_GROUND_TINT.map((v) => v.toFixed(3)).join(", ")} ), f.a ) * f.b;
+          }
+          void main() {`,
+        )
         .replace(
           "#include <lights_fragment_end>",
           `#include <lights_fragment_end>
           {
             float contact = mix( 0.45, 1.0, smoothstep( 0.0, 0.5, vRockAbove ) );
-            // Drifted sand at the foot faces the open sky, like the beach.
-            contact = mix( contact, max( contact, 0.85 ), drift );
+            // Drifted sand at the foot sees the sky as the sand beside it
+            // does: half hidden by the rock (the ground's baked shade).
+            contact = mix( contact, max( contact, 0.6 ), drift );
             reflectedLight.indirectDiffuse *= contact;
             reflectedLight.indirectSpecular *= contact;
           }`,
@@ -1676,6 +1805,38 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
 
 // What the cat collides with. Trunks are circles; rocks are domes it can
 // climb or jump onto (height above the centre falls off to their rim).
+// move: whether (x, z) is on a boulder that stands out of the ground, or
+// within `reach` metres of one: each rock as its scaled, turned ellipsoid
+// (the mesh is a unit icosahedron, cut and pitted), bucketed in 4 m cells.
+export function rockFootprints(rocks) {
+  const cells = new Map();
+  const key = (i, j) => i * 4096 + j;
+  for (const rock of rocks) {
+    const r = Math.max(rock.scale.x, rock.scale.z) + 0.6;
+    for (let i = Math.floor((rock.position.x - r) / 4); i <= Math.floor((rock.position.x + r) / 4); i++)
+      for (let j = Math.floor((rock.position.z - r) / 4); j <= Math.floor((rock.position.z + r) / 4); j++) {
+        if (!cells.has(key(i, j))) cells.set(key(i, j), []);
+        cells.get(key(i, j)).push(rock);
+      }
+  }
+  return (x, z, reach = 0) => {
+    const list = cells.get(key(Math.floor(x / 4), Math.floor(z / 4)));
+    if (!list) return false;
+    for (const rock of list) {
+      const dx = x - rock.position.x, dz = z - rock.position.z;
+      const c = Math.cos(rock.rotation.y), s = Math.sin(rock.rotation.y);
+      const lx = dx * c - dz * s, lz = dx * s + dz * c;
+      const sx = rock.scale.x + reach, sz = rock.scale.z + reach;
+      const q = (lx / sx) ** 2 + (lz / sz) ** 2;
+      if (q >= 1) continue;
+      // Above the ground there (a rock sunk below it is no obstacle).
+      const top = rock.position.y + rock.scale.y * Math.sqrt(1 - q);
+      if (top > terrainHeight(x, z) + 0.04) return true;
+    }
+    return false;
+  };
+}
+
 function obstaclesFor(layout, rocks) {
   const trunks = layout
     .filter((p) => p.kind === "tree")
@@ -1687,7 +1848,17 @@ function obstaclesFor(layout, rocks) {
   const flowers = layout
     .filter((p) => ["protea", "erica", "daisies", "aloe"].includes(p.kind))
     .map((p) => ({ x: p.x, z: p.z, h: p.height }));
-  return { trunks, domes, flowers };
+  // move: each plant's crown as a sphere (x, y, z centre, radius), roughly:
+  // what a ceremony camera keeps its lens out of and looks past
+  // (walker.js frameShot). Low plants are left out.
+  const canopies = [];
+  for (const p of layout) {
+    if (p.height < 0.6 || p.kind === "moss" || p.kind === "grass" || p.kind === "daisies") continue;
+    const g = terrainHeight(p.x, p.z);
+    if (p.kind === "tree") canopies.push({ x: p.x, y: g + p.height * 0.62, z: p.z, r: Math.max(0.6, p.height * 0.32) });
+    else canopies.push({ x: p.x, y: g + p.height * 0.5, z: p.z, r: Math.max(0.35, p.height * 0.55) });
+  }
+  return { trunks, domes, flowers, canopies };
 }
 
 // Each rock's true top surface, rasterized from its mesh into a small height

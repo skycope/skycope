@@ -240,6 +240,27 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         direction: [direction.x, direction.y, -direction.z],
       };
     },
+    // hitch: compile every program the land layer can draw, sleeping
+    // gifts' and hidden levels' included, ahead of their first frame (a
+    // gift's first waking compiled 9 programs mid-frame). Hidden meshes
+    // are shown only for the compile's traversal; lights are left alone
+    // (their count is part of every program).
+    prewarm() {
+      const hidden = [];
+      scene.traverse((o) => {
+        if (!o.visible && !o.isLight) {
+          hidden.push(o);
+          o.visible = true;
+        }
+      });
+      let done;
+      try {
+        done = renderer.compileAsync ? renderer.compileAsync(scene, camera) : Promise.resolve(renderer.compile(scene, camera));
+      } finally {
+        for (const o of hidden) o.visible = false;
+      }
+      return done;
+    },
     render({ celestial, cover, weather = null, time, wind, rain = 0, view: flight, lighting, pose, dt, weatherDt = dt, reducedMotion = false, paused = false, surface, water = null, onStep, wake = null, skyFlash = 0, magic = null }) {
       const pointer = [0.5, 0.5];
       const night = THREE.MathUtils.smoothstep(celestial.scene, 1, 2);
@@ -363,7 +384,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       if (wake) forest.updateCatWater(wake.paws, wake.body.flow);
       if (water) forest.updateSurf(time, [flight.x, flight.y, flight.z], pixelScale, water);
       // Plants part round the cat as it walks through them.
-      forest.pushAt(pose.x, pose.z, pose.air > 0.05 ? 0 : 1);
+      forest.pushAt(pose.x, pose.z, pose.air > 0.05 ? 0 : 1, pose.y); // move: (y aims the line of sight)
       interest = critters.update(dt, time, pose, night);
       // wildlife: update, and the nearer of a critter and an animal holds the cat's eye.
       wildEye.x = flight.x; wildEye.y = flight.y; wildEye.z = flight.z;
