@@ -54,15 +54,6 @@ test('environment identity responds to sky and bounce changes', () => {
   assert.ok(!mesh.includes('`${previousLighting}:${domeKey}'));
 });
 
-test('mesh and atmosphere share display calibration constants', () => {
-  const mesh = readFileSync(new URL('../src/landscape.js', import.meta.url), 'utf8');
-  const atmosphere = readFileSync(new URL('../src/shaders/atmosphere.wgsl', import.meta.url), 'utf8');
-  const gain = Number(atmosphere.match(/TONE_GAIN: f32 = ([\d.]+)/)[1]);
-  const vibrance = Number(atmosphere.match(/VIBRANCE: f32 = ([\d.]+)/)[1]);
-  assert.equal(Number(mesh.match(/color \* ([\d.]+)/)[1]), gain);
-  assert.equal(Number(mesh.match(/#define VIBRANCE ([\d.]+)/)[1]), vibrance);
-});
-
 test('CPU and WGSL atmosphere use identical optical units and coefficients', () => {
   const cpu = readFileSync(new URL('../src/sunlight.js', import.meta.url), 'utf8');
   const gpu = readFileSync(new URL('../src/shaders/atmosphere.wgsl', import.meta.url), 'utf8');

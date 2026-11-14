@@ -19,44 +19,18 @@ import { createFireflies } from "./fireflies.js"; // land-magic:
 import { groundHeight } from "./terrain.js"; // land-magic:
 import { createBoat } from "./boat.js"; // boat: the fisherman's boat afloat
 import { horizonRadiance, skyDomeRatio, skyDomeMean, skyEnvironmentKey } from "./sunlight.js";
+import toneSource from "./shaders/tone.wgsl?raw";
+import { customToneMapping, toneAdapt } from "./tone-glsl.js";
 
-// The mesh layer tonemaps with the same curve as the WebGPU water pass
-// (atmosphere.wgsl), so land, sea and sky share one exposure and one
-// highlight shoulder: Khronos PBR Neutral. It is linear through the
-// midtones, so colours stay as the materials and light make them, with only
-// a small toe: shadows stay open and lifted by skylight, as in a photograph,
-// rather than crushed by a filmic S-curve. Keep TONE_GAIN and VIBRANCE
-// equal in both.
+// The mesh layer tonemaps with the WebGPU sky and sea's own curve, so land,
+// sea and sky share one exposure, one highlight shoulder and one grade:
+// src/shaders/tone.wgsl is the only copy, translated to GLSL here.
+// toneMappingExposure carries 1 + the eye's state (toneAdapt); exposure
+// itself is already in the light units.
 THREE.ShaderChunk.tonemapping_pars_fragment =
   THREE.ShaderChunk.tonemapping_pars_fragment.replace(
     /vec3 CustomToneMapping\( vec3 color \) \{[^}]*\}/,
-    `#define VIBRANCE 0.04
-    vec3 CustomToneMapping( vec3 color ) {
-      // toneMappingExposure carries 1 + night adaptation (see scotopic in
-      // atmosphere.wgsl); exposure itself is already in the light units.
-      color = max( color * 1.35, vec3( 0.0 ) );
-      float rods = clamp( toneMappingExposure - 1.0, 0.0, 1.0 );
-      float scotopic = dot( color, vec3( 0.06, 0.56, 0.38 ) );
-      // land-look: warm light at night is lamp, lantern or firefly light,
-      // bright enough for the cones: it keeps its gold against the blue.
-      float warm = clamp( ( color.r - color.b ) / max( color.r, 1e-4 ), 0.0, 1.0 );
-      float cones = smoothstep( 0.18, 0.55, warm );
-      color = mix( color, vec3( 0.72, 0.9, 1.35 ) * scotopic, rods * 0.6 * ( 1.0 - smoothstep( 0.25, 1.5, scotopic ) ) * ( 1.0 - 0.9 * cones ) );
-      float low = min( color.r, min( color.g, color.b ) );
-      color -= low < 0.08 ? low - 6.25 * low * low : 0.04;
-      float peak = max( color.r, max( color.g, color.b ) );
-      if ( peak >= 0.76 ) {
-        float newPeak = 1.0 - 0.0576 / ( peak - 0.52 );
-        color *= newPeak / peak;
-        color = mix( color, vec3( newPeak ), 1.0 - 1.0 / ( 0.15 * ( peak - newPeak ) + 1.0 ) );
-      }
-      // A camera's picture profile: vibrance lifts muted colours (sky,
-      // leaves, sand) and leaves saturated ones be. Off by moonlight.
-      float luma = dot( color, vec3( 0.2126, 0.7152, 0.0722 ) );
-      float top = max( color.r, max( color.g, color.b ) );
-      float chroma = top > 1e-4 ? ( top - min( color.r, min( color.g, color.b ) ) ) / top : 0.0;
-      return max( vec3( luma ) + ( color - luma ) * ( 1.0 + VIBRANCE * ( 1.0 - chroma ) * ( 1.0 - rods ) ), vec3( 0.0 ) );
-    }`,
+    customToneMapping(toneSource),
   );
 
 // land-look: night light on the land (see updateLighting), exposed linear
@@ -505,7 +479,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     const exposure = Math.max(lighting.exposure, 1e-6);
     // Night vision: by moonlight the eye sees with rods, colour fades to a
     // blue-grey (the tonemap reads it from the exposure uniform).
-    renderer.toneMappingExposure = 1 + night;
+    renderer.toneMappingExposure = 1 + toneAdapt(night);
     scene.environmentIntensity = exposure * nightFill;
     const mean = skyDomeMean(domeRatio, envWidth, uniform);
     const sky = lighting.sky.map((v, i) => v * mean[i] * (1 + cover * 0.45));

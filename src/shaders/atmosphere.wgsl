@@ -116,42 +116,7 @@ export fn sky_radiance(view: vec3f, sun: vec3f, samples: i32) -> vec3f {
   return single + fill;
 }
 
-// Khronos PBR Neutral, then sRGB encoding, applied once in the final pass:
-// linear through the midtones (colours stay true, shadows stay open, as in a
-// photograph), with a smooth shoulder so the sun disc and glints roll off
-// to white instead of clipping. Every blend before it happens in linear
-// light. TONE_GAIN matches the mesh layer's curve in landscape.js.
-const TONE_GAIN: f32 = 1.35;
-const VIBRANCE: f32 = 0.04;
-// `night` 0–1 is the eye's dark adaptation: by moonlight the rods take over,
-// colour fades and what is left shifts toward blue-green (their 507 nm
-// peak; the Purkinje shift). Keep in step with landscape.js.
-export fn tonemap(hdr: vec3f, night: f32) -> vec3f {
-  var color = max(hdr * TONE_GAIN, vec3f(0.0));
-  // Bright things (the Moon's disc, glints) still reach the cones.
-  let scotopic = dot(color, vec3f(0.06, 0.56, 0.38));
-  // Warm light at night is lamp or wisp light, bright enough for the cones:
-  // it keeps its gold against the blue. Keep equal to landscape.js.
-  let warm = clamp((color.r - color.b) / max(color.r, 1e-4), 0.0, 1.0);
-  let cones = smoothstep(0.18, 0.55, warm);
-  color = mix(color, vec3f(0.72, 0.9, 1.35) * scotopic, night * 0.6 * (1.0 - smoothstep(0.25, 1.5, scotopic)) * (1.0 - 0.9 * cones));
-  let low = min(color.r, min(color.g, color.b));
-  color -= select(0.04, low - 6.25 * low * low, low < 0.08);
-  let peak = max(color.r, max(color.g, color.b));
-  if (peak >= 0.76) {
-    let new_peak = 1.0 - 0.0576 / (peak - 0.52);
-    color *= new_peak / peak;
-    color = mix(color, vec3f(new_peak), 1.0 - 1.0 / (0.15 * (peak - new_peak) + 1.0));
-  }
-  // A camera's picture profile: vibrance lifts muted colours and leaves
-  // saturated ones be. Off by moonlight. VIBRANCE matches landscape.js.
-  let luma = dot(color, vec3f(0.2126, 0.7152, 0.0722));
-  let top = max(color.r, max(color.g, color.b));
-  let chroma = select(0.0, (top - min(color.r, min(color.g, color.b))) / max(top, 1e-4), top > 1e-4);
-  color = max(vec3f(luma) + (color - luma) * (1.0 + VIBRANCE * (1.0 - chroma) * (1.0 - night)), vec3f(0.0));
-  let mapped = clamp(color, vec3f(0.0), vec3f(1.0));
-  return select(1.055 * pow(mapped, vec3f(1.0 / 2.4)) - 0.055, mapped * 12.92, mapped <= vec3f(0.0031308));
-}
+// The tonemap shared by sea, sky and land is in tone.wgsl.
 
 export fn to_linear(srgb: vec3f) -> vec3f {
   let color = max(srgb, vec3f(0.0));
