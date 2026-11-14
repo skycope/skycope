@@ -15,6 +15,11 @@ export const TAIL_ROOT = [0, 0.04, -0.165];
 // The whole cat is modelled at domestic-cat size and drawn this much larger,
 // to hold its own among the island's plants.
 export const CAT_SCALE = 1.4;
+// The head (skull, eyes, ears, whiskers, the coat's face markings) is
+// authored in head-local units and built this much larger: one knob for
+// the head's size against the body (a cat's is about a fifth of its length
+// and two thirds of its chest depth).
+export const HEAD_SCALE = 1.06;
 
 // Legs: the joint at the top of the leg (shoulder or hip) in the body frame,
 // three bones (humerus/forearm/pastern, thigh/shin/hock), and `lean`: how far
@@ -33,10 +38,10 @@ const CHEST = [0, 0.02, 0.005];
 const RIBS = [0, 0.012, 0.06];
 const POUCH = [0, -0.03, -0.075];
 const NECK = [0, 0.045, 0.158];
-export const HEAD = [0, 0.102, 0.24];
-const JAW = [0, -0.017, -0.012]; // head-local
-const EAR = [0.024, 0.03, -0.004]; // head-local, mirrored
-const SCAPULA = [0.027, 0.058, 0.088]; // top of the blade, mirrored
+export const HEAD = [0, 0.1, 0.206];
+const JAW = [0, -0.017, -0.012].map((v) => v * HEAD_SCALE); // head-local
+const EAR = [0.024, 0.03, -0.004].map((v) => v * HEAD_SCALE); // head-local, mirrored
+const SCAPULA = [0.027, 0.05, 0.088]; // top of the blade, mirrored
 
 // Where each neutral paw stands, relative to its hip. Cats walk nearly on a
 // line: the paws sit inside the shoulders and hips.

@@ -87,9 +87,25 @@ test("the standing cat has a shorthair's proportions", () => {
   const brisket = bottom(chest, "y");
   // The chest is about half the height at the withers, the legs the rest.
   within((withers - brisket) / withers, [0.42, 0.52], "chest depth / withers");
+  // A cat's head is big for its body: about a fifth of its length (nose to
+  // rump), two thirds as deep as its chest, a little narrower than its
+  // ribs, and it sits close to the shoulders on a short neck.
   const head = coat.filter((p) => p.head > 0.6);
-  within(span(head, "x"), [0.085, 0.105], "head width");
-  within(span(head, "y"), [0.07, 0.09], "head depth");
+  const body = coat.filter((p) => p.tail < 0.5);
+  const length = top(body, "z") - bottom(body, "z");
+  const chestDepth = withers - brisket;
+  // Nose tip to the back of the skull, measured over its upper half (below
+  // that the head's skin runs on into the throat).
+  const mid = (top(head, "y") + bottom(head, "y")) / 2;
+  const headLength = top(head, "z") - bottom(head.filter((p) => p.y > mid), "z");
+  within(headLength / length, [0.19, 0.235], "head length / body length");
+  within(span(head, "y") / chestDepth, [0.6, 0.78], "head depth / chest depth");
+  within(span(head, "x"), [0.09, 0.108], "head width");
+  // The visible neck: from the top of the shoulders to the back of the
+  // skull along the top line.
+  const skull = bottom(head.filter((p) => p.y > withers - 0.01), "z");
+  const neck = skull - 0.1;
+  within(neck, [0.02, 0.065], "visible neck");
   // From above: shoulders, a ribcage, a waist and hips, not a log; from
   // behind, the haunches no wider than the chest.
   const ribs = widest(0.0, 0.06);
@@ -125,6 +141,18 @@ test("the cat's paws reach the ground in every pose", () => {
   // Walking and running: paws in stance stay on the ground, none below it.
   for (const speed of [0.55, 1.5, 3.2])
     for (const frame of posed(150, (i, p) => { p.speed = speed; p.gaitAmp = 1; p.running = speed > 2; p.z += speed / 60; }, [119, 126, 132, 140, 149])) {
+      // The back line, rump to withers, is a smooth curve: no hump or
+      // spike (a shoulder blade lifting through the skin).
+      const line = new Map();
+      for (const q of frame.points)
+        if (q.part === 0 && q.head < 0.3 && q.tail < 0.3 && Math.abs(q.x) < 0.045) {
+          const z = Math.round(q.z * 100);
+          line.set(z, Math.max(line.get(z) ?? -1, q.y));
+        }
+      for (let z = -12; z <= 11; z++) {
+        const bump = line.get(z) - (line.get(z - 3) + line.get(z + 3)) / 2;
+        assert.ok(bump < 0.006, `${speed} m/s: back line bump ${(bump * 100).toFixed(1)} cm at ${z} cm`);
+      }
       const s = soles(frame);
       assert.ok(frame.stretch < STRETCH, `${speed} m/s: no skin web (longest edge ${(frame.stretch * 100).toFixed(1)} cm)`);
       for (const y of s) assert.ok(y > -0.006, `${speed} m/s: no paw through the ground (${(y * 100).toFixed(1)} cm)`);
