@@ -1339,7 +1339,7 @@ const GROUNDING_SURFACE_GLSL = /* glsl */ `
   groundingBounce = 1.0 + ( clamp( groundingField.b / 0.2, 0.4, 3.0 ) - 1.0 ) * 0.6 * ( 0.5 - 0.5 * gNormal.y );
   #ifdef GROUNDING_SEA
     float gSea = vGrounding.y + ( gBroad - 0.5 ) * 0.2;
-    float gWet = ( 1.0 - smoothstep( 0.3, 0.65, gSea ) ) * ( 1.0 - gDrift );
+    float gWet = ( 1.0 - smoothstep( 0.15, 0.45, gSea ) ) * ( 1.0 - gDrift );
     float gWeed = smoothstep( 0.55, 0.7, gBroad + ( gFine - 0.5 ) * 0.3 ) * ( 1.0 - smoothstep( 0.05, 0.35, gSea ) ) * gWet;
     diffuseColor.rgb *= mix( 1.0, 0.62, gWet );
     diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.05, 0.08, 0.03 ), gWeed * 0.55 );

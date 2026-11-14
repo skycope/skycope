@@ -307,8 +307,8 @@ export function createMaterials(shared) {
         // land-look: bare timber above the tide bleaches silver-grey in the
         // sun and salt, as old wreck wood on a beach does: not a dark shape
         // on the sand.
-        float dryWood = ( 1.0 - painted ) * smoothstep( 0.3, 0.9, vPlace.y + ( blotch - 0.5 ) * 0.3 );
-        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.2, 0.19, 0.175 ) * ( 0.75 + grain * 0.4 + ( blotch - 0.5 ) * 0.3 ), dryWood * 0.5 );
+        float dryWood = ( 1.0 - painted ) * smoothstep( 0.15, 0.6, vPlace.y + ( blotch - 0.5 ) * 0.3 );
+        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.24, 0.23, 0.21 ) * ( 0.75 + grain * 0.4 + ( blotch - 0.5 ) * 0.3 ), dryWood * 0.6 );
         // The tide's reach: weed and shell below about 0.6 m above the
         // sea (the wet darkening and gloss are the shared grounding's).
         float y = vPlace.y + ( blotch - 0.5 ) * 0.3;
