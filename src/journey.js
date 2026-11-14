@@ -32,7 +32,7 @@ const WHITE = [1, 0.95, 0.85];
 // Each ceremony's camera: low behind the cat while the wisp dives (elevation,
 // distance), then easing wider to take in the place (`wide`). Under the
 // milkwood's canopy it stays low; at the lighthouse it stands well back.
-const SHOTS = {
+export const SHOTS = {
   default: { elevation: 0.32, distance: 7, wide: [0.4, 8.5] },
   fireflies: { elevation: 0.22, distance: 6, wide: [0.26, 7] },
   // Low and far, so the lit lantern at the top of the tower is in the frame.
@@ -46,6 +46,21 @@ const SHOTS = {
   // camera stands back and turns with the hull, and holds longer.
   boat: { elevation: 0.3, distance: 8, wide: [0.36, 12], follow: true, camHome: 8.5, end: 10 },
 };
+
+// move: a ceremony's dive and wide shots, searched for a clear view
+// (walker.frameShot): the place's foot and top (the lantern, the crown) as
+// the subject, every plant crown (and the milkwood's) as something to keep
+// the lens out of and look past. Exported for tests/movement.test.js.
+export function ceremonyFrames(walker, { place, gift, ground, shot, yaw, crown = null, canopies = [], fov = 1 }) {
+  const tops = { lamp: 17.6, fireflies: crown ? crown.top - ground : 7, stars: 3, tideglow: 2.6, boat: 1.4, seafolk: 0.8 };
+  // (r: how far out from its centre its own solids reach: a line to its
+  // top may end anywhere inside that.)
+  const radii = { lamp: 3.5, fireflies: crown ? crown.radius : 6, stars: 1.5, tideglow: 4, boat: 2.5, seafolk: 2 };
+  const subject = { x: place.x, z: place.z, y0: ground, y1: ground + (tops[gift] ?? 2), r: radii[gift] ?? 2 };
+  const all = crown ? [...canopies, { x: crown.x, z: crown.z, y: crown.top - crown.radius * 0.45, r: crown.radius }] : canopies;
+  const frame = (elevation, distance) => walker.frameShot({ subject, yaw, elevation, distance, canopies: all, fov });
+  return { subject, dive: frame(shot.elevation, shot.distance), wide: frame(shot.wide[0], shot.wide[1]) };
+}
 
 export function createJourney({ state, card, findLine, now, onChange = () => {} }) {
   const magic = state.magic;
@@ -96,6 +111,7 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
     cam.distance = target;
   }
   function camEnd() {
+    state.walker.lookAt?.(null);
     if (!cam.free) return;
     cam.free = false;
     state.walker.freeCamera(false);
@@ -121,6 +137,8 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
       carded: false,
       woke: false,
     };
+    // move: each shot moved to where it has a clear view of the place.
+    ceremony.frames = event.type === "finale" ? null : frameShots(ceremony, ground);
     findLine.pause(true);
     if (globalThis.document) document.body.dataset.ceremony = "true";
     camStart();
@@ -128,6 +146,19 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
     if (event.type === "finale") mind.soar(cat.x, cat.y + 0.7, cat.z);
     else mind.dive(place.x, ceremony.y, place.z);
     state.sound.ceremony?.(event.type === "finale" ? "finale" : place.gift);
+  }
+
+  // move: the dive and the wide shot, each searched near the one asked for
+  // (walker.frameShot) so the lens is not in a bush, a hull or a trunk, the
+  // place is seen past the plants and the rock, and its top (the lantern,
+  // the crown) is in the frame with the cat. Subjects: foot and top.
+  function frameShots(c, ground) {
+    if (!state.walker.frameShot) return null;
+    return ceremonyFrames(state.walker, {
+      place: c.place, gift: c.gift, ground, shot: c.shot, yaw: c.yaw,
+      crown: state.landscape?.places?.crown, canopies: state.landscape?.obstacles?.canopies ?? [],
+      fov: ((state.landscape?.camera?.fov ?? 58) * Math.PI) / 180,
+    });
   }
 
   function wakeNow() {
@@ -195,8 +226,17 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
       const hz = c.place.z + (ride.cove.z - c.place.z) * k;
       yaw = Math.atan2(hx - cat.x, hz - cat.z);
     }
-    if (g < (s.camHome ?? WAKE.camHome)) camAim(yaw, g < 0 ? s.elevation : s.wide[0], g < 0 ? s.distance : s.wide[1], g < 0 ? 1.6 : s.follow ? 0.9 : 0.45, dt);
-    else camAim(cam.home.yaw, cam.home.elevation, cam.home.distance, 1.8, dt);
+    const f = c.frames ? (g < 0 ? c.frames.dive : c.frames.wide) : null;
+    if (g < (s.camHome ?? WAKE.camHome)) {
+      // (The searched shot's turn from the straight-on one, kept as the
+      // boat glides and the straight-on yaw follows it.)
+      const turn = f ? f.yaw - c.yaw : 0;
+      camAim(yaw + turn, f ? f.elevation : g < 0 ? s.elevation : s.wide[0], f ? f.distance : g < 0 ? s.distance : s.wide[1], g < 0 ? 1.6 : s.follow ? 0.9 : 0.45, dt);
+      if (f) state.walker.lookAt?.(f.look, 1);
+    } else {
+      camAim(cam.home.yaw, cam.home.elevation, cam.home.distance, 1.8, dt);
+      state.walker.lookAt?.(null);
+    }
     // Time holds its breath, then runs again.
     const held = g >= 0 && g < WAKE.hold;
     scale += ((held ? 0.3 : 1) - scale) * Math.min(1, dt * (held ? 3 : 1));

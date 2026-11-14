@@ -158,3 +158,75 @@ test('the walker and its camera allocate little per frame', () => {
   const bytes = (v8.getHeapStatistics().total_allocated_bytes - before) / N;
   assert.ok(bytes < 12 * 1024, `${bytes.toFixed(0)} bytes allocated per frame`);
 });
+
+// Every ceremony from three sides: where its wide shot ends, after the rig
+// has settled. The lens clear of rock, solids, trunks and plant crowns, the
+// place's top seen past the land and the landmarks. Counts the old,
+// straight-on shot's failures alongside, for the report.
+test('each ceremony ends on a clear view of its place', async () => {
+  const { ceremonyFrames, SHOTS } = await import('../src/journey.js');
+  const { KEEPSAKES } = await import('../src/magic.js');
+  const { forest, places, obstacles } = island(SEED);
+  const walker = walkerFor(SEED);
+  const { cat, camera, solids } = walker;
+  const canopies = forest.obstacles.canopies;
+  const crown = places.crown;
+  const settle = (yaw, elevation, distance, look) => {
+    walker.freeCamera(true);
+    camera.yaw = yaw; camera.elevation = elevation; camera.distance = distance; camera.targetY = cat.y;
+    walker.lookAt(look, 1);
+    for (let i = 0; i < 120; i++) walker.update(1 / 60, { move: [0, 0], run: false, jump: false }, null);
+    walker.lookAt(null);
+    walker.freeCamera(false);
+    return { x: camera.x, y: camera.y, z: camera.z };
+  };
+  const faults = (lens, subject) => {
+    const out = [];
+    if (solids.distance(lens.x, lens.y, lens.z, 1) < 0.25) out.push('lens at a solid');
+    if (lens.y - walker.surface(lens.x, lens.z) < 0.3) out.push('lens at the ground');
+    for (const c of canopies) if (Math.hypot(lens.x - c.x, lens.y - c.y, lens.z - c.z) < c.r * 0.8) { out.push('lens in a crown'); break; }
+    for (const t of obstacles.trunks) if (Math.hypot(lens.x - t.x, lens.z - t.z) < t.r + 0.4 && lens.y < walker.surface(t.x, t.z) + 0.8 * Math.max(1.5, (t.r - 0.02) / 0.034)) { out.push('a trunk at the lens'); break; }
+    const top = { x: subject.x, y: subject.y1, z: subject.z };
+    // (The top is the landmark's own: the line may end in it, not short.)
+    const f = solids.trace(lens.x, lens.y, lens.z, top.x, top.y, top.z, 0.05);
+    if (f < 0.999 && Math.hypot(lens.x + (top.x - lens.x) * f - subject.x, lens.z + (top.z - lens.z) * f - subject.z) > subject.r) out.push('top behind a landmark');
+    let leafy = 0;
+    for (const c of canopies) {
+      const ex = top.x - lens.x, ey = top.y - lens.y, ez = top.z - lens.z, ll = ex * ex + ey * ey + ez * ez;
+      const t = Math.max(0, Math.min(1, ((c.x - lens.x) * ex + (c.y - lens.y) * ey + (c.z - lens.z) * ez) / ll));
+      if (Math.hypot(lens.x + ex * t - c.x, lens.y + ey * t - c.y, lens.z + ez * t - c.z) < c.r * 0.7) leafy++;
+    }
+    if (leafy > 1) out.push(`${leafy} crowns in front`);
+    for (let i = 1; i < 16; i++) {
+      const t = i / 16, x = lens.x + (top.x - lens.x) * t, z = lens.z + (top.z - lens.z) * t;
+      if (lens.y + (top.y - lens.y) * t < walker.surface(x, z) - 0.05) { out.push('top behind the land'); break; }
+    }
+    return out;
+  };
+  let before = 0, after = 0, shots = 0;
+  const report = [], old = [];
+  for (const place of places.pois) {
+    const gift = KEEPSAKES[place.id];
+    if (!gift) continue;
+    const r = place.r > 0 ? place.r : 4;
+    for (const a of [0, 2.1, 4.2]) {
+      const d = r + Math.max(1.5, r * 0.45) - 0.8;
+      let x = place.x + Math.sin(a) * d, z = place.z + Math.cos(a) * d;
+      for (let i = 0; i < 20 && walker.surface(x, z) < 0.05; i++) { x += (place.x - x) * 0.1; z += (place.z - z) * 0.1; }
+      cat.x = x; cat.z = z; cat.y = walker.surface(x, z); cat.speed = cat.air = cat.vy = 0;
+      cat.heading = Math.atan2(place.x - x, place.z - z);
+      const ground = walker.surface(place.x, place.z);
+      const shot = SHOTS[gift] ?? SHOTS.default;
+      const yaw = cat.heading;
+      const frames = ceremonyFrames(walker, { place, gift, ground, shot, yaw, crown, canopies, fov: 1.0 });
+      const was = faults(settle(yaw, shot.wide[0], shot.wide[1], null), frames.subject);
+      const now = faults(settle(frames.wide.yaw, frames.wide.elevation, frames.wide.distance, frames.wide.look), frames.subject);
+      shots++;
+      if (was.length) { before++; old.push(`${place.id} from ${a}: ${was.join(', ')}`); }
+      if (now.length) { after++; report.push(`${place.id} from ${a}: ${now.join(', ')}`); }
+    }
+  }
+  console.log(`ceremony shots with a fault: ${before}/${shots} straight-on, ${after}/${shots} searched\n  was: ${old.join('\n  was: ')}\n  now: ${report.join('\n  now: ')}`);
+  assert.ok(after <= 1, `ceremony shots still faulty:\n${report.join('\n')}`);
+  assert.ok(after < before || before === 0, `no better than straight-on (${before} -> ${after})`);
+});

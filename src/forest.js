@@ -1814,7 +1814,17 @@ function obstaclesFor(layout, rocks) {
   const flowers = layout
     .filter((p) => ["protea", "erica", "daisies", "aloe"].includes(p.kind))
     .map((p) => ({ x: p.x, z: p.z, h: p.height }));
-  return { trunks, domes, flowers };
+  // move: each plant's crown as a sphere (x, y, z centre, radius), roughly:
+  // what a ceremony camera keeps its lens out of and looks past
+  // (walker.js frameShot). Low plants are left out.
+  const canopies = [];
+  for (const p of layout) {
+    if (p.height < 0.6 || p.kind === "moss" || p.kind === "grass" || p.kind === "daisies") continue;
+    const g = terrainHeight(p.x, p.z);
+    if (p.kind === "tree") canopies.push({ x: p.x, y: g + p.height * 0.62, z: p.z, r: Math.max(0.6, p.height * 0.32) });
+    else canopies.push({ x: p.x, y: g + p.height * 0.5, z: p.z, r: Math.max(0.35, p.height * 0.55) });
+  }
+  return { trunks, domes, flowers, canopies };
 }
 
 // Each rock's true top surface, rasterized from its mesh into a small height

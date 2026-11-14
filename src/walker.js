@@ -156,6 +156,8 @@ export function createWalker(obstacles, sea = null, wake = null) {
     // driven by a step starts with a jolt (its acceleration jumps); eased,
     // the lens's acceleration stays continuous too.
     reach: 1, lift2: 0,
+    // How far the look has turned toward `look` (0…1), and its last point.
+    look: { x: 0, v: 0 }, lookAt: null,
     // How far up (0…1 of 1.6 m) the look-down-from-above view is clear.
     up: 1,
     // What the rig last wrote to camera.yaw, elevation, distance, targetY.
@@ -169,6 +171,8 @@ export function createWalker(obstacles, sea = null, wake = null) {
   // drift of sitting to watch the sky. { yaw, elevation, distance, rate }
   let goal = null;
   let free = false;
+  // A point the view turns partly toward ({ x, y, z, share }), or null.
+  let look = null;
   let last = null;
   const lastWater = { level: -Infinity, flowX: 0, flowZ: 0, breaking: 0 };
   // The last rock face the body met: outward normal, when, which way round
@@ -239,6 +243,21 @@ export function createWalker(obstacles, sea = null, wake = null) {
         aim.distance = clamp(aim.distance, CAMERA.min, CAMERA.max);
         rt.lastDrag = rt.clock;
       }
+    },
+    // Turn the view partly (`share` 0…1) toward a point (coast x, y, z),
+    // keeping the cat in the frame; null turns back to the cat.
+    lookAt(point, share = 0.5) {
+      look = point ? { x: point.x, y: point.y, z: point.z, share } : null;
+    },
+    // A clear shot of `subject` ({ x, z, y0, y1 }: its foot and top) past
+    // the cat: the boom (yaw, elevation, distance) near the one asked for
+    // whose lens is clear of rock, trunks, solids and plant crowns
+    // (`canopies`: [{ x, y, z, r }]), that sees the subject's foot, middle
+    // and top past them, and fits the cat and the top in the frame
+    // (`fov`, vertical, radians). Returns { yaw, elevation, distance,
+    // look: { x, y, z } (where to turn the view), score (0 clean) }.
+    frameShot({ subject, yaw, elevation, distance, canopies = [], fov = 1.0 }) {
+      return frameShot(subject, yaw, elevation, distance, canopies, fov);
     },
     // Sitting to watch: drift slowly to frame `view` ({ yaw, elevation,
     // distance }), or null to stop wherever it has got to.
@@ -767,9 +786,8 @@ export function createWalker(obstacles, sea = null, wake = null) {
     // The ground (and boulders) below the lens: a floor that follows the
     // ground under the lens on a spring (so bumps do not jog it), and a
     // harder one close to the ground; never toward the sea surface.
-    const ashore = shoreDistance(x, z) > -1;
-    const ground = ashore ? surface(x, z) : -Infinity;
-    const floorAt = ashore ? ground + (afloat ? 0.6 : 0.45) : afloat ? 1.1 : 0.9;
+    const ground = lensGround(x, z);
+    const floorAt = ground > -Infinity ? ground + (afloat ? 0.6 : 0.45) : afloat ? 1.1 : 0.9;
     if (placing) settle(rig.floor, floorAt);
     const floor = spring(rig.floor, floorAt, RIG.floor, dt);
     // (A soft max: the lens settles onto the floor and lifts off it without
@@ -803,15 +821,36 @@ export function createWalker(obstacles, sea = null, wake = null) {
     }
     camera.arm = rig.arm.x;
     camera.lift = rig.lift.x;
-    // 6. Look at the pivot.
+    // 6. Look at the pivot, or (a ceremony) between it and the subject,
+    // so both are in the frame (`look`, eased in and out on a spring).
     const dx = tx - camera.x;
     const dz = tz - camera.z;
-    camera.azimuth = Math.atan2(dx, dz) - Math.PI / 4;
-    camera.pitch = Math.atan2(ty - camera.y, hyp(dx, dz)) + LOOK_LIFT * (afloat ? 0.6 : 1);
+    let azimuth = Math.atan2(dx, dz);
+    let pitch = Math.atan2(ty - camera.y, hyp(dx, dz)) + LOOK_LIFT * (afloat ? 0.6 : 1);
+    const share = spring(rig.look, look ? look.share : 0, 3, dt);
+    if (look) rig.lookAt = look;
+    if (share > 1e-4 && rig.lookAt) {
+      const p = rig.lookAt;
+      const lx = p.x - camera.x, lz = p.z - camera.z;
+      azimuth += wrap(Math.atan2(lx, lz) - azimuth) * share;
+      pitch += (Math.atan2(p.y - camera.y, hyp(lx, lz)) - pitch) * share;
+    }
+    camera.azimuth = azimuth - Math.PI / 4;
+    camera.pitch = pitch;
     rig.wrote[0] = camera.yaw;
     rig.wrote[1] = camera.elevation;
     rig.wrote[2] = camera.distance;
     rig.wrote[3] = camera.targetY;
+  }
+
+  // What the lens must stay above at (x, z): the land and its rocks
+  // ashore; at sea, only a moored or drifting hull (its deck raised to the
+  // gunwale), never the sea surface (−∞).
+  function lensGround(x, z) {
+    if (shoreDistance(x, z) > -1) return surface(x, z);
+    if (!ride) return -Infinity;
+    const deck = ride.deck(x, z);
+    return deck > -Infinity ? deck + 0.5 : -Infinity;
   }
 
   // The lens drawn in along the line to the pivot until it is clear of the
@@ -822,6 +861,96 @@ export function createWalker(obstacles, sea = null, wake = null) {
     camera.x = tx + (camera.x - tx) * f;
     camera.y = ty + (camera.y - ty) * f;
     camera.z = tz + (camera.z - tz) * f;
+  }
+
+  // The ceremony framing search (see the API's frameShot). Pure: reads
+  // the world, moves nothing.
+  function frameShot(subject, yaw0, el0, dist0, canopies, fov) {
+    const tx = cat.x, tz = cat.z, ty = cat.y + 0.26 * CAT_SCALE;
+    const near = canopies.filter((c) => Math.abs(c.x - tx) < dist0 + 30 + c.r && Math.abs(c.z - tz) < dist0 + 30 + c.r);
+    const sy0 = subject.y0, sy1 = subject.y1;
+    const points = [
+      { x: subject.x, y: sy0 + Math.min(0.4, (sy1 - sy0) * 0.2), z: subject.z },
+      { x: subject.x, y: (sy0 + sy1) / 2, z: subject.z },
+      { x: subject.x, y: sy1, z: subject.z },
+    ];
+    // How many crowns a segment passes through (each counted once).
+    const crowns = (ax, ay, az, bx, by, bz) => {
+      let n = 0;
+      const ex = bx - ax, ey = by - ay, ez = bz - az;
+      const ll = ex * ex + ey * ey + ez * ez || 1;
+      for (const c of near) {
+        const t = clamp(((c.x - ax) * ex + (c.y - ay) * ey + (c.z - az) * ez) / ll, 0, 1);
+        const qx = ax + ex * t - c.x, qy = ay + ey * t - c.y, qz = az + ez * t - c.z;
+        if (qx * qx + qy * qy + qz * qz < c.r * c.r * 0.8) n++;
+      }
+      return n;
+    };
+    // How much of a sight line the land, the landmarks and the trunks hide.
+    const blocked = (ax, ay, az, bx, by, bz) => {
+      let cost = 0;
+      for (let i = 1; i < 12; i++) {
+        const t = i / 12;
+        const x = ax + (bx - ax) * t, z = az + (bz - az) * t;
+        if (ay + (by - ay) * t < lensGround(x, z) + 0.05) { cost += 2; break; }
+      }
+      // (The subject's own solids may end the line, within its radius.)
+      const f = solids.trace(ax, ay, az, bx, by, bz, 0.05);
+      if (f < 0.999 && hyp(ax + (bx - ax) * f - subject.x, az + (bz - az) * f - subject.z) > (subject.r ?? 1)) cost += 2;
+      const n = grid.trunksNear((ax + bx) / 2, (az + bz) / 2, hyp(bx - ax, bz - az) / 2 + 1);
+      for (let i = 0; i < n; i++) {
+        const tr = grid.found[i];
+        const ex = bx - ax, ez = bz - az;
+        const ll = ex * ex + ez * ez || 1;
+        const t = clamp(((tr.x - ax) * ex + (tr.z - az) * ez) / ll, 0.02, 0.98);
+        const qx = ax + ex * t - tr.x, qz = az + ez * t - tr.z;
+        if (qx * qx + qz * qz < tr.r * tr.r * 1.2 && ay + (by - ay) * t < trunkTop(tr)) { cost += 1.5; break; }
+      }
+      return cost + Math.min(3, crowns(ax, ay, az, bx, by, bz)) * 0.6;
+    };
+    let best = null;
+    for (const dy of [0, 0.3, -0.3, 0.6, -0.6, 0.95, -0.95, 1.4, -1.4])
+      for (const de of [0, 0.12, 0.26, -0.06])
+        for (const kd of [1, 0.75, 1.3, 0.55]) {
+          const yaw = yaw0 + dy;
+          const elevation = clamp(el0 + de, 0.04, 1.1);
+          const distance = clamp(dist0 * kd, 2.5, FREE.max);
+          const horizontal = Math.cos(elevation) * distance;
+          const rise = Math.sin(elevation) * distance;
+          const reach = armReach(tx, ty, tz, horizontal, rise, yaw);
+          const lift = rt.armLift;
+          const lx = tx - Math.sin(yaw) * horizontal * reach;
+          const lz = tz - Math.cos(yaw) * horizontal * reach;
+          const ground = lensGround(lx, lz);
+          const ly = Math.max(ty + (rise + lift) * reach, ground + 0.45, 0.9);
+          let score = Math.abs(dy) * 0.8 + Math.abs(de) * 1.5 + Math.abs(Math.log(kd)) * 0.8;
+          score += (1 - reach) * 4;
+          // The lens in a crown, beside a trunk, in a solid.
+          for (const c of near) {
+            const d = hyp(hyp(lx - c.x, lz - c.z), ly - c.y);
+            if (d < c.r) score += 2 + (1 - d / c.r) * 2;
+          }
+          const n = grid.trunksNear(lx, lz, 1);
+          for (let i = 0; i < n; i++) if (hyp(lx - grid.found[i].x, lz - grid.found[i].z) < grid.found[i].r + 0.5 && ly < trunkTop(grid.found[i])) score += 2;
+          if (solids.distance(lx, ly, lz, 1) < 0.5) score += 3;
+          // The subject seen past everything (its top counts most).
+          for (let i = 0; i < points.length; i++) score += blocked(lx, ly, lz, points[i].x, points[i].y, points[i].z) * (i === 2 ? 1.2 : 0.8);
+          // The cat seen too (plants on that line fold away; not trunks or rock).
+          score += Math.min(2, blocked(lx, ly, lz, tx, ty, tz) - Math.min(3, crowns(lx, ly, lz, tx, ty, tz)) * 0.6) * 0.8;
+          // Cat and top both in the frame: the angle between them, from the lens.
+          const top = points[2];
+          const toCat = Math.atan2(ty - 0.15 - ly, hyp(tx - lx, tz - lz));
+          const toTop = Math.atan2(top.y - ly, hyp(top.x - lx, top.z - lz));
+          const span = Math.abs(toTop - toCat);
+          if (span > fov * 0.8) score += (span - fov * 0.8) * 6;
+          const across = Math.abs(wrap(Math.atan2(top.x - lx, top.z - lz) - Math.atan2(tx - lx, tz - lz)));
+          if (across > fov * 0.6) score += (across - fov * 0.6) * 6;
+          if (!best || score < best.score) best = { yaw, elevation, distance, score, lens: { x: lx, y: ly, z: lz } };
+        }
+    // Turn the view to the middle of the cat and the subject's top (by
+    // angle), so both sit in the frame.
+    best.look = { x: (subject.x + tx) / 2, y: (sy1 * 0.65 + sy0 * 0.35 + ty) / 2, z: (subject.z + tz) / 2 };
+    return best;
   }
 
   // How high a trunk stands as a solid: the stem carries on up into the
@@ -862,9 +991,9 @@ export function createWalker(obstacles, sea = null, wake = null) {
   // the camera (`horizontal` back along −yaw, `rise` up). Trunks are
   // cylinders up to their crowns, padded by the lens's clearance; ground and boulders are
   // sampled along the boom. Never closer than ARM_MIN metres.
-  function armReach(tx, ty, tz, horizontal, rise) {
-    const bx = -Math.sin(camera.yaw) * horizontal;
-    const bz = -Math.cos(camera.yaw) * horizontal;
+  function armReach(tx, ty, tz, horizontal, rise, yaw = camera.yaw) {
+    const bx = -Math.sin(yaw) * horizontal;
+    const bz = -Math.cos(yaw) * horizontal;
     const length = hyp(horizontal, rise) || 1;
     let t = trunkReach(tx, ty, tz, bx, bz, rise, ARM_CLEARANCE, 1);
     // Ground and boulders: the boom tilts up over a rise or a rock (lifting
@@ -877,8 +1006,9 @@ export function createWalker(obstacles, sea = null, wake = null) {
       const s = (i / steps) * t;
       const px = tx + bx * s;
       const pz = tz + bz * s;
-      if (shoreDistance(px, pz) < -1) break;
-      const need = surface(px, pz) + 0.3 - (ty + rise * s);
+      const under = lensGround(px, pz);
+      if (under === -Infinity) continue;
+      const need = under + 0.3 - (ty + rise * s);
       if (need <= 0) continue;
       if (blocked < 0) blocked = i;
       lift = Math.max(lift, need / s);
