@@ -203,7 +203,8 @@ export function skyColour(celestial, weather, direction) {
 
 // The land's own reflectances (material-palette.js); a crown of leaves
 // shades most of itself.
-const { sand: SAND, wetSand: WET_SAND, dune: DUNE, leaf: LEAF } = MATERIAL_LINEAR;
+const { sand: SAND, wetSand: WET_SAND, dryThatch: THATCH, moss: MOSS, leaf: LEAF } = MATERIAL_LINEAR;
+const SCRUB = THATCH.map((v, i) => v * 0.55 + MOSS[i] * 0.45);
 const CANOPY = LEAF.map((v) => v * 0.45);
 const DEEP = [0.01, 0.04, 0.055];
 const SHALLOW = [0.16, 0.2, 0.17];
@@ -221,9 +222,9 @@ export function paint(width, height, { celestial, weather = null, view = homeVie
   const sun = celestial.sun;
   // Celestial (east, up, north) to coast metres.
   const sunCoast = [(sun[0] + sun[2]) * Math.SQRT1_2, sun[1], (sun[2] - sun[0]) * Math.SQRT1_2];
-  // Lambert, as the land layer lights itself: the sun's share over π, the
-  // sky's whole.
-  const lit = light.direct.map((v) => (v * Math.max(0, sunCoast[1]) * (1 - 0.85 * cover)) / Math.PI);
+  // Lambert, as the land layer lights itself: the sun's share over π (less
+  // the trees' and boulders' shade), the sky's whole.
+  const lit = light.direct.map((v) => (v * Math.max(0, sunCoast[1]) * (1 - 0.85 * cover) * 0.8) / Math.PI);
   // By night the land layer adds a cool key from the sky's bright side.
   const ambient = light.sky.map((v) => v * (1 + 2.5 * light.night));
   // The pixel's ray, into `d`.
@@ -277,7 +278,10 @@ export function paint(width, height, { celestial, weather = null, view = homeVie
       const sea = ground < 0;
       const shallow = Math.exp(ground / 1.4);
       const trees = canopy > 0.4;
-      const albedo = sea ? null : trees ? CANOPY : inland < 1.4 ? WET_SAND : mixColour(SAND, DUNE, smoothstep(3, 9, inland));
+      // The wood's first, low trees fade in from the scrub (no comb of
+      // single-sample spikes along its edge).
+      const ground0 = inland < 1.4 ? WET_SAND : mixColour(SAND, SCRUB, smoothstep(3.5, 10, inland));
+      const albedo = sea ? null : trees ? mixColour(ground0, CANOPY, smoothstep(0.4, 3, canopy)) : ground0;
       // Crowns: lit on top, dappled, dark beneath.
       const dapple = trees ? 0.65 + 0.7 * noise2(x * 0.35, z * 0.35) : 1;
       for (let j = Math.max(0, row); j < reached; j++) {
