@@ -160,6 +160,13 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
   // The outcrop's stones (and any nearby) are what they walk round.
   const near = domes.filter((d) => Math.hypot(d.x - cluster.x, d.z - cluster.z) < 26);
   const surface = surfaceOf(near);
+  // Whether a stride toward heading h climbs a flank (see update).
+  const steepAhead = (b, here, h) => {
+    const ax = b.x + Math.sin(h) * 0.25, az = b.z + Math.cos(h) * 0.25;
+    const ahead = surface(ax, az);
+    const up = ahead - here;
+    return up > 0.35 || (up > 0.1 && ahead - groundHeight(ax, az) > 0.3);
+  };
   const tall = (x, z) => {
     for (const d of near) {
       if (Math.abs(x - d.x) > d.r || Math.abs(z - d.z) > d.r) continue;
@@ -496,8 +503,13 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
         let nx = b.x + Math.sin(b.heading) * b.speed * dt + px * dt * 3;
         let nz = b.z + Math.cos(b.heading) * b.speed * dt + pz * dt * 3;
         // Round the stones: a rock too tall to hop is walked round.
+        // solid: judged a stride ahead, not one frame's step: by the step
+        // a boulder's flank never looked steep, so penguins walked up the
+        // big boulders in a stutter of little hops and stood on their
+        // rounded tops. A penguin hops onto a low flat stone (under 0.3 m
+        // above the sand), never up a flank.
         const here = surface(b.x, b.z);
-        if (b.swim < 0.5 && b.speed > 0.01 && surface(nx, nz) - here > 0.35) {
+        if (b.speed > 0.01 && steepAhead(b, here, b.heading)) {
           // Feel round it: the nearest clear bearing either side, keeping to
           // whichever side it chose first until clear.
           const step = b.speed * dt + 0.08;
@@ -505,9 +517,7 @@ export function createPenguins(group, { seed, domes, cluster, light = false, blo
           for (let k = 1; k <= 4 && !found; k++) {
             for (const s of b.dodge ? [b.dodge] : [1, -1]) {
               const h = b.heading + s * k * 0.45;
-              const tx = b.x + Math.sin(h) * step;
-              const tz = b.z + Math.cos(h) * step;
-              if (surface(tx, tz) - here <= 0.35) {
+              if (!steepAhead(b, here, h)) {
                 b.dodge = s;
                 b.heading = turnToward(b.heading, h, dt * 6);
                 nx = b.x + Math.sin(h) * b.speed * dt;
