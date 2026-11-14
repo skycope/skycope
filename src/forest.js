@@ -1335,6 +1335,21 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
         // land-magic: fireflies, the lamp's beams, a waking's ring, starlight.
         .replace("#include <aomap_fragment>", `${MAGIC_LIGHT_GLSL}\n#include <aomap_fragment>`)
         .replace("void main() {", `${MAGIC_LIGHT_DECLARATIONS}\nvoid main() {`);
+    if (foliage)
+      // solid: leaves and blades the lens is in (the spring arm keeps to
+      // trunks and solids, not shrubs) thin out to nothing over the last
+      // 0.6 m, dithered, instead of a wall of leaf filling the view.
+      shader.fragmentShader = shader.fragmentShader.replace(
+        "#include <clipping_planes_fragment>",
+        `#include <clipping_planes_fragment>
+        {
+          float lensD = length( vViewPosition );
+          if ( lensD < 0.7 ) {
+            float h = fract( sin( dot( floor( gl_FragCoord.xy ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
+            if ( h > smoothstep( 0.15, 0.7, lensD ) ) discard;
+          }
+        }`,
+      );
     if (ground)
       // Plankton the uprush lights at night (the sky's reflection in the
       // swash film comes from the environment map now).
