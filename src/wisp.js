@@ -3,12 +3,13 @@ import { GIFTS, GIFT_COLOURS } from "./magic.js";
 
 // The wisp, drawn: a small warm lantern-light. A soft core whose light falls
 // off as real glow does (a long 1/(1+r²) tail; after dark, four faint glints
-// turning slowly); a short ribbon of light tapering behind it, warm by day
-// and after dark running through the gifts it has woken; embers that slip
-// off it and drift up as they fade; at each waking a sphere of light
-// blooming out from the keepsake in the gift's colour. Never large on
-// screen: its quads are clamped in pixels and it fades out close to the lens. Its light on the ground after dark is the land's own shading
-// (land-magic.js glow 2), which lights the real sand, rock and grass.
+// turning slowly); a short ribbon of light tapering behind it, touched after
+// dark with the gifts it has woken; embers that slip off it and drift up as
+// they fade; at each waking a sphere of light blooming out from the keepsake
+// in the gift's colour. Never large on screen: its quads are clamped in
+// pixels and it fades out close to the lens. Its light on the ground after
+// dark is the land's own shading (land-magic.js glow 2), which lights the
+// real sand, rock and grass.
 //
 // Where it is and how bright comes from the shared record (magic.wisp, kept
 // by thread.js / journey.js); this only draws it. One draw call: a static
@@ -203,10 +204,10 @@ export function createWisp(group, { light = false } = {}) {
         }
         return color;
       }
-      // The colour it is seen in: a warm lamp by day; after dark, its own
-      // (the last gift it woke).
+      // The colour it is seen in: a warm lamp, after dark touched with its
+      // own (the last gift it woke).
       vec3 lampTint() {
-        return mix( vec3( 1.0, 0.8, 0.46 ), colour, night );
+        return mix( vec3( 1.0, 0.8, 0.46 ), colour, 0.35 * night );
       }
       vec3 prism( float h ) {
         return 0.55 + 0.45 * cos( 6.2831853 * ( h + vec3( 0.0, 0.33, 0.67 ) ) );
@@ -240,10 +241,10 @@ export function createWisp(group, { light = false } = {}) {
           c = ( hot * mix( 0.9, 3.4, night ) + tint * body * 1.1 + mix( tint, vec3( 1.0 ), 0.6 ) * glint * 0.9 ) * vBright;
         } else if ( vKind < 2.5 ) {
           // Ribbon: soft across, fading along; faint by day, and after dark
-          // its colour running through the gifts.
+          // its colour running a little through the gifts.
           float across = exp( -vUv.x * vUv.x * 3.0 );
           float fade = pow( 1.0 - vAlong, 1.4 );
-          vec3 tint = mix( lampTint(), gifts( vAlong * 0.9 - time * 0.12 ), night * smoothstep( 0.0, 0.25, vAlong ) );
+          vec3 tint = mix( lampTint(), gifts( vAlong * 0.9 - time * 0.12 ), 0.4 * night * smoothstep( 0.0, 0.25, vAlong ) );
           c = tint * across * fade * vBright * mix( 0.3, 1.0, night );
         } else if ( vKind < 3.5 ) {
           // The waking's bloom: a bright rim with colour at its edge, filled
@@ -259,7 +260,7 @@ export function createWisp(group, { light = false } = {}) {
         } else {
           // Embers: tiny soft points.
           if ( r2 > 1.0 ) discard;
-          c = mix( mix( lampTint(), gifts( vAlong ), night ), vec3( 1.0 ), 0.45 ) * exp( -r2 * 5.0 ) * vBright * 1.4;
+          c = mix( mix( lampTint(), gifts( vAlong ), 0.4 * night ), vec3( 1.0 ), 0.45 ) * exp( -r2 * 5.0 ) * vBright * 1.4;
         }
         #ifdef VEILED
           // Seen through leaves: a fifth of the light, none of the bloom.
