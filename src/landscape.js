@@ -805,7 +805,9 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         const luma = rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
         // Blue sky toward violet with the sun low: red lifted by the blue
         // excess, green lowered to keep the luminance.
-        const lean = Math.max(rgb[2] - luma, 0) * ENVIRONMENT.violet * low;
+        // (Less of it in the blue hour: the model's twilight is short of green
+        // already, and the lean pushed it magenta.)
+        const lean = Math.max(rgb[2] - luma, 0) * ENVIRONMENT.violet * low * (1 - 0.6 * twilight);
         rgb[0] += lean;
         rgb[1] -= (lean * 0.2126) / 0.7152;
         for (let c = 0; c < 3; c++) {

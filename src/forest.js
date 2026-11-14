@@ -1154,6 +1154,7 @@ vec3 q = vec3( vWorld.x, vWorld.y, -vWorld.z );
 vec2 coast = q.xz;
 float footprint = max( max( fwidth( q.x ), fwidth( q.y ) ), fwidth( q.z ) );
 float up = max( ( vec4( normalize( vNormal ), 0.0 ) * viewMatrix ).y, 0.0 );
+float rockInland = dShore( coast );
 // One stack of noise octaves: the first two are the broad weathering tone,
 // the next two the mid-scale detail. Each fades to its mean once finer than
 // ~2 pixels.
@@ -1201,7 +1202,7 @@ diffuseColor.rgb *= mix( 0.72, 1.0, smoothstep( 0.0, 0.5, up + mid * 0.3 ) );
   // Up the island a stone stands on dry soil and keeps its pale foot (a
   // summit cairn, every stone under half a metre up, read as dark lumps
   // at a quarter of the sand's brightness; granite is about half).
-  skirt *= 1.0 - 0.75 * smoothstep( 6.0, 14.0, dShore( coast ) );
+  skirt *= 1.0 - 0.75 * smoothstep( 6.0, 14.0, rockInland );
   diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.6, 0.62, 0.56 ), skirt * 0.75 );
 }
 // Joint cracks and exfoliation seams: thin dark lines, faded with distance.
@@ -1240,7 +1241,6 @@ diffuseColor.rgb *= mix( 1.03, 1.0, grainFade );
 // The shore's zones, by height above the sea, and only where the sea
 // reaches: a boulder up the beach is above the spray, not wet granite
 // with barnacles. Inland its zones climb out of reach, leaving lichen.
-float rockInland = dShore( coast );
 float seaReach = 1.0 - smoothstep( 1.2, 4.5, rockInland + ( macro - 0.5 ) * 0.8 );
 float y = q.y + ( mid - 0.5 ) * 0.25 + ( 1.0 - seaReach ) * 1.8;
 // Lichen crusts above the spray: grey-green crusts and orange Xanthoria.
