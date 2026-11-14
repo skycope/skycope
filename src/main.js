@@ -722,6 +722,15 @@ async function startAtmosphere() {
   await water.compile({ colors: [output.format] });
   if (state.disposed) return;
   gpu.onError(useFallback);
+  // `?perf`: count WebGPU validation errors nothing else caught, so a
+  // regression (a target resized mid-frame) shows on the sky canvas.
+  if (PERF) {
+    canvas.dataset.gpuErrors = "0";
+    gpu.gpu.addEventListener?.("uncapturederror", (event) => {
+      canvas.dataset.gpuErrors = String(Number(canvas.dataset.gpuErrors) + 1);
+      canvas.dataset.gpuLastError = String(event.error?.message ?? event.error).slice(0, 200);
+    });
+  }
   gpu.gpu.lost.then((info) => {
     if (!state.disposed && state.gpu === gpu) useFallback(info.message);
   });
@@ -764,6 +773,7 @@ async function startAtmosphere() {
   });
   const timedPass = (name, output) => (spans ? { target: output, timer: spans[name] } : output);
   state.renderFrame = (currentFrame) => {
+    state.inFrame = true;
     const cpuStarted = performance.now();
     // thread: a paused photo stops scene time (the camera keeps its own clock).
     const realDt = Math.min(gpuClock.deltaTime, 0.05);
@@ -873,6 +883,7 @@ async function startAtmosphere() {
       canvas.dataset.frameIntervalMs = (gpuClock.deltaTime * 1000).toFixed(2);
       canvas.dataset.cpuFrameMs = cpuMs.toFixed(2);
     }
+    state.inFrame = false;
     if (!state.firstFrame) {
       state.firstFrame = true;
       state.loadingRaf = requestAnimationFrame(() => {
@@ -889,7 +900,10 @@ async function startAtmosphere() {
 // Steps the reveal up to full resolution, one resize per step.
 function sharpen() {
   clearTimeout(state.revealTimer);
-  if (state.reveal >= 1) document.body.classList.remove("revealing");
+  if (state.reveal >= 1) {
+    document.body.classList.remove("revealing");
+    state.revealedAt ??= performance.now();
+  }
   if (state.reveal >= 1 || state.disposed) return;
   state.revealTimer = setTimeout(() => {
     state.reveal = REVEAL[REVEAL.indexOf(state.reveal) + 1] ?? 1;
@@ -1204,8 +1218,11 @@ function smooth(a, b, x) {
 // is larger); otherwise the interval between frames, which vsync quantises.
 function adaptQuality(deltaTime, cpuMs) {
   if (deltaTime > 0 && deltaTime < 0.12) state.frameMs += (deltaTime * 1000 - state.frameMs) * 0.05;
-  // Development fixture captures and `?perf` pins hold their level.
+  // Development fixture captures and `?perf` pins hold their level; and
+  // the first seconds after the reveal (shaders and buffers still arriving)
+  // say nothing about the steady cost.
   if (review || state.quality.pinned) return;
+  if (state.revealedAt === undefined || performance.now() - state.revealedAt < 2500) return;
   const mesh = state.landscape?.gpuMs ?? null;
   let sample;
   if (mesh !== null) {
@@ -1219,7 +1236,10 @@ function adaptQuality(deltaTime, cpuMs) {
   }
   const level = state.quality.level;
   state.quality = stepQuality(state.quality, { now: performance.now() / 1000, ...sample });
-  if (state.quality.level !== level) applyQuality();
+  // Applied before the next frame (tick), never inside this one: resizing
+  // the sea's swap chain after its texture was acquired destroys it before
+  // the submit.
+  if (state.quality.level !== level) state.qualityChanged = true;
 }
 
 function applyQuality() {
@@ -1243,6 +1263,9 @@ function currentSizes() {
 // Resizes only the layers whose size changed: a land or sea step keeps the
 // cloud history; only a new sky size has to rebuild it.
 function applySizes() {
+  // A resize inside a frame destroys textures that frame already uses
+  // (Dawn: "Destroyed texture used in a submit"): `?perf` counts any.
+  if (state.inFrame && PERF) canvas.dataset.midFrameResizes = String(Number(canvas.dataset.midFrameResizes ?? 0) + 1);
   const sizes = currentSizes();
   const old = state.sizes;
   state.sizes = sizes;
@@ -1343,6 +1366,11 @@ function tick(timestamp) {
     canvas.dataset.targetFps = String(targetFps);
   }
   if (timestamp - state.lastFrame < interval - 3) return;
+  // quality: a new level's sizes, at the frame boundary.
+  if (state.qualityChanged) {
+    state.qualityChanged = false;
+    applyQuality();
+  }
   state.lastFrame = timestamp;
   frame(state.gpu, state.renderFrame);
 }
