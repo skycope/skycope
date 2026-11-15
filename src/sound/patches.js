@@ -80,7 +80,7 @@ export const STEPS = {
   [SURFACE.pebbles]: {
     says: "a soft grit shifting",
     trim: 2.09,
-    layers: [soft("pink", "bandpass", 1400, 1, 0.008, 0.03, 0.012, { count: 2, spacing: [0.02, 0.03] })],
+    layers: [soft("pink", "bandpass", 1400, 1, 0.008, 0.015, 0.012, { count: 2, spacing: [0.015, 0.02] })],
   },
   // Timber (the keelson, the boat ashore, the milkwood's limb): a soft low pad.
   [SURFACE.timber]: {
@@ -109,7 +109,7 @@ export const STEPS = {
   [SURFACE.shallows]: {
     says: "a soft wet pad",
     trim: 1.19,
-    layers: [soft("pink", "bandpass", 900, 1, 0.012, 0.08, 0.03, { to: 500 })],
+    layers: [soft("pink", "bandpass", 1000, 1, 0.012, 0.14, 0.03, { to: 550 })],
   },
 };
 
