@@ -351,7 +351,9 @@ export function cssStops(table, view, aspect = 16 / 10, sky = 8, sea = 6) {
     return { at: v, colour: colour.map((c) => c.toString(16).padStart(2, "0")).join("") };
   };
   const stops = [];
-  if (h > 0) for (let k = 0; k <= sky; k++) stops.push(stop(Math.min(1, h - 0.0005) * (k / sky)));
+  // Crowded toward the horizon, where the sky changes fastest (a low sun's
+  // glow is a thin band there).
+  if (h > 0) for (let k = 0; k <= sky; k++) stops.push(stop(Math.min(1, h - 0.0005) * (1 - (1 - k / sky) ** 2)));
   if (h < 1) for (let k = 0; k <= sea; k++) stops.push(stop(Math.max(0, h + 0.0005) + (1 - Math.max(0, h + 0.0005)) * (k / sea)));
   return stops;
 }
