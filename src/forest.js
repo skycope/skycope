@@ -384,6 +384,13 @@ export function createForest(scene, seed, { light = false } = {}) {
       shared.sightEye.value.copy(eye);
       packLod(scene, eye, bias);
     },
+    // lod: through a sliced sun-shadow refresh (landscape.js
+    // renderShadowSlice), from its first slice until the last, the shadow
+    // pass keeps this frame's eye and packing serves it too (packLod).
+    holdShadowLod(on) {
+      const state = scene.userData.lodState;
+      if (state?.eye) state.shadowAt = on ? state.eye.slice() : null;
+    },
   };
 }
 
@@ -2823,6 +2830,10 @@ const LOD_PACK_BUDGET = 24000;
 // The eye in world space, for the fades in every pass (the shadow pass's
 // camera is the sun's, but plants fade by distance from the eye).
 const LOD_EYE = { value: new THREE.Vector3() };
+// The shadow pass's: the camera's, held through a sliced shadow refresh
+// (packLod, holdShadowLod).
+const LOD_SHADOW_EYE = { value: new THREE.Vector3() };
+const byUrgency = (a, b) => b.urgency - a.urgency;
 function addInstances(scene, geometry, material, instances, shadows, far = null, { chunk = CHUNK, shadowGrow = 0, label = material.name } = {}) {
   if (!instances.length) return;
   const steps = far ? (Array.isArray(far) ? far : [far]) : [];
@@ -2945,60 +2956,82 @@ function addInstances(scene, geometry, material, instances, shadows, far = null,
 // Re-packs the chunks whose instances have moved between levels, nearest
 // first, within a per-frame budget. `eye` is the camera in world space;
 // `group` the land group the instances live in.
+//
+// The sun's shadow map is refreshed a slice of its casters per frame
+// (landscape.js renderShadowSlice). Through a refresh the shadow pass keeps
+// the eye it began with (`holdShadowLod`), and packing serves that eye as
+// well as the camera's, so every instance the map needs stays in the same
+// level's mesh, so in the same slice, at the same fade, to the last slice:
+// no holes and no doubles. The bias does not step during a refresh either.
 function packLod(group, eye, bias) {
   const chunks = group.userData.lodChunks;
   if (!chunks) return;
+  const state = (group.userData.lodState ??= {
+    eye: null, at: [0, 0, 0], prev: [0, 0, 0], local: new THREE.Vector3(), shadowAt: null, due: [], pool: [], packed: 0, packMs: 0,
+  });
   LOD_EYE.value.copy(eye);
   group.updateWorldMatrix(true, false);
-  const local = group.worldToLocal(eye.clone());
-  const at = [local.x, local.y, local.z];
-  const state = (group.userData.lodState ??= { eye: null });
+  const local = group.worldToLocal(state.local.copy(eye));
+  // (Two arrays in turn, so last frame's eye survives this frame's.)
+  const at = state.eye === state.at ? state.prev : state.at;
+  at[0] = local.x; at[1] = local.y; at[2] = local.z;
   // A jump (home, a teleport) or the first frame packs everything now.
-  const jump = !state.eye || Math.hypot(at[0] - state.eye[0], at[1] - state.eye[1], at[2] - state.eye[2]) > 15;
+  const last = state.eye;
+  const jump = !last || Math.sqrt((at[0] - last[0]) ** 2 + (at[1] - last[1]) ** 2 + (at[2] - last[2]) ** 2) > 15;
   state.eye = at;
   state.packed = 0;
   state.packMs = 0;
+  const held = state.shadowAt && !jump ? state.shadowAt : null;
+  if (!held) {
+    state.shadowAt = null;
+    LOD_SHADOW_EYE.value.copy(eye);
+  }
   // The render budget's bias is followed a step at a time, the next step
   // only once the last has been packed everywhere (instance-lod.js easeBias).
   if (jump) state.bias = bias;
   state.bias ??= bias;
-  const due = [];
+  const due = state.due;
+  let n = 0;
   for (const chunk of chunks) {
-    const urgency = packUrgency(chunk, at, state.bias);
-    if (urgency > 0) due.push([urgency, chunk]);
+    const urgency = packUrgency(chunk, at, state.bias, held);
+    if (urgency <= 0) continue;
+    const entry = (state.pool[n] ??= { urgency: 0, chunk: null });
+    entry.urgency = urgency;
+    entry.chunk = chunk;
+    due[n++] = entry;
   }
-  if (!due.length && state.bias !== bias) {
+  due.length = n;
+  if (!n && state.bias !== bias && !held) {
     state.bias = easeBias(state.bias, bias);
     return;
   }
   bias = state.bias;
-  if (!due.length) return;
+  if (!n) return;
   // Most urgent first; a chunk about to outrun its margin is packed this
   // frame whatever the budget (late, an instance would vanish).
-  if (!jump) due.sort((a, b) => b[0] - a[0]);
+  if (!jump) due.sort(byUrgency);
   let budget = jump ? Infinity : LOD_PACK_BUDGET;
   // (Under ?perf: instances packed and CPU time, this frame.)
   const started = performance.now();
-  state.packed = 0;
-  for (const [urgency, chunk] of due) {
+  for (let q = 0; q < n; q++) {
+    const { urgency, chunk } = due[q];
     if (budget <= 0 && urgency < 0.9) break;
     budget -= chunk.count;
     state.packed += chunk.count;
-    const counts = packChunk(chunk, at, bias);
-    chunk.meshes.forEach((mesh, level) => {
-      if (!mesh) return;
+    const counts = packChunk(chunk, at, bias, held);
+    for (let level = 0; level < chunk.meshes.length; level++) {
+      const mesh = chunk.meshes[level];
+      if (!mesh) continue;
       const count = counts[level];
       mesh.count = count;
       mesh.visible = count > 0;
-      if (!count) return;
-      const attributes = [mesh.instanceMatrix, mesh.instanceColor, ...["anchorHeight", "bendNormal", "canopyShade", "taper", "lodFade"].map((name) => mesh.geometry.attributes[name])];
-      for (const attribute of attributes) {
-        if (!attribute) continue;
+      if (!count) continue;
+      for (const attribute of (mesh.userData.lodAttributes ??= [mesh.instanceMatrix, mesh.instanceColor, ...["anchorHeight", "bendNormal", "canopyShade", "taper", "lodFade"].map((name) => mesh.geometry.attributes[name])].filter(Boolean))) {
         attribute.clearUpdateRanges();
         attribute.addUpdateRange(0, count * attribute.itemSize);
         attribute.needsUpdate = true;
       }
-    });
+    }
   }
   state.packMs = performance.now() - started;
 }
@@ -3017,7 +3050,7 @@ const LOD_FADE_GLSL = /* glsl */ `
   float lodD = distance( lodOrigin, lodEye );
   float lodT = ( lodD - lodFade.x ) / max( abs( lodFade.y ), 1e-3 );
   float lodIn = smoothstep( 0.0, 1.0, lodT );
-  float lodGrown = lodFade.y < 0.0 ? lodIn : smoothstep( 0.0, 1.0, lodT * 4.0 ) * ( 0.9 + 0.1 * lodIn );
+  float lodGrown = lodFade.y == 0.0 ? 1.0 : lodFade.y < 0.0 ? lodIn : smoothstep( 0.0, 1.0, lodT * 4.0 ) * ( 0.9 + 0.1 * lodIn );
   float lodShrunk = lodFade.z > 0.0 ? 1.0 - smoothstep( 0.0, 1.0, ( lodD - ( lodFade.z - lodFade.w * 0.8 ) ) / max( lodFade.w * 0.8, 1e-3 ) ) : 1.0;
   transformed *= lodGrown * lodShrunk;
 }
@@ -3048,13 +3081,14 @@ function withLodFade(material) {
 // veil instead of shade lit by the blue sky. The shadow pass draws each
 // shoot larger about its base so the crown's shadow closes up; the map only
 // re-renders when the sun or the cat moves on, so this costs no frames.
-// lod: the shadow pass fades instances as the colour pass does (LOD_EYE).
+// lod: the shadow pass fades instances as the colour pass does, from its
+// own eye (LOD_SHADOW_EYE: held through a sliced refresh).
 const grownDepth = new Map();
 function lodDepthMaterial(grow) {
   if (!grownDepth.has(grow)) {
     const material = new THREE.MeshDepthMaterial({ side: THREE.DoubleSide });
     material.onBeforeCompile = (shader) => {
-      shader.uniforms.lodEye = LOD_EYE;
+      shader.uniforms.lodEye = LOD_SHADOW_EYE;
       shader.vertexShader = lodVertex(shader.vertexShader, grow !== 1 ? `transformed *= ${grow.toFixed(3)};\n` : "");
     };
     material.customProgramCacheKey = () => `lod-grown-${grow}`;

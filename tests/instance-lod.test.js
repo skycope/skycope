@@ -35,8 +35,8 @@ function row(distances, keep = () => 0b111) {
 // drawn at in each level it is packed into (0 where it is not packed).
 function drawn(chunk, index, d) {
   return chunk.outputs.map((out, level) => {
-    for (let k = 0; k < chunk.count; k++)
-      if (out.canopyShade[k] === index && out.fade.slice(k * 4, k * 4 + 4).some((v) => v !== 0)) return fadeScale(out.fade.slice(k * 4, k * 4 + 4), d);
+    for (let k = 0; k < chunk.counts[level]; k++)
+      if (out.canopyShade[k] === index) return fadeScale(out.fade.slice(k * 4, k * 4 + 4), d);
     return 0;
   });
 }
@@ -130,4 +130,21 @@ test("a late re-pack is never seen: the eye may move up to the margin and every 
       const s = drawn(chunk, i, d - shift);
       assert.ok(Math.max(...s) >= 0.9 - 1e-9, `instance at ${d} m drawn with the eye moved ${shift.toFixed(2)} m`);
     });
+});
+
+test("through a sliced shadow refresh, packing serves the held shadow eye as well as the camera's", () => {
+  const distances = Array.from({ length: 60 }, (_, i) => 1 + i);
+  const chunk = row(distances);
+  const held = [0, 0, 0];
+  packChunk(chunk, held);
+  // The camera walks on 6 m (re-packing as it goes); the shadow pass's eye
+  // stays where the refresh began, and sees every instance just as then.
+  const before = distances.map((d, i) => drawn(chunk, i, d));
+  for (let x = 0.5; x <= 6; x += 0.5) packChunk(chunk, [x, 0, 0], 1, held);
+  distances.forEach((d, i) => {
+    const now = drawn(chunk, i, d);
+    now.forEach((s, level) => assert.ok(Math.abs(s - before[i][level]) < 1e-6, `instance at ${d} m, level ${level}: ${before[i][level]} -> ${s}`));
+  });
+  // And for the camera too.
+  distances.forEach((d, i) => assert.ok(Math.max(...drawn(chunk, i, Math.abs(d - 6))) >= 0.9 - 1e-9, `camera sees ${d} m`));
 });
