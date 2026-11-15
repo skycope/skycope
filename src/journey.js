@@ -18,6 +18,19 @@ import { WAKE_LIGHT, createWaking, wakingSource, frontArrival } from "./waking.j
 import { SWIM_LIMIT } from "./walker.js";
 import { groundHeight } from "./terrain.js";
 import { homeLandingPoint } from "./place-home.js";
+import { dawnMinutes, duskMinutes } from "./moments.js";
+
+// The ending's beats, seconds from the sit (story-and-wow.md 5): the light
+// at the cat's nose; (by day) waiting high while the day runs down; the
+// rise; the star; the Cross; the cat free; the card; the sky turning
+// (`turn`, the lapse: `hours` of sky by night; by day dusk, night and dawn
+// round to the same minute tomorrow); the last line.
+export const ENDING = {
+  night: { nose: 3, rise: 5, arrive: 13, cross: 14, free: 16, card: 16, turn: [18, 48], hours: 2, after: 48 },
+  day: { nose: 3, wait: 5, dusk: [5, 20], rise: 20, arrive: 30, cross: 31, free: 24, card: 33, turn: [36, 56], dawn: [56, 66], after: 66 },
+};
+// After the night lapse, seconds per hour of sky to drift back to live.
+const DRIFT = 46;
 
 // One line of type per light, in the site's voice (story-and-wow.md 1).
 export const GIFT_LINES = {
@@ -82,7 +95,10 @@ export function ceremonyFrames(walker, { place, gift, ground, shot, yaw, crown =
   return { subject, dive: frame(shot.elevation, shot.distance), wide: frame(shot.wide[0], shot.wide[1]) };
 }
 
-export function createJourney({ state, card, findLine, now, onChange = () => {} }) {
+// sky: the lapse (thread.js): { run(keys, { onDone }), running(), live(),
+// nowMinutes(), liveMinutes() }. reduced(): prefers reduced motion.
+export function createJourney({ state, card, findLine, now, onChange = () => {}, sky = {}, reduced = () => false }) {
+  const isReduced = reduced;
   const magic = state.magic;
   let quest = null;
   let mind = null;
@@ -412,23 +428,207 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
 
   // ---- The ending (story-and-wow.md section 5) ----------------------------
 
+  // The sky is the light's way home: it rises from the cairn to the south
+  // celestial pole and becomes a star there; the Cross draws itself and
+  // points to it; the real sky turns round it. By night from the sit; by
+  // day the lapse first runs the day down to tonight. Seconds from the sit.
   function startEnding(event) {
-    ceremony = { type: "ending", place: event.place, gift: "finale", at: now(), woke: false };
-    findLine.pause(true);
+    const cat = state.walker.cat;
+    const sun = state.celestial?.sunAltitude ?? 30;
+    const plan = ENDING[sun < -6 ? "night" : "day"];
+    const reduced = isReduced();
+    ceremony = { type: "ending", place: event.place, gift: "finale", at: now(), plan, night: plan === ENDING.night, reduced, beat: new Set(), carded: false, woke: false };
+    // The light is going home: lit, remembered (the sky and the ending's
+    // flag), and the star is not in the sky yet.
     quest.wake();
+    ceremony.woke = true;
+    magic.ending = { star: 0, swell: 0, pen: 0 };
+    magic.litOrder = quest.order;
     onChange();
-  }
-  function stageEnding() {
-    const c = ceremony;
-    if (!c.carded) {
-      c.carded = true;
-      card?.show("", LINES.home, 5, true);
+    findLine.pause(true);
+    if (globalThis.document) document.body.dataset.ceremony = "true";
+    sound("endingRise", { delay: plan.rise });
+    // The way home: the pole, from Cape Town's latitude (due south, as high
+    // as the latitude is south), in coast metres' directions.
+    const lat = Math.abs(state.celestial?.latitude ?? (-33.92 * Math.PI) / 180);
+    ceremony.pole = { x: -Math.cos(lat) * Math.SQRT1_2, y: Math.sin(lat), z: -Math.cos(lat) * Math.SQRT1_2 };
+    ceremony.cat = { x: cat.x, y: cat.y, z: cat.z };
+    if (!reduced) {
+      camStart();
+      // The look's yaw that faces true south (walker.js keeps the
+      // renderer's azimuth, the coast bearing less 45°).
+      const camera = state.walker.camera;
+      const south = Math.atan2(ceremony.pole.x, ceremony.pole.z);
+      ceremony.yaw = cam.yaw + wrap(south - ((camera.azimuth ?? 0) + Math.PI / 4));
     }
-    if (now() - c.at > 6) {
-      ceremony = null;
+  }
+
+  // The ending's frame: the wisp's scripted flight, the star, the pen, the
+  // camera, the card and the lapse, from the plan's beats.
+  function stageEnding(dt) {
+    const c = ceremony;
+    const p = c.plan;
+    const t = now() - c.at;
+    const cat = state.walker.cat;
+    const once = (name, when) => {
+      if (t < when || c.beat.has(name)) return false;
+      c.beat.add(name);
+      return true;
+    };
+    // The light comes down to the cat's nose, one last time.
+    if (once("nose", p.nose)) {
+      const from = { ...mind.position };
+      const at = now();
+      const nose = { x: cat.x + Math.sin(cat.heading) * 0.32, y: cat.y + 0.32, z: cat.z + Math.cos(cat.heading) * 0.32 };
+      mind.fly(() => {
+        const u = Math.min(1, (now() - at) / 1.6);
+        const e = u * u * (3 - 2 * u);
+        return { x: from.x + (nose.x - from.x) * e, y: from.y + (nose.y - from.y) * e, z: from.z + (nose.z - from.z) * e, glow: 0.9, calm: 0.15 };
+      }, "script");
+      sound("wispNote", 6, nose);
+    }
+    // By day it waits high over the cairn while the day runs down.
+    if (p.wait !== undefined && once("wait", p.wait)) {
+      const from = { ...mind.position };
+      const at = now();
+      mind.fly(() => {
+        const u = Math.min(1, (now() - at) / 3);
+        const e = u * u * (3 - 2 * u);
+        return { x: from.x, y: from.y + 20 * e, z: from.z, glow: 1.2, calm: 0.4 };
+      }, "script");
+    }
+    // It rises: straight up, then leaning south along the way to the pole,
+    // shrinking to a point; as it leaves, the sky's cool light runs down
+    // the summit grass (the waking table's `stars` row).
+    if (once("rise", p.rise)) {
+      const start = { ...mind.position };
+      const eye = { ...state.walker.camera };
+      const far = { x: eye.x + c.pole.x * 400, y: eye.y + c.pole.y * 400, z: eye.z + c.pole.z * 400 };
+      const at = now();
+      const span = p.arrive - p.rise;
+      mind.fly(() => {
+        const u = Math.min(1, (now() - at) / span);
+        if (u >= 1) return { x: far.x, y: far.y, z: far.z, glow: 0, calm: 0 };
+        // Up first (a fifth of the way), then toward the star, faster.
+        const up = Math.min(1, u * 5);
+        const lift = { x: start.x, y: start.y + 8 * (up * (2 - up)), z: start.z };
+        const k = Math.max(0, (u - 0.2) / 0.8) ** 2.2;
+        return { x: lift.x + (far.x - lift.x) * k, y: lift.y + (far.y - lift.y) * k, z: lift.z + (far.z - lift.z) * k, glow: 1.3 * (1 - smooth(0.7, 1, u)), calm: 0.2 };
+      }, "script");
+      if (!c.reduced) magic.waking = createWaking("stars", [c.cat.x, c.cat.y + 1.5, c.cat.z]);
+    }
+    // The star: it fades in as the light reaches it, swells once, holds.
+    const e = magic.ending;
+    e.star = smooth(p.arrive - 2, p.arrive, t);
+    e.swell = t < p.arrive ? 0 : Math.exp(-(t - p.arrive) / 1.2) * smooth(p.arrive, p.arrive + 0.25, t);
+    if (once("arrive", p.arrive)) {
+      mind.away();
+      sound("endingArrive");
+    }
+    // The Cross draws itself (1.6 s), its pointer runs on to the star
+    // (1.4 s), they hold, and fade (1.5 s).
+    const q = t - p.cross;
+    e.pen = q < 0 ? 0 : q < 1.6 ? q / 1.6 : q < 3 ? 1 + (q - 1.6) / 1.4 : q < 5 ? 2 : q < 6.5 ? 2 + (q - 5) / 1.5 : 0;
+    // The camera: low, turned to true south, the view lifted toward the
+    // pole until the horizon sits low in the frame; free from `free`.
+    if (!c.reduced && cam.free) {
+      if (t < p.free + 0.5) {
+        camAim(c.yaw, 0.04, 6.5, 0.8, dt);
+        const lean = smooth(p.rise - 1, p.rise + 3, t) * 0.75;
+        if (lean > 0) state.walker.lookAt?.({ x: cat.x + c.pole.x * 60, y: cat.y + c.pole.y * 60, z: cat.z + c.pole.z * 60 }, lean);
+      } else if (!c.beat.has("camFree")) {
+        // (The camera stays on the sky unless the visitor moves it.)
+        c.beat.add("camFree");
+      }
+    }
+    if (once("card", p.card)) card?.show("", LINES.home, 5, true);
+    // The sky turns: the lapse (never with reduced motion).
+    if (!c.reduced && once("turn", p.turn[0])) startLapse(c);
+    if (once("after", p.after)) {
+      sound("turn");
       findLine.pause(false);
       findLine.show(LINES.stay);
     }
+    if (t > p.after + 1 && !lapseRunning()) finishEnding();
+  }
+
+  // The lapse: night, two hours in thirty seconds, then drifting back to
+  // live time too slowly to see; day, tonight's dusk, the night through to
+  // dawn, and on to the same minute tomorrow (story-and-wow.md 5).
+  function startLapse(c) {
+    const from = sky.nowMinutes?.();
+    if (!Number.isFinite(from) || !sky.run) return;
+    const p = c.plan;
+    if (c.night) {
+      const to = from + 60 * p.hours;
+      sky.run([[0, from], [p.turn[1] - p.turn[0], to]], {
+        onDone: () => sky.run([[0, to], [DRIFT * p.hours, (sky.liveMinutes?.() ?? from) + (DRIFT * p.hours) / 60]], { onDone: () => sky.live?.() }),
+      });
+      return;
+    }
+    // Day: from the sit, so its first leg is the dusk the lights answer.
+    const date = state.date ?? new Date();
+    const dusk = duskMinutes(from, date, -9) ?? from + 360;
+    const dawn = dawnMinutes(dusk + 60, date, -9) ?? dusk + 600;
+    const s0 = p.turn[0];
+    sky.run([[0, from], [p.dusk[1] - s0, dusk], [p.turn[0] - s0 + 0.001, dusk + 45], [p.turn[1] - s0, dawn], [p.dawn[1] - s0, from + 1440]], {
+      onDone: () => setTimeout(() => sky.live?.(), 10000),
+    });
+  }
+  const lapseRunning = () => Boolean(sky.running?.());
+
+  function finishEnding() {
+    ceremony = null;
+    camEnd();
+    scale = 1;
+    magic.ending = null;
+    if (globalThis.document) delete document.body.dataset.ceremony;
+    homeAt = Infinity;
+  }
+
+  // ---- Afterwards: call it down -------------------------------------------
+
+  // A meow under open sky brings a small light down the sky to the cat (the
+  // fall, gently, in about three seconds); it keeps company as before and
+  // goes home when the cat sleeps or sits still for two minutes.
+  let homeAt = Infinity;
+  let calledOnce = false;
+  function callDown() {
+    const cat = state.walker.cat;
+    const lat = Math.abs(state.celestial?.latitude ?? (-33.92 * Math.PI) / 180);
+    const pole = { x: -Math.cos(lat) * Math.SQRT1_2, y: Math.sin(lat), z: -Math.cos(lat) * Math.SQRT1_2 };
+    const from = { x: cat.x + pole.x * 160, y: cat.y + pole.y * 160, z: cat.z + pole.z * 160 };
+    const to = { x: cat.x + Math.sin(cat.heading) * 1.4, z: cat.z + Math.cos(cat.heading) * 1.4 };
+    mind.fall(from, to, { speed: 1 / 3 });
+    sound("callDown");
+    homeAt = Infinity;
+    if (!calledOnce) {
+      calledOnce = true;
+      findLine.show(LINES.calls);
+    }
+  }
+  function goHome() {
+    const start = { ...mind.position };
+    const cat = state.walker.cat;
+    const lat = Math.abs(state.celestial?.latitude ?? (-33.92 * Math.PI) / 180);
+    const far = { x: cat.x - Math.cos(lat) * Math.SQRT1_2 * 300, y: cat.y + Math.sin(lat) * 300, z: cat.z - Math.cos(lat) * Math.SQRT1_2 * 300 };
+    const at = now();
+    mind.fly(() => {
+      const u = Math.min(1, (now() - at) / 6);
+      if (u >= 1) return null;
+      const k = u * u;
+      return { x: start.x + (far.x - start.x) * k, y: start.y + (far.y - start.y) * k, z: start.z + (far.z - start.z) * k, glow: 1 - smooth(0.6, 1, u), calm: 0.3 };
+    }, "hidden");
+    homeAt = Infinity;
+  }
+  // Once called down: home when the cat sleeps, or sits still two minutes.
+  function keepCompany(dt) {
+    if (!quest?.done || ceremony || !mind.visible || mind.mode === "script" || mind.mode === "fall") return;
+    const cat = state.walker.cat;
+    const still = (cat.sit ?? 0) > 0.9 && Math.abs(cat.speed ?? 0) < 0.05;
+    homeAt = still ? (Number.isFinite(homeAt) ? homeAt : now() + 120) : Infinity;
+    if ((cat.sleepy ?? 0) > 0.3 || now() > homeAt) goHome();
+    void dt;
   }
 
   return {
@@ -463,6 +663,8 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
     call() {
       const cat = state.walker?.cat;
       if (!cat) return;
+      // Afterwards: a meow under open sky calls the light down.
+      if (quest?.done && !ceremony && !mind.visible && met) callDown();
       magic.call = { at: magic.clock, x: cat.x, z: cat.z };
       meowAt = now();
       answered = false;
@@ -474,8 +676,14 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
     },
     get holdsCat() {
       if (!ceremony) return false;
-      if (ceremony.type === "ending") return now() - ceremony.at < 6;
+      if (ceremony.type === "ending") return now() - ceremony.at < ceremony.plan.free;
       return ceremony.goneAt === null || now() - ceremony.goneAt < WAKE.release;
+    },
+    // `?perf` QA: start the ending now (five lit, the cat anywhere).
+    endNow() {
+      const event = quest?.act("beacon");
+      if (event) start(event);
+      return Boolean(event);
     },
     get timeScale() {
       return scale;
@@ -506,6 +714,7 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
       if (!met && armed && now() >= meetAt && !blocked) begin();
       stageFall();
       if (ceremony) stage(dt);
+      else keepCompany(dt); // afterwards: the called-down light goes home
       homeCheck(cat);
       stageHome();
       ctx.cat = cat;

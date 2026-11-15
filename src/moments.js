@@ -369,19 +369,43 @@ export function createWatch({ walker, body = document.body, wait = 22 }) {
 // sky runs on to dawn as a time-lapse. It is a preview (the time panel says
 // so and offers live again); any input stops it where it is.
 export function dawnMinutes(fromMinutes, date = new Date(), altitude = 1) {
-  const sunAt = (m) => skyAt(previewDate(m, date)).sunAltitude;
+  return sunCrossing(fromMinutes, date, altitude, true);
+}
+// The first minute from `fromMinutes` (unwrapped) when the sun has gone
+// down past `altitude` (degrees): tonight's dusk, for the ending's lapse.
+export function duskMinutes(fromMinutes, date = new Date(), altitude = -8) {
+  return sunCrossing(fromMinutes, date, altitude, false);
+}
+function sunCrossing(fromMinutes, date, altitude, rising) {
+  const past = (m) => (skyAt(previewDate(m, date)).sunAltitude >= altitude) === rising;
+  if (past(fromMinutes)) return fromMinutes;
   for (let m = fromMinutes; m < fromMinutes + 1440; m += 5)
-    if (sunAt(m) >= altitude) {
+    if (past(m)) {
       let lo = m - 5;
       let hi = m;
       for (let i = 0; i < 8; i++) {
         const mid = (lo + hi) / 2;
-        if (sunAt(mid) >= altitude) hi = mid;
+        if (past(mid)) hi = mid;
         else lo = mid;
       }
       return hi;
     }
   return null;
+}
+
+// A lapse along keyframes: [[seconds, minutes], …] (unwrapped preview
+// minutes), eased between each pair, from 0. Pure, for createLapse and tests.
+export function lapseMinutes(keys, t) {
+  if (t <= keys[0][0]) return keys[0][1];
+  for (let i = 1; i < keys.length; i++) {
+    const [t1, m1] = keys[i];
+    if (t <= t1) {
+      const [t0, m0] = keys[i - 1];
+      const u = (t - t0) / Math.max(t1 - t0, 1e-6);
+      return m0 + (m1 - m0) * u * u * (3 - 2 * u);
+    }
+  }
+  return keys[keys.length - 1][1];
 }
 
 // Fractional, unwrapped preview minutes (past 1440 is tomorrow) to a date.
@@ -390,14 +414,20 @@ export function previewDate(minutes, date = new Date()) {
   return new Date(dateAtCapeMinutes(whole, date).getTime() + (minutes - whole) * 60000);
 }
 
-export function createDawnLapse({ preview, onStart = () => {}, onEnd = () => {} }) {
+// createLapse: the dawn lapse above, and (story-and-wow.md 5) any lapse
+// the ending asks for: run(keys, { onDone }) plays the sky along keyframes
+// (lapseMinutes), whatever the cat does; it advances only the previewed
+// sky, never magic.clock, so the lamp and the sea keep real pace.
+// live(): back to live time (the preview let go).
+export function createLapse({ preview, onStart = () => {}, onEnd = () => {} }) {
   let asleepFor = 0;
   let minutes = 0;
   let dawn = null;
   let active = false;
   let lastLabel = 0;
+  let script = null;
   const stop = (reason) => {
-    if (!active) return;
+    if (!active || script) return;
     active = false;
     preview(minutes, true);
     onEnd(reason);
@@ -406,8 +436,45 @@ export function createDawnLapse({ preview, onStart = () => {}, onEnd = () => {} 
     get active() {
       return active;
     },
+    // The ending's lapse is playing.
+    get scripted() {
+      return Boolean(script);
+    },
+    run(keys, { onDone = null } = {}) {
+      script = { keys, t: 0, onDone };
+      active = true;
+      lastLabel = 0;
+    },
+    // Ends a scripted lapse where it is (`then` keeps the preview there).
+    cancel() {
+      if (!script) return;
+      script = null;
+      active = false;
+      preview(minutes, true);
+    },
+    live() {
+      script = null;
+      active = false;
+      preview(null, true);
+    },
     // ctx: { asleep, sunAltitude, nowMinutes (unwrapped, fractional), date, blocked, realDt }
     update(ctx, dt) {
+      if (script) {
+        script.t += dt;
+        minutes = lapseMinutes(script.keys, script.t);
+        lastLabel += dt;
+        const label = lastLabel > 0.25;
+        if (label) lastLabel = 0;
+        preview(minutes, label);
+        if (script.t >= script.keys[script.keys.length - 1][0]) {
+          const done = script.onDone;
+          script = null;
+          active = false;
+          preview(minutes, true);
+          done?.(minutes);
+        }
+        return;
+      }
       if (!active) {
         asleepFor = ctx.asleep && !ctx.blocked ? asleepFor + dt : 0;
         if (asleepFor > 6 && ctx.sunAltitude < -8) {
@@ -435,6 +502,7 @@ export function createDawnLapse({ preview, onStart = () => {}, onEnd = () => {} 
     stop,
   };
 }
+export const createDawnLapse = createLapse;
 
 function safeStorage() {
   try {

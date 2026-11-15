@@ -10,7 +10,7 @@
 //   setSpectacles(fn)            fn() → [{ id, title?, visible 0…1, direction? [e,u,n] }]
 import { createDiscoveries, islandDiscoveries } from "./discoveries.js";
 import { createPhotoMode } from "./photo-mode.js";
-import { createArrival, createDawnLapse, createFindLine, createGiftCard, createLessons, createNotesPanel, createWatch } from "./moments.js";
+import { createArrival, createLapse, createFindLine, createGiftCard, createLessons, createNotesPanel, createWatch } from "./moments.js";
 import { createJourney } from "./journey.js";
 import { capeTime, capeMinutes } from "./astronomy.js";
 
@@ -62,7 +62,18 @@ export function createThread({ state, signal, reduced, capture, preview, light =
     onBeginAgain: () => journey.beginAgain(),
   });
   // The story: the fallen star, the lights and the ending (journey.js).
-  const journey = createJourney({ state, card: createGiftCard($("#gift-card"), { reduced: isReduced }), findLine, now: () => seconds(), onChange: (quiet) => (quiet ? notes.refresh() : notes.changed()) });
+  // (sky: the ending's lapse, through the dawn lapse's machinery.)
+  const sky = {
+    run: (keys, options) => lapse?.run(keys, options),
+    running: () => Boolean(lapse?.scripted),
+    live: () => lapse?.live(),
+    nowMinutes: () => nowMinutes(),
+    liveMinutes: () => {
+      const now = new Date();
+      return capeMinutes(now) + now.getSeconds() / 60;
+    },
+  };
+  const journey = createJourney({ state, card: createGiftCard($("#gift-card"), { reduced: isReduced }), findLine, now: () => seconds(), onChange: (quiet) => (quiet ? notes.refresh() : notes.changed()), sky, reduced: isReduced });
   const lessons = createLessons({ el: $("#hint"), touch, reduced: isReduced });
   const arrival = createArrival($("#arrival"), { reduced: isReduced });
   // No WebGPU, or reduced motion: the header is simply there.
@@ -126,7 +137,7 @@ export function createThread({ state, signal, reduced, capture, preview, light =
       discoveries.add(islandDiscoveries());
       journey.attach();
       watch = createWatch({ walker: state.walker });
-      lapse = createDawnLapse({
+      lapse = createLapse({
         preview,
         onStart: () => {
           watch.stop();
@@ -223,7 +234,7 @@ export function createThread({ state, signal, reduced, capture, preview, light =
       const context = { celestial: state.celestial, weather: state.weather, interest: state.landscape?.interest, spectacles: visible };
       discoveries.update(cat, clock, context);
       const idleInput = (performance.now() - lastInput) / 1000;
-      watch?.update({ cat, idleInput, celestial: state.celestial, spectacles: visible, blocked: photo.active || lapse?.active || isReduced() });
+      watch?.update({ cat, idleInput, celestial: state.celestial, spectacles: visible, blocked: photo.active || lapse?.active || isReduced() || Boolean(journey.ceremony) });
       updateGaze(cat, step);
       walkFrom ??= { x: cat.x, z: cat.z };
       if (Math.hypot(cat.x - walkFrom.x, cat.z - walkFrom.z) > 1.5) lessons.did("walk", clock);

@@ -329,7 +329,9 @@ fn the_ending(eq: vec3f) -> vec3f {
     let core = exp(-(d * d) / (2.0 * sigma * sigma)) * 3.9;
     let halo = exp(-d / (pixel * 3.5)) * 0.05;
     let swell = exp(-d / 0.0105) * atmosphere.wispColour.w * 0.35;
-    light += HOME_STAR * ((core + halo) * twinkle * star + swell);
+    // A meow (magic2.y, seconds since it) brightens it for a second.
+    let called = select(0.0, 1.5 * exp(-atmosphere.magic2.y * 1.6), atmosphere.magic2.y > 0.0);
+    light += HOME_STAR * ((core + halo) * twinkle * star * (1.0 + called) + swell);
   }
   let pen = atmosphere.magic2.x;
   if (pen > 0.0) {

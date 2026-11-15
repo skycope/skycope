@@ -106,3 +106,32 @@ test("the sky turns about the pole, clockwise looking south; the pole does not m
     }
   }
 });
+
+test("the ending's lapse: eased keyframes; tonight's dusk and dawn from the real sun", async () => {
+  const { lapseMinutes, duskMinutes, dawnMinutes, previewDate } = await import("../src/moments.js");
+  const keys = [[0, 1320], [30, 1440]];
+  assert.equal(lapseMinutes(keys, -1), 1320);
+  assert.equal(lapseMinutes(keys, 15), 1380);
+  assert.equal(lapseMinutes(keys, 31), 1440);
+  assert.ok(lapseMinutes(keys, 3) - 1320 < 6, "eases in");
+  const date = new Date("2026-11-15T10:00:00Z");
+  const dusk = duskMinutes(750, date, -9);
+  const dawn = dawnMinutes(dusk + 60, date, -9);
+  assert.ok(dusk > 750 && dusk < 1440, `dusk at ${dusk}`);
+  assert.ok(Math.abs(skyAt(previewDate(dusk, date)).sunAltitude + 9) < 0.2);
+  assert.ok(dawn > 1440 && dawn < 1440 + 420, `dawn at ${dawn}`);
+  assert.ok(Math.abs(skyAt(previewDate(dawn, date)).sunAltitude + 9) < 0.2);
+  // Already dark: tonight's dusk is now.
+  assert.equal(duskMinutes(1380, date, -9), 1380);
+});
+
+test("the ending's beats are in order, and the cat is held only until free", async () => {
+  const { ENDING } = await import("../src/journey.js");
+  for (const p of Object.values(ENDING)) {
+    assert.ok(p.nose < p.rise && p.rise < p.arrive && p.arrive < p.cross && p.cross < p.turn[0] && p.turn[0] < p.turn[1] && p.turn[1] <= p.after);
+  }
+  assert.equal(ENDING.night.free, 16);
+  assert.equal(ENDING.night.turn[1] - ENDING.night.turn[0], 30);
+  assert.equal(ENDING.night.hours, 2);
+  assert.equal(ENDING.day.after, 66);
+});

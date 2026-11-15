@@ -23,6 +23,32 @@ export function reviewFixture(search) {
   return { name, date: new Date("2026-09-30T12:00:00Z"), ...scenes[name] };
 }
 
+// story: `?perf&at=beacon` puts the cat on the cairn's top step, sitting,
+// facing the island, so the ending can be captured without playing the
+// quest (with `&magic=home,fireflies,tideglow,lamp,seafolk,boat` all five
+// are lit; skycope.thread.journey.endNow() starts it; `&magic=all` is the
+// island afterwards).
+export function storyFixture(search) {
+  const params = new URLSearchParams(search);
+  return params.has("perf") && params.get("at") === "beacon" ? { at: "beacon" } : null;
+}
+export function applyStoryFixture(walker, fixture, pois = []) {
+  const beacon = fixture?.at === "beacon" ? pois.find((p) => p.id === "beacon") : null;
+  if (!beacon) return false;
+  const cat = walker.cat;
+  const dx = ISLAND.x - beacon.x, dz = ISLAND.z - beacon.z;
+  const d = Math.hypot(dx, dz) || 1;
+  // The top step: just off the pillar, toward the island's middle.
+  cat.x = beacon.x + (dx / d) * 1.1;
+  cat.z = beacon.z + (dz / d) * 1.1;
+  cat.y = walker.surface(cat.x, cat.z);
+  cat.heading = Math.atan2(dx, dz);
+  cat.speed = 0; cat.sit = 1; cat.idle = 10;
+  walker.camera.yaw = cat.heading;
+  for (let i = 0; i < 40; i++) walker.update(0.05, { move: [0, 0], run: false, jump: false });
+  return true;
+}
+
 export function applyReviewFixture(walker, fixture, obstacles) {
   if (!fixture || fixture.home) return;
   const cat = walker.cat, camera = walker.camera;

@@ -17,17 +17,19 @@ const W = 1280, H = 800;
 await mkdir(`${out}/frames`, { recursive: true });
 const name = (m) => (m === 750 ? "noon" : m >= 1200 || m < 300 ? "night" : m >= 1050 ? "dusk" : `${m}min`);
 
-async function run(minutes) {
+// (Machine safety: one Chrome at a time, closed as soon as the run is
+// done; frames go straight to disk and the sheet links them, so this
+// process holds no images. The last run's page renders the sheet.)
+async function run(minutes, last) {
   const extra = what === "ending" ? `&magic=${process.env.MAGIC ?? "home,fireflies,tideglow,lamp,seafolk,boat"}&at=beacon` : "";
   const page = await openPage({ port, cdp, query: `seed=1847&weather=clear${extra}`, width: W, height: H });
   const { evaluate, send, sleep } = page;
   const shots = [];
   const snap = async (label) => {
     const r = await send("Page.captureScreenshot", { format: "jpeg", quality: 82 });
-    const data = r.result.data;
-    const file = `${out}/frames/${what}-${name(minutes)}-${shots.length}.jpg`;
-    await writeFile(file, Buffer.from(data, "base64"));
-    shots.push({ label, data });
+    const file = `frames/${what}-${name(minutes)}-${shots.length}.jpg`;
+    await writeFile(`${out}/${file}`, Buffer.from(r.result.data, "base64"));
+    shots.push({ label, file });
     console.log(what, minutes, label, JSON.stringify(await evaluate(`(() => { const s = skycope, w = s.magic.wisp, j = s.thread?.journey; return { mode: j?.mind?.mode, wisp: w.position.map((v) => +v.toFixed(1)), glow: +w.glow.toFixed(2), lit: j?.lit, home: +(s.magic.levels.home ?? 0).toFixed(2), card: document.querySelector('#gift-card .gift-big')?.textContent, line: document.querySelector('#find-line')?.textContent, hint: document.querySelector('#hint')?.dataset.hidden === 'false' ? document.querySelector('#hint .mouse')?.textContent : '' }; })()`)));
   };
   await evaluate(`(() => { const sl = document.querySelector('#time'); sl.value = ${minutes}; sl.dispatchEvent(new Event('input')); return true; })()`);
@@ -55,7 +57,7 @@ async function run(minutes) {
   } else if (what === "ending") {
     for (let i = 0; i < 60 && !(await evaluate("document.body.dataset.arrival === 'done'")); i++) await sleep(250);
     await sleep(1500);
-    await evaluate("skycope.storyQA?.sit()");
+    await evaluate("skycope.thread.journey.endNow()");
     const plan = (process.env.AT ?? (minutes === 750 ? "1,4,9,18,24,30,34,45,60,68" : "1,4,9,13.5,15,17,25,35,47,52")).split(",").map(Number);
     let t0 = Date.now();
     for (const at of plan) {
@@ -65,21 +67,26 @@ async function run(minutes) {
     }
   }
   if (page.errors.length) console.log("errors", page.errors.slice(0, 5));
-  await page.close();
-  return shots;
+  if (!last) await page.close();
+  return { shots, page: last ? page : null };
 }
 
 const rows = [];
-for (const m of TIMES) rows.push({ minutes: m, shots: await run(m) });
+let page = null;
+for (const [i, m] of TIMES.entries()) {
+  const done = await run(m, i === TIMES.length - 1);
+  rows.push({ minutes: m, shots: done.shots });
+  page = done.page;
+}
 const tw = 320, th = 200;
 const html = `<!doctype html><meta charset="utf-8"><body style="margin:0;background:#111;color:#eee;font:12px system-ui">
-${rows.map(({ minutes, shots }) => `<div style="padding:4px">${what} · ${name(minutes)} (${minutes} min)</div><div style="display:flex;flex-wrap:wrap;gap:4px;padding:0 4px 4px">${shots.map(({ label, data }) => `<div style="position:relative;width:${tw}px;height:${th}px"><img width="${tw}" height="${th}" src="data:image/jpeg;base64,${data}"><div style="position:absolute;left:6px;top:4px;background:#000a;padding:1px 6px">${label}</div></div>`).join("")}</div>`).join("")}`;
+${rows.map(({ minutes, shots }) => `<div style="padding:4px">${what} · ${name(minutes)} (${minutes} min)</div><div style="display:flex;flex-wrap:wrap;gap:4px;padding:0 4px 4px">${shots.map(({ label, file }) => `<div style="position:relative;width:${tw}px;height:${th}px"><img width="${tw}" height="${th}" src="${file}"><div style="position:absolute;left:6px;top:4px;background:#000a;padding:1px 6px">${label}</div></div>`).join("")}</div>`).join("")}`;
 await writeFile(`${out}/${what}-sheet.html`, html);
-// Render the sheet to a JPEG with the same headless Chrome path.
-const sheet = await openPage({ port, cdp, query: "seed=1847", width: 1320, height: 230 * Math.ceil((rows[0]?.shots.length ?? 1) / 4) * rows.length + 40 });
-await sheet.send("Page.navigate", { url: `file://${resolve(out)}/${what}-sheet.html` });
-await sheet.sleep(1500);
-const r = await sheet.send("Page.captureScreenshot", { format: "jpeg", quality: 80, captureBeyondViewport: true });
+const height = rows.reduce((h, r) => h + 24 + 204 * Math.ceil(r.shots.length / 4), 8);
+await page.send("Emulation.setDeviceMetricsOverride", { width: 1320, height, deviceScaleFactor: 1, mobile: false });
+await page.send("Page.navigate", { url: `file://${resolve(out)}/${what}-sheet.html` });
+await page.sleep(1500);
+const r = await page.send("Page.captureScreenshot", { format: "jpeg", quality: 80 });
 await writeFile(`${out}/${what}-sheet.jpg`, Buffer.from(r.result.data, "base64"));
-await sheet.close();
+await page.close();
 console.log("sheet", `${out}/${what}-sheet.jpg`);

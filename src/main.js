@@ -49,7 +49,7 @@ import { createSea } from "./sea-surface.js";
 import { createWake } from "./wake.js";
 import { createSound } from "./sound.js";
 import { CAT_SCALE } from "./cat-rig.js";
-import { reviewFixture, applyReviewFixture } from "./review-fixtures.js";
+import { reviewFixture, applyReviewFixture, storyFixture, applyStoryFixture } from "./review-fixtures.js";
 // The loading veil (index.html starts it before this module loads).
 import { loading } from "./loading-screen.js";
 // thread: discoveries, score inputs, photo mode, small moments (thread.js).
@@ -717,6 +717,7 @@ async function startAtmosphere() {
   // boat: the fisherman's boat joins the walker (it carries the cat afloat).
   state.boat = state.landscape.boat?.attach({ walker: state.walker, sea: state.sea, magic: state.magic, wake: state.wake }) ?? null;
   applyReviewFixture(state.walker, review, state.landscape.obstacles);
+  applyStoryFixture(state.walker, storyFixture(window.location.search), state.landscape.pois); // story: `?perf&at=beacon`
   state.flight = state.walker.camera;
   loading.progress("world");
   loading.scene({ view: state.flight });
