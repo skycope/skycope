@@ -1,0 +1,33 @@
+[
+  {
+    "firstPaint": 324,
+    "firstContentfulPaint": 1240,
+    "mainRequested": 509,
+    "mainFetched": 577,
+    "marks": {
+      "painted": 509,
+      "start": 3279,
+      "gpu": 3342,
+      "island": 4515,
+      "world": 7033,
+      "view": 7033,
+      "shaders": 7285,
+      "ready": 8434,
+      "shown": 8495
+    },
+    "details": {
+      "view": {
+        "pitch": -0.2788462687157254
+      },
+      "ready": {
+        "pitch": -0.2788462687157254,
+        "veilPitch": -0.2788462687157254
+      }
+    },
+    "states": {
+      "leaving": 8496
+    },
+    "ready": 8434,
+    "timeOrigin": 1794725367911.3
+  }
+]

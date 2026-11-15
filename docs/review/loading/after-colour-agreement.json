@@ -1,0 +1,7592 @@
+[
+  {
+    "scene": "dawn-clear",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 170,
+    "ray": [
+      -0.98061,
+      0.01745,
+      0.19519
+    ],
+    "world": [
+      253,
+      219,
+      166
+    ],
+    "veil": [
+      253,
+      219,
+      167
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 172,
+    "ray": [
+      -0.87913,
+      0.01745,
+      0.47626
+    ],
+    "world": [
+      253,
+      219,
+      166
+    ],
+    "veil": [
+      253,
+      219,
+      166
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 155,
+    "ray": [
+      -0.69912,
+      0.01745,
+      0.71479
+    ],
+    "world": [
+      253,
+      219,
+      166
+    ],
+    "veil": [
+      253,
+      219,
+      167
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 170,
+    "ray": [
+      -0.97703,
+      0.08716,
+      0.19448
+    ],
+    "world": [
+      251,
+      248,
+      206
+    ],
+    "veil": [
+      251,
+      247,
+      205
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.5
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 172,
+    "ray": [
+      -0.87592,
+      0.08716,
+      0.47452
+    ],
+    "world": [
+      251,
+      248,
+      205
+    ],
+    "veil": [
+      251,
+      247,
+      204
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.5
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 155,
+    "ray": [
+      -0.69656,
+      0.08716,
+      0.71218
+    ],
+    "world": [
+      251,
+      249,
+      206
+    ],
+    "veil": [
+      251,
+      248,
+      205
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.5
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 170,
+    "ray": [
+      -0.98061,
+      -0.01745,
+      0.19519
+    ],
+    "world": [
+      244,
+      219,
+      155
+    ],
+    "veil": [
+      247,
+      221,
+      161
+    ],
+    "maxChannel": 6,
+    "deltaE": 2.3
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 172,
+    "ray": [
+      -0.87913,
+      -0.01745,
+      0.47626
+    ],
+    "world": [
+      246,
+      220,
+      158
+    ],
+    "veil": [
+      247,
+      221,
+      161
+    ],
+    "maxChannel": 3,
+    "deltaE": 1.4
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 155,
+    "ray": [
+      -0.69912,
+      -0.01745,
+      0.71479
+    ],
+    "world": [
+      238,
+      206,
+      150
+    ],
+    "veil": [
+      247,
+      222,
+      162
+    ],
+    "maxChannel": 16,
+    "deltaE": 6.1
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 44,
+    "ray": [
+      0.43173,
+      0.01745,
+      -0.90183
+    ],
+    "world": [
+      253,
+      226,
+      173
+    ],
+    "veil": [
+      253,
+      226,
+      173
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.2
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 61,
+    "ray": [
+      0.14594,
+      0.01745,
+      -0.98914
+    ],
+    "world": [
+      253,
+      225,
+      171
+    ],
+    "veil": [
+      253,
+      225,
+      171
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 78,
+    "ray": [
+      -0.15289,
+      0.01745,
+      -0.98809
+    ],
+    "world": [
+      253,
+      225,
+      169
+    ],
+    "veil": [
+      253,
+      225,
+      170
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.2
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 44,
+    "ray": [
+      0.43173,
+      -0.01745,
+      -0.90183
+    ],
+    "world": [
+      176,
+      162,
+      112
+    ],
+    "veil": [
+      248,
+      228,
+      168
+    ],
+    "maxChannel": 72,
+    "deltaE": 24.6
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 61,
+    "ray": [
+      0.14594,
+      -0.01745,
+      -0.98914
+    ],
+    "world": [
+      247,
+      225,
+      163
+    ],
+    "veil": [
+      250,
+      225,
+      167
+    ],
+    "maxChannel": 4,
+    "deltaE": 2.4
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 78,
+    "ray": [
+      -0.15289,
+      -0.01745,
+      -0.98809
+    ],
+    "world": [
+      246,
+      225,
+      163
+    ],
+    "veil": [
+      247,
+      227,
+      167
+    ],
+    "maxChannel": 4,
+    "deltaE": 1.5
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 44,
+    "ray": [
+      0.43121,
+      -0.05234,
+      -0.90073
+    ],
+    "world": [
+      219,
+      224,
+      210
+    ],
+    "veil": [
+      202,
+      218,
+      200
+    ],
+    "maxChannel": 16,
+    "deltaE": 5
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 61,
+    "ray": [
+      0.14576,
+      -0.05234,
+      -0.98793
+    ],
+    "world": [
+      215,
+      229,
+      212
+    ],
+    "veil": [
+      199,
+      214,
+      198
+    ],
+    "maxChannel": 16,
+    "deltaE": 5.3
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 78,
+    "ray": [
+      -0.1527,
+      -0.05234,
+      -0.98689
+    ],
+    "world": [
+      194,
+      210,
+      202
+    ],
+    "veil": [
+      195,
+      211,
+      196
+    ],
+    "maxChannel": 6,
+    "deltaE": 4
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 44,
+    "ray": [
+      0.42759,
+      -0.13917,
+      -0.89319
+    ],
+    "world": [
+      48,
+      93,
+      106
+    ],
+    "veil": [
+      89,
+      128,
+      157
+    ],
+    "maxChannel": 51,
+    "deltaE": 17.9
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 61,
+    "ray": [
+      0.14454,
+      -0.13917,
+      -0.97966
+    ],
+    "world": [
+      75,
+      122,
+      140
+    ],
+    "veil": [
+      87,
+      126,
+      156
+    ],
+    "maxChannel": 16,
+    "deltaE": 8.3
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 78,
+    "ray": [
+      -0.15143,
+      -0.13917,
+      -0.97862
+    ],
+    "world": [
+      162,
+      189,
+      196
+    ],
+    "veil": [
+      86,
+      125,
+      155
+    ],
+    "maxChannel": 76,
+    "deltaE": 27.8
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 44,
+    "ray": [
+      0.41708,
+      -0.25882,
+      -0.87124
+    ],
+    "world": [
+      157,
+      162,
+      140
+    ],
+    "veil": [
+      33,
+      94,
+      132
+    ],
+    "maxChannel": 124,
+    "deltaE": 46.8
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 61,
+    "ray": [
+      0.14099,
+      -0.25882,
+      -0.95558
+    ],
+    "world": [
+      167,
+      190,
+      185
+    ],
+    "veil": [
+      32,
+      94,
+      132
+    ],
+    "maxChannel": 135,
+    "deltaE": 46.1
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 78,
+    "ray": [
+      -0.1477,
+      -0.25882,
+      -0.95457
+    ],
+    "world": [
+      177,
+      183,
+      163
+    ],
+    "veil": [
+      32,
+      93,
+      132
+    ],
+    "maxChannel": 145,
+    "deltaE": 51.3
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 177,
+    "ray": [
+      -0.67199,
+      0.70711,
+      0.22007
+    ],
+    "world": [
+      151,
+      180,
+      218
+    ],
+    "veil": [
+      152,
+      181,
+      219
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.4
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 172,
+    "ray": [
+      -0.62173,
+      0.70711,
+      0.33682
+    ],
+    "world": [
+      151,
+      181,
+      219
+    ],
+    "veil": [
+      152,
+      181,
+      219
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.2
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 162,
+    "ray": [
+      -0.55139,
+      0.70711,
+      0.44269
+    ],
+    "world": [
+      151,
+      180,
+      219
+    ],
+    "veil": [
+      151,
+      180,
+      219
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.2
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 177,
+    "ray": [
+      -0.47517,
+      0.86603,
+      0.15561
+    ],
+    "world": [
+      134,
+      163,
+      202
+    ],
+    "veil": [
+      135,
+      163,
+      202
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 172,
+    "ray": [
+      -0.43963,
+      0.86603,
+      0.23817
+    ],
+    "world": [
+      134,
+      163,
+      202
+    ],
+    "veil": [
+      135,
+      163,
+      202
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 162,
+    "ray": [
+      -0.38989,
+      0.86603,
+      0.31303
+    ],
+    "world": [
+      134,
+      163,
+      202
+    ],
+    "veil": [
+      135,
+      163,
+      202
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 177,
+    "ray": [
+      -0.03317,
+      0.99939,
+      0.01086
+    ],
+    "world": [
+      123,
+      151,
+      189
+    ],
+    "veil": [
+      123,
+      151,
+      189
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 172,
+    "ray": [
+      -0.03069,
+      0.99939,
+      0.01662
+    ],
+    "world": [
+      123,
+      151,
+      189
+    ],
+    "veil": [
+      123,
+      151,
+      190
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "dawn-clear",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 162,
+    "ray": [
+      -0.02721,
+      0.99939,
+      0.02185
+    ],
+    "world": [
+      123,
+      151,
+      189
+    ],
+    "veil": [
+      123,
+      151,
+      190
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "noon-clear",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 79,
+    "ray": [
+      -0.98061,
+      0.01745,
+      0.19519
+    ],
+    "world": [
+      228,
+      248,
+      243
+    ],
+    "veil": [
+      228,
+      248,
+      243
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.3
+  },
+  {
+    "scene": "noon-clear",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 62,
+    "ray": [
+      -0.87913,
+      0.01745,
+      0.47626
+    ],
+    "world": [
+      228,
+      248,
+      243
+    ],
+    "veil": [
+      228,
+      248,
+      243
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.3
+  },
+  {
+    "scene": "noon-clear",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 45,
+    "ray": [
+      -0.69912,
+      0.01745,
+      0.71479
+    ],
+    "world": [
+      228,
+      248,
+      243
+    ],
+    "veil": [
+      228,
+      248,
+      244
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.3
+  },
+  {
+    "scene": "noon-clear",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 79,
+    "ray": [
+      -0.97703,
+      0.08716,
+      0.19448
+    ],
+    "world": [
+      182,
+      224,
+      248
+    ],
+    "veil": [
+      183,
+      224,
+      248
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.3
+  },
+  {
+    "scene": "noon-clear",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 62,
+    "ray": [
+      -0.87592,
+      0.08716,
+      0.47452
+    ],
+    "world": [
+      183,
+      224,
+      248
+    ],
+    "veil": [
+      184,
+      225,
+      248
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.3
+  },
+  {
+    "scene": "noon-clear",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 45,
+    "ray": [
+      -0.69656,
+      0.08716,
+      0.71218
+    ],
+    "world": [
+      183,
+      224,
+      248
+    ],
+    "veil": [
+      183,
+      225,
+      248
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.3
+  },
+  {
+    "scene": "noon-clear",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 79,
+    "ray": [
+      -0.98061,
+      -0.01745,
+      0.19519
+    ],
+    "world": [
+      177,
+      207,
+      215
+    ],
+    "veil": [
+      181,
+      213,
+      224
+    ],
+    "maxChannel": 9,
+    "deltaE": 2.7
+  },
+  {
+    "scene": "noon-clear",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 62,
+    "ray": [
+      -0.87913,
+      -0.01745,
+      0.47626
+    ],
+    "world": [
+      180,
+      211,
+      219
+    ],
+    "veil": [
+      182,
+      214,
+      224
+    ],
+    "maxChannel": 5,
+    "deltaE": 1.7
+  },
+  {
+    "scene": "noon-clear",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 45,
+    "ray": [
+      -0.69912,
+      -0.01745,
+      0.71479
+    ],
+    "world": [
+      205,
+      223,
+      222
+    ],
+    "veil": [
+      181,
+      214,
+      224
+    ],
+    "maxChannel": 24,
+    "deltaE": 8.6
+  },
+  {
+    "scene": "noon-clear",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 154,
+    "ray": [
+      0.43173,
+      0.01745,
+      -0.90183
+    ],
+    "world": [
+      228,
+      248,
+      243
+    ],
+    "veil": [
+      228,
+      248,
+      244
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.3
+  },
+  {
+    "scene": "noon-clear",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 171,
+    "ray": [
+      0.14594,
+      0.01745,
+      -0.98914
+    ],
+    "world": [
+      228,
+      248,
+      243
+    ],
+    "veil": [
+      228,
+      248,
+      244
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.3
+  },
+  {
+    "scene": "noon-clear",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 172,
+    "ray": [
+      -0.15289,
+      0.01745,
+      -0.98809
+    ],
+    "world": [
+      228,
+      248,
+      243
+    ],
+    "veil": [
+      228,
+      248,
+      244
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.2
+  },
+  {
+    "scene": "noon-clear",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 154,
+    "ray": [
+      0.43173,
+      -0.01745,
+      -0.90183
+    ],
+    "world": [
+      119,
+      147,
+      150
+    ],
+    "veil": [
+      182,
+      214,
+      225
+    ],
+    "maxChannel": 74,
+    "deltaE": 25
+  },
+  {
+    "scene": "noon-clear",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 171,
+    "ray": [
+      0.14594,
+      -0.01745,
+      -0.98914
+    ],
+    "world": [
+      184,
+      212,
+      219
+    ],
+    "veil": [
+      208,
+      215,
+      202
+    ],
+    "maxChannel": 24,
+    "deltaE": 12.8
+  },
+  {
+    "scene": "noon-clear",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 172,
+    "ray": [
+      -0.15289,
+      -0.01745,
+      -0.98809
+    ],
+    "world": [
+      182,
+      211,
+      219
+    ],
+    "veil": [
+      182,
+      214,
+      225
+    ],
+    "maxChannel": 6,
+    "deltaE": 1.7
+  },
+  {
+    "scene": "noon-clear",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 154,
+    "ray": [
+      0.43121,
+      -0.05234,
+      -0.90073
+    ],
+    "world": [
+      127,
+      167,
+      203
+    ],
+    "veil": [
+      117,
+      161,
+      195
+    ],
+    "maxChannel": 10,
+    "deltaE": 3
+  },
+  {
+    "scene": "noon-clear",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 171,
+    "ray": [
+      0.14576,
+      -0.05234,
+      -0.98793
+    ],
+    "world": [
+      133,
+      178,
+      214
+    ],
+    "veil": [
+      117,
+      162,
+      196
+    ],
+    "maxChannel": 19,
+    "deltaE": 6.2
+  },
+  {
+    "scene": "noon-clear",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 172,
+    "ray": [
+      -0.1527,
+      -0.05234,
+      -0.98689
+    ],
+    "world": [
+      126,
+      171,
+      206
+    ],
+    "veil": [
+      117,
+      161,
+      195
+    ],
+    "maxChannel": 11,
+    "deltaE": 3.5
+  },
+  {
+    "scene": "noon-clear",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 154,
+    "ray": [
+      0.42759,
+      -0.13917,
+      -0.89319
+    ],
+    "world": [
+      34,
+      142,
+      148
+    ],
+    "veil": [
+      35,
+      92,
+      139
+    ],
+    "maxChannel": 50,
+    "deltaE": 36
+  },
+  {
+    "scene": "noon-clear",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 171,
+    "ray": [
+      0.14454,
+      -0.13917,
+      -0.97966
+    ],
+    "world": [
+      65,
+      172,
+      172
+    ],
+    "veil": [
+      34,
+      92,
+      139
+    ],
+    "maxChannel": 80,
+    "deltaE": 45.3
+  },
+  {
+    "scene": "noon-clear",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 172,
+    "ray": [
+      -0.15143,
+      -0.13917,
+      -0.97862
+    ],
+    "world": [
+      127,
+      191,
+      210
+    ],
+    "veil": [
+      35,
+      92,
+      139
+    ],
+    "maxChannel": 100,
+    "deltaE": 42.2
+  },
+  {
+    "scene": "noon-clear",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 154,
+    "ray": [
+      0.41708,
+      -0.25882,
+      -0.87124
+    ],
+    "world": [
+      148,
+      200,
+      201
+    ],
+    "veil": [
+      9,
+      75,
+      121
+    ],
+    "maxChannel": 139,
+    "deltaE": 55.6
+  },
+  {
+    "scene": "noon-clear",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 171,
+    "ray": [
+      0.14099,
+      -0.25882,
+      -0.95558
+    ],
+    "world": [
+      153,
+      207,
+      211
+    ],
+    "veil": [
+      9,
+      75,
+      121
+    ],
+    "maxChannel": 144,
+    "deltaE": 56.8
+  },
+  {
+    "scene": "noon-clear",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 172,
+    "ray": [
+      -0.1477,
+      -0.25882,
+      -0.95457
+    ],
+    "world": [
+      152,
+      200,
+      203
+    ],
+    "veil": [
+      9,
+      75,
+      121
+    ],
+    "maxChannel": 142,
+    "deltaE": 55
+  },
+  {
+    "scene": "noon-clear",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 72,
+    "ray": [
+      -0.67199,
+      0.70711,
+      0.22007
+    ],
+    "world": [
+      85,
+      132,
+      190
+    ],
+    "veil": [
+      85,
+      133,
+      191
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.2
+  },
+  {
+    "scene": "noon-clear",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 62,
+    "ray": [
+      -0.62173,
+      0.70711,
+      0.33682
+    ],
+    "world": [
+      86,
+      133,
+      191
+    ],
+    "veil": [
+      86,
+      133,
+      192
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.2
+  },
+  {
+    "scene": "noon-clear",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 52,
+    "ray": [
+      -0.55139,
+      0.70711,
+      0.44269
+    ],
+    "world": [
+      86,
+      133,
+      192
+    ],
+    "veil": [
+      87,
+      134,
+      192
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "noon-clear",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 72,
+    "ray": [
+      -0.47517,
+      0.86603,
+      0.15561
+    ],
+    "world": [
+      77,
+      122,
+      179
+    ],
+    "veil": [
+      77,
+      123,
+      180
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "noon-clear",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 62,
+    "ray": [
+      -0.43963,
+      0.86603,
+      0.23817
+    ],
+    "world": [
+      78,
+      123,
+      180
+    ],
+    "veil": [
+      78,
+      124,
+      180
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.2
+  },
+  {
+    "scene": "noon-clear",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 52,
+    "ray": [
+      -0.38989,
+      0.86603,
+      0.31303
+    ],
+    "world": [
+      79,
+      124,
+      181
+    ],
+    "veil": [
+      80,
+      124,
+      181
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "noon-clear",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 72,
+    "ray": [
+      -0.03317,
+      0.99939,
+      0.01086
+    ],
+    "world": [
+      78,
+      120,
+      174
+    ],
+    "veil": [
+      78,
+      119,
+      174
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "noon-clear",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 62,
+    "ray": [
+      -0.03069,
+      0.99939,
+      0.01662
+    ],
+    "world": [
+      78,
+      120,
+      174
+    ],
+    "veil": [
+      78,
+      120,
+      174
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "noon-clear",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 52,
+    "ray": [
+      -0.02721,
+      0.99939,
+      0.02185
+    ],
+    "world": [
+      79,
+      120,
+      174
+    ],
+    "veil": [
+      79,
+      120,
+      174
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "golden-clear",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 31,
+    "ray": [
+      -0.98061,
+      0.01745,
+      0.19519
+    ],
+    "world": [
+      253,
+      231,
+      181
+    ],
+    "veil": [
+      253,
+      231,
+      182
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.2
+  },
+  {
+    "scene": "golden-clear",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 49,
+    "ray": [
+      -0.87913,
+      0.01745,
+      0.47626
+    ],
+    "world": [
+      253,
+      231,
+      180
+    ],
+    "veil": [
+      253,
+      231,
+      180
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.3
+  },
+  {
+    "scene": "golden-clear",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 66,
+    "ray": [
+      -0.69912,
+      0.01745,
+      0.71479
+    ],
+    "world": [
+      253,
+      231,
+      179
+    ],
+    "veil": [
+      253,
+      231,
+      179
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.2
+  },
+  {
+    "scene": "golden-clear",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 31,
+    "ray": [
+      -0.97703,
+      0.08716,
+      0.19448
+    ],
+    "world": [
+      242,
+      251,
+      220
+    ],
+    "veil": [
+      243,
+      251,
+      220
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.4
+  },
+  {
+    "scene": "golden-clear",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 49,
+    "ray": [
+      -0.87592,
+      0.08716,
+      0.47452
+    ],
+    "world": [
+      241,
+      251,
+      220
+    ],
+    "veil": [
+      242,
+      251,
+      219
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.4
+  },
+  {
+    "scene": "golden-clear",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 66,
+    "ray": [
+      -0.69656,
+      0.08716,
+      0.71218
+    ],
+    "world": [
+      240,
+      251,
+      220
+    ],
+    "veil": [
+      241,
+      251,
+      220
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.4
+  },
+  {
+    "scene": "golden-clear",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 31,
+    "ray": [
+      -0.98061,
+      -0.01745,
+      0.19519
+    ],
+    "world": [
+      245,
+      231,
+      175
+    ],
+    "veil": [
+      248,
+      235,
+      181
+    ],
+    "maxChannel": 6,
+    "deltaE": 1.9
+  },
+  {
+    "scene": "golden-clear",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 49,
+    "ray": [
+      -0.87913,
+      -0.01745,
+      0.47626
+    ],
+    "world": [
+      245,
+      233,
+      178
+    ],
+    "veil": [
+      247,
+      236,
+      182
+    ],
+    "maxChannel": 4,
+    "deltaE": 1.2
+  },
+  {
+    "scene": "golden-clear",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 66,
+    "ray": [
+      -0.69912,
+      -0.01745,
+      0.71479
+    ],
+    "world": [
+      237,
+      217,
+      167
+    ],
+    "veil": [
+      246,
+      236,
+      183
+    ],
+    "maxChannel": 19,
+    "deltaE": 7.2
+  },
+  {
+    "scene": "golden-clear",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 95,
+    "ray": [
+      0.43173,
+      0.01745,
+      -0.90183
+    ],
+    "world": [
+      253,
+      230,
+      177
+    ],
+    "veil": [
+      253,
+      230,
+      178
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.3
+  },
+  {
+    "scene": "golden-clear",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 78,
+    "ray": [
+      0.14594,
+      0.01745,
+      -0.98914
+    ],
+    "world": [
+      253,
+      230,
+      178
+    ],
+    "veil": [
+      253,
+      231,
+      178
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.2
+  },
+  {
+    "scene": "golden-clear",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 61,
+    "ray": [
+      -0.15289,
+      0.01745,
+      -0.98809
+    ],
+    "world": [
+      253,
+      231,
+      179
+    ],
+    "veil": [
+      253,
+      232,
+      180
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.3
+  },
+  {
+    "scene": "golden-clear",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 95,
+    "ray": [
+      0.43173,
+      -0.01745,
+      -0.90183
+    ],
+    "world": [
+      169,
+      163,
+      121
+    ],
+    "veil": [
+      246,
+      234,
+      181
+    ],
+    "maxChannel": 77,
+    "deltaE": 26.4
+  },
+  {
+    "scene": "golden-clear",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 78,
+    "ray": [
+      0.14594,
+      -0.01745,
+      -0.98914
+    ],
+    "world": [
+      245,
+      231,
+      175
+    ],
+    "veil": [
+      249,
+      230,
+      176
+    ],
+    "maxChannel": 4,
+    "deltaE": 2.5
+  },
+  {
+    "scene": "golden-clear",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 61,
+    "ray": [
+      -0.15289,
+      -0.01745,
+      -0.98809
+    ],
+    "world": [
+      245,
+      232,
+      176
+    ],
+    "veil": [
+      246,
+      236,
+      182
+    ],
+    "maxChannel": 6,
+    "deltaE": 1.9
+  },
+  {
+    "scene": "golden-clear",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 95,
+    "ray": [
+      0.43121,
+      -0.05234,
+      -0.90073
+    ],
+    "world": [
+      207,
+      224,
+      217
+    ],
+    "veil": [
+      190,
+      212,
+      204
+    ],
+    "maxChannel": 17,
+    "deltaE": 5
+  },
+  {
+    "scene": "golden-clear",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 78,
+    "ray": [
+      0.14576,
+      -0.05234,
+      -0.98793
+    ],
+    "world": [
+      197,
+      216,
+      208
+    ],
+    "veil": [
+      191,
+      214,
+      205
+    ],
+    "maxChannel": 6,
+    "deltaE": 1.6
+  },
+  {
+    "scene": "golden-clear",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 61,
+    "ray": [
+      -0.1527,
+      -0.05234,
+      -0.98689
+    ],
+    "world": [
+      181,
+      205,
+      208
+    ],
+    "veil": [
+      193,
+      216,
+      207
+    ],
+    "maxChannel": 13,
+    "deltaE": 7.8
+  },
+  {
+    "scene": "golden-clear",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 95,
+    "ray": [
+      0.42759,
+      -0.13917,
+      -0.89319
+    ],
+    "world": [
+      41,
+      92,
+      110
+    ],
+    "veil": [
+      83,
+      126,
+      159
+    ],
+    "maxChannel": 50,
+    "deltaE": 17.3
+  },
+  {
+    "scene": "golden-clear",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 78,
+    "ray": [
+      0.14454,
+      -0.13917,
+      -0.97966
+    ],
+    "world": [
+      93,
+      139,
+      158
+    ],
+    "veil": [
+      82,
+      126,
+      159
+    ],
+    "maxChannel": 13,
+    "deltaE": 9.9
+  },
+  {
+    "scene": "golden-clear",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 61,
+    "ray": [
+      -0.15143,
+      -0.13917,
+      -0.97862
+    ],
+    "world": [
+      130,
+      167,
+      184
+    ],
+    "veil": [
+      84,
+      127,
+      160
+    ],
+    "maxChannel": 45,
+    "deltaE": 17.9
+  },
+  {
+    "scene": "golden-clear",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 95,
+    "ray": [
+      0.41708,
+      -0.25882,
+      -0.87124
+    ],
+    "world": [
+      103,
+      134,
+      137
+    ],
+    "veil": [
+      30,
+      94,
+      135
+    ],
+    "maxChannel": 73,
+    "deltaE": 28.4
+  },
+  {
+    "scene": "golden-clear",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 78,
+    "ray": [
+      0.14099,
+      -0.25882,
+      -0.95558
+    ],
+    "world": [
+      78,
+      117,
+      121
+    ],
+    "veil": [
+      30,
+      94,
+      135
+    ],
+    "maxChannel": 47,
+    "deltaE": 24.7
+  },
+  {
+    "scene": "golden-clear",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 61,
+    "ray": [
+      -0.1477,
+      -0.25882,
+      -0.95457
+    ],
+    "world": [
+      100,
+      133,
+      144
+    ],
+    "veil": [
+      30,
+      94,
+      135
+    ],
+    "maxChannel": 70,
+    "deltaE": 24.6
+  },
+  {
+    "scene": "golden-clear",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 38,
+    "ray": [
+      -0.67199,
+      0.70711,
+      0.22007
+    ],
+    "world": [
+      147,
+      181,
+      224
+    ],
+    "veil": [
+      147,
+      182,
+      225
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.4
+  },
+  {
+    "scene": "golden-clear",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 49,
+    "ray": [
+      -0.62173,
+      0.70711,
+      0.33682
+    ],
+    "world": [
+      146,
+      180,
+      223
+    ],
+    "veil": [
+      146,
+      181,
+      224
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.2
+  },
+  {
+    "scene": "golden-clear",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 59,
+    "ray": [
+      -0.55139,
+      0.70711,
+      0.44269
+    ],
+    "world": [
+      145,
+      179,
+      222
+    ],
+    "veil": [
+      145,
+      180,
+      223
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.2
+  },
+  {
+    "scene": "golden-clear",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 38,
+    "ray": [
+      -0.47517,
+      0.86603,
+      0.15561
+    ],
+    "world": [
+      131,
+      164,
+      207
+    ],
+    "veil": [
+      131,
+      164,
+      207
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.2
+  },
+  {
+    "scene": "golden-clear",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 49,
+    "ray": [
+      -0.43963,
+      0.86603,
+      0.23817
+    ],
+    "world": [
+      130,
+      163,
+      206
+    ],
+    "veil": [
+      131,
+      164,
+      206
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "golden-clear",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 59,
+    "ray": [
+      -0.38989,
+      0.86603,
+      0.31303
+    ],
+    "world": [
+      130,
+      163,
+      206
+    ],
+    "veil": [
+      130,
+      163,
+      206
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "golden-clear",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 38,
+    "ray": [
+      -0.03317,
+      0.99939,
+      0.01086
+    ],
+    "world": [
+      120,
+      151,
+      193
+    ],
+    "veil": [
+      120,
+      152,
+      194
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "golden-clear",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 49,
+    "ray": [
+      -0.03069,
+      0.99939,
+      0.01662
+    ],
+    "world": [
+      119,
+      151,
+      193
+    ],
+    "veil": [
+      120,
+      152,
+      194
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "golden-clear",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 59,
+    "ray": [
+      -0.02721,
+      0.99939,
+      0.02185
+    ],
+    "world": [
+      119,
+      151,
+      193
+    ],
+    "veil": [
+      120,
+      152,
+      194
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 37,
+    "ray": [
+      -0.98061,
+      0.01745,
+      0.19519
+    ],
+    "world": [
+      245,
+      133,
+      59
+    ],
+    "veil": [
+      245,
+      134,
+      60
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.4
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 55,
+    "ray": [
+      -0.87913,
+      0.01745,
+      0.47626
+    ],
+    "world": [
+      242,
+      123,
+      48
+    ],
+    "veil": [
+      242,
+      124,
+      49
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.6
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 72,
+    "ray": [
+      -0.69912,
+      0.01745,
+      0.71479
+    ],
+    "world": [
+      235,
+      110,
+      36
+    ],
+    "veil": [
+      235,
+      112,
+      37
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.8
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 37,
+    "ray": [
+      -0.97703,
+      0.08716,
+      0.19448
+    ],
+    "world": [
+      234,
+      170,
+      107
+    ],
+    "veil": [
+      234,
+      169,
+      106
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.6
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 55,
+    "ray": [
+      -0.87592,
+      0.08716,
+      0.47452
+    ],
+    "world": [
+      230,
+      162,
+      99
+    ],
+    "veil": [
+      231,
+      162,
+      99
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.6
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 72,
+    "ray": [
+      -0.69656,
+      0.08716,
+      0.71218
+    ],
+    "world": [
+      224,
+      153,
+      91
+    ],
+    "veil": [
+      225,
+      153,
+      90
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.7
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 37,
+    "ray": [
+      -0.98061,
+      -0.01745,
+      0.19519
+    ],
+    "world": [
+      179,
+      107,
+      49
+    ],
+    "veil": [
+      182,
+      109,
+      57
+    ],
+    "maxChannel": 7,
+    "deltaE": 2.9
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 55,
+    "ray": [
+      -0.87913,
+      -0.01745,
+      0.47626
+    ],
+    "world": [
+      176,
+      102,
+      49
+    ],
+    "veil": [
+      175,
+      100,
+      54
+    ],
+    "maxChannel": 4,
+    "deltaE": 3
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 72,
+    "ray": [
+      -0.69912,
+      -0.01745,
+      0.71479
+    ],
+    "world": [
+      172,
+      81,
+      37
+    ],
+    "veil": [
+      164,
+      90,
+      50
+    ],
+    "maxChannel": 13,
+    "deltaE": 9.8
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 89,
+    "ray": [
+      0.43173,
+      0.01745,
+      -0.90183
+    ],
+    "world": [
+      213,
+      90,
+      31
+    ],
+    "veil": [
+      215,
+      93,
+      32
+    ],
+    "maxChannel": 3,
+    "deltaE": 1.1
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 72,
+    "ray": [
+      0.14594,
+      0.01745,
+      -0.98914
+    ],
+    "world": [
+      234,
+      109,
+      36
+    ],
+    "veil": [
+      235,
+      111,
+      37
+    ],
+    "maxChannel": 2,
+    "deltaE": 0.8
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 55,
+    "ray": [
+      -0.15289,
+      0.01745,
+      -0.98809
+    ],
+    "world": [
+      242,
+      124,
+      48
+    ],
+    "veil": [
+      242,
+      125,
+      49
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.7
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 89,
+    "ray": [
+      0.43173,
+      -0.01745,
+      -0.90183
+    ],
+    "world": [
+      100,
+      51,
+      21
+    ],
+    "veil": [
+      152,
+      77,
+      45
+    ],
+    "maxChannel": 52,
+    "deltaE": 17.7
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 72,
+    "ray": [
+      0.14594,
+      -0.01745,
+      -0.98914
+    ],
+    "world": [
+      171,
+      92,
+      44
+    ],
+    "veil": [
+      196,
+      136,
+      91
+    ],
+    "maxChannel": 47,
+    "deltaE": 18.9
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 55,
+    "ray": [
+      -0.15289,
+      -0.01745,
+      -0.98809
+    ],
+    "world": [
+      176,
+      101,
+      48
+    ],
+    "veil": [
+      174,
+      100,
+      53
+    ],
+    "maxChannel": 5,
+    "deltaE": 3
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 89,
+    "ray": [
+      0.43121,
+      -0.05234,
+      -0.90073
+    ],
+    "world": [
+      122,
+      86,
+      71
+    ],
+    "veil": [
+      115,
+      79,
+      66
+    ],
+    "maxChannel": 8,
+    "deltaE": 2.9
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 72,
+    "ray": [
+      0.14576,
+      -0.05234,
+      -0.98793
+    ],
+    "world": [
+      137,
+      99,
+      79
+    ],
+    "veil": [
+      120,
+      86,
+      71
+    ],
+    "maxChannel": 17,
+    "deltaE": 6.4
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 55,
+    "ray": [
+      -0.1527,
+      -0.05234,
+      -0.98689
+    ],
+    "world": [
+      126,
+      95,
+      81
+    ],
+    "veil": [
+      124,
+      92,
+      75
+    ],
+    "maxChannel": 6,
+    "deltaE": 2.1
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 89,
+    "ray": [
+      0.42759,
+      -0.13917,
+      -0.89319
+    ],
+    "world": [
+      11,
+      28,
+      39
+    ],
+    "veil": [
+      39,
+      40,
+      59
+    ],
+    "maxChannel": 28,
+    "deltaE": 10.7
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 72,
+    "ray": [
+      0.14454,
+      -0.13917,
+      -0.97966
+    ],
+    "world": [
+      28,
+      40,
+      52
+    ],
+    "veil": [
+      40,
+      41,
+      60
+    ],
+    "maxChannel": 11,
+    "deltaE": 6.3
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 55,
+    "ray": [
+      -0.15143,
+      -0.13917,
+      -0.97862
+    ],
+    "world": [
+      100,
+      83,
+      83
+    ],
+    "veil": [
+      41,
+      43,
+      61
+    ],
+    "maxChannel": 59,
+    "deltaE": 24
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 89,
+    "ray": [
+      0.41708,
+      -0.25882,
+      -0.87124
+    ],
+    "world": [
+      93,
+      61,
+      45
+    ],
+    "veil": [
+      12,
+      36,
+      57
+    ],
+    "maxChannel": 81,
+    "deltaE": 37.7
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 72,
+    "ray": [
+      0.14099,
+      -0.25882,
+      -0.95558
+    ],
+    "world": [
+      104,
+      78,
+      66
+    ],
+    "veil": [
+      12,
+      36,
+      57
+    ],
+    "maxChannel": 92,
+    "deltaE": 36.9
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 55,
+    "ray": [
+      -0.1477,
+      -0.25882,
+      -0.95457
+    ],
+    "world": [
+      123,
+      69,
+      53
+    ],
+    "veil": [
+      12,
+      36,
+      58
+    ],
+    "maxChannel": 111,
+    "deltaE": 48
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 44,
+    "ray": [
+      -0.67199,
+      0.70711,
+      0.22007
+    ],
+    "world": [
+      90,
+      78,
+      98
+    ],
+    "veil": [
+      92,
+      80,
+      100
+    ],
+    "maxChannel": 2,
+    "deltaE": 0.8
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 55,
+    "ray": [
+      -0.62173,
+      0.70711,
+      0.33682
+    ],
+    "world": [
+      90,
+      77,
+      97
+    ],
+    "veil": [
+      91,
+      79,
+      99
+    ],
+    "maxChannel": 2,
+    "deltaE": 0.7
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 65,
+    "ray": [
+      -0.55139,
+      0.70711,
+      0.44269
+    ],
+    "world": [
+      89,
+      77,
+      97
+    ],
+    "veil": [
+      91,
+      78,
+      98
+    ],
+    "maxChannel": 2,
+    "deltaE": 0.7
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 44,
+    "ray": [
+      -0.47517,
+      0.86603,
+      0.15561
+    ],
+    "world": [
+      80,
+      70,
+      92
+    ],
+    "veil": [
+      82,
+      72,
+      94
+    ],
+    "maxChannel": 2,
+    "deltaE": 0.7
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 55,
+    "ray": [
+      -0.43963,
+      0.86603,
+      0.23817
+    ],
+    "world": [
+      79,
+      68,
+      89
+    ],
+    "veil": [
+      80,
+      69,
+      90
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.6
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 65,
+    "ray": [
+      -0.38989,
+      0.86603,
+      0.31303
+    ],
+    "world": [
+      78,
+      66,
+      88
+    ],
+    "veil": [
+      79,
+      68,
+      89
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.6
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 44,
+    "ray": [
+      -0.03317,
+      0.99939,
+      0.01086
+    ],
+    "world": [
+      69,
+      58,
+      79
+    ],
+    "veil": [
+      71,
+      59,
+      81
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.7
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 55,
+    "ray": [
+      -0.03069,
+      0.99939,
+      0.01662
+    ],
+    "world": [
+      69,
+      58,
+      80
+    ],
+    "veil": [
+      71,
+      59,
+      81
+    ],
+    "maxChannel": 2,
+    "deltaE": 0.7
+  },
+  {
+    "scene": "dusk-clear",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 65,
+    "ray": [
+      -0.02721,
+      0.99939,
+      0.02185
+    ],
+    "world": [
+      69,
+      58,
+      80
+    ],
+    "veil": [
+      71,
+      59,
+      81
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.6
+  },
+  {
+    "scene": "night-clear",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 61,
+    "ray": [
+      -0.98061,
+      0.01745,
+      0.19519
+    ],
+    "world": [
+      42,
+      56,
+      79
+    ],
+    "veil": [
+      42,
+      56,
+      79
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "night-clear",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 78,
+    "ray": [
+      -0.87913,
+      0.01745,
+      0.47626
+    ],
+    "world": [
+      41,
+      55,
+      78
+    ],
+    "veil": [
+      41,
+      55,
+      78
+    ],
+    "maxChannel": 0,
+    "deltaE": 0
+  },
+  {
+    "scene": "night-clear",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 95,
+    "ray": [
+      -0.69912,
+      0.01745,
+      0.71479
+    ],
+    "world": [
+      40,
+      54,
+      77
+    ],
+    "veil": [
+      40,
+      54,
+      77
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "night-clear",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 61,
+    "ray": [
+      -0.97703,
+      0.08716,
+      0.19448
+    ],
+    "world": [
+      34,
+      48,
+      71
+    ],
+    "veil": [
+      33,
+      48,
+      71
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.2
+  },
+  {
+    "scene": "night-clear",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 78,
+    "ray": [
+      -0.87592,
+      0.08716,
+      0.47452
+    ],
+    "world": [
+      33,
+      47,
+      70
+    ],
+    "veil": [
+      33,
+      47,
+      70
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "night-clear",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 95,
+    "ray": [
+      -0.69656,
+      0.08716,
+      0.71218
+    ],
+    "world": [
+      32,
+      46,
+      69
+    ],
+    "veil": [
+      32,
+      46,
+      69
+    ],
+    "maxChannel": 0,
+    "deltaE": 0
+  },
+  {
+    "scene": "night-clear",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 61,
+    "ray": [
+      -0.98061,
+      -0.01745,
+      0.19519
+    ],
+    "world": [
+      30,
+      44,
+      65
+    ],
+    "veil": [
+      18,
+      35,
+      56
+    ],
+    "maxChannel": 12,
+    "deltaE": 4.7
+  },
+  {
+    "scene": "night-clear",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 78,
+    "ray": [
+      -0.87913,
+      -0.01745,
+      0.47626
+    ],
+    "world": [
+      26,
+      41,
+      62
+    ],
+    "veil": [
+      18,
+      34,
+      55
+    ],
+    "maxChannel": 8,
+    "deltaE": 3.2
+  },
+  {
+    "scene": "night-clear",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 95,
+    "ray": [
+      -0.69912,
+      -0.01745,
+      0.71479
+    ],
+    "world": [
+      30,
+      45,
+      66
+    ],
+    "veil": [
+      17,
+      34,
+      55
+    ],
+    "maxChannel": 13,
+    "deltaE": 5.3
+  },
+  {
+    "scene": "night-clear",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 66,
+    "ray": [
+      0.43173,
+      0.01745,
+      -0.90183
+    ],
+    "world": [
+      39,
+      53,
+      76
+    ],
+    "veil": [
+      39,
+      53,
+      75
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "night-clear",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 49,
+    "ray": [
+      0.14594,
+      0.01745,
+      -0.98914
+    ],
+    "world": [
+      38,
+      53,
+      75
+    ],
+    "veil": [
+      38,
+      52,
+      75
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "night-clear",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 31,
+    "ray": [
+      -0.15289,
+      0.01745,
+      -0.98809
+    ],
+    "world": [
+      39,
+      53,
+      76
+    ],
+    "veil": [
+      39,
+      53,
+      75
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "night-clear",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 66,
+    "ray": [
+      0.43173,
+      -0.01745,
+      -0.90183
+    ],
+    "world": [
+      10,
+      22,
+      38
+    ],
+    "veil": [
+      17,
+      33,
+      55
+    ],
+    "maxChannel": 16,
+    "deltaE": 6.4
+  },
+  {
+    "scene": "night-clear",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 49,
+    "ray": [
+      0.14594,
+      -0.01745,
+      -0.98914
+    ],
+    "world": [
+      26,
+      40,
+      62
+    ],
+    "veil": [
+      104,
+      101,
+      94
+    ],
+    "maxChannel": 78,
+    "deltaE": 33.6
+  },
+  {
+    "scene": "night-clear",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 31,
+    "ray": [
+      -0.15289,
+      -0.01745,
+      -0.98809
+    ],
+    "world": [
+      25,
+      40,
+      61
+    ],
+    "veil": [
+      17,
+      33,
+      54
+    ],
+    "maxChannel": 8,
+    "deltaE": 3.2
+  },
+  {
+    "scene": "night-clear",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 66,
+    "ray": [
+      0.43121,
+      -0.05234,
+      -0.90073
+    ],
+    "world": [
+      13,
+      28,
+      48
+    ],
+    "veil": [
+      9,
+      26,
+      46
+    ],
+    "maxChannel": 4,
+    "deltaE": 1.1
+  },
+  {
+    "scene": "night-clear",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 49,
+    "ray": [
+      0.14576,
+      -0.05234,
+      -0.98793
+    ],
+    "world": [
+      12,
+      27,
+      46
+    ],
+    "veil": [
+      9,
+      26,
+      46
+    ],
+    "maxChannel": 4,
+    "deltaE": 1
+  },
+  {
+    "scene": "night-clear",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 31,
+    "ray": [
+      -0.1527,
+      -0.05234,
+      -0.98689
+    ],
+    "world": [
+      10,
+      24,
+      43
+    ],
+    "veil": [
+      9,
+      26,
+      46
+    ],
+    "maxChannel": 3,
+    "deltaE": 1.4
+  },
+  {
+    "scene": "night-clear",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 66,
+    "ray": [
+      0.42759,
+      -0.13917,
+      -0.89319
+    ],
+    "world": [
+      1,
+      16,
+      26
+    ],
+    "veil": [
+      3,
+      20,
+      38
+    ],
+    "maxChannel": 12,
+    "deltaE": 7.1
+  },
+  {
+    "scene": "night-clear",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 49,
+    "ray": [
+      0.14454,
+      -0.13917,
+      -0.97966
+    ],
+    "world": [
+      3,
+      25,
+      38
+    ],
+    "veil": [
+      3,
+      20,
+      38
+    ],
+    "maxChannel": 5,
+    "deltaE": 4.8
+  },
+  {
+    "scene": "night-clear",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 31,
+    "ray": [
+      -0.15143,
+      -0.13917,
+      -0.97862
+    ],
+    "world": [
+      7,
+      28,
+      43
+    ],
+    "veil": [
+      3,
+      20,
+      38
+    ],
+    "maxChannel": 8,
+    "deltaE": 4.3
+  },
+  {
+    "scene": "night-clear",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 66,
+    "ray": [
+      0.41708,
+      -0.25882,
+      -0.87124
+    ],
+    "world": [
+      12,
+      32,
+      49
+    ],
+    "veil": [
+      2,
+      18,
+      35
+    ],
+    "maxChannel": 14,
+    "deltaE": 6.5
+  },
+  {
+    "scene": "night-clear",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 49,
+    "ray": [
+      0.14099,
+      -0.25882,
+      -0.95558
+    ],
+    "world": [
+      26,
+      54,
+      80
+    ],
+    "veil": [
+      2,
+      18,
+      35
+    ],
+    "maxChannel": 44,
+    "deltaE": 17.4
+  },
+  {
+    "scene": "night-clear",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 31,
+    "ray": [
+      -0.1477,
+      -0.25882,
+      -0.95457
+    ],
+    "world": [
+      6,
+      27,
+      40
+    ],
+    "veil": [
+      2,
+      18,
+      35
+    ],
+    "maxChannel": 9,
+    "deltaE": 5.5
+  },
+  {
+    "scene": "night-clear",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 68,
+    "ray": [
+      -0.67199,
+      0.70711,
+      0.22007
+    ],
+    "world": [
+      19,
+      32,
+      51
+    ],
+    "veil": [
+      8,
+      24,
+      43
+    ],
+    "maxChannel": 11,
+    "deltaE": 4.2
+  },
+  {
+    "scene": "night-clear",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 78,
+    "ray": [
+      -0.62173,
+      0.70711,
+      0.33682
+    ],
+    "world": [
+      15,
+      28,
+      47
+    ],
+    "veil": [
+      8,
+      23,
+      43
+    ],
+    "maxChannel": 7,
+    "deltaE": 2.5
+  },
+  {
+    "scene": "night-clear",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 88,
+    "ray": [
+      -0.55139,
+      0.70711,
+      0.44269
+    ],
+    "world": [
+      14,
+      28,
+      47
+    ],
+    "veil": [
+      8,
+      23,
+      43
+    ],
+    "maxChannel": 6,
+    "deltaE": 2.5
+  },
+  {
+    "scene": "night-clear",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 68,
+    "ray": [
+      -0.47517,
+      0.86603,
+      0.15561
+    ],
+    "world": [
+      10,
+      24,
+      42
+    ],
+    "veil": [
+      5,
+      20,
+      38
+    ],
+    "maxChannel": 5,
+    "deltaE": 1.9
+  },
+  {
+    "scene": "night-clear",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 78,
+    "ray": [
+      -0.43963,
+      0.86603,
+      0.23817
+    ],
+    "world": [
+      10,
+      23,
+      42
+    ],
+    "veil": [
+      5,
+      20,
+      38
+    ],
+    "maxChannel": 5,
+    "deltaE": 1.7
+  },
+  {
+    "scene": "night-clear",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 88,
+    "ray": [
+      -0.38989,
+      0.86603,
+      0.31303
+    ],
+    "world": [
+      15,
+      28,
+      46
+    ],
+    "veil": [
+      5,
+      20,
+      38
+    ],
+    "maxChannel": 10,
+    "deltaE": 4
+  },
+  {
+    "scene": "night-clear",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 68,
+    "ray": [
+      -0.03317,
+      0.99939,
+      0.01086
+    ],
+    "world": [
+      5,
+      18,
+      35
+    ],
+    "veil": [
+      4,
+      17,
+      34
+    ],
+    "maxChannel": 2,
+    "deltaE": 0.6
+  },
+  {
+    "scene": "night-clear",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 78,
+    "ray": [
+      -0.03069,
+      0.99939,
+      0.01662
+    ],
+    "world": [
+      5,
+      18,
+      35
+    ],
+    "veil": [
+      4,
+      17,
+      34
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.5
+  },
+  {
+    "scene": "night-clear",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 88,
+    "ray": [
+      -0.02721,
+      0.99939,
+      0.02185
+    ],
+    "world": [
+      5,
+      18,
+      35
+    ],
+    "veil": [
+      4,
+      17,
+      34
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.5
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 170,
+    "ray": [
+      -0.98061,
+      0.01745,
+      0.19519
+    ],
+    "world": [
+      222,
+      193,
+      172
+    ],
+    "veil": [
+      228,
+      204,
+      186
+    ],
+    "maxChannel": 15,
+    "deltaE": 4.7
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 172,
+    "ray": [
+      -0.87913,
+      0.01745,
+      0.47626
+    ],
+    "world": [
+      230,
+      202,
+      180
+    ],
+    "veil": [
+      229,
+      204,
+      186
+    ],
+    "maxChannel": 6,
+    "deltaE": 2.5
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 155,
+    "ray": [
+      -0.69912,
+      0.01745,
+      0.71479
+    ],
+    "world": [
+      215,
+      193,
+      181
+    ],
+    "veil": [
+      227,
+      204,
+      187
+    ],
+    "maxChannel": 12,
+    "deltaE": 4.7
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 170,
+    "ray": [
+      -0.97703,
+      0.08716,
+      0.19448
+    ],
+    "world": [
+      189,
+      183,
+      185
+    ],
+    "veil": [
+      201,
+      189,
+      188
+    ],
+    "maxChannel": 12,
+    "deltaE": 3.9
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 172,
+    "ray": [
+      -0.87592,
+      0.08716,
+      0.47452
+    ],
+    "world": [
+      178,
+      173,
+      175
+    ],
+    "veil": [
+      201,
+      189,
+      188
+    ],
+    "maxChannel": 23,
+    "deltaE": 7.2
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 155,
+    "ray": [
+      -0.69656,
+      0.08716,
+      0.71218
+    ],
+    "world": [
+      208,
+      193,
+      191
+    ],
+    "veil": [
+      199,
+      188,
+      187
+    ],
+    "maxChannel": 9,
+    "deltaE": 2.7
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 170,
+    "ray": [
+      -0.98061,
+      -0.01745,
+      0.19519
+    ],
+    "world": [
+      169,
+      156,
+      150
+    ],
+    "veil": [
+      151,
+      148,
+      150
+    ],
+    "maxChannel": 18,
+    "deltaE": 6.8
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 172,
+    "ray": [
+      -0.87913,
+      -0.01745,
+      0.47626
+    ],
+    "world": [
+      177,
+      165,
+      159
+    ],
+    "veil": [
+      152,
+      149,
+      150
+    ],
+    "maxChannel": 25,
+    "deltaE": 8.5
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 155,
+    "ray": [
+      -0.69912,
+      -0.01745,
+      0.71479
+    ],
+    "world": [
+      189,
+      179,
+      174
+    ],
+    "veil": [
+      150,
+      148,
+      150
+    ],
+    "maxChannel": 39,
+    "deltaE": 12.9
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 44,
+    "ray": [
+      0.43173,
+      0.01745,
+      -0.90183
+    ],
+    "world": [
+      253,
+      225,
+      173
+    ],
+    "veil": [
+      252,
+      225,
+      177
+    ],
+    "maxChannel": 4,
+    "deltaE": 2.6
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 61,
+    "ray": [
+      0.14594,
+      0.01745,
+      -0.98914
+    ],
+    "world": [
+      229,
+      207,
+      175
+    ],
+    "veil": [
+      247,
+      222,
+      182
+    ],
+    "maxChannel": 18,
+    "deltaE": 6.7
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 78,
+    "ray": [
+      -0.15289,
+      0.01745,
+      -0.98809
+    ],
+    "world": [
+      225,
+      211,
+      193
+    ],
+    "veil": [
+      232,
+      213,
+      190
+    ],
+    "maxChannel": 7,
+    "deltaE": 3.2
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 44,
+    "ray": [
+      0.43173,
+      -0.01745,
+      -0.90183
+    ],
+    "world": [
+      142,
+      127,
+      105
+    ],
+    "veil": [
+      215,
+      200,
+      169
+    ],
+    "maxChannel": 73,
+    "deltaE": 27.2
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 61,
+    "ray": [
+      0.14594,
+      -0.01745,
+      -0.98914
+    ],
+    "world": [
+      186,
+      170,
+      153
+    ],
+    "veil": [
+      202,
+      187,
+      160
+    ],
+    "maxChannel": 17,
+    "deltaE": 7.9
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 78,
+    "ray": [
+      -0.15289,
+      -0.01745,
+      -0.98809
+    ],
+    "world": [
+      179,
+      172,
+      166
+    ],
+    "veil": [
+      152,
+      153,
+      153
+    ],
+    "maxChannel": 27,
+    "deltaE": 9
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 44,
+    "ray": [
+      0.43121,
+      -0.05234,
+      -0.90073
+    ],
+    "world": [
+      148,
+      130,
+      128
+    ],
+    "veil": [
+      135,
+      140,
+      146
+    ],
+    "maxChannel": 18,
+    "deltaE": 10.7
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 61,
+    "ray": [
+      0.14576,
+      -0.05234,
+      -0.98793
+    ],
+    "world": [
+      132,
+      124,
+      129
+    ],
+    "veil": [
+      118,
+      129,
+      140
+    ],
+    "maxChannel": 14,
+    "deltaE": 7.9
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 78,
+    "ray": [
+      -0.1527,
+      -0.05234,
+      -0.98689
+    ],
+    "world": [
+      122,
+      121,
+      130
+    ],
+    "veil": [
+      111,
+      124,
+      137
+    ],
+    "maxChannel": 12,
+    "deltaE": 5.9
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 44,
+    "ray": [
+      0.42759,
+      -0.13917,
+      -0.89319
+    ],
+    "world": [
+      29,
+      71,
+      77
+    ],
+    "veil": [
+      70,
+      94,
+      114
+    ],
+    "maxChannel": 40,
+    "deltaE": 15.4
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 61,
+    "ray": [
+      0.14454,
+      -0.13917,
+      -0.97966
+    ],
+    "world": [
+      86,
+      114,
+      123
+    ],
+    "veil": [
+      62,
+      92,
+      113
+    ],
+    "maxChannel": 24,
+    "deltaE": 12
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 78,
+    "ray": [
+      -0.15143,
+      -0.13917,
+      -0.97862
+    ],
+    "world": [
+      106,
+      120,
+      126
+    ],
+    "veil": [
+      59,
+      91,
+      112
+    ],
+    "maxChannel": 48,
+    "deltaE": 16.7
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 44,
+    "ray": [
+      0.41708,
+      -0.25882,
+      -0.87124
+    ],
+    "world": [
+      104,
+      110,
+      108
+    ],
+    "veil": [
+      33,
+      81,
+      105
+    ],
+    "maxChannel": 72,
+    "deltaE": 24
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 61,
+    "ray": [
+      0.14099,
+      -0.25882,
+      -0.95558
+    ],
+    "world": [
+      61,
+      97,
+      101
+    ],
+    "veil": [
+      31,
+      81,
+      105
+    ],
+    "maxChannel": 30,
+    "deltaE": 14.5
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 78,
+    "ray": [
+      -0.1477,
+      -0.25882,
+      -0.95457
+    ],
+    "world": [
+      70,
+      101,
+      104
+    ],
+    "veil": [
+      31,
+      81,
+      105
+    ],
+    "maxChannel": 39,
+    "deltaE": 15.7
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 177,
+    "ray": [
+      -0.67199,
+      0.70711,
+      0.22007
+    ],
+    "world": [
+      143,
+      138,
+      152
+    ],
+    "veil": [
+      166,
+      148,
+      156
+    ],
+    "maxChannel": 23,
+    "deltaE": 7.7
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 172,
+    "ray": [
+      -0.62173,
+      0.70711,
+      0.33682
+    ],
+    "world": [
+      179,
+      157,
+      164
+    ],
+    "veil": [
+      166,
+      148,
+      156
+    ],
+    "maxChannel": 12,
+    "deltaE": 3.9
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 162,
+    "ray": [
+      -0.55139,
+      0.70711,
+      0.44269
+    ],
+    "world": [
+      186,
+      165,
+      173
+    ],
+    "veil": [
+      166,
+      148,
+      156
+    ],
+    "maxChannel": 20,
+    "deltaE": 6.8
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 177,
+    "ray": [
+      -0.47517,
+      0.86603,
+      0.15561
+    ],
+    "world": [
+      127,
+      131,
+      148
+    ],
+    "veil": [
+      164,
+      146,
+      155
+    ],
+    "maxChannel": 37,
+    "deltaE": 12
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 172,
+    "ray": [
+      -0.43963,
+      0.86603,
+      0.23817
+    ],
+    "world": [
+      129,
+      136,
+      155
+    ],
+    "veil": [
+      164,
+      146,
+      155
+    ],
+    "maxChannel": 35,
+    "deltaE": 12.2
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 162,
+    "ray": [
+      -0.38989,
+      0.86603,
+      0.31303
+    ],
+    "world": [
+      130,
+      139,
+      159
+    ],
+    "veil": [
+      164,
+      146,
+      155
+    ],
+    "maxChannel": 33,
+    "deltaE": 12.5
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 177,
+    "ray": [
+      -0.03317,
+      0.99939,
+      0.01086
+    ],
+    "world": [
+      142,
+      140,
+      156
+    ],
+    "veil": [
+      162,
+      145,
+      154
+    ],
+    "maxChannel": 20,
+    "deltaE": 7.4
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 172,
+    "ray": [
+      -0.03069,
+      0.99939,
+      0.01662
+    ],
+    "world": [
+      142,
+      140,
+      155
+    ],
+    "veil": [
+      162,
+      145,
+      154
+    ],
+    "maxChannel": 20,
+    "deltaE": 7.5
+  },
+  {
+    "scene": "dawn-overcast",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 162,
+    "ray": [
+      -0.02721,
+      0.99939,
+      0.02185
+    ],
+    "world": [
+      142,
+      140,
+      155
+    ],
+    "veil": [
+      162,
+      145,
+      154
+    ],
+    "maxChannel": 20,
+    "deltaE": 7.5
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 79,
+    "ray": [
+      -0.98061,
+      0.01745,
+      0.19519
+    ],
+    "world": [
+      148,
+      157,
+      168
+    ],
+    "veil": [
+      155,
+      165,
+      177
+    ],
+    "maxChannel": 9,
+    "deltaE": 3
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 62,
+    "ray": [
+      -0.87913,
+      0.01745,
+      0.47626
+    ],
+    "world": [
+      155,
+      164,
+      175
+    ],
+    "veil": [
+      155,
+      166,
+      177
+    ],
+    "maxChannel": 2,
+    "deltaE": 0.7
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 45,
+    "ray": [
+      -0.69912,
+      0.01745,
+      0.71479
+    ],
+    "world": [
+      165,
+      174,
+      184
+    ],
+    "veil": [
+      156,
+      166,
+      178
+    ],
+    "maxChannel": 9,
+    "deltaE": 3.1
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 79,
+    "ray": [
+      -0.97703,
+      0.08716,
+      0.19448
+    ],
+    "world": [
+      137,
+      150,
+      166
+    ],
+    "veil": [
+      141,
+      153,
+      169
+    ],
+    "maxChannel": 3,
+    "deltaE": 1.3
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 62,
+    "ray": [
+      -0.87592,
+      0.08716,
+      0.47452
+    ],
+    "world": [
+      131,
+      143,
+      158
+    ],
+    "veil": [
+      141,
+      154,
+      169
+    ],
+    "maxChannel": 11,
+    "deltaE": 4.1
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 45,
+    "ray": [
+      -0.69656,
+      0.08716,
+      0.71218
+    ],
+    "world": [
+      143,
+      156,
+      172
+    ],
+    "veil": [
+      142,
+      154,
+      170
+    ],
+    "maxChannel": 2,
+    "deltaE": 0.6
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 79,
+    "ray": [
+      -0.98061,
+      -0.01745,
+      0.19519
+    ],
+    "world": [
+      117,
+      127,
+      139
+    ],
+    "veil": [
+      102,
+      119,
+      134
+    ],
+    "maxChannel": 15,
+    "deltaE": 4.9
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 62,
+    "ray": [
+      -0.87913,
+      -0.01745,
+      0.47626
+    ],
+    "world": [
+      124,
+      137,
+      149
+    ],
+    "veil": [
+      103,
+      119,
+      135
+    ],
+    "maxChannel": 22,
+    "deltaE": 7.6
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 45,
+    "ray": [
+      -0.69912,
+      -0.01745,
+      0.71479
+    ],
+    "world": [
+      152,
+      163,
+      172
+    ],
+    "veil": [
+      103,
+      119,
+      135
+    ],
+    "maxChannel": 50,
+    "deltaE": 17.5
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 154,
+    "ray": [
+      0.43173,
+      0.01745,
+      -0.90183
+    ],
+    "world": [
+      141,
+      149,
+      160
+    ],
+    "veil": [
+      155,
+      166,
+      177
+    ],
+    "maxChannel": 17,
+    "deltaE": 6.1
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 171,
+    "ray": [
+      0.14594,
+      0.01745,
+      -0.98914
+    ],
+    "world": [
+      143,
+      152,
+      163
+    ],
+    "veil": [
+      155,
+      166,
+      177
+    ],
+    "maxChannel": 15,
+    "deltaE": 5.3
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 172,
+    "ray": [
+      -0.15289,
+      0.01745,
+      -0.98809
+    ],
+    "world": [
+      160,
+      170,
+      182
+    ],
+    "veil": [
+      155,
+      166,
+      177
+    ],
+    "maxChannel": 5,
+    "deltaE": 1.7
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 154,
+    "ray": [
+      0.43173,
+      -0.01745,
+      -0.90183
+    ],
+    "world": [
+      74,
+      88,
+      97
+    ],
+    "veil": [
+      103,
+      119,
+      135
+    ],
+    "maxChannel": 38,
+    "deltaE": 13.3
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 171,
+    "ray": [
+      0.14594,
+      -0.01745,
+      -0.98914
+    ],
+    "world": [
+      122,
+      131,
+      143
+    ],
+    "veil": [
+      158,
+      155,
+      145
+    ],
+    "maxChannel": 36,
+    "deltaE": 16.5
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 172,
+    "ray": [
+      -0.15289,
+      -0.01745,
+      -0.98809
+    ],
+    "world": [
+      128,
+      139,
+      151
+    ],
+    "veil": [
+      103,
+      119,
+      135
+    ],
+    "maxChannel": 25,
+    "deltaE": 8.3
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 154,
+    "ray": [
+      0.43121,
+      -0.05234,
+      -0.90073
+    ],
+    "world": [
+      78,
+      90,
+      106
+    ],
+    "veil": [
+      74,
+      97,
+      116
+    ],
+    "maxChannel": 10,
+    "deltaE": 4.4
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 171,
+    "ray": [
+      0.14576,
+      -0.05234,
+      -0.98793
+    ],
+    "world": [
+      91,
+      103,
+      118
+    ],
+    "veil": [
+      75,
+      97,
+      116
+    ],
+    "maxChannel": 16,
+    "deltaE": 5.3
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 172,
+    "ray": [
+      -0.1527,
+      -0.05234,
+      -0.98689
+    ],
+    "world": [
+      98,
+      110,
+      124
+    ],
+    "veil": [
+      75,
+      97,
+      116
+    ],
+    "maxChannel": 24,
+    "deltaE": 7.9
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 154,
+    "ray": [
+      0.42759,
+      -0.13917,
+      -0.89319
+    ],
+    "world": [
+      15,
+      85,
+      85
+    ],
+    "veil": [
+      32,
+      69,
+      93
+    ],
+    "maxChannel": 17,
+    "deltaE": 20.2
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 171,
+    "ray": [
+      0.14454,
+      -0.13917,
+      -0.97966
+    ],
+    "world": [
+      62,
+      118,
+      120
+    ],
+    "veil": [
+      32,
+      69,
+      92
+    ],
+    "maxChannel": 49,
+    "deltaE": 24.6
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 172,
+    "ray": [
+      -0.15143,
+      -0.13917,
+      -0.97862
+    ],
+    "world": [
+      97,
+      130,
+      134
+    ],
+    "veil": [
+      32,
+      69,
+      93
+    ],
+    "maxChannel": 65,
+    "deltaE": 27.8
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 154,
+    "ray": [
+      0.41708,
+      -0.25882,
+      -0.87124
+    ],
+    "world": [
+      79,
+      108,
+      109
+    ],
+    "veil": [
+      15,
+      63,
+      87
+    ],
+    "maxChannel": 64,
+    "deltaE": 23.9
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 171,
+    "ray": [
+      0.14099,
+      -0.25882,
+      -0.95558
+    ],
+    "world": [
+      71,
+      113,
+      111
+    ],
+    "veil": [
+      15,
+      63,
+      87
+    ],
+    "maxChannel": 56,
+    "deltaE": 26.3
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 172,
+    "ray": [
+      -0.1477,
+      -0.25882,
+      -0.95457
+    ],
+    "world": [
+      89,
+      125,
+      118
+    ],
+    "veil": [
+      15,
+      63,
+      87
+    ],
+    "maxChannel": 74,
+    "deltaE": 32
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 72,
+    "ray": [
+      -0.67199,
+      0.70711,
+      0.22007
+    ],
+    "world": [
+      202,
+      204,
+      212
+    ],
+    "veil": [
+      151,
+      157,
+      171
+    ],
+    "maxChannel": 50,
+    "deltaE": 17.8
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 62,
+    "ray": [
+      -0.62173,
+      0.70711,
+      0.33682
+    ],
+    "world": [
+      227,
+      229,
+      236
+    ],
+    "veil": [
+      157,
+      163,
+      176
+    ],
+    "maxChannel": 70,
+    "deltaE": 24.3
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 52,
+    "ray": [
+      -0.55139,
+      0.70711,
+      0.44269
+    ],
+    "world": [
+      219,
+      223,
+      232
+    ],
+    "veil": [
+      164,
+      170,
+      182
+    ],
+    "maxChannel": 55,
+    "deltaE": 19.4
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 72,
+    "ray": [
+      -0.47517,
+      0.86603,
+      0.15561
+    ],
+    "world": [
+      230,
+      231,
+      236
+    ],
+    "veil": [
+      199,
+      202,
+      210
+    ],
+    "maxChannel": 31,
+    "deltaE": 10.6
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 62,
+    "ray": [
+      -0.43963,
+      0.86603,
+      0.23817
+    ],
+    "world": [
+      222,
+      225,
+      231
+    ],
+    "veil": [
+      213,
+      215,
+      223
+    ],
+    "maxChannel": 9,
+    "deltaE": 3.3
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 52,
+    "ray": [
+      -0.38989,
+      0.86603,
+      0.31303
+    ],
+    "world": [
+      205,
+      208,
+      217
+    ],
+    "veil": [
+      227,
+      228,
+      234
+    ],
+    "maxChannel": 22,
+    "deltaE": 7.4
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 72,
+    "ray": [
+      -0.03317,
+      0.99939,
+      0.01086
+    ],
+    "world": [
+      250,
+      249,
+      249
+    ],
+    "veil": [
+      248,
+      247,
+      248
+    ],
+    "maxChannel": 3,
+    "deltaE": 1.1
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 62,
+    "ray": [
+      -0.03069,
+      0.99939,
+      0.01662
+    ],
+    "world": [
+      250,
+      249,
+      249
+    ],
+    "veil": [
+      248,
+      247,
+      248
+    ],
+    "maxChannel": 2,
+    "deltaE": 0.9
+  },
+  {
+    "scene": "noon-overcast",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 52,
+    "ray": [
+      -0.02721,
+      0.99939,
+      0.02185
+    ],
+    "world": [
+      251,
+      249,
+      249
+    ],
+    "veil": [
+      248,
+      248,
+      249
+    ],
+    "maxChannel": 2,
+    "deltaE": 0.8
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 31,
+    "ray": [
+      -0.98061,
+      0.01745,
+      0.19519
+    ],
+    "world": [
+      254,
+      231,
+      187
+    ],
+    "veil": [
+      254,
+      232,
+      188
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.7
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 49,
+    "ray": [
+      -0.87913,
+      0.01745,
+      0.47626
+    ],
+    "world": [
+      253,
+      228,
+      182
+    ],
+    "veil": [
+      251,
+      231,
+      187
+    ],
+    "maxChannel": 4,
+    "deltaE": 1.9
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 66,
+    "ray": [
+      -0.69912,
+      0.01745,
+      0.71479
+    ],
+    "world": [
+      242,
+      216,
+      189
+    ],
+    "veil": [
+      244,
+      227,
+      194
+    ],
+    "maxChannel": 11,
+    "deltaE": 5.4
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 31,
+    "ray": [
+      -0.97703,
+      0.08716,
+      0.19448
+    ],
+    "world": [
+      246,
+      226,
+      205
+    ],
+    "veil": [
+      246,
+      226,
+      205
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.4
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 49,
+    "ray": [
+      -0.87592,
+      0.08716,
+      0.47452
+    ],
+    "world": [
+      215,
+      202,
+      193
+    ],
+    "veil": [
+      226,
+      217,
+      209
+    ],
+    "maxChannel": 15,
+    "deltaE": 5.2
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 66,
+    "ray": [
+      -0.69656,
+      0.08716,
+      0.71218
+    ],
+    "world": [
+      194,
+      196,
+      198
+    ],
+    "veil": [
+      201,
+      197,
+      196
+    ],
+    "maxChannel": 7,
+    "deltaE": 3
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 31,
+    "ray": [
+      -0.98061,
+      -0.01745,
+      0.19519
+    ],
+    "world": [
+      227,
+      203,
+      164
+    ],
+    "veil": [
+      237,
+      221,
+      183
+    ],
+    "maxChannel": 20,
+    "deltaE": 7.1
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 49,
+    "ray": [
+      -0.87913,
+      -0.01745,
+      0.47626
+    ],
+    "world": [
+      213,
+      196,
+      167
+    ],
+    "veil": [
+      202,
+      196,
+      174
+    ],
+    "maxChannel": 12,
+    "deltaE": 5.8
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 66,
+    "ray": [
+      -0.69912,
+      -0.01745,
+      0.71479
+    ],
+    "world": [
+      198,
+      189,
+      179
+    ],
+    "veil": [
+      165,
+      166,
+      161
+    ],
+    "maxChannel": 33,
+    "deltaE": 10.3
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 95,
+    "ray": [
+      0.43173,
+      0.01745,
+      -0.90183
+    ],
+    "world": [
+      228,
+      202,
+      176
+    ],
+    "veil": [
+      223,
+      210,
+      195
+    ],
+    "maxChannel": 19,
+    "deltaE": 8.3
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 78,
+    "ray": [
+      0.14594,
+      0.01745,
+      -0.98914
+    ],
+    "world": [
+      234,
+      203,
+      177
+    ],
+    "veil": [
+      233,
+      218,
+      197
+    ],
+    "maxChannel": 21,
+    "deltaE": 8.5
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 61,
+    "ray": [
+      -0.15289,
+      0.01745,
+      -0.98809
+    ],
+    "world": [
+      248,
+      223,
+      188
+    ],
+    "veil": [
+      247,
+      228,
+      192
+    ],
+    "maxChannel": 5,
+    "deltaE": 2.8
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 95,
+    "ray": [
+      0.43173,
+      -0.01745,
+      -0.90183
+    ],
+    "world": [
+      121,
+      109,
+      101
+    ],
+    "veil": [
+      148,
+      152,
+      155
+    ],
+    "maxChannel": 54,
+    "deltaE": 18.3
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 78,
+    "ray": [
+      0.14594,
+      -0.01745,
+      -0.98914
+    ],
+    "world": [
+      192,
+      168,
+      152
+    ],
+    "veil": [
+      189,
+      178,
+      159
+    ],
+    "maxChannel": 10,
+    "deltaE": 6.2
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 61,
+    "ray": [
+      -0.15289,
+      -0.01745,
+      -0.98809
+    ],
+    "world": [
+      203,
+      189,
+      170
+    ],
+    "veil": [
+      175,
+      174,
+      164
+    ],
+    "maxChannel": 28,
+    "deltaE": 9.4
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 95,
+    "ray": [
+      0.43121,
+      -0.05234,
+      -0.90073
+    ],
+    "world": [
+      136,
+      122,
+      121
+    ],
+    "veil": [
+      111,
+      125,
+      138
+    ],
+    "maxChannel": 25,
+    "deltaE": 13.6
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 78,
+    "ray": [
+      0.14576,
+      -0.05234,
+      -0.98793
+    ],
+    "world": [
+      129,
+      124,
+      129
+    ],
+    "veil": [
+      112,
+      126,
+      139
+    ],
+    "maxChannel": 17,
+    "deltaE": 8.5
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 61,
+    "ray": [
+      -0.1527,
+      -0.05234,
+      -0.98689
+    ],
+    "world": [
+      130,
+      128,
+      134
+    ],
+    "veil": [
+      119,
+      131,
+      142
+    ],
+    "maxChannel": 11,
+    "deltaE": 5.9
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 95,
+    "ray": [
+      0.42759,
+      -0.13917,
+      -0.89319
+    ],
+    "world": [
+      28,
+      71,
+      77
+    ],
+    "veil": [
+      59,
+      92,
+      113
+    ],
+    "maxChannel": 36,
+    "deltaE": 14.4
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 78,
+    "ray": [
+      0.14454,
+      -0.13917,
+      -0.97966
+    ],
+    "world": [
+      89,
+      116,
+      123
+    ],
+    "veil": [
+      60,
+      92,
+      113
+    ],
+    "maxChannel": 29,
+    "deltaE": 13
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 61,
+    "ray": [
+      -0.15143,
+      -0.13917,
+      -0.97862
+    ],
+    "world": [
+      112,
+      125,
+      130
+    ],
+    "veil": [
+      63,
+      93,
+      114
+    ],
+    "maxChannel": 48,
+    "deltaE": 17.3
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 95,
+    "ray": [
+      0.41708,
+      -0.25882,
+      -0.87124
+    ],
+    "world": [
+      97,
+      106,
+      105
+    ],
+    "veil": [
+      31,
+      82,
+      106
+    ],
+    "maxChannel": 67,
+    "deltaE": 22.3
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 78,
+    "ray": [
+      0.14099,
+      -0.25882,
+      -0.95558
+    ],
+    "world": [
+      57,
+      96,
+      100
+    ],
+    "veil": [
+      31,
+      81,
+      106
+    ],
+    "maxChannel": 26,
+    "deltaE": 14
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 61,
+    "ray": [
+      -0.1477,
+      -0.25882,
+      -0.95457
+    ],
+    "world": [
+      72,
+      103,
+      106
+    ],
+    "veil": [
+      32,
+      82,
+      106
+    ],
+    "maxChannel": 40,
+    "deltaE": 16
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 38,
+    "ray": [
+      -0.67199,
+      0.70711,
+      0.22007
+    ],
+    "world": [
+      174,
+      153,
+      155
+    ],
+    "veil": [
+      182,
+      159,
+      160
+    ],
+    "maxChannel": 8,
+    "deltaE": 2.6
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 49,
+    "ray": [
+      -0.62173,
+      0.70711,
+      0.33682
+    ],
+    "world": [
+      181,
+      163,
+      167
+    ],
+    "veil": [
+      175,
+      156,
+      160
+    ],
+    "maxChannel": 8,
+    "deltaE": 2.5
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 59,
+    "ray": [
+      -0.55139,
+      0.70711,
+      0.44269
+    ],
+    "world": [
+      168,
+      162,
+      175
+    ],
+    "veil": [
+      170,
+      154,
+      159
+    ],
+    "maxChannel": 16,
+    "deltaE": 6.2
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 38,
+    "ray": [
+      -0.47517,
+      0.86603,
+      0.15561
+    ],
+    "world": [
+      148,
+      140,
+      150
+    ],
+    "veil": [
+      173,
+      155,
+      158
+    ],
+    "maxChannel": 25,
+    "deltaE": 8.5
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 49,
+    "ray": [
+      -0.43963,
+      0.86603,
+      0.23817
+    ],
+    "world": [
+      141,
+      142,
+      157
+    ],
+    "veil": [
+      170,
+      153,
+      158
+    ],
+    "maxChannel": 29,
+    "deltaE": 10.5
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 59,
+    "ray": [
+      -0.38989,
+      0.86603,
+      0.31303
+    ],
+    "world": [
+      137,
+      142,
+      160
+    ],
+    "veil": [
+      168,
+      152,
+      158
+    ],
+    "maxChannel": 31,
+    "deltaE": 11.9
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 38,
+    "ray": [
+      -0.03317,
+      0.99939,
+      0.01086
+    ],
+    "world": [
+      154,
+      147,
+      158
+    ],
+    "veil": [
+      166,
+      151,
+      157
+    ],
+    "maxChannel": 13,
+    "deltaE": 4.9
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 49,
+    "ray": [
+      -0.03069,
+      0.99939,
+      0.01662
+    ],
+    "world": [
+      153,
+      146,
+      158
+    ],
+    "veil": [
+      166,
+      151,
+      157
+    ],
+    "maxChannel": 13,
+    "deltaE": 5
+  },
+  {
+    "scene": "golden-overcast",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 59,
+    "ray": [
+      -0.02721,
+      0.99939,
+      0.02185
+    ],
+    "world": [
+      153,
+      146,
+      158
+    ],
+    "veil": [
+      166,
+      151,
+      157
+    ],
+    "maxChannel": 13,
+    "deltaE": 5.1
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 37,
+    "ray": [
+      -0.98061,
+      0.01745,
+      0.19519
+    ],
+    "world": [
+      159,
+      94,
+      63
+    ],
+    "veil": [
+      159,
+      98,
+      72
+    ],
+    "maxChannel": 10,
+    "deltaE": 4.6
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 55,
+    "ray": [
+      -0.87913,
+      0.01745,
+      0.47626
+    ],
+    "world": [
+      129,
+      80,
+      64
+    ],
+    "veil": [
+      127,
+      82,
+      69
+    ],
+    "maxChannel": 5,
+    "deltaE": 3.1
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 72,
+    "ray": [
+      -0.69912,
+      0.01745,
+      0.71479
+    ],
+    "world": [
+      88,
+      63,
+      62
+    ],
+    "veil": [
+      99,
+      68,
+      65
+    ],
+    "maxChannel": 11,
+    "deltaE": 4.5
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 37,
+    "ray": [
+      -0.97703,
+      0.08716,
+      0.19448
+    ],
+    "world": [
+      103,
+      90,
+      86
+    ],
+    "veil": [
+      105,
+      92,
+      87
+    ],
+    "maxChannel": 2,
+    "deltaE": 0.7
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 55,
+    "ray": [
+      -0.87592,
+      0.08716,
+      0.47452
+    ],
+    "world": [
+      85,
+      75,
+      74
+    ],
+    "veil": [
+      95,
+      85,
+      83
+    ],
+    "maxChannel": 10,
+    "deltaE": 4
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 72,
+    "ray": [
+      -0.69656,
+      0.08716,
+      0.71218
+    ],
+    "world": [
+      90,
+      80,
+      79
+    ],
+    "veil": [
+      88,
+      78,
+      78
+    ],
+    "maxChannel": 2,
+    "deltaE": 0.7
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 37,
+    "ray": [
+      -0.98061,
+      -0.01745,
+      0.19519
+    ],
+    "world": [
+      98,
+      68,
+      56
+    ],
+    "veil": [
+      89,
+      64,
+      56
+    ],
+    "maxChannel": 10,
+    "deltaE": 4.6
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 55,
+    "ray": [
+      -0.87913,
+      -0.01745,
+      0.47626
+    ],
+    "world": [
+      93,
+      69,
+      63
+    ],
+    "veil": [
+      71,
+      54,
+      54
+    ],
+    "maxChannel": 22,
+    "deltaE": 8.6
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 72,
+    "ray": [
+      -0.69912,
+      -0.01745,
+      0.71479
+    ],
+    "world": [
+      86,
+      65,
+      65
+    ],
+    "veil": [
+      56,
+      47,
+      51
+    ],
+    "maxChannel": 30,
+    "deltaE": 11.3
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 89,
+    "ray": [
+      0.43173,
+      0.01745,
+      -0.90183
+    ],
+    "world": [
+      71,
+      47,
+      49
+    ],
+    "veil": [
+      82,
+      57,
+      58
+    ],
+    "maxChannel": 11,
+    "deltaE": 4.7
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 72,
+    "ray": [
+      0.14594,
+      0.01745,
+      -0.98914
+    ],
+    "world": [
+      80,
+      54,
+      54
+    ],
+    "veil": [
+      99,
+      68,
+      64
+    ],
+    "maxChannel": 19,
+    "deltaE": 7.1
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 55,
+    "ray": [
+      -0.15289,
+      0.01745,
+      -0.98809
+    ],
+    "world": [
+      120,
+      80,
+      70
+    ],
+    "veil": [
+      125,
+      81,
+      69
+    ],
+    "maxChannel": 5,
+    "deltaE": 2.5
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 89,
+    "ray": [
+      0.43173,
+      -0.01745,
+      -0.90183
+    ],
+    "world": [
+      31,
+      23,
+      26
+    ],
+    "veil": [
+      47,
+      41,
+      48
+    ],
+    "maxChannel": 22,
+    "deltaE": 9.1
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 72,
+    "ray": [
+      0.14594,
+      -0.01745,
+      -0.98914
+    ],
+    "world": [
+      68,
+      51,
+      52
+    ],
+    "veil": [
+      128,
+      110,
+      92
+    ],
+    "maxChannel": 60,
+    "deltaE": 26.6
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 55,
+    "ray": [
+      -0.15289,
+      -0.01745,
+      -0.98809
+    ],
+    "world": [
+      97,
+      73,
+      67
+    ],
+    "veil": [
+      71,
+      54,
+      53
+    ],
+    "maxChannel": 26,
+    "deltaE": 9.7
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 89,
+    "ray": [
+      0.43121,
+      -0.05234,
+      -0.90073
+    ],
+    "world": [
+      33,
+      29,
+      36
+    ],
+    "veil": [
+      32,
+      41,
+      50
+    ],
+    "maxChannel": 14,
+    "deltaE": 7.5
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 72,
+    "ray": [
+      0.14576,
+      -0.05234,
+      -0.98793
+    ],
+    "world": [
+      39,
+      36,
+      42
+    ],
+    "veil": [
+      34,
+      43,
+      51
+    ],
+    "maxChannel": 9,
+    "deltaE": 5.9
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 55,
+    "ray": [
+      -0.1527,
+      -0.05234,
+      -0.98689
+    ],
+    "world": [
+      45,
+      42,
+      48
+    ],
+    "veil": [
+      38,
+      45,
+      52
+    ],
+    "maxChannel": 7,
+    "deltaE": 4.3
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 89,
+    "ray": [
+      0.42759,
+      -0.13917,
+      -0.89319
+    ],
+    "world": [
+      3,
+      31,
+      32
+    ],
+    "veil": [
+      10,
+      38,
+      50
+    ],
+    "maxChannel": 18,
+    "deltaE": 9.3
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 72,
+    "ray": [
+      0.14454,
+      -0.13917,
+      -0.97966
+    ],
+    "world": [
+      17,
+      44,
+      46
+    ],
+    "veil": [
+      10,
+      38,
+      50
+    ],
+    "maxChannel": 7,
+    "deltaE": 7.7
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 55,
+    "ray": [
+      -0.15143,
+      -0.13917,
+      -0.97862
+    ],
+    "world": [
+      26,
+      41,
+      44
+    ],
+    "veil": [
+      11,
+      38,
+      50
+    ],
+    "maxChannel": 15,
+    "deltaE": 7.3
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 89,
+    "ray": [
+      0.41708,
+      -0.25882,
+      -0.87124
+    ],
+    "world": [
+      14,
+      27,
+      27
+    ],
+    "veil": [
+      4,
+      38,
+      51
+    ],
+    "maxChannel": 24,
+    "deltaE": 11.3
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 72,
+    "ray": [
+      0.14099,
+      -0.25882,
+      -0.95558
+    ],
+    "world": [
+      55,
+      48,
+      48
+    ],
+    "veil": [
+      4,
+      38,
+      51
+    ],
+    "maxChannel": 51,
+    "deltaE": 17.5
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 55,
+    "ray": [
+      -0.1477,
+      -0.25882,
+      -0.95457
+    ],
+    "world": [
+      13,
+      42,
+      43
+    ],
+    "veil": [
+      4,
+      38,
+      51
+    ],
+    "maxChannel": 9,
+    "deltaE": 8
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 44,
+    "ray": [
+      -0.67199,
+      0.70711,
+      0.22007
+    ],
+    "world": [
+      53,
+      52,
+      62
+    ],
+    "veil": [
+      57,
+      56,
+      66
+    ],
+    "maxChannel": 4,
+    "deltaE": 1.6
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 55,
+    "ray": [
+      -0.62173,
+      0.70711,
+      0.33682
+    ],
+    "world": [
+      62,
+      61,
+      71
+    ],
+    "veil": [
+      56,
+      56,
+      66
+    ],
+    "maxChannel": 5,
+    "deltaE": 2.4
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 65,
+    "ray": [
+      -0.55139,
+      0.70711,
+      0.44269
+    ],
+    "world": [
+      66,
+      65,
+      75
+    ],
+    "veil": [
+      56,
+      55,
+      65
+    ],
+    "maxChannel": 10,
+    "deltaE": 4.5
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 44,
+    "ray": [
+      -0.47517,
+      0.86603,
+      0.15561
+    ],
+    "world": [
+      50,
+      50,
+      60
+    ],
+    "veil": [
+      56,
+      56,
+      66
+    ],
+    "maxChannel": 6,
+    "deltaE": 2.8
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 55,
+    "ray": [
+      -0.43963,
+      0.86603,
+      0.23817
+    ],
+    "world": [
+      54,
+      53,
+      63
+    ],
+    "veil": [
+      56,
+      55,
+      65
+    ],
+    "maxChannel": 3,
+    "deltaE": 1.1
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 65,
+    "ray": [
+      -0.38989,
+      0.86603,
+      0.31303
+    ],
+    "world": [
+      55,
+      54,
+      64
+    ],
+    "veil": [
+      55,
+      55,
+      65
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.5
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 44,
+    "ray": [
+      -0.03317,
+      0.99939,
+      0.01086
+    ],
+    "world": [
+      54,
+      54,
+      64
+    ],
+    "veil": [
+      55,
+      55,
+      65
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.3
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 55,
+    "ray": [
+      -0.03069,
+      0.99939,
+      0.01662
+    ],
+    "world": [
+      54,
+      54,
+      64
+    ],
+    "veil": [
+      55,
+      55,
+      65
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.3
+  },
+  {
+    "scene": "dusk-overcast",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 65,
+    "ray": [
+      -0.02721,
+      0.99939,
+      0.02185
+    ],
+    "world": [
+      54,
+      54,
+      64
+    ],
+    "veil": [
+      55,
+      55,
+      65
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.3
+  },
+  {
+    "scene": "night-overcast",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 61,
+    "ray": [
+      -0.98061,
+      0.01745,
+      0.19519
+    ],
+    "world": [
+      17,
+      28,
+      44
+    ],
+    "veil": [
+      17,
+      28,
+      44
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "night-overcast",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 78,
+    "ray": [
+      -0.87913,
+      0.01745,
+      0.47626
+    ],
+    "world": [
+      13,
+      24,
+      39
+    ],
+    "veil": [
+      14,
+      24,
+      40
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.3
+  },
+  {
+    "scene": "night-overcast",
+    "view": "home",
+    "sample": "horizon +1°",
+    "fromSun": 95,
+    "ray": [
+      -0.69912,
+      0.01745,
+      0.71479
+    ],
+    "world": [
+      12,
+      23,
+      38
+    ],
+    "veil": [
+      12,
+      22,
+      38
+    ],
+    "maxChannel": 0,
+    "deltaE": 0.1
+  },
+  {
+    "scene": "night-overcast",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 61,
+    "ray": [
+      -0.97703,
+      0.08716,
+      0.19448
+    ],
+    "world": [
+      17,
+      28,
+      44
+    ],
+    "veil": [
+      18,
+      29,
+      45
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.6
+  },
+  {
+    "scene": "night-overcast",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 78,
+    "ray": [
+      -0.87592,
+      0.08716,
+      0.47452
+    ],
+    "world": [
+      11,
+      21,
+      36
+    ],
+    "veil": [
+      14,
+      24,
+      40
+    ],
+    "maxChannel": 4,
+    "deltaE": 1.5
+  },
+  {
+    "scene": "night-overcast",
+    "view": "home",
+    "sample": "5°",
+    "fromSun": 95,
+    "ray": [
+      -0.69656,
+      0.08716,
+      0.71218
+    ],
+    "world": [
+      13,
+      24,
+      39
+    ],
+    "veil": [
+      11,
+      22,
+      37
+    ],
+    "maxChannel": 2,
+    "deltaE": 1
+  },
+  {
+    "scene": "night-overcast",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 61,
+    "ray": [
+      -0.98061,
+      -0.01745,
+      0.19519
+    ],
+    "world": [
+      12,
+      22,
+      37
+    ],
+    "veil": [
+      6,
+      20,
+      34
+    ],
+    "maxChannel": 5,
+    "deltaE": 1.6
+  },
+  {
+    "scene": "night-overcast",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 78,
+    "ray": [
+      -0.87913,
+      -0.01745,
+      0.47626
+    ],
+    "world": [
+      10,
+      21,
+      35
+    ],
+    "veil": [
+      5,
+      18,
+      32
+    ],
+    "maxChannel": 4,
+    "deltaE": 1.6
+  },
+  {
+    "scene": "night-overcast",
+    "view": "home",
+    "sample": "sea −1°",
+    "fromSun": 95,
+    "ray": [
+      -0.69912,
+      -0.01745,
+      0.71479
+    ],
+    "world": [
+      13,
+      24,
+      39
+    ],
+    "veil": [
+      4,
+      17,
+      31
+    ],
+    "maxChannel": 9,
+    "deltaE": 3.7
+  },
+  {
+    "scene": "night-overcast",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 66,
+    "ray": [
+      0.43173,
+      0.01745,
+      -0.90183
+    ],
+    "world": [
+      9,
+      20,
+      34
+    ],
+    "veil": [
+      11,
+      21,
+      36
+    ],
+    "maxChannel": 2,
+    "deltaE": 0.8
+  },
+  {
+    "scene": "night-overcast",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 49,
+    "ray": [
+      0.14594,
+      0.01745,
+      -0.98914
+    ],
+    "world": [
+      10,
+      21,
+      36
+    ],
+    "veil": [
+      11,
+      21,
+      36
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.3
+  },
+  {
+    "scene": "night-overcast",
+    "view": "sea",
+    "sample": "horizon +1°",
+    "fromSun": 31,
+    "ray": [
+      -0.15289,
+      0.01745,
+      -0.98809
+    ],
+    "world": [
+      12,
+      22,
+      37
+    ],
+    "veil": [
+      11,
+      21,
+      36
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.3
+  },
+  {
+    "scene": "night-overcast",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 66,
+    "ray": [
+      0.43173,
+      -0.01745,
+      -0.90183
+    ],
+    "world": [
+      3,
+      9,
+      19
+    ],
+    "veil": [
+      4,
+      17,
+      30
+    ],
+    "maxChannel": 11,
+    "deltaE": 5.4
+  },
+  {
+    "scene": "night-overcast",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 49,
+    "ray": [
+      0.14594,
+      -0.01745,
+      -0.98914
+    ],
+    "world": [
+      7,
+      17,
+      31
+    ],
+    "veil": [
+      95,
+      90,
+      78
+    ],
+    "maxChannel": 88,
+    "deltaE": 38.1
+  },
+  {
+    "scene": "night-overcast",
+    "view": "sea",
+    "sample": "sea −1°",
+    "fromSun": 31,
+    "ray": [
+      -0.15289,
+      -0.01745,
+      -0.98809
+    ],
+    "world": [
+      9,
+      19,
+      34
+    ],
+    "veil": [
+      4,
+      17,
+      30
+    ],
+    "maxChannel": 4,
+    "deltaE": 1.8
+  },
+  {
+    "scene": "night-overcast",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 66,
+    "ray": [
+      0.43121,
+      -0.05234,
+      -0.90073
+    ],
+    "world": [
+      3,
+      10,
+      22
+    ],
+    "veil": [
+      3,
+      15,
+      28
+    ],
+    "maxChannel": 6,
+    "deltaE": 2.9
+  },
+  {
+    "scene": "night-overcast",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 49,
+    "ray": [
+      0.14576,
+      -0.05234,
+      -0.98793
+    ],
+    "world": [
+      3,
+      11,
+      23
+    ],
+    "veil": [
+      3,
+      15,
+      28
+    ],
+    "maxChannel": 5,
+    "deltaE": 2.4
+  },
+  {
+    "scene": "night-overcast",
+    "view": "sea",
+    "sample": "sea −3°",
+    "fromSun": 31,
+    "ray": [
+      -0.1527,
+      -0.05234,
+      -0.98689
+    ],
+    "world": [
+      4,
+      12,
+      25
+    ],
+    "veil": [
+      3,
+      15,
+      28
+    ],
+    "maxChannel": 3,
+    "deltaE": 1.7
+  },
+  {
+    "scene": "night-overcast",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 66,
+    "ray": [
+      0.42759,
+      -0.13917,
+      -0.89319
+    ],
+    "world": [
+      0,
+      9,
+      15
+    ],
+    "veil": [
+      2,
+      14,
+      26
+    ],
+    "maxChannel": 11,
+    "deltaE": 5.6
+  },
+  {
+    "scene": "night-overcast",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 49,
+    "ray": [
+      0.14454,
+      -0.13917,
+      -0.97966
+    ],
+    "world": [
+      1,
+      14,
+      22
+    ],
+    "veil": [
+      1,
+      14,
+      26
+    ],
+    "maxChannel": 4,
+    "deltaE": 3.2
+  },
+  {
+    "scene": "night-overcast",
+    "view": "sea",
+    "sample": "sea −8°",
+    "fromSun": 31,
+    "ray": [
+      -0.15143,
+      -0.13917,
+      -0.97862
+    ],
+    "world": [
+      3,
+      17,
+      28
+    ],
+    "veil": [
+      1,
+      14,
+      26
+    ],
+    "maxChannel": 3,
+    "deltaE": 1
+  },
+  {
+    "scene": "night-overcast",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 66,
+    "ray": [
+      0.41708,
+      -0.25882,
+      -0.87124
+    ],
+    "world": [
+      2,
+      12,
+      21
+    ],
+    "veil": [
+      1,
+      14,
+      25
+    ],
+    "maxChannel": 4,
+    "deltaE": 2.3
+  },
+  {
+    "scene": "night-overcast",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 49,
+    "ray": [
+      0.14099,
+      -0.25882,
+      -0.95558
+    ],
+    "world": [
+      8,
+      22,
+      36
+    ],
+    "veil": [
+      1,
+      14,
+      25
+    ],
+    "maxChannel": 11,
+    "deltaE": 4.7
+  },
+  {
+    "scene": "night-overcast",
+    "view": "sea",
+    "sample": "sea −15°",
+    "fromSun": 31,
+    "ray": [
+      -0.1477,
+      -0.25882,
+      -0.95457
+    ],
+    "world": [
+      5,
+      25,
+      40
+    ],
+    "veil": [
+      1,
+      14,
+      25
+    ],
+    "maxChannel": 15,
+    "deltaE": 6.3
+  },
+  {
+    "scene": "night-overcast",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 68,
+    "ray": [
+      -0.67199,
+      0.70711,
+      0.22007
+    ],
+    "world": [
+      28,
+      38,
+      55
+    ],
+    "veil": [
+      27,
+      38,
+      55
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.3
+  },
+  {
+    "scene": "night-overcast",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 78,
+    "ray": [
+      -0.62173,
+      0.70711,
+      0.33682
+    ],
+    "world": [
+      26,
+      37,
+      54
+    ],
+    "veil": [
+      20,
+      31,
+      47
+    ],
+    "maxChannel": 7,
+    "deltaE": 3.1
+  },
+  {
+    "scene": "night-overcast",
+    "view": "up",
+    "sample": "45°",
+    "fromSun": 88,
+    "ray": [
+      -0.55139,
+      0.70711,
+      0.44269
+    ],
+    "world": [
+      20,
+      30,
+      47
+    ],
+    "veil": [
+      15,
+      26,
+      42
+    ],
+    "maxChannel": 5,
+    "deltaE": 2.1
+  },
+  {
+    "scene": "night-overcast",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 68,
+    "ray": [
+      -0.47517,
+      0.86603,
+      0.15561
+    ],
+    "world": [
+      14,
+      24,
+      40
+    ],
+    "veil": [
+      18,
+      29,
+      45
+    ],
+    "maxChannel": 5,
+    "deltaE": 2.3
+  },
+  {
+    "scene": "night-overcast",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 78,
+    "ray": [
+      -0.43963,
+      0.86603,
+      0.23817
+    ],
+    "world": [
+      10,
+      21,
+      36
+    ],
+    "veil": [
+      16,
+      27,
+      43
+    ],
+    "maxChannel": 7,
+    "deltaE": 3.1
+  },
+  {
+    "scene": "night-overcast",
+    "view": "up",
+    "sample": "60°",
+    "fromSun": 88,
+    "ray": [
+      -0.38989,
+      0.86603,
+      0.31303
+    ],
+    "world": [
+      11,
+      21,
+      35
+    ],
+    "veil": [
+      14,
+      25,
+      41
+    ],
+    "maxChannel": 5,
+    "deltaE": 2.2
+  },
+  {
+    "scene": "night-overcast",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 68,
+    "ray": [
+      -0.03317,
+      0.99939,
+      0.01086
+    ],
+    "world": [
+      12,
+      23,
+      39
+    ],
+    "veil": [
+      12,
+      22,
+      38
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.5
+  },
+  {
+    "scene": "night-overcast",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 78,
+    "ray": [
+      -0.03069,
+      0.99939,
+      0.01662
+    ],
+    "world": [
+      12,
+      23,
+      39
+    ],
+    "veil": [
+      12,
+      22,
+      38
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.4
+  },
+  {
+    "scene": "night-overcast",
+    "view": "up",
+    "sample": "zenith 88°",
+    "fromSun": 88,
+    "ray": [
+      -0.02721,
+      0.99939,
+      0.02185
+    ],
+    "world": [
+      12,
+      23,
+      39
+    ],
+    "veil": [
+      12,
+      22,
+      38
+    ],
+    "maxChannel": 1,
+    "deltaE": 0.4
+  }
+]

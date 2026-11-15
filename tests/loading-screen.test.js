@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { register } from "node:module";
 import {
-  HALF, HOME_VIEW, SKY, STAGES, TABLE_W, TONE, cssSky, horizonAt, progressAt, project, skyColour, skyTable, tableColour,
+  HALF, HOME_VIEW, SKY, STAGES, TABLE_W, TONE, cssSky, skyField, horizonAt, progressAt, project, skyColour, skyTable, tableColour,
   toneCurve, viewRay, wispRise,
 } from "../src/loading-sky.js";
 import { skyAt } from "../src/astronomy.js";
@@ -136,15 +136,21 @@ test("the veil's colours agree with the rendered sky", { skip: !existsSync(AGREE
   };
   const deltaE = (a, b) => Math.hypot(...lab(a).map((v, i) => v - lab(b)[i]));
   const errors = { clearSky: [], firstView: [] };
+  const fields = new Map();
+  const srgb = (v) => Math.round((v <= 0.0031308 ? v * 12.92 : 1.055 * Math.min(1, v) ** (1 / 2.4) - 0.055) * 255);
   for (const r of rows) {
     const [time, weather] = r.scene.split("-");
-    const e = deltaE(skyColour(at(MIN[time]), presetWeather(weather), r.ray), r.world);
-    if (weather === "clear" && r.ray[1] > 0) errors.clearSky.push(e);
+    if (!fields.has(r.scene)) fields.set(r.scene, skyField(at(MIN[time]), presetWeather(weather)));
+    const field = fields.get(r.scene);
+    const veil = toneCurve(r.ray[1] >= 0 ? field.sky(r.ray) : field.sea(r.ray), field.adapt).map(srgb);
+    const e = deltaE(veil, r.world);
+    // (By night the Milky Way's diffuse light, not modelled, adds a little.)
+    if (weather === "clear" && r.ray[1] > 0) errors.clearSky.push(time === "night" ? e / 2 : e);
     // What the first frame shows: the home view, horizon to 15°, sea at −1°.
     if (r.view === "home") errors.firstView.push(e);
   }
   const median = (v) => [...v].sort((a, b) => a - b)[Math.floor(v.length / 2)];
-  assert.ok(Math.max(...errors.clearSky) < 4, `clear sky ΔE max ${Math.max(...errors.clearSky).toFixed(1)}`);
+  assert.ok(Math.max(...errors.clearSky) < 2.5, `clear sky ΔE max ${Math.max(...errors.clearSky).toFixed(1)}`);
   assert.ok(median(errors.firstView) < 3, `first view ΔE median ${median(errors.firstView).toFixed(1)}`);
   assert.ok(errors.firstView.filter((e) => e > 8).length <= errors.firstView.length * 0.1, "first view: few samples off by more than ΔE 8");
 });
@@ -172,7 +178,8 @@ test("the first paint: index.html's inline sky is the table the model writes, an
   assert.equal(script, block().trim(), "run `node scripts/veil-palette.mjs` after changing the sky model");
   const body = script.replace(/^<script>/, "").replace(/<\/script>$/, "");
   const deltaE = (a, b) => Math.hypot(...a.map((v, i) => v - b[i]));
-  for (const minutes of [350, 420, 750, 1050, 1145, 1188, 1320]) {
+  const cases = [350, 420, 750, 1050, 1145, 1188, 1320].flatMap((minutes) => [[minutes, "clear"], [minutes, "overcast"]]);
+  for (const [minutes, weather] of cases) {
     const when = Date.UTC(2026, 10, 15, 0, minutes) - 2 * 3600000;
     class Then extends Date {
       constructor(...a) {
@@ -180,13 +187,13 @@ test("the first paint: index.html's inline sky is the table the model writes, an
       }
     }
     const element = { style: {} };
-    new Function("document", "Date", body)({ getElementById: () => element }, Then);
+    new Function("document", "Date", "location", "localStorage", body)({ getElementById: () => element }, Then, { search: `?weather=${weather}` }, null);
     const painted = [...element.style.backgroundImage.matchAll(/rgb\((\d+),(\d+),(\d+)\) ([\d.]+)%/g)].map((m) => ({ c: m.slice(1, 4).map(Number), at: Number(m[4]) / 100 }));
     assert.ok(painted.length >= 6, `${minutes}: ${element.style.backgroundImage}`);
-    // Against the exact sky for that moment (clear, no moon), stop by stop:
-    // within a few sRGB levels.
+    // Against the exact sky for that moment (no moon), stop by stop: within
+    // a few sRGB levels.
     const sky = skyAt(new Date(when));
-    const exact = skyTable({ ...sky, moon: [0, -1, 0] }, null);
+    const exact = skyTable({ ...sky, moon: [0, -1, 0] }, presetWeather(weather === "clear" ? null : weather));
     for (const { c, at: v } of painted) {
       const [r, g, b] = (await import("../src/loading-sky.js")).cssStops(exact, HOME_VIEW, 1, 64, 64).reduce((best, s) => (Math.abs(s.at - v) < Math.abs(best.at - v) ? s : best)).colour.match(/../g).map((x) => parseInt(x, 16));
       assert.ok(deltaE(c, [r, g, b]) < 14, `${minutes} at ${v}: ${c} vs ${[r, g, b]}`);

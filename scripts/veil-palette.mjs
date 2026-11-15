@@ -12,6 +12,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { HOME_VIEW, cssStops, skyTable } from "../src/loading-sky.js";
 import { skyAt } from "../src/astronomy.js";
+import { presetWeather } from "../src/weather-panel.js";
 
 // Every 1.5° through twilight and the low sun (where the sky changes
 // fastest), every 6° above 12°.
@@ -38,18 +39,34 @@ export function palette() {
     const date = new Date(Date.UTC(2026, 10, 15, 0, m) - 2 * 3600000);
     return { m, date, sun: capeSun(date) };
   });
-  const rows = { morning: [], evening: [] };
-  for (const half of ["morning", "evening"]) {
-    const span = minutes.filter(({ sun }) => sun.morning === (half === "morning"));
-    for (const a of ALTITUDES) {
-      const { date } = span.reduce((best, x) => (Math.abs(x.sun.altitude - a) < Math.abs(best.sun.altitude - a) ? x : best));
-      // No moon: the first paint cannot know it cheaply.
-      const celestial = { ...skyAt(date), moon: [0, -1, 0] };
-      rows[half].push(cssStops(skyTable(celestial, null), HOME_VIEW, 1, SKY, SEA).map((s) => s.colour).join(""));
+  // Clear, and under a deck (the overcast preset): the page picks one from
+  // `?weather=` or the last forecast it saw, as loading-screen.js does.
+  const rows = {};
+  for (const [sky, weather] of [["clear", null], ["grey", presetWeather("overcast")]])
+    for (const half of ["morning", "evening"]) {
+      const span = minutes.filter(({ sun }) => sun.morning === (half === "morning"));
+      rows[`${sky}${half === "morning" ? "Morning" : "Evening"}`] = ALTITUDES.map((a) => {
+        const { date } = span.reduce((best, x) => (Math.abs(x.sun.altitude - a) < Math.abs(best.sun.altitude - a) ? x : best));
+        // No moon: the first paint cannot know it cheaply.
+        const celestial = { ...skyAt(date), moon: [0, -1, 0] };
+        return cssStops(skyTable(celestial, weather), HOME_VIEW, 1, SKY, SEA).map((s) => s.colour).join("");
+      });
     }
-  }
   const table = skyTable(skyAt(minutes[720].date), null);
   return { stops: cssStops(table, HOME_VIEW, 1, SKY, SEA).map((s) => Number(s.at.toFixed(4))), rows };
+}
+
+// Under a deck? `?weather=` names a grey preset, or the forecast the veil
+// last saw here (loading-screen.js keeps it three hours) was mostly cloud.
+export function greyDay(search, storage) {
+  var named = (search.match(/[?&]weather=(\w+)/) || [])[1];
+  if (named) return named === "overcast" || named === "rain" || named === "storm";
+  try {
+    var saved = JSON.parse(storage.getItem("skycope.veil-weather") || "null");
+    return !!saved && Date.now() - saved.observedAt < 3 * 3600 * 1000 && saved.cover > 0.75;
+  } catch (e) {
+    return false;
+  }
 }
 
 // The inlined script: the sun now, the two nearest rows, mixed.
@@ -58,11 +75,14 @@ export function block() {
   return `<script>
       // The veil's first paint: this moment's sky from a table (scripts/veil-palette.mjs).
       (function () {
-        var P = ${JSON.stringify({ at: stops, morning: rows.morning, evening: rows.evening })};
+        var P = ${JSON.stringify({ at: stops, ...rows })};
         ${capeSun.toString()}
+        ${greyDay.toString()}
         try {
           var sun = capeSun(new Date());
-          var rows = sun.morning ? P.morning : P.evening;
+          var grey = false;
+          try { grey = greyDay(location.search, localStorage); } catch (e) {}
+          var rows = P[(grey ? "grey" : "clear") + (sun.morning ? "Morning" : "Evening")];
           var f = sun.altitude <= 12 ? (sun.altitude + 18) / 1.5 : 20 + (sun.altitude - 12) / 6;
           f = Math.max(0, Math.min(rows.length - 1.001, f));
           var i = Math.floor(f), t = f - i;
