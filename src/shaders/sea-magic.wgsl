@@ -333,7 +333,7 @@ export fn wave_on_sea(s: SeaPoint, at: vec3f, wave: vec4f, tint: vec4f, time: f3
     let ahead = select(0.0, crest, wf > 0.0);
     let hue = 0.55 + 0.45 * cos(6.2832 * (wf / (lead * 3.0) + vec3f(0.0, 0.33, 0.67)));
     let peak = max(tint.r, max(tint.g, tint.b));
-    let col = mix(mix(tint.rgb, hue * peak, 0.35 * ahead), vec3f(peak), 0.5 * daylight);
+    let col = mix(mix(tint.rgb, hue * peak, 0.2 * ahead), vec3f(peak), 0.5 * daylight);
     out += col * wave.z * (crest * (face * 0.5 + s.foam.x * 0.6 + spec + sparks * 1.5) + tail * tail * (sparks * 1.2 * tail + face * 0.08));
   }
   if (inEcho) {

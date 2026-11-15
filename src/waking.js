@@ -149,7 +149,7 @@ export function wakingSea(s, spec, night = 0, reduced = false) {
 //   lead       its leading edge's half-width (m) at radius 0, growing 2%
 //   tail       how many seconds of travel its tail holds
 //   night/day  its peak, in the land's exposed units (× the gift's `wave`)
-export const WAVE = { start: 0.6, reach: 190, tau: 5.5, lead: 1.6, tail: 1.1, fadeFrom: 5.8, fadeTo: 7.4, echoAt: 5.4, echoFor: 2.4, night: 5, day: 7 };
+export const WAVE = { start: 0.6, reach: 190, tau: 5.5, lead: 1.6, tail: 0.6, fadeFrom: 5.8, fadeTo: 7.4, echoAt: 5.4, echoFor: 2.4, night: 3.5, day: 6 };
 export const WAVE_ZERO = Object.freeze({ radius: 0, lead: 1, tail: 1, strength: 0, presence: 0, echo: 0, echoStrength: 0, speed: 0 });
 
 // The wave at s wall seconds. presence: its envelope alone (0…1), for the

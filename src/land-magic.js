@@ -237,7 +237,7 @@ if ( magicOn > 0.0 ) {
         // A touch of iridescence at the very edge, just ahead of the crest.
         float ahead = wf > 0.0 ? crest : 0.0;
         vec3 hue = 0.55 + 0.45 * cos( 6.2832 * ( wf / ( wakeWave.y * 3.0 ) + vec3( 0.0, 0.33, 0.67 ) ) );
-        vec3 tint = mix( wakeTint, hue * max( wakeTint.r, max( wakeTint.g, wakeTint.b ) ), 0.35 * ahead );
+        vec3 tint = mix( wakeTint, hue * max( wakeTint.r, max( wakeTint.g, wakeTint.b ) ), 0.2 * ahead );
         // The tail shimmers: slow cells of light that thin as it fades.
         // (Fixed in space and slow in time: a point never flickers, < 0.4 Hz.)
         vec2 sq = mWorld.xz * 0.6 + vec2( magicBeam.w * 0.15, 0.0 );
@@ -246,11 +246,14 @@ if ( magicOn > 0.0 ) {
         float sn = mix( mix( magicHash( vec3( si, 1.0 ) ), magicHash( vec3( si + vec2( 1.0, 0.0 ), 1.0 ) ), sf.x ), mix( magicHash( vec3( si + vec2( 0.0, 1.0 ), 1.0 ) ), magicHash( vec3( si + 1.0, 1.0 ) ), sf.x ), sf.y );
         float shimmer = smoothstep( 0.25, 0.85, sn );
         // (The crest itself is uneven too: never one even stroke.)
-        float glow = crest * ( 0.7 + 0.5 * sn ) + tail * 0.22 * shimmer;
+        float glow = crest * ( 0.7 + 0.5 * sn ) + tail * 0.07 * shimmer;
         // (Evened over albedo: pale sand glared while dark leaves barely
         // took it; the light reads as one front over both.)
         float even = 1.0 / ( 0.4 + 2.0 * dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) );
-        mWake += tint * wakeWave.w * glow * face * even;
+        // (Softer in the few metres round the eye: as the front passes the
+        // camera it sweeps by, it does not fill the frame.)
+        float nearEye = mix( 0.35, 1.0, smoothstep( 3.0, 16.0, length( cameraPosition - mWorld ) ) );
+        mWake += tint * wakeWave.w * glow * face * even * nearEye;
         mWakeSpec += tint * wakeWave.w * (
           crest * ( vEdge * 0.7 * alb + vGloss * 1.4 + magicSparkle( mWorld, mView, 40.0, 0.95 ) * 2.0 )
           + tail * ( magicSparkle( mWorld, mView, 40.0, 0.93 ) * 1.6 * tail + vGloss * 0.4 ) );
