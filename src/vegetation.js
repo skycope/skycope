@@ -347,11 +347,11 @@ export function vegetationLayout(seed) {
 // shrubs stand in it, straw and ochre where plants are old or dry, and the
 // few flowers are small and muted.
 const SPECIES = {
-  renoster: { hsl: [0.2, 0.16, 0.29], spread: [0.3, 0.6], tall: [0.8, 1.1] },
-  erica: { hsl: [0.22, 0.24, 0.22], spread: [0.22, 0.42], tall: [0.85, 1.1], bloom: 0.4, flowers: [[0.87, 0.24, 0.6], [0.93, 0.22, 0.7], [0.12, 0.1, 0.86]] },
-  pelargonium: { hsl: [0.25, 0.26, 0.24], spread: [0.3, 0.55], tall: [0.8, 1.1], bloom: 0.35, flowers: [[0.85, 0.28, 0.66], [0.9, 0.2, 0.74]] },
-  blombos: { hsl: [0.27, 0.27, 0.19], spread: [0.4, 0.75], tall: [0.85, 1.15] },
-  restiold: { hsl: [0.13, 0.24, 0.31], spread: [0.22, 0.42], tall: [0.8, 1.05] },
+  renoster: { hsl: [0.2, 0.16, 0.29], spread: [0.38, 0.75], tall: [0.66, 0.92] },
+  erica: { hsl: [0.22, 0.24, 0.22], spread: [0.28, 0.52], tall: [0.72, 0.95], bloom: 0.4, flowers: [[0.87, 0.24, 0.6], [0.93, 0.22, 0.7], [0.12, 0.1, 0.86]] },
+  pelargonium: { hsl: [0.25, 0.26, 0.24], spread: [0.38, 0.68], tall: [0.66, 0.92], bloom: 0.35, flowers: [[0.85, 0.28, 0.66], [0.9, 0.2, 0.74]] },
+  blombos: { hsl: [0.27, 0.27, 0.19], spread: [0.5, 0.92], tall: [0.7, 0.98] },
+  restiold: { hsl: [0.13, 0.24, 0.31], spread: [0.28, 0.52], tall: [0.66, 0.9] },
   dune: { hsl: [0.17, 0.12, 0.33], spread: [0.25, 0.5], tall: [0.6, 0.9] },
   sourfig: { hsl: [0.2, 0.3, 0.24], spread: [0.4, 0.85], tall: [0.18, 0.28], bloom: 0.25, flowers: [[0.86, 0.3, 0.62], [0.14, 0.42, 0.66]] },
 };
@@ -401,8 +401,10 @@ function understoryLayout(seed, plants, patch) {
     for (let dx = -1; dx <= 1; dx++)
       for (let dz = -1; dz <= 1; dz++)
         for (const p of taken.get(`${cx + dx},${cz + dz}`) ?? []) {
-          const clear = p.kind === "tree" ? 0.25 + p.height * 0.034 : p.kind === "shrub" ? (p.spread ?? 0.4) * 0.8 : 0.35;
-          if (Math.hypot(x - p.x, z - p.z) < clear + r * 0.75) return true;
+          // Shrub masses may run into each other (a thicket is one mass of
+          // many plants); trunks and rosettes keep a little room.
+          const clear = p.kind === "tree" ? 0.25 + p.height * 0.034 : p.kind === "shrub" ? (p.spread ?? 0.4) * 0.55 : 0.35;
+          if (Math.hypot(x - p.x, z - p.z) < clear + r * (p.kind === "shrub" ? 0.5 : 0.75)) return true;
         }
     return false;
   };
@@ -421,8 +423,11 @@ function understoryLayout(seed, plants, patch) {
       // Clumps and gaps at a few metres: a patch field thins the cover.
       const clump = noise2(x * 0.42 + patch, z * 0.38 - patch) * 0.7 + noise2(x * 1.1 - 3, z * 1.1 + 7) * 0.3;
       const open = smoothstep(0.14, 0.4, clump);
-      // Closed fynbos inland, thinning toward the dunes and under crowns.
-      const cover = Math.max(scrub, smoothstep(4, 9, inland) * 0.95) * open * (1 - granite * 0.8) * (1 - shade * 0.3);
+      // Closed fynbos inland, thinning toward the dunes. Under the crowns
+      // it carries on as thicket (shade-tolerant blombos and pelargonium,
+      // lower and a little sparser), so the floor between trunks is cover,
+      // not bare soil.
+      const cover = Math.max(scrub, smoothstep(4, 9, inland) * 0.95) * open * (1 - granite * 0.8) * (1 - shade * 0.12);
       let species = null;
       if (roll < cover * 0.92) {
         const site = noise2(x * 0.06 + drift, z * 0.05 - drift);
@@ -435,7 +440,7 @@ function understoryLayout(seed, plants, patch) {
       if (!species) continue;
       const sp = SPECIES[species];
       // Smaller toward the sea wind and in the shade; neighbours alike.
-      const size = (0.75 + noise2(x * 0.5 - drift, z * 0.5) * 0.5) * (0.6 + smoothstep(2.5, 9, inland) * 0.4) * (1 - shade * 0.3);
+      const size = (0.75 + noise2(x * 0.5 - drift, z * 0.5) * 0.5) * (0.6 + smoothstep(2.5, 9, inland) * 0.4) * (1 - shade * 0.15);
       const spread = (sp.spread[0] + random() * (sp.spread[1] - sp.spread[0])) * size;
       if (crowded(x, z, spread)) continue;
       const plant = {
