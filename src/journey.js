@@ -552,7 +552,8 @@ export function createJourney({ state, card, findLine, now, onChange = () => {},
     }
     if (once("card", p.card)) card?.show("", LINES.home, 5, true);
     // The sky turns: the lapse (never with reduced motion).
-    if (!c.reduced && once("turn", p.turn[0])) startLapse(c);
+    // (By day it begins with the dusk: the day runs down to tonight.)
+    if (!c.reduced && once("turn", c.night ? p.turn[0] : p.dusk[0])) startLapse(c);
     if (once("after", p.after)) {
       sound("turn");
       findLine.pause(false);
@@ -579,7 +580,7 @@ export function createJourney({ state, card, findLine, now, onChange = () => {},
     const date = state.date ?? new Date();
     const dusk = duskMinutes(from, date, -9) ?? from + 360;
     const dawn = dawnMinutes(dusk + 60, date, -9) ?? dusk + 600;
-    const s0 = p.turn[0];
+    const s0 = p.dusk[0];
     sky.run([[0, from], [p.dusk[1] - s0, dusk], [p.turn[0] - s0 + 0.001, dusk + 45], [p.turn[1] - s0, dawn], [p.dawn[1] - s0, from + 1440]], {
       onDone: () => setTimeout(() => sky.live?.(), 10000),
     });
