@@ -318,6 +318,7 @@ async function runSession(browser, name) {
   const saved = new Map(); // frame index → spooled PNG path
   let processing = Promise.resolve();
   let activity = null;
+  let latest = null;
   const keepRaw = (i) => { if (!saved.has(i) && raws[i]) { const p = join(spool, `${i}.png`); writeFileSync(p, raws[i]); saved.set(i, p); } };
   let pending = 0, dropped = 0;
   const onFrame = (params) => {
@@ -332,6 +333,7 @@ async function runSession(browser, name) {
       let png;
       try { png = PNG.sync.read(buffer); } catch { return; }
       const k = frames.length;
+      latest = png;
       const m = measure(png);
       m.t = t;
       frames.push(m);
@@ -394,7 +396,17 @@ async function runSession(browser, name) {
   };
   const script = SCRIPTS[name];
   if (!script) throw new Error(`unknown session ${name}`);
-  await script({ tab, mark, key });
+  // A small copy of the latest presented frame (from the screencast: a
+  // screenshot with a clip scale re-lays the page out, and showed up as a
+  // blank frame of its own).
+  const still = (scale = 0.3) => {
+    if (!latest) return null;
+    const w = Math.floor(latest.width * scale), h = Math.floor(latest.height * scale);
+    const out = new PNG({ width: w, height: h });
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) latest.data.copy(out.data, (y * w + x) * 4, (Math.floor(y / scale) * latest.width + Math.floor(x / scale)) * 4, (Math.floor(y / scale) * latest.width + Math.floor(x / scale)) * 4 + 4);
+    return out;
+  };
+  await script({ tab, mark, key, still });
   mark("end");
   draining = false;
   await drainer;
@@ -445,7 +457,7 @@ const ROUTES = {
 };
 
 const SCRIPTS = {
-  async routes({ tab, mark, key }) {
+  async routes({ tab, mark, key, still }) {
     await settleAfterLoad(tab, 6);
     for (const [name, r] of Object.entries(ROUTES)) {
       await tab.evaluate(`(() => {
@@ -461,8 +473,8 @@ const SCRIPTS = {
       let shooting = true;
       const shooter = (async () => {
         while (shooting && shots.length < 10) {
-          const r = await tab.send("Page.captureScreenshot", { format: "png", clip: { x: 0, y: 0, width: W, height: H, scale: 0.3 } });
-          if (r.result?.data) shots.push(PNG.sync.read(Buffer.from(r.result.data, "base64")));
+          const shot = still();
+          if (shot) shots.push(shot);
           await sleep(600);
         }
       })();
