@@ -89,7 +89,6 @@ const IDLE_FPS = 30;
 // pull from soft to sharp (a compositor blur on both canvases, eased out),
 // not resolution steps. The canvases render at their final size from the
 // first frame, so nothing is resized or re-rendered in front of the visitor.
-const REVEAL_BLUR_PX = 7;
 const REVEAL_MS = 1400;
 
 const canvas = document.querySelector("#sky");
@@ -949,34 +948,14 @@ async function startAtmosphere() {
   syncLoop();
 }
 
-// The canvases start soft (before their first frame, under the veil)...
-function soften() {
-  if (motionPreference.matches) return;
-  for (const layer of [canvas, document.querySelector("#landscape")]) {
-    if (layer) layer.style.filter = `blur(${REVEAL_BLUR_PX}px)`;
-  }
-}
-soften();
-
-// ...and come into focus in one eased pull as the veil hands over; the
-// filter is then removed, so it costs nothing afterwards.
+// The pull from soft to sharp as the veil hands over is the loading
+// screen's (body[data-focus] in index.html, set by loading.ready()): one
+// owner for the canvases' filter, so the two never fight. This only records
+// the moment for the budget and the stability log.
 function sharpen() {
   clearTimeout(state.revealTimer);
   state.revealedAt ??= performance.now();
   note("reveal", { ms: REVEAL_MS });
-  if (state.disposed) return;
-  const layers = [canvas, document.querySelector("#landscape")].filter(Boolean);
-  for (const layer of layers) {
-    // (The sky canvas keeps its own fade-in.)
-    layer.style.transition = `${layer === canvas ? "opacity 0.7s ease, " : ""}filter ${REVEAL_MS}ms cubic-bezier(0.25, 0.6, 0.3, 1)`;
-    layer.style.filter = "blur(0px)";
-  }
-  state.revealTimer = setTimeout(() => {
-    for (const layer of layers) {
-      layer.style.filter = "";
-      layer.style.transition = "";
-    }
-  }, REVEAL_MS + 100);
 }
 
 // Until the walker exists (the landscape builds it), shaders compile against
