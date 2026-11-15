@@ -223,7 +223,7 @@ test("the hand-over: out of focus under the veil first, no blank frame, everythi
   // and the pull ends before the veil is put away (1.6 s).
   const css = readFileSync(new URL("../index.html", import.meta.url), "utf8");
   const fade = Number(css.match(/\.loading-screen::after \{ transition: opacity ([\d.]+)s/)[1]);
-  const [pull, delay] = css.match(/transition: filter ([\d.]+)s cubic-bezier\([^)]+\) ([\d.]+)s;/).slice(1).map(Number);
+  const [pull, delay] = css.match(/transition: filter ([\d.]+)s cubic-bezier\([^)]+\) ([\d.]+)s,/).slice(1).map(Number);
   assert.ok(fade < pull + delay && pull + delay < 1.6, `${fade} ${pull} ${delay}`);
   assert.match(css, /body\[data-focus="soft"\] #landscape \{ filter: blur\(\d+px\)/);
   // Behind the blurred canvases, the veil's sky, not the fallback picture.

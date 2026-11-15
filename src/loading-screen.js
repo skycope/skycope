@@ -344,6 +344,7 @@ export function createLoadingScreen({ document: doc = globalThis.document, stora
     timers.forEach(clearTimeout);
     timers.length = 0;
     delete body?.dataset.focus;
+    body?.style?.removeProperty?.("--horizon");
     painter?.dispose();
     painter = null;
   };
@@ -477,6 +478,7 @@ export function createLoadingScreen({ document: doc = globalThis.document, stora
     // stay behind (without WebGL2 the whole veil fades instead).
     if (root.dataset.painted !== undefined) root.style.backgroundImage = "none";
     if (body) {
+      body.style?.setProperty("--horizon", `${(horizonAt(scene.view) * 100).toFixed(2)}%`);
       body.dataset.focus = "soft";
       // Style the soft state before the pull, so the pull transitions.
       void body.offsetWidth;
