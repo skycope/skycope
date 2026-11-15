@@ -40,7 +40,9 @@ Production, Fast 3G, CPU 4× (one load per case; full tables from `scripts/loadi
 | | first paint | sky colours right | veil sky drawn | main.js fetched | first real frame |
 |---|---|---|---|---|---|
 | before, 12 cases | 656–772 | never (placeholder, then a guessed picture) | 1467–1612 | 3373–3413 | 13079–22545 |
-| after, 12 cases | 640–708 | at first paint | 1437–1569 | 3452–3585 | 12286–14883 |
+| after, 12 cases | 664–752 | at first paint | 1483–1568 | 3497–3587 | 12896–18284 |
+
+The first real frame's spread is the world build (island, plants, shader compiles) under CPU 4×, which this lane does not touch; it varies by ±3 s between identical loads. After `loading.ready()` the veil waits for the land layer's GPU fence and two frames: 40–120 ms ("world shown" in `scripts/loading-tables.mjs`).
 
 Unthrottled, one load each (noise ±0.5 s on the world build):
 
