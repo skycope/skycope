@@ -32,7 +32,7 @@ export function fadeWidth(start) {
 // Instances in the margins are drawn at nothing: a wider one costs vertices,
 // a narrower one re-packs more often.
 export function packMargin(near) {
-  return 0.35 + 0.02 * near;
+  return 0.45 + 0.02 * near;
 }
 
 // The level an instance this far away draws at (the finest one it is
@@ -119,8 +119,8 @@ function wholeLevel(chunk, eye, bias, eye2) {
 // How urgently the chunk needs packing again for this eye and bias: 0 not
 // due; from 0.6, the share of its packing margin the eye has used up (at 1
 // an instance could be drawn at a level it was not packed into). One never
-// packed is 1. A whole chunk that has come within its margin of a band is
-// 0.8 (the band is still a margin away). A bias step is 0.7: until packed,
+// packed is 1, and so is a whole chunk that has come within its margin of a
+// band (a fast eye may already be past the margin). A bias step is 0.7: until packed,
 // the chunk keeps the old boundaries, which is still a consistent picture.
 // `eye2`: a second eye the packing must also serve (see packChunk). A
 // chunk not re-packed while it is held already serves it: it was packed
@@ -129,8 +129,8 @@ export function packUrgency(chunk, eye, bias, eye2 = null, lead = 0) {
   if (chunk.state === -2) return 1;
   if (chunk.bias !== bias) return 0.7;
   const level = wholeLevel(chunk, eye, bias, eye2);
-  if (level >= 0) return level !== chunk.state ? 0.8 : 0;
-  if (chunk.state !== -1) return 0.8;
+  if (level >= 0) return level !== chunk.state ? 1 : 0;
+  if (chunk.state !== -1) return 1;
   // Per instance: again once the eye has moved part of the margin the
   // windows were packed with.
   const m = packMargin(chunkRange(chunk, chunk.eye)[0]);
