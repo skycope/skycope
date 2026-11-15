@@ -613,12 +613,13 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   // landmark LOD levels switched this frame, for scripts/stability.mjs.
   function watchLod() {
     const chunks = (watchLod.chunks ??= (() => { const c = []; land.traverse((o) => { if (o.userData.lodChunks) c.push(...o.userData.lodChunks); }); return c; })());
-    const seen = (watchLod.seen ??= new Map());
+    // (No allocation per frame: perf.mjs measures with ?perf too.)
+    const seen = (watchLod.seen ??= new Float64Array(chunks.length * 3).fill(NaN));
     let packed = 0;
-    for (const c of chunks) {
-      const sig = `${c.state}:${c.eye?.[0]}:${c.bias}`;
-      if (seen.has(c) && seen.get(c) !== sig) packed++;
-      seen.set(c, sig);
+    for (let i = 0; i < chunks.length; i++) {
+      const c = chunks[i], e = c.eye ? c.eye[0] : 0;
+      if (seen[i * 3] === seen[i * 3] && (seen[i * 3] !== c.state || seen[i * 3 + 1] !== e || seen[i * 3 + 2] !== c.bias)) packed++;
+      seen[i * 3] = c.state; seen[i * 3 + 1] = e; seen[i * 3 + 2] = c.bias;
     }
     if (packed) note("lod-pack", { chunks: packed });
     const lods = (watchLod.lods ??= (() => { const l = []; places.group?.traverse((o) => { if (o.isLOD) l.push(o); }); return l; })());
