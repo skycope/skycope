@@ -12,21 +12,21 @@ Loudness: *peak* is sample peak (dBFS) and *tp* true peak (dBTP, 4x oversampled)
 | weather | rain 4 mm/h in the open | -32.0 LUFS | -32 | -31.9 | -22.3 dBTP |
 | foley | running on dry sand | -45.6 LUFS | -46 | -44.8 | -16.6 dBTP |
 | voice | one meow every 5 s | -34.0 LUFS | -34 | -38.6 | -22.6 dBTP |
-| world | penguin bray at 10 m every 8 s | -36.1 LUFS | -36 | -37.0 | -16.8 dBTP |
+| world | penguin bray at 10 m every 8 s | -48.0 LUFS | -48 | -46.6 | -23.6 dBTP |
 | magic | one ceremony (tideglow) | -34.0 LUFS | -34 | -31.4 | -19.9 dBTP |
 | music | noon mood | -40.0 LUFS | -40 | -37.7 | -24.6 dBTP |
 | **mix** | home beach, noon, walking, one meow | **-31.3 LUFS** | −30 ± 2 | -29.7 | -16.7 dBTP |
 
 ## The scripted 60 s walk
 
-Beach → grass (a bush, a meow) → rock (a jump) → wading and a swim → the boat; noon, wind 7 m/s, music on. Hear it on the audition page, item 13.1. Integrated -31.5 LUFS, true peak -14.7 dBTP, limiter reduction at most 0.00 dB. Voices: peak 4 alive at once (cap 40); loops 11 (budget 14); node creations 32.3 per second averaged (budget 40), busiest second 77 (budget 150); stolen 0, refused 0.
+Beach → grass (a bush, a meow) → rock (a jump) → wading and a swim → the boat; noon, wind 7 m/s, music on. Hear it on the audition page, item 13.1. Integrated -31.5 LUFS, true peak -14.7 dBTP, limiter reduction at most 0.00 dB. Voices: peak 5 alive at once (cap 40); loops 11 (budget 14); node creations 32.3 per second averaged (budget 40), busiest second 77 (budget 150); stolen 0, refused 0.
 
 | leg | seconds | integrated |
 |---|---|---|
 | beach (dry sand) | 0–12 | -31.4 LUFS |
 | grass, a bush, a meow | 12–24 | -34.2 LUFS |
 | rock, a jump | 24–34 | -33.1 LUFS |
-| wading, then swimming | 34–46 | -30.3 LUFS |
+| wading, then swimming | 34–46 | -30.4 LUFS |
 | the boat | 46–60 | -30.2 LUFS |
 
 ![loudness](walk-loudness.png)
@@ -43,9 +43,8 @@ Numbered as on the audition page (`/?audition`) and in the listening checklist (
 
 | # | cue | len s | peak | tp | max M | int | centroid | meant to be | spectrogram |
 |---|---|---|---|---|---|---|---|---|---|
-| 1.1 | Beach at noon (scene, 30 s) | 30.30 | -17.6 | -17.6 | -29.7 | -32.8 | 203 | low slow sea that breathes, a wave rushing up every few seconds, light wind, maybe one gull; quiet enough to work to | [png](spectrograms/1.1-beach-noon.png) |
+| 1.1 | Beach at noon (scene, 30 s) | 30.30 | -17.6 | -17.6 | -29.7 | -32.8 | 202 | low slow sea that breathes, a wave rushing up every few seconds, light wind, maybe one gull; quiet enough to work to | [png](spectrograms/1.1-beach-noon.png) |
 | 1.2 | One breaking wave | 4.30 | -18.3 | -18.3 | -28.6 | -30.4 | 193 | a rush that falls in pitch, then a hiss of foam | [png](spectrograms/1.2-wave.png) |
-| 1.3 | A kelp gull over the shore | 1.63 | -38.4 | -38.4 | -45.0 | -46.4 | 2059 | a falling nasal 'kee-ow', one to three, far off | [png](spectrograms/1.3-gull.png) |
 
 ### 2. Footsteps, surface by surface (walk, then run)
 
@@ -91,8 +90,8 @@ Numbered as on the audition page (`/?audition`) and in the listening checklist (
 | 5.2 | Short greeting meow (an animal close) | 0.38 | -26.4 | -26.4 | -33.5 | -34.7 | 1000 | quicker and brighter | [png](spectrograms/5.2-meow-short.png) |
 | 5.3 | Chirrup | 0.29 | -30.2 | -30.2 | -37.7 | -39.2 | 755 | a questioning 'mrrp?' | [png](spectrograms/5.3-chirrup.png) |
 | 5.4 | The wisp's answer | 1.25 | -31.9 | -31.9 | -39.2 | -41.8 | 1582 | three small glassy notes skipping up | [png](spectrograms/5.4-wisp.png) |
-| 5.5 | A penguin's soft 'haw' back (8 m left) | 0.65 | -26.4 | -26.4 | -42.0 | -42.8 | 729 | one short soft honk | [png](spectrograms/5.5-haw.png) |
-| 5.6 | The owl in the milkwood (25 m ahead) | 1.92 | -28.5 | -28.5 | -30.2 | -33.2 | 331 | a soft 'hoo, hooo', the second lower and longer | [png](spectrograms/5.6-owl.png) |
+| 5.5 | A penguin's soft 'haw' back (8 m left) | 0.83 | -35.9 | -35.9 | -46.5 | -47.3 | 323 | one short soft honk | [png](spectrograms/5.5-haw.png) |
+| 5.6 | The owl in the milkwood (25 m ahead) | 1.96 | -41.5 | -41.5 | -43.6 | -46.6 | 335 | a soft 'hoo, hooo', the second lower and longer | [png](spectrograms/5.6-owl.png) |
 | 5.7 | The lighthouse throwing a meow back (25 m) | 0.79 | -20.3 | -20.3 | -26.1 | -28.0 | 1022 | the meow, late and dark | [png](spectrograms/5.7-tower-echo.png) |
 
 ### 6. The purr
@@ -143,7 +142,7 @@ Numbered as on the audition page (`/?audition`) and in the listening checklist (
 | 10.2 | Waking: tideglow (12 m ahead) | 8.23 | -34.7 | -34.7 | -47.5 | -52.7 | 263 | struck iron, a fizz running away, a low thump into the water, bright ticks from the swash | [png](spectrograms/10.2-waking-tideglow.png) |
 | 10.3 | Waking: lamp (12 m ahead) | 9.58 | -30.8 | -30.8 | -37.2 | -45.3 | 104 | a match, two puffs, a warm low swell, slow clockwork, small 'pt's along the necklace | [png](spectrograms/10.3-waking-lamp.png) |
 | 10.4 | Waking: stars (12 m ahead) | 4.92 | -38.9 | -38.9 | -43.0 | -46.9 | 1810 | a high glass harmonic swelling, wind down the hill, a soft meteor hiss | [png](spectrograms/10.4-waking-stars.png) |
-| 10.5 | Waking: seafolk (12 m ahead) | 7.00 | -24.1 | -24.1 | -37.1 | -41.6 | 520 | a deep bloop and bubbles, water running out, a seal answers far off | [png](spectrograms/10.5-waking-seafolk.png) |
+| 10.5 | Waking: seafolk (12 m ahead) | 7.02 | -34.7 | -34.7 | -44.1 | -49.6 | 249 | a deep bloop and bubbles, water running out, a seal answers far off | [png](spectrograms/10.5-waking-seafolk.png) |
 | 10.6 | Waking: boat (12 m ahead) | 8.80 | -27.7 | -27.7 | -39.7 | -45.7 | 593 | lantern glass, a match, a creak, keel on sand, a slap, two little squeaks | [png](spectrograms/10.6-waking-boat.png) |
 | 10.7 | Ceremony phrase: tideglow (music off) | 10.30 | -23.0 | -23.0 | -30.3 | -33.5 | 627 | one slow swelling phrase on D; one event, not three | [png](spectrograms/10.7-ceremony-tideglow.png) |
 | 10.8 | Ceremony phrase: fireflies (music off) | 8.30 | -23.1 | -23.1 | -30.7 | -33.5 | 1162 | small and glassy, with an afterglow | [png](spectrograms/10.8-ceremony-fireflies.png) |
@@ -152,15 +151,17 @@ Numbered as on the audition page (`/?audition`) and in the listening checklist (
 
 | # | cue | len s | peak | tp | max M | int | centroid | meant to be | spectrogram |
 |---|---|---|---|---|---|---|---|---|---|
-| 11.1 | Penguin bray (10 m right) | 2.11 | -17.0 | -16.9 | -28.1 | -31.6 | 788 | hiccuping honks, then a long donkey bray | [png](spectrograms/11.1-penguin-bray.png) |
-| 11.2 | Penguins scattering (8 m) | 1.00 | -24.7 | -24.7 | -36.2 | -38.4 | 736 | three quick haws and wing pats | [png](spectrograms/11.2-penguin-scatter.png) |
-| 11.3 | Seal bark (20 m left) | 1.35 | -13.8 | -13.8 | -27.9 | -30.2 | 540 | gruff bleating barks | [png](spectrograms/11.3-seal-bark.png) |
-| 11.4 | Seal lifting its head (8 m) | 0.52 | -34.7 | -34.7 | -56.8 | -59.4 | 545 | a snort | [png](spectrograms/11.4-seal-snort.png) |
-| 11.5 | Whale blow (90 m) | 2.70 | -13.0 | -12.8 | -25.9 | -30.6 | 717 | a deep wet exhale far out | [png](spectrograms/11.5-whale-blow.png) |
-| 11.6 | Whale tail slap (90 m) | 1.61 | -11.8 | -11.8 | -28.1 | -31.2 | 203 | a crack, a heavy wash | [png](spectrograms/11.6-whale-slap.png) |
-| 11.7 | Tortoise withdrawing (1 m) | 0.29 | -37.9 | -37.9 | -55.2 | -57.7 | 7993 | a short hiss; you must be close | [png](spectrograms/11.7-tortoise-hiss.png) |
-| 11.8 | Oystercatchers flushed (10 m) | 1.84 | -24.1 | -23.9 | -37.3 | -39.3 | 3737 | piping 'kleep-kleep', quickening, then wings | [png](spectrograms/11.8-oystercatchers.png) |
-| 11.9 | Crickets at night, the cat walking through (scene, 10 s) | 10.30 | -34.9 | -34.9 | -45.5 | -47.8 | 209 | chirps round you; the near ones stop as you walk past and come back after | [png](spectrograms/11.9-crickets.png) |
+| 11.1 | The penguin colony from the spawn beach (30 m right) | 1.91 | -43.5 | -43.5 | -49.4 | -52.6 | 325 | a soft far-off honk or two; faint under the sea | [png](spectrograms/11.1-penguin-bray.png) |
+| 11.2 | A penguin calling close by (8 m right) | 1.76 | -29.3 | -29.3 | -35.2 | -38.4 | 324 | the same soft honk, nearer: still not a donkey | [png](spectrograms/11.2-penguin-near.png) |
+| 11.3 | A penguin startled by the cat (5 m) | 0.82 | -32.8 | -32.8 | -43.4 | -44.1 | 323 | one short soft haw | [png](spectrograms/11.3-penguin-startled.png) |
+| 11.4 | A seal across the rocks (40 m left) | 1.19 | -38.5 | -38.5 | -49.0 | -50.1 | 255 | one or two soft gruff barks | [png](spectrograms/11.4-seal-bark.png) |
+| 11.5 | A seal lifting its head (8 m) | 0.69 | -25.6 | -25.6 | -44.3 | -46.1 | 524 | a soft snort | [png](spectrograms/11.5-seal-snort.png) |
+| 11.6 | The whale blowing far out (110 m) | 2.67 | -28.9 | -28.9 | -41.2 | -45.3 | 201 | a deep wet exhale, far off | [png](spectrograms/11.6-whale-blow.png) |
+| 11.7 | The whale's tail on the water (110 m) | 1.24 | -29.0 | -29.0 | -43.3 | -46.1 | 156 | a soft heavy wash, far off | [png](spectrograms/11.7-whale-slap.png) |
+| 11.8 | The tortoise withdrawing (1 m) | 0.52 | -30.9 | -30.8 | -46.7 | -48.5 | 2352 | a short soft hiss; you must be close | [png](spectrograms/11.8-tortoise-hiss.png) |
+| 11.9 | Oystercatchers flushed (10 m) | 1.10 | -32.6 | -32.4 | -44.2 | -45.4 | 3456 | a few piping notes, then soft wings | [png](spectrograms/11.9-oystercatchers.png) |
+| 11.10 | A kelp gull over the water (45 m) | 1.04 | -45.4 | -45.4 | -48.9 | -50.4 | 1360 | a soft falling call, far off | [png](spectrograms/11.10-gull.png) |
+| 11.11 | Crickets at night, the cat walking through (scene, 10 s) | 10.30 | -34.9 | -34.9 | -45.5 | -47.8 | 206 | chirps round you; the near ones stop as you walk past and come back after | [png](spectrograms/11.11-crickets.png) |
 
 ### 12. The story's moments
 
