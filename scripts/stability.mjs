@@ -230,7 +230,11 @@ function measure(png) {
       leafy[gj * gw + gi] = g > BLOCK * BLOCK * 0.5 && gj * BLOCK > h * 0.12 ? 1 : 0;
     }
   }
-  return { mean, landStd, bg: bg / ln, sharp: lap / lapN, grid, leafy, gw, gh, w, h };
+  // The foliage's mean brightness: sway averages out over many leaves;
+  // a change of the light on them does not (plant lighting flicker).
+  let leafSum = 0, leafN = 0;
+  for (let i = 0; i < grid.length; i++) if (leafy[i]) { leafSum += grid[i]; leafN++; }
+  return { mean, landStd, bg: bg / ln, sharp: lap / lapN, grid, leafy, leafMean: leafN > 20 ? leafSum / leafN : null, gw, gh, w, h };
 }
 
 // Cells that changed abruptly in frame b (against a→b's neighbours in time),
@@ -352,6 +356,11 @@ async function runSession(browser, name) {
         const r = abrupt(f);
         frames[k - 1].abrupt = r;
         frames[k - 1].flicker = flicker(f[1], f[2], f[3]);
+        const [la, lb, lc] = [f[1], f[2], f[3]];
+        if (la.leafMean !== null && lb.leafMean !== null && lc.leafMean !== null) {
+          const wa = (lc.t - lb.t) / Math.max(1, lc.t - la.t);
+          frames[k - 1].leafJump = Math.abs(lb.leafMean - (la.leafMean * wa + lc.leafMean * (1 - wa)));
+        }
         if (r.pop.cells >= T.popCells || r.flash.cells >= T.popCells || r.vanish.cells >= T.popCells) { keepRaw(k - 2); keepRaw(k - 1); keepRaw(k); }
       }
       // Drop the grids the pop test no longer needs (memory).
@@ -685,9 +694,14 @@ function analyse(run) {
     placeLod: events.filter((e) => e.kind === "place-lod").length,
     animalLod: events.filter((e) => e.kind === "animal-lod").length,
     flicker: stillN ? +(stillSum / stillN).toFixed(3) : null,
+    // The light on the foliage (mean of leafy cells) off the line between its
+    // neighbours in time, camera still: mean, and frames over 0.5/255.
+    leafLight: (() => { const v = []; for (let k = 1; k + 1 < frames.length; k++) if (frames[k].leafJump !== undefined && loaded(k) && stillOver(k - 1, k + 1)) v.push(frames[k].leafJump); return v.length ? +(v.reduce((a, b) => a + b, 0) / v.length).toFixed(3) : null; })(),
+    leafSteps: (() => { let n = 0; for (let k = 1; k + 1 < frames.length; k++) if (frames[k].leafJump > 0.5 && loaded(k) && stillOver(k - 1, k + 1)) n++; return n; })(),
     errors: run.errors.length,
   };
-  return { summary, flags, hitches, flicker, lighting: lightingAfterTime(run, frames, events, rendered, first), events: events.filter((e) => e.kind !== "lod-pack").map((e) => ({ ...e, t: Math.round(e.t - first) })) };
+  const series = frames.map((f, k) => [Math.round(f.t - first), +f.mean.toFixed(2), +f.sharp.toFixed(2), f.flicker ? +f.flicker.mean.toFixed(2) : null, f.leafMean === null ? null : +f.leafMean.toFixed(2), k > 0 && stillOver(k - 1, k) ? 1 : 0]);
+  return { summary, flags, hitches, flicker, series, lighting: lightingAfterTime(run, frames, events, rendered, first), events: events.filter((e) => e.kind !== "lod-pack").map((e) => ({ ...e, t: Math.round(e.t - first) })) };
 }
 
 // After each time jump: how long the picture takes to settle, how many
@@ -798,7 +812,7 @@ function strip(shots) {
 }
 
 function markdown(results) {
-  const cols = ["session", "captured", "seconds", "blank", "lum", "sharp", "popStill", "popMoving", "worstPopPixels", "flashStill", "flashMoving", "vanishStill", "vanishMoving", "flicker", "hitches", "worstHitchMs", "resizes", "unsynced", "quality", "reveal", "shadowSwaps", "placeLod", "animalLod", "errors"];
+  const cols = ["session", "captured", "seconds", "blank", "lum", "sharp", "popStill", "popMoving", "worstPopPixels", "flashStill", "flashMoving", "vanishStill", "vanishMoving", "flicker", "leafLight", "leafSteps", "hitches", "worstHitchMs", "resizes", "unsynced", "quality", "reveal", "shadowSwaps", "placeLod", "animalLod", "errors"];
   const lines = [
     `# Stability, ${new Date().toISOString().slice(0, 16)} (${W}x${H} @${DPR}, seed ${SEED})`,
     "",
@@ -838,7 +852,7 @@ if (process.argv[2] === "compare") {
   const [a, b, out] = process.argv.slice(3);
   const load = async (d) => JSON.parse(await readFile(join(d, "stability.json"), "utf8"));
   const A = await load(a), B = await load(b);
-  const cols = ["blank", "lum", "sharp", "popStill", "popMoving", "flashStill", "flashMoving", "vanishStill", "vanishMoving", "flicker", "hitches", "worstHitchMs", "resizes", "unsynced", "quality", "reveal", "shadowSwaps"];
+  const cols = ["blank", "lum", "sharp", "popStill", "popMoving", "flashStill", "flashMoving", "vanishStill", "vanishMoving", "flicker", "leafLight", "leafSteps", "hitches", "worstHitchMs", "resizes", "unsynced", "quality", "reveal", "shadowSwaps"];
   const lines = [`| session | ${cols.join(" | ")} |`, `| --- | ${cols.map(() => "---").join(" | ")} |`];
   for (const r of B) {
     const before = A.find((x) => x.summary.session === r.summary.session)?.summary ?? {};

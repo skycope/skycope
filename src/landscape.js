@@ -366,7 +366,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       // pacing on a boundary does not flip it (each flip redrew the map,
       // and the leaves' self-shadowing changed).
       const wantX = pose.x + hx * 8, wantZ = pose.z + hz * 8;
-      if (!shadowAnchor || Math.abs(wantX - shadowAnchor[0]) > 8 || Math.abs(wantZ - shadowAnchor[1]) > 8) {
+      if (!shadowAnchor || Math.abs(wantX - shadowAnchor[0]) > 11 || Math.abs(wantZ - shadowAnchor[1]) > 11) {
         shadowAnchor = [Math.round(wantX / 10) * 10, Math.round(wantZ / 10) * 10];
       }
       const [anchorX, anchorZ] = shadowAnchor;
@@ -818,10 +818,12 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     const envDt = Math.min(1, Math.max(0, (performance.now() - envBeam.at) / 1000));
     envBeam.at = performance.now();
     envBeam.value = envBeam.value === null || domeFresh ? overcast : envBeam.value + (overcast - envBeam.value) * (1 - Math.exp(-envDt / 3));
+    // (Held until the average has moved 6%, so it does not hover on a step.)
+    if (envBeam.held === undefined || domeFresh || Math.abs(envBeam.value - envBeam.held) > 0.06) envBeam.held = envBeam.value;
     const quantise = (v) => Math.exp(Math.round(Math.log(Math.max(v, 1e-6)) * 40) / 40);
     const skyUnit = lighting.sky.map((v) => quantise((v * (1 + cover * 0.45)) / exposure));
     const bounceUnit = lighting.direct.map(
-      (v, i) => quantise(((v * Math.max(sunWorld.y, 0) * envBeam.value / Math.PI + sky[i]) * [0.21, 0.2, 0.165][i]) / exposure),
+      (v, i) => quantise(((v * Math.max(sunWorld.y, 0) * envBeam.held / Math.PI + sky[i]) * [0.21, 0.2, 0.165][i]) / exposure),
     );
     const key = skyEnvironmentKey(domeKey, uniform, skyUnit, bounceUnit);
     const now = performance.now();
