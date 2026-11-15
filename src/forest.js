@@ -488,18 +488,25 @@ export function release(age) {
 // and the camera passed through them ("the vegetation kind of goes
 // invisible"), which the old fold (leaves collapsed to their stems within
 // a metre of the lens and in a cone round the line of sight to the cat) did.
-// The fade is measured from where the leaf rests, before the wind moves it,
-// so a leaf swaying across the boundary does not flicker; and only in the
+// The fade is measured from where the plant stands, not where the wind
+// moves its leaves, so nothing sways in and out of it; and only in the
 // view (the shadow pass's camera is far away, so it keeps every leaf).
-const LENS_FADE = [0.2, 0.75];
+// An instance (a tuft, a shoot, a spray of leaves) thins as a whole: each
+// has its own threshold (a hash of where it stands), and dissolves through
+// a narrow band of the dither as the lens passes it, so near grass thins
+// blade by blade instead of every blade crawling with dither as it sways.
+const LENS_FADE = [0.25, 0.7];
 const FOLD_GLSL = /* glsl */ `
 {
   #ifdef USE_INSTANCING
-    vec3 lensRest = ( instanceMatrix * vec4( transformed, 1.0 ) ).xyz;
+    vec3 lensRest = instanceMatrix[3].xyz;
+    float lensSeed = fract( sin( dot( instanceMatrix[3].xz, vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
   #else
     vec3 lensRest = transformed;
+    float lensSeed = 0.5;
   #endif
-  vLensFade = smoothstep( ${LENS_FADE[0].toFixed(2)}, ${LENS_FADE[1].toFixed(2)}, length( ( modelMatrix * vec4( lensRest, 1.0 ) ).xyz - cameraPosition ) );
+  float lensNear = smoothstep( ${LENS_FADE[0].toFixed(2)}, ${LENS_FADE[1].toFixed(2)}, length( ( modelMatrix * vec4( lensRest, 1.0 ) ).xyz - cameraPosition ) );
+  vLensFade = clamp( ( lensNear - lensSeed * 0.8 ) * 5.0, 0.0, 1.0 );
 }`;
 
 // Twigs and limbs no longer fold: the camera arm keeps clear of trunks and
