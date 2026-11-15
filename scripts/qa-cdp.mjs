@@ -10,12 +10,12 @@ import { join } from "node:path";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export async function openPage({ port = 5332, cdp = 9402, query = "seed=1847", width = 1280, height = 800, desktop = true } = {}) {
+export async function openPage({ port = 5332, cdp = 9402, query = "seed=1847", width = 1280, height = 800, desktop = true, args = [] } = {}) {
   const profile = await mkdtemp(join(tmpdir(), "skycope-qa-"));
   const chrome = spawn("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", [
     "--headless=new", "--enable-unsafe-webgpu", `--remote-debugging-port=${cdp}`, "--no-first-run",
     `--user-data-dir=${profile}`, `--window-size=${width},${height}`, "--hide-scrollbars", "--mute-audio",
-    "--disable-background-timer-throttling", "--disable-renderer-backgrounding",
+    "--disable-background-timer-throttling", "--disable-renderer-backgrounding", ...args,
   ], { stdio: "ignore" });
   let targets = [];
   for (let i = 0; i < 80; i++) {

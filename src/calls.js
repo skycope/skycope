@@ -33,10 +33,12 @@ export function playCall(io, name, options = {}) {
     // Inverse distance past a reference, gentler than 1/r so far calls
     // stay audible. The wisp is silent beyond 25 m: a reply you cannot
     // see is confusing.
-    gain: (options.gain ?? 1) * (EVERYWHERE.has(name) ? 1 : Math.min(1, (NEAR[name] / Math.max(1, distance)) ** 0.8)) * (name === "wisp" ? Math.max(0, 1 - Math.max(0, distance - 15) / 10) : 1),
+    // `placed` ({ gain, cutoff, sendA }) replaces this law: the animals'
+    // own, steeper one (src/sound/fauna.js).
+    gain: (options.gain ?? 1) * (options.placed ? options.placed.gain : (EVERYWHERE.has(name) ? 1 : Math.min(1, (NEAR[name] / Math.max(1, distance)) ** 0.8)) * (name === "wisp" ? Math.max(0, 1 - Math.max(0, distance - 15) / 10) : 1)),
     // Air takes the highs first.
-    cutoff: name === "discover" ? 18000 : Math.max(500, 16000 * Math.exp(-distance / 450)),
-    reverb: name === "discover" || name === "wisp" ? 0.4 : Math.min(0.5, 0.05 + distance / 300),
+    cutoff: options.placed ? options.placed.cutoff : name === "discover" ? 18000 : Math.max(500, 16000 * Math.exp(-distance / 450)),
+    reverb: options.placed ? options.placed.sendA : name === "discover" || name === "wisp" ? 0.4 : Math.min(0.5, 0.05 + distance / 300),
   });
   const length = make(io, chain.input, t, distance, options);
   chain.release(t + length + 0.3);

@@ -227,7 +227,10 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
       }
       // The owl in the milkwood, every few minutes at night.
       if ((c.night ?? 0) > 0.6 && scene.milkwood && cat && now > nextOwl) {
-        if (nextOwl > 0) call("owl", { at: owlAt(), gain: 0.8 });
+        if (nextOwl > 0) {
+          core.noteHeard("owl:idle", owlAt());
+          call("owl", { at: owlAt(), gain: 0.8 });
+        }
         nextOwl = now + 180 + core.random() * 180;
       }
       // Places' own small sounds, every few seconds when near.
@@ -410,7 +413,9 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
     },
     // A wildlife event ({ source, type, x, z, gain }).
     wild(e) {
-      if (live()) world.wild(e);
+      if (!live()) return;
+      core.noteHeard(`${e.source}:${e.type}`, { x: e.x, z: e.z, y: e.y }, { gain: e.gain ?? 1 });
+      world.wild(e);
     },
     // Inside a place that changes how things sound ("boiler" or null).
     setInside(where) {

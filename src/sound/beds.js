@@ -63,6 +63,7 @@ export function createBeds(core) {
   const chirps = [];
   function chirp(c) {
     chirps.push({ t: ctx.currentTime, x: c.x, z: c.z });
+    core.noteHeard("crickets:chirp", c);
     if (chirps.length > 400) chirps.shift();
     const v = core.voice({ bus: "amb", at: { x: c.x, z: c.z }, ref: 4 });
     for (let i = 0; i < 3; i++) core.tone(v, { hz: c.hz, attack: 0.008, tail: 0.022, gain: 0.008, at: i * 0.05 });
@@ -154,6 +155,7 @@ export function createBeds(core) {
       const bearing = Math.atan2(seaPan, 1) + core.rand(-0.6, 0.6);
       const d = core.rand(30, 60);
       const at = { x: cat.x + Math.sin(bearing) * d, z: cat.z + Math.cos(bearing) * d, y: (cat.y ?? 0) + 15 };
+      core.noteHeard("gull:idle", at);
       const v = core.voice({ bus: "world", at, ref: 8 });
       const calls = 1 + Math.floor(core.random() * 3);
       for (let i = 0; i < calls; i++) {
