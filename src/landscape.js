@@ -25,6 +25,7 @@ import toneSource from "./shaders/tone.wgsl?raw";
 import { customToneMapping, toneAdapt } from "./tone-glsl.js";
 import { note } from "./stability-log.js"; // stability: `?perf` event log
 import { easeBias } from "./quality.js";
+import { prewarmWork, runPrewarm } from "./prewarm.js"; // stability: sliced compile
 
 // The mesh layer tonemaps with the WebGPU sky and sea's own curve, so land,
 // sea and sky share one exposure, one highlight shoulder and one grade:
@@ -76,6 +77,11 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     // Same GPU as the WebGPU passes (see main.js), and the quiet one.
     powerPreference: "low-power",
   });
+  // stability: a lost WebGL context shows as the land vanishing for seconds;
+  // three keeps the context restorable (it prevents the default) and rebuilds
+  // its state on restore. Say so, so a blank can be traced.
+  canvas.addEventListener("webglcontextlost", () => { note("webgl-lost"); console.warn("land layer: WebGL context lost"); });
+  canvas.addEventListener("webglcontextrestored", () => { note("webgl-restored"); console.warn("land layer: WebGL context restored"); });
   renderer.setClearColor(0x000000, 0);
   renderer.setPixelRatio(1);
   renderer.toneMapping = THREE.CustomToneMapping;
@@ -173,6 +179,8 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   const snapX = new THREE.Vector3(), snapY = new THREE.Vector3(), snapZ = new THREE.Vector3();
   let lastSun = null;
   let domeFresh = false;
+  const envBeam = { value: null, at: 0 };
+  let nightFillNow = 1;
   const sun = new THREE.DirectionalLight(0xffe9c2, 2.5);
   sun.castShadow = true;
   // The camera stays near the cat, so the shadow map only has to cover the
@@ -279,6 +287,12 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     nightLand: perf ? NIGHT_LAND : null, // land-look: `?perf` tuning
     shadows: perf ? shadows : null, // shadow: `?perf` QA of the sliced refresh
     debug, // stability: `?perf` suspect switches
+    // stability: true while a sliced sun-shadow refresh is part-drawn; the
+    // vegetation must not repack its instances then (every slice has to see
+    // the same plants, or the finished map has holes and stale shadows).
+    get shadowRefreshing() {
+      return shadows.pending && shadows.slice > 0;
+    },
     // land-magic: the lighthouse lamp this frame (coast metres; `angle` is
     // the beams' bearing, see land-magic.js), for the sea's own beam.
     get lamp() { return landMagic.state.lamp; },
@@ -304,48 +318,23 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     // hitch: compile every program the land layer can draw, sleeping
     // gifts' and hidden levels' included (three's compile walks hidden
     // objects too), ahead of their first frame (a gift's first waking
-    // compiled 9 programs mid-frame). stability: one new program at a time,
-    // in idle time, and the next only once the GPU has linked it
-    // (KHR_parallel_shader_compile): compiling ~30 at once queued seconds
-    // of driver work in front of the next frame, and the picture froze or
-    // went blank for 3–6 s. Lights are read from the scene as it is (their
+    // compiled 9 programs mid-frame). stability: a slice at a time in idle
+    // time (src/prewarm.js). Lights are read from the scene as it is (their
     // count is part of every program). Resolves when every program is in.
     prewarm({ idle = prewarmIdle, sliceMs = 4 } = {}) {
-      const work = prewarmWork(scene);
       const holder = new THREE.Scene(); // compile walks only its children
-      const linked = (materials) => materials.every((m) => renderer.properties.get(m).currentProgram?.isReady?.() ?? true);
-      let next = 0;
-      let slices = 0;
-      return new Promise((resolve) => {
-        const slice = () => {
-          const started = performance.now();
-          const programs = renderer.info.programs.length;
-          const touched = [];
-          while (next < work.length) {
-            const object = work[next++];
-            holder.children = [object];
-            // The main pass draws into the multisampled target, and three
-            // keys tone mapping and output space on the bound target: compile
-            // the variant that pass will use, not the canvas's.
-            renderer.setRenderTarget(msaa.target);
-            try { renderer.compile(holder, camera, scene); } finally { renderer.setRenderTarget(null); }
-            touched.push(...[object.material].flat());
-            if (renderer.info.programs.length !== programs || performance.now() - started > sliceMs) break;
-          }
-          holder.children = [];
-          slices++;
-          const wait = () => {
-            if (!linked(touched)) return setTimeout(wait, 16);
-            if (next < work.length) idle(slice);
-            else {
-              note("prewarm-done", { slices, programs: renderer.info.programs.length });
-              resolve();
-            }
-          };
-          wait();
-        };
-        idle(slice);
-      });
+      return runPrewarm(prewarmWork(scene), {
+        idle,
+        sliceMs,
+        programs: () => renderer.info.programs.length,
+        linked: (materials) => materials.every((m) => renderer.properties.get(m).currentProgram?.isReady?.() ?? true),
+        compile(object) {
+          holder.children = [object];
+          // The same target state as the main pass.
+          renderer.setRenderTarget(msaa.target);
+          try { renderer.compile(holder, camera, scene); } finally { renderer.setRenderTarget(null); holder.children = []; }
+        },
+      }).then((done) => note("prewarm-done", { ...done, programs: renderer.info.programs.length }));
     },
     render({ celestial, cover, weather = null, time, wind, rain = 0, view: flight, lighting, pose, dt, weatherDt = dt, reducedMotion = false, paused = false, surface, water = null, onStep, wake = null, skyFlash = 0, magic = null }) {
       const pointer = [0.5, 0.5];
@@ -422,19 +411,19 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       const cloudLight = celestial.sun.map((v, i) => v * (1 - night) + celestial.moon[i] * night);
       const cloudNorm = Math.hypot(...cloudLight) || 1;
       const cloudDirection = cloudLight.map(v => v / cloudNorm);
-      const beamKey = `${Math.round(flight.x / 3)}:${Math.round(flight.z / 3)}:${cloudDirection.map(v => v.toFixed(2))}:${weather?.low}:${weather?.mid}:${weather?.high}:${cover.toFixed(2)}`;
+      // stability: sampled where the cat stands (not the camera, which
+      // swings), four times a second and on a 3 m walk; the light follows
+      // the sample smoothly (τ 0.6 s), or every sunlit leaf stepped in
+      // brightness four times a second under a broken sky. A discontinuity
+      // (first frame, a time jump) takes it at once.
+      const beamKey = `${Math.round(pose.x / 3)}:${Math.round(pose.z / 3)}:${cloudDirection.map(v => v.toFixed(2))}:${weather?.low}:${weather?.mid}:${weather?.high}:${cover.toFixed(2)}`;
       if (beamKey !== cloudKey || time - cloudTime >= .25 || time < cloudTime) {
         cloudKey = beamKey; cloudTime = time;
-        cloudTarget = weather ? .07 + .93 * cloudTransmission(seed, { ...weather, x: flight.x, y: flight.y, z: flight.z, sun: cloudDirection, wind, time }) : 1 - Math.pow(cover, 1.5) * .93;
+        cloudTarget = weather ? .07 + .93 * cloudTransmission(seed, { ...weather, x: pose.x, y: pose.y + 1, z: pose.z, sun: cloudDirection, wind, time }) : 1 - Math.pow(cover, 1.5) * .93;
       }
-      // stability: the sun through the clouds is sampled four times a second
-      // (and on a 3 m move); the light follows that sample smoothly, or
-      // every sunlit leaf stepped in brightness four times a second under a
-      // broken sky. A discontinuity (first frame, a weather or time jump)
-      // takes it at once.
       const beamDt = Math.min(0.1, Math.max(0, (now - beamAt) / 1000));
       beamAt = now;
-      cloudBeam = cloudBeam === null || sunMoved ? cloudTarget : cloudBeam + (cloudTarget - cloudBeam) * (1 - Math.exp(-beamDt / 0.35));
+      cloudBeam = cloudBeam === null || sunMoved ? cloudTarget : cloudBeam + (cloudTarget - cloudBeam) * (1 - Math.exp(-beamDt / 0.6));
       rainRate = rain;
       updateLighting(celestial, cover, lighting, cloudBeam);
       // sky-events: a lightning flash is a brief, bright sky over the land
@@ -442,7 +431,9 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       // only; nothing is rebuilt.
       if (skyFlash > 0) {
         scene.environmentIntensity *= 1 + skyFlash;
-        forest.updateSkySH(skySH.coefficients, Math.max(lighting.exposure, 1e-6) * (1 + skyFlash));
+        // (With the night fill, as updateLighting set it: without, a flash
+        // at night darkened the plants it should light.)
+        forest.updateSkySH(skySH.coefficients, Math.max(lighting.exposure, 1e-6) * nightFillNow * (1 + skyFlash));
         CAT_SKY.value.multiplyScalar(1 + skyFlash);
       }
       // The Three scene mirrors coast z (the land group is z-flipped).
@@ -468,6 +459,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       // every slice must see the same instances, or the finished map has
       // holes where a plant changed level between slices, and stale shadows
       // where it had (a few frames' delay; the fades cover it).
+      // (Also published as `shadowRefreshing`.)
       const midRefresh = shadows.pending && shadows.slice > 0;
       if (debug?.lod !== false && !midRefresh) forest.updateLod(camera.position, bias.drawn);
       if (perf) watchLod();
@@ -782,6 +774,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       sun.intensity = nightKey;
     }
     const nightFill = 1 + night * NIGHT_LAND.fill * starLift;
+    nightFillNow = nightFill;
     // At night the moon/night floor in lighting.sky is already the whole
     // story, and an overcast dome is near uniform (brighter overhead).
     // land-look: even under a full deck the sky is brighter on the sun's
@@ -812,8 +805,21 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       (v, i) => (v * Math.max(sunWorld.y, 0) * overcast / Math.PI + sky[i]) * [0.21, 0.2, 0.165][i],
     );
     // Only incident light invalidates PMREM/SH. Camera shadow anchors do not.
-    const skyUnit = lighting.sky.map((v) => (v * (1 + cover * 0.45)) / exposure);
-    const bounceUnit = bounce.map((v) => v / exposure);
+    // stability: and only a change worth seeing. The bounce follows the sun
+    // through the clouds, which moves all the time on a broken-cloud day:
+    // keyed on it to three digits, the environment (every material's sky
+    // light and reflections) was rebuilt four times a second, a small step
+    // each time, and the leaves flickered. The environment's bounce takes a
+    // slow average of that light, and both inputs are quantised to ~2.5%
+    // steps, so a rebuild is rare and its step under what the eye sees.
+    const envDt = Math.min(1, Math.max(0, (performance.now() - envBeam.at) / 1000));
+    envBeam.at = performance.now();
+    envBeam.value = envBeam.value === null || domeFresh ? overcast : envBeam.value + (overcast - envBeam.value) * (1 - Math.exp(-envDt / 3));
+    const quantise = (v) => Math.exp(Math.round(Math.log(Math.max(v, 1e-6)) * 40) / 40);
+    const skyUnit = lighting.sky.map((v) => quantise((v * (1 + cover * 0.45)) / exposure));
+    const bounceUnit = lighting.direct.map(
+      (v, i) => quantise(((v * Math.max(sunWorld.y, 0) * envBeam.value / Math.PI + sky[i]) * [0.21, 0.2, 0.165][i]) / exposure),
+    );
     const key = skyEnvironmentKey(domeKey, uniform, skyUnit, bounceUnit);
     const now = performance.now();
     // (A fresh dome after a jump rebuilds now, with the sun it belongs to.)
@@ -957,22 +963,6 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     envTarget = pmrem.fromEquirectangular(envSource, previous ?? null);
     scene.environment = envTarget.texture;
   }
-}
-
-// stability: prewarm's work list, one drawable per distinct program shape
-// (its material and the object kind three keys programs on), in scene order.
-export function prewarmWork(root) {
-  const work = [];
-  const seen = new Set();
-  root.traverse((o) => {
-    if (!(o.isMesh || o.isPoints || o.isLine || o.isSprite) || !o.material) return;
-    const kind = `${o.isInstancedMesh ? "i" : ""}${o.isSkinnedMesh ? "s" : ""}${o.isPoints ? "p" : o.isLine ? "l" : o.isSprite ? "r" : "m"}${o.receiveShadow ? "r" : ""}`;
-    const key = [o.material].flat().map((m) => m.uuid).join() + kind;
-    if (seen.has(key)) return;
-    seen.add(key);
-    work.push(o);
-  });
-  return work;
 }
 
 // The next idle moment (or the next task where there is no idle callback),

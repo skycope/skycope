@@ -55,12 +55,16 @@ const smooth = (x, a, b) => {
 // How a wick catches: s seconds after lighting, its light (0…1). A spark,
 // two gutters (about 3 Hz: inside photosensitivity guidance, do not raise
 // it), then the light swells and holds.
-export function lampCatch(s) {
+// `pace` (k) speeds the catch up for the quicker gifts; the gutter keeps
+// to real seconds, so it never flickers faster than ~3 Hz (at k = 2 it ran
+// at ~6 Hz on the light round the cat at night).
+export function lampCatch(s, pace = 1) {
   if (!(s >= 0)) return s < 0 ? 0 : 1;
-  if (s > 4) return 1;
-  const spark = Math.min(1, s / 0.25) * 0.35;
-  const gutter = s < 1.6 ? 0.55 + 0.45 * Math.abs(Math.sin(s * 9.5)) * (1 - s / 1.6) : 1;
-  const swell = smooth(s, 1.0, 3.6);
+  const t = s * pace;
+  if (t > 4) return 1;
+  const spark = Math.min(1, t / 0.25) * 0.35;
+  const gutter = t < 1.6 ? 0.55 + 0.45 * Math.abs(Math.sin(s * 9.5)) * (1 - t / 1.6) : 1;
+  const swell = smooth(t, 1.0, 3.6);
   return Math.min(1, spark * gutter + swell * 0.9 + 0.1 * swell * swell);
 }
 
@@ -85,7 +89,7 @@ export const ZERO = Object.freeze({ radius: 0, width: 0, inside: 0, front: 0, gl
 export function wakingAt(s, spec, night = 0, reduced = false) {
   if (!spec || !(s >= 0) || s > WAKING.end) return ZERO;
   const k = spec.catch ?? 2;
-  const caught = reduced ? smooth(s, 0, 1.5) : lampCatch(s * k);
+  const caught = reduced ? smooth(s, 0, 1.5) : lampCatch(s, k);
   const settle = spec.rest + (1 - spec.rest) * Math.exp(-Math.max(s - WAKING.hold, 0) / WAKING.fade);
   // The last second eases to exactly nothing, so the end is not a step.
   const tail = 1 - smooth(s, WAKING.end - 1.5, WAKING.end);
@@ -119,7 +123,7 @@ export function frontArrival(d, spec) {
 export function wakingSea(s, spec, night = 0, reduced = false) {
   if (!spec || !spec.sea || !(s >= 0) || s > WAKING.end) return { radius: 0, inside: 0, front: 0 };
   const k = spec.catch ?? 2;
-  const caught = reduced ? smooth(s, 0, 1.5) : lampCatch(s * k);
+  const caught = reduced ? smooth(s, 0, 1.5) : lampCatch(s, k);
   const u = Math.max(s - WAKING.start, 0) / (spec.tau ?? WAKING.tau);
   const radius = reduced ? spec.sea : spec.sea * (1 - Math.exp(-u));
   const tail = 1 - smooth(s, WAKING.end - 1.5, WAKING.end);

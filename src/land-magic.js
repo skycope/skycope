@@ -388,9 +388,26 @@ export function createLandMagic({ shared, lamps = [], practicals = [], beacon = 
           if (k > 0.003 && d < bestD) [best, bestK, bestD] = [p, k, d];
         }
       }
-      if (best) {
-        glows[3].set(best.x, best.y, -best.z, best.reach ?? 3.5);
-        colours[3].setRGB(best.colour[0] * bestK, best.colour[1] * bestK, best.colour[2] * bestK);
+      // stability: one slot, so a change of light is a hand-over, not a
+      // pop: the one held stays until another is clearly nearer (a fifth),
+      // fades out over a quarter second, and the new one fades in.
+      const slot = (state.slot3 ??= { light: null, fade: 0 });
+      if (slot.light && best && best !== slot.light) {
+        const held = slot.light;
+        const heldD = (held.x - (pose?.x ?? 0)) ** 2 + (held.z - (pose?.z ?? 0)) ** 2;
+        const heldLit = lamps.includes(held) ? state.lampLights > 0 : (levels[held.gift] ?? 0) > 0;
+        if (heldLit && bestD > heldD * 0.64) [best, bestK] = [held, slot.k ?? bestK];
+      }
+      const fadeStep = Math.min(1, Math.max(0, dt ?? 0) * 4);
+      if (best && best === slot.light) slot.fade = Math.min(1, slot.fade + fadeStep);
+      else if (slot.light && slot.fade > 0) slot.fade = Math.max(0, slot.fade - fadeStep);
+      else { slot.light = best; slot.fade = reduced ? 1 : fadeStep; }
+      if (best === slot.light) slot.k = bestK;
+      const shown = slot.light;
+      if (shown && slot.fade > 0) {
+        const k = (slot.k ?? 0) * slot.fade;
+        glows[3].set(shown.x, shown.y, -shown.z, shown.reach ?? 3.5);
+        colours[3].setRGB(shown.colour[0] * k, shown.colour[1] * k, shown.colour[2] * k);
         on = 1;
       } else colours[3].setRGB(0, 0, 0);
 

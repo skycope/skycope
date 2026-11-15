@@ -41,6 +41,7 @@ import { mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { writeFileSync, readFileSync } from "node:fs";
 import { ISLAND } from "../src/terrain.js";
 import { PNG } from "pngjs";
 
@@ -237,7 +238,12 @@ function abrupt(f) {
   const [p, a, b, c] = f; // frames k-2, k-1, k, k+1
   const n = b.grid.length;
   const dtA = Math.max(1, a.t - p.t), dtB = Math.max(1, b.t - a.t), dtC = Math.max(1, c.t - b.t);
-  const pop = new Uint8Array(n), flash = new Uint8Array(n);
+  const pop = new Uint8Array(n), flash = new Uint8Array(n), vanish = new Uint8Array(n);
+  // Leaves that vanish: a cell leafy for two frames running (and steady
+  // between them) that is not leafy in the next.
+  for (let i = 0; i < n; i++) {
+    if (p.leafy[i] && a.leafy[i] && !b.leafy[i] && Math.abs(a.grid[i] - p.grid[i]) < T.cell && Math.abs(b.grid[i] - a.grid[i]) > T.cell) vanish[i] = 1;
+  }
   for (let i = 0; i < n; i++) {
     const d = Math.abs(b.grid[i] - a.grid[i]);
     if (d < T.cell) continue;
@@ -250,7 +256,7 @@ function abrupt(f) {
     if (d > T.abrupt * Math.max(before, after) + T.cellFloor && stays > 0.6 * d) pop[i] = 1;
     else if (after > T.cell && stays < 0.3 * d && before < 0.5 * d) flash[i] = 1;
   }
-  return { pop: components(pop, b.gw, b.gh), flash: components(flash, b.gw, b.gh) };
+  return { pop: components(pop, b.gw, b.gh), flash: components(flash, b.gw, b.gh), vanish: components(vanish, b.gw, b.gh) };
 }
 
 // Foliage flicker in frame b: how far each leafy cell sits off the line
@@ -300,14 +306,24 @@ function components(mask, gw, gh) {
 async function runSession(browser, name) {
   const frames = [];   // metrics per captured frame
   const raws = [];     // the last few PNG buffers, by frame index
-  const saved = new Map(); // frame index → PNG buffer kept for evidence
+  // Frames kept for evidence go to disk at once (memory stays flat).
+  const spool = join(tmpdir(), `skycope-stability-${CDP}-${name}`);
+  await rm(spool, { recursive: true, force: true });
+  await mkdir(spool, { recursive: true });
+  const saved = new Map(); // frame index → spooled PNG path
   let processing = Promise.resolve();
   let activity = null;
-  const keepRaw = (i) => { if (!saved.has(i) && raws[i]) saved.set(i, raws[i]); };
+  const keepRaw = (i) => { if (!saved.has(i) && raws[i]) { const p = join(spool, `${i}.png`); writeFileSync(p, raws[i]); saved.set(i, p); } };
+  let pending = 0, dropped = 0;
   const onFrame = (params) => {
     const t = (params.metadata.timestamp ?? Date.now() / 1000) * 1000;
+    // Never more than a few frames waiting (memory stays flat; a dropped
+    // frame only widens the gap the next one is compared across).
+    if (pending > 3) { dropped++; return; }
+    pending++;
     const buffer = Buffer.from(params.data, "base64");
     processing = processing.then(() => {
+      pending--;
       let png;
       try { png = PNG.sync.read(buffer); } catch { return; }
       const k = frames.length;
@@ -670,7 +686,8 @@ async function writeEvidence(run, result, dir) {
     let n = 0;
     for (const { f } of list) {
       if (n >= KEEP) break;
-      const a = run.saved.get(f.frame - 1), b = run.saved.get(f.frame);
+      const pa = run.saved.get(f.frame - 1), pb = run.saved.get(f.frame);
+      const a = pa ? readFileSync(pa) : null, b = pb ? readFileSync(pb) : null;
       if (!b) continue;
       const name = `${run.name}-${kind}-${n + 1}.png`;
       await writeFile(join(dir, name), PNG.sync.write(pairImage(a ? PNG.sync.read(a) : null, PNG.sync.read(b), f.box)));
