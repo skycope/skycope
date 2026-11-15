@@ -75,7 +75,8 @@ if (opt.base) {
   await mkdir(dir, { recursive: true });
   execFileSync("sh", ["-c", `git archive ${opt.base} src index.html | tar -x -C stab-base`], { cwd: ROOT });
   const html = await readFile(join(dir, "index.html"), "utf8");
-  await writeFile(join(dir, "index.html"), html.replace('src="/src/main.js"', 'src="/stab-base/src/main.js"'));
+  // Every module the page loads from /src/ (the veil's script imports main.js and the loading screen itself).
+  await writeFile(join(dir, "index.html"), html.replaceAll('"/src/', '"/stab-base/src/').replaceAll('src="/src/', 'src="/stab-base/src/'));
   PATH = "/stab-base/";
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

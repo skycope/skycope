@@ -389,7 +389,10 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         // shadow: the map is re-rendered only when what it holds moves: the
         // light's direction (to ~0.3°) or the anchor, not the sun's colour,
         // the twilight scene or cloud cover.
-        const shadowKey = `${Math.round(sunWorld.x * 200)}:${Math.round(sunWorld.y * 200)}:${Math.round(sunWorld.z * 200)}:${anchorX}:${anchorZ}`;
+        // stability: finer when the sun is low, where a 0.3° step moved the
+        // long shadows visibly at each refresh (up to 0.05° near the horizon).
+        const q = 200 * (1 + 5 * (1 - THREE.MathUtils.smoothstep(sunWorld.y, 0.05, 0.4)));
+        const shadowKey = `${Math.round(sunWorld.x * q)}:${Math.round(sunWorld.y * q)}:${Math.round(sunWorld.z * q)}:${anchorX}:${anchorZ}`;
         if (shadowKey !== shadows.key) {
           const jump = !shadows.anchor || sunMoved || Math.hypot(anchorX - shadows.anchor[0], anchorZ - shadows.anchor[1]) > 20;
           shadows.key = shadowKey;
