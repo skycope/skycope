@@ -136,17 +136,20 @@ export function createCore(ctx, mix, { seed = 1 } = {}) {
   // A voice on `bus`, at time `t` (default now + 10 ms), at `gain`.
   // Positioned with `at` ({ x, z, y }) and `ref` (m), or panned with `pan`.
   // Returns null when culled or refused (layers then do nothing).
-  function voice({ bus = "world", t = null, gain = 1, pan = 0, at = null, ref = 10, sendA = 0, sendB = 0, priority = PRIORITY[bus] ?? 2 } = {}) {
+  // `law(d)` → { gain, cutoff, sendA } replaces the shared distance law
+  // (animals fall off more steeply: fauna.js animalPlace).
+  function voice({ bus = "world", t = null, gain = 1, pan = 0, at = null, ref = 10, sendA = 0, sendB = 0, law = null, priority = PRIORITY[bus] ?? 2 } = {}) {
     const start = Math.max(ctx.currentTime, t ?? ctx.currentTime + 0.01);
     let cutoff = 20000;
     let behind = false;
     if (at) {
       const p = placeSource(listener, at, ref);
-      gain *= p.gain;
+      const q = law ? law(p.distance) : p;
+      gain *= law ? q.gain * (p.behind ? 10 ** (-2 / 20) : 1) : p.gain;
       pan = p.pan;
-      cutoff = p.cutoff;
+      cutoff = q.cutoff;
       behind = p.behind;
-      sendA = Math.max(sendA, p.sendA);
+      sendA = Math.max(sendA, q.sendA);
     }
     if (gain < CULL) {
       stats.culled++;
@@ -406,6 +409,18 @@ export function createCore(ctx, mix, { seed = 1 } = {}) {
     bubble,
     voiced,
     bed,
+    // QA: every animal voice asked for (fauna and beds), with where it was
+    // from the listener; `played` false when it was held back.
+    heard: [],
+    noteHeard(voice, at, extra = {}) {
+      const l = listener;
+      if (!l || !at) return;
+      const dx = at.x - l.x, dz = at.z - l.z;
+      const right = dx * Math.cos(l.yaw) - dz * Math.sin(l.yaw);
+      const ahead = dx * Math.sin(l.yaw) + dz * Math.cos(l.yaw);
+      this.heard.push({ t: +ctx.currentTime.toFixed(2), voice, right: +right.toFixed(1), ahead: +ahead.toFixed(1), y: +((at.y ?? l.y) - l.y).toFixed(1), d: +Math.hypot(dx, dz).toFixed(1), played: true, ...extra });
+      if (this.heard.length > 4000) this.heard.shift();
+    },
     // Where a source sits from the listener (space.js placeSource).
     place(at, ref = 10) {
       return placeSource(listener, at, ref);

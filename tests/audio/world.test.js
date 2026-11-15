@@ -25,15 +25,16 @@ test("distance: 4.8 ± 0.5 dB per doubling past ref; the air dulls it; far sound
   assert.ok(g(200).sendA > g(20).sendA);
 });
 
-test("distance, rendered: a penguin bray at 1×, 2×, 4× ref drops ~4.8 dB a doubling and gets duller", async () => {
+test("distance, rendered: a penguin bray at 1×, 2×, 4× ref drops ~7.5 dB a doubling (the animals' steeper law, fauna.js) and gets duller", async () => {
   const at = async (d) => {
     const r = await renderCue((s) => s.wild({ source: "penguins", type: "bray", x: 0, z: d }), { seconds: 3, conditions: BASE });
     const m = A.mono(r.channels);
-    return { lufs: A.integratedLoudness(r.channels, SR), c: A.centroid(A.spectrum(m, SR)) };
+    const sp = A.spectrum(m, SR);
+    return { lufs: A.integratedLoudness(r.channels, SR), c: A.bandLevel(sp, 2500, 8000) - A.bandLevel(sp, 150, 600) };
   };
   const [a, b, c] = [await at(25), await at(50), await at(100)];
-  for (const [x, y] of [[a, b], [b, c]]) assert.ok(Math.abs(x.lufs - y.lufs - 4.8) <= 1.5, `drop ${(x.lufs - y.lufs).toFixed(1)} LU`);
-  assert.ok(a.c > b.c && b.c > c.c, `centroid falls: ${[a, b, c].map((x) => x.c.toFixed(0))}`);
+  for (const [x, y] of [[a, b], [b, c]]) assert.ok(Math.abs(x.lufs - y.lufs - 7.5) <= 2, `drop ${(x.lufs - y.lufs).toFixed(1)} LU`);
+  assert.ok(a.c > b.c && b.c > c.c, `its highs (2.5–8 kHz vs 150–600 Hz) fall away: ${[a, b, c].map((x) => x.c.toFixed(1))} dB`);
 });
 
 test("pan: a source 10 m to the right is ≥ 8 dB louder on the right, and to the left the other way", async () => {

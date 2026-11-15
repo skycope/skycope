@@ -4,7 +4,9 @@
 // over the shore, and crickets at night from fixed spots in the grass
 // round the cat that hush as it walks near.
 
-export function createBeds(core) {
+import { animalPlace } from "./fauna.js";
+
+export function createBeds(core, { gate = null } = {}) {
   const { ctx } = core;
   const beds = {
     sea: core.bed({ colour: "brown", type: "lowpass", f: 480, q: 0 }),
@@ -63,9 +65,10 @@ export function createBeds(core) {
   const chirps = [];
   function chirp(c) {
     chirps.push({ t: ctx.currentTime, x: c.x, z: c.z });
+    core.noteHeard("crickets:chirp", c);
     if (chirps.length > 400) chirps.shift();
     const v = core.voice({ bus: "amb", at: { x: c.x, z: c.z }, ref: 4 });
-    for (let i = 0; i < 3; i++) core.tone(v, { hz: c.hz, attack: 0.008, tail: 0.022, gain: 0.008, at: i * 0.05 });
+    for (let i = 0; i < 3; i++) core.tone(v, { hz: c.hz, attack: 0.008, tail: 0.022, gain: 0.004, at: i * 0.05 });
     v?.done();
   }
 
@@ -142,25 +145,32 @@ export function createBeds(core) {
           else k.quiet = Math.max(0, k.quiet - (c.dt ?? 1 / 30));
         }
         if (now > nextChirp) {
-          // At most four chirps a second in all.
-          nextChirp = now + 0.25 + core.random() * 0.6;
+          // At most two chirps a second in all: a sparse, quiet bed.
+          nextChirp = now + 0.5 + core.random() * 1.0;
           const awake = crickets.filter((k) => k.quiet <= 0);
           if (awake.length) chirp(awake[Math.floor(core.random() * awake.length)]);
         }
       }
     },
-    gull(cat, seaPan = 0) {
-      // Kelp gull: a falling, nasal "kee-ow", 1–3 calls, 30–60 m seaward.
+    // A kelp gull from over the shore, 30–60 m seaward (or at `at`):
+    // soft and far, and only when the fauna governor allows.
+    gull(cat, seaPan = 0, at = null) {
       const bearing = Math.atan2(seaPan, 1) + core.rand(-0.6, 0.6);
       const d = core.rand(30, 60);
-      const at = { x: cat.x + Math.sin(bearing) * d, z: cat.z + Math.cos(bearing) * d, y: (cat.y ?? 0) + 15 };
-      const v = core.voice({ bus: "world", at, ref: 8 });
-      const calls = 1 + Math.floor(core.random() * 3);
+      at ??= { x: cat.x + Math.sin(bearing) * d, z: cat.z + Math.cos(bearing) * d, y: (cat.y ?? 0) + 15 };
+      const rule = gate ? gate("gull:idle", at) : { ref: 12, level: 1 };
+      if (!rule) return null;
+      const v = core.voice({ bus: "world", at, ref: rule.ref, gain: rule.level, law: (dist) => animalPlace(dist, rule.ref) });
+      const calls = 1 + Math.floor(core.random() * 2);
       for (let i = 0; i < calls; i++) {
         const base = core.rand(1500, 1900);
-        core.voiced(v, { contour: [[0, base * 0.8], [0.2, base], [1, base * 0.55]], formants: [[2200, 2.5, 1]], length: 0.28, gain: 0.035, attack: 0.03, release: 0.04, at: i * core.rand(0.32, 0.42) });
+        core.voiced(v, { type: "triangle", contour: [[0, base * 0.85], [0.25, base], [1, base * 0.6]], formants: [[1900, 1.5, 1.2]], length: 0.3, gain: 0.025, attack: 0.05, release: 0.08, at: i * core.rand(0.4, 0.55) });
       }
       return v?.done();
+    },
+    // One cricket's chirp from `at` (audition, tests).
+    chirpAt(at) {
+      chirp({ x: at.x, z: at.z, hz: 4300 + core.random() * 600 });
     },
     // The cricket spots and the chirps so far (tests).
     get crickets() {

@@ -16,7 +16,8 @@ export const SCENES = {
   weather: { bus: "weather", seconds: 30, conditions: { ...BASE, beds: false, rain: 4, sea: 0.3 } },
   foley: { bus: "foley", seconds: 30, conditions: { ...BASE, beds: false }, script: walk(2, 0.2, true) },
   voice: { bus: "voice", seconds: 30, conditions: { ...BASE, beds: false }, script: (s, t, frame) => frame % 150 === 10 && s.meow() },
-  world: { bus: "world", seconds: 32, conditions: { ...BASE, beds: false }, script: (s, t, frame) => frame % 240 === 10 && s.wild({ source: "penguins", type: "bray", x: 10, z: 0 }) },
+  // world: the boat under way, aboard (was a penguin bray every 8 s at 10 m until the 15 Nov animal rework).
+  world: { bus: "world", seconds: 30, conditions: (t) => ({ ...BASE, beds: false, boat: { afloat: true, aboard: true, x: 0, z: 0, speed: Math.min(2.2, 0.5 + t * 0.2), roll: 0.09 * Math.sin(t * 1.3), vr: Math.cos(t * 1.3), stretch: -1 } }), script: (s, t, frame) => frame % 150 === 40 && s.boatEvent({ type: "hull-slap", gain: 0.6 }, { aboard: true }) },
   magic: { bus: "magic", seconds: 14, music: true, conditions: { ...BASE, beds: false }, script: (s, t, frame) => frame === 5 && s.ceremony("tideglow") },
   music: { bus: "music", seconds: 30, music: true, conditions: { ...BASE, beds: false }, setup: (s) => s.setScore({ sunAltitude: 50 }) },
 };

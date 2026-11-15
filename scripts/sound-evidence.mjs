@@ -51,6 +51,7 @@ const rows = [];
 for (const cue of numbered()) {
   const x = await measure(cue);
   spectrogram(A.mono(x.render.channels), `${out}/spectrograms/${cue.number}-${cue.id}.png`);
+  delete x.render; // keep the numbers, not the audio (memory)
   rows.push({ cue, x });
   process.stdout.write(".");
 }

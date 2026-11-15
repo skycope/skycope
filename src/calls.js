@@ -33,10 +33,12 @@ export function playCall(io, name, options = {}) {
     // Inverse distance past a reference, gentler than 1/r so far calls
     // stay audible. The wisp is silent beyond 25 m: a reply you cannot
     // see is confusing.
-    gain: (options.gain ?? 1) * (EVERYWHERE.has(name) ? 1 : Math.min(1, (NEAR[name] / Math.max(1, distance)) ** 0.8)) * (name === "wisp" ? Math.max(0, 1 - Math.max(0, distance - 15) / 10) : 1),
+    // `placed` ({ gain, cutoff, sendA }) replaces this law: the animals'
+    // own, steeper one (src/sound/fauna.js).
+    gain: (options.gain ?? 1) * (options.placed ? options.placed.gain : (EVERYWHERE.has(name) ? 1 : Math.min(1, (NEAR[name] / Math.max(1, distance)) ** 0.8)) * (name === "wisp" ? Math.max(0, 1 - Math.max(0, distance - 15) / 10) : 1)),
     // Air takes the highs first.
-    cutoff: name === "discover" ? 18000 : Math.max(500, 16000 * Math.exp(-distance / 450)),
-    reverb: name === "discover" || name === "wisp" ? 0.4 : Math.min(0.5, 0.05 + distance / 300),
+    cutoff: options.placed ? options.placed.cutoff : name === "discover" ? 18000 : Math.max(500, 16000 * Math.exp(-distance / 450)),
+    reverb: options.placed ? options.placed.sendA : name === "discover" || name === "wisp" ? 0.4 : Math.min(0.5, 0.05 + distance / 300),
   });
   const length = make(io, chain.input, t, distance, options);
   chain.release(t + length + 0.3);
@@ -231,36 +233,36 @@ const SYNTHS = {
     return at - t + 3.2;
   },
 
-  // African penguin: the "jackass" display, a few hiccuping honks and then
-  // a long donkey bray.
+  // African penguin, heard from up the beach: a soft far-off honk or two
+  // and one longer call. Softened 15 Nov ("some dominating animal noise"):
+  // a rounder source (triangle), low broad formants, a little roughness,
+  // slow attacks, nothing above about 2 kHz; never the same twice (pitch,
+  // count and lengths are drawn each time).
   "penguin-bray"(io, out, t) {
-    const f0 = rand(270, 330);
-    const formants = [[750, 4, 1.4], [1350, 5, 0.9], [2600, 6, 0.35]];
+    const f0 = rand(260, 320);
+    const formants = [[620, 2.2, 1.2], [1150, 2.5, 0.35]];
     let at = t;
-    const honks = 3 + Math.floor(random() * 3);
+    const honks = 1 + Math.floor(random() * 2);
     for (let i = 0; i < honks; i++) {
-      // Alternating in-breath (higher, thinner) and out-breath honks.
-      const inhale = i % 2 === 1;
-      const length = inhale ? 0.1 : 0.17;
-      const f = f0 * (inhale ? 1.35 : 1);
-      voiced(io, out, { t: at, length, contour: [[0, f * 0.9], [0.4, f], [1, f * 0.82]], formants, gain: inhale ? 0.05 : 0.08, rough: 0.6, roughRate: 42, breath: inhale ? 0.5 : 0.2, attack: 0.015, release: 0.04 });
-      at += length + rand(0.07, 0.13);
+      const length = rand(0.14, 0.2);
+      voiced(io, out, { t: at, length, type: "triangle", contour: [[0, f0 * 0.92], [0.4, f0], [1, f0 * 0.85]], formants, gain: 0.05, rough: 0.15, roughRate: 38, breath: 0.12, attack: 0.05, release: 0.08 });
+      at += length + rand(0.18, 0.3);
     }
-    const length = rand(0.8, 1.1);
-    voiced(io, out, { t: at + 0.05, length, contour: [[0, f0 * 0.85], [0.2, f0 * 1.12], [0.75, f0], [1, f0 * 0.7]], formants, gain: 0.1, rough: 0.55, roughRate: 38, vibrato: 6, breath: 0.2, attack: 0.04, release: 0.15 });
+    const length = rand(0.6, 0.85);
+    voiced(io, out, { t: at + 0.05, length, type: "triangle", contour: [[0, f0 * 0.88], [0.25, f0 * 1.05], [1, f0 * 0.75]], formants, gain: 0.06, rough: 0.15, roughRate: 34, vibrato: 3, breath: 0.12, attack: 0.09, release: 0.2 });
     return at - t + length + 0.4;
   },
 
-  // Cape fur seal: gruff, bleating barks, two to four.
+  // Cape fur seal from across the rocks: one or two soft, gruff barks.
   "seal-bark"(io, out, t) {
-    const f0 = rand(150, 210);
-    const formants = [[520, 4, 1.5], [1150, 5, 0.8], [2300, 6, 0.3]];
-    const barks = 2 + Math.floor(random() * 3);
+    const f0 = rand(150, 200);
+    const formants = [[480, 2.5, 1.3], [1000, 3, 0.4]];
+    const barks = 1 + Math.floor(random() * 2);
     let at = t;
     for (let i = 0; i < barks; i++) {
-      const length = rand(0.22, 0.34);
-      voiced(io, out, { t: at, length, contour: [[0, f0 * 1.1], [0.25, f0 * 1.25], [1, f0 * 0.8]], formants, gain: 0.11 * (1 - i * 0.1), rough: 0.7, roughRate: 26, breath: 0.25, attack: 0.02, release: 0.06 });
-      at += length + rand(0.2, 0.36);
+      const length = rand(0.2, 0.3);
+      voiced(io, out, { t: at, length, type: "triangle", contour: [[0, f0 * 1.05], [0.3, f0 * 1.15], [1, f0 * 0.85]], formants, gain: 0.08 * (1 - i * 0.15), rough: 0.3, roughRate: 26, breath: 0.2, attack: 0.04, release: 0.07 });
+      at += length + rand(0.3, 0.45);
     }
     return at - t + 0.3;
   },

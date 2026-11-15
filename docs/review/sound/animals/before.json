@@ -1,0 +1,5292 @@
+{
+ "results": [
+  {
+   "name": "seed 1847, noon, standing at the spawn",
+   "seed": 1847,
+   "minutes": 750,
+   "seconds": 300,
+   "setup": {
+    "state": "running",
+    "cat": [
+     12.906352188616161,
+     9.297012561598642
+    ],
+    "inland": 3.200000000000003,
+    "wind": [
+     -1.7500000000000016,
+     3.0310889132455343
+    ],
+    "colony": null
+   },
+   "heard": [
+    {
+     "t": 1.54,
+     "voice": "penguins:bray",
+     "right": -9.8,
+     "ahead": 27.8,
+     "y": 0,
+     "d": 29.5,
+     "played": true,
+     "gain": 0.3637513052414356
+    },
+    {
+     "t": 1.98,
+     "voice": "penguins:bray",
+     "right": -11.7,
+     "ahead": 38.1,
+     "y": 0,
+     "d": 39.8,
+     "played": true,
+     "gain": 0.13531102975151943
+    },
+    {
+     "t": 4.25,
+     "voice": "penguins:bray",
+     "right": -9.4,
+     "ahead": 27.1,
+     "y": 0,
+     "d": 28.7,
+     "played": true,
+     "gain": 0.38300680484465255
+    },
+    {
+     "t": 6.93,
+     "voice": "penguins:bray",
+     "right": -10.4,
+     "ahead": 26.8,
+     "y": 0,
+     "d": 28.7,
+     "played": true,
+     "gain": 0.3808142597902041
+    },
+    {
+     "t": 8.03,
+     "voice": "gull:idle",
+     "right": -2.3,
+     "ahead": 40.7,
+     "y": 14.8,
+     "d": 40.7,
+     "played": true
+    },
+    {
+     "t": 14.29,
+     "voice": "penguins:bray",
+     "right": -7.6,
+     "ahead": 30.6,
+     "y": 0,
+     "d": 31.5,
+     "played": true,
+     "gain": 0.32048040377859277
+    },
+    {
+     "t": 14.56,
+     "voice": "whale:blow",
+     "right": -63.9,
+     "ahead": -80.8,
+     "y": 0,
+     "d": 103,
+     "played": true,
+     "gain": 0.4808174060990922
+    },
+    {
+     "t": 15.89,
+     "voice": "seals:bark",
+     "right": 64.6,
+     "ahead": 1.4,
+     "y": 0,
+     "d": 64.6,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 16.39,
+     "voice": "penguins:bray",
+     "right": -9.1,
+     "ahead": 26.2,
+     "y": 0,
+     "d": 27.7,
+     "played": true,
+     "gain": 0.40331637817124966
+    },
+    {
+     "t": 16.93,
+     "voice": "penguins:bray",
+     "right": -7.6,
+     "ahead": 30.6,
+     "y": 0,
+     "d": 31.5,
+     "played": true,
+     "gain": 0.32048040377859277
+    },
+    {
+     "t": 16.99,
+     "voice": "penguins:bray",
+     "right": -10.4,
+     "ahead": 26.8,
+     "y": 0,
+     "d": 28.7,
+     "played": true,
+     "gain": 0.3808142597902041
+    },
+    {
+     "t": 17.86,
+     "voice": "oystercatchers:pipe",
+     "right": 5.9,
+     "ahead": -2.8,
+     "y": 0,
+     "d": 6.5,
+     "played": true,
+     "gain": 0.8833818719903941
+    },
+    {
+     "t": 19.29,
+     "voice": "penguins:bray",
+     "right": -9.8,
+     "ahead": 27.8,
+     "y": 0,
+     "d": 29.5,
+     "played": true,
+     "gain": 0.3637513052414356
+    },
+    {
+     "t": 20.56,
+     "voice": "seals:splash",
+     "right": 61,
+     "ahead": -4.6,
+     "y": 0,
+     "d": 61.1,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 20.62,
+     "voice": "penguins:bray",
+     "right": -11.4,
+     "ahead": 39.1,
+     "y": 0,
+     "d": 40.8,
+     "played": true,
+     "gain": 0.11420427882931694
+    },
+    {
+     "t": 20.96,
+     "voice": "penguins:bray",
+     "right": -6,
+     "ahead": 30.9,
+     "y": 0,
+     "d": 31.5,
+     "played": true,
+     "gain": 0.32048040377859277
+    },
+    {
+     "t": 22.86,
+     "voice": "oystercatchers:pipe",
+     "right": 3.7,
+     "ahead": -4.9,
+     "y": 0,
+     "d": 6.1,
+     "played": true,
+     "gain": 0.8834664369034755
+    },
+    {
+     "t": 23.59,
+     "voice": "penguins:bray",
+     "right": 10.3,
+     "ahead": 29.9,
+     "y": 0,
+     "d": 31.6,
+     "played": true,
+     "gain": 0.32048040377859277
+    },
+    {
+     "t": 23.59,
+     "voice": "whale:blow",
+     "right": -103.6,
+     "ahead": -21.5,
+     "y": 0,
+     "d": 105.8,
+     "played": true,
+     "gain": 0.4738048585571137
+    },
+    {
+     "t": 28.46,
+     "voice": "penguins:bray",
+     "right": 21.4,
+     "ahead": 17.5,
+     "y": 0,
+     "d": 27.6,
+     "played": true,
+     "gain": 0.40331637817124966
+    },
+    {
+     "t": 31.33,
+     "voice": "penguins:bray",
+     "right": 28.1,
+     "ahead": 10.5,
+     "y": 0,
+     "d": 30,
+     "played": true,
+     "gain": 0.3428653233840333
+    },
+    {
+     "t": 31.86,
+     "voice": "gull:idle",
+     "right": 43.7,
+     "ahead": 8.4,
+     "y": 14.8,
+     "d": 44.5,
+     "played": true
+    },
+    {
+     "t": 32.62,
+     "voice": "whale:blow",
+     "right": -67.3,
+     "ahead": 85.8,
+     "y": 0,
+     "d": 109,
+     "played": true,
+     "gain": 0.4675165208088521
+    },
+    {
+     "t": 33.86,
+     "voice": "penguins:bray",
+     "right": 30.4,
+     "ahead": 5.2,
+     "y": 0,
+     "d": 30.8,
+     "played": true,
+     "gain": 0.31897627968756326
+    },
+    {
+     "t": 35.54,
+     "voice": "oystercatchers:pipe",
+     "right": -5,
+     "ahead": -3.7,
+     "y": 0,
+     "d": 6.2,
+     "played": true,
+     "gain": 0.8833964268480361
+    },
+    {
+     "t": 37.05,
+     "voice": "penguins:bray",
+     "right": 39.3,
+     "ahead": -0.4,
+     "y": 0,
+     "d": 39.3,
+     "played": true,
+     "gain": 0.12689066641530644
+    },
+    {
+     "t": 37.74,
+     "voice": "oystercatchers:pipe",
+     "right": -5.4,
+     "ahead": -3.1,
+     "y": 0,
+     "d": 6.2,
+     "played": true,
+     "gain": 0.8836385455849483
+    },
+    {
+     "t": 38.68,
+     "voice": "penguins:bray",
+     "right": 29.5,
+     "ahead": -0.2,
+     "y": 0,
+     "d": 29.5,
+     "played": true,
+     "gain": 0.3428653233840331
+    },
+    {
+     "t": 40.24,
+     "voice": "penguins:bray",
+     "right": 27.8,
+     "ahead": 0.5,
+     "y": 0,
+     "d": 27.8,
+     "played": true,
+     "gain": 0.38300680484465255
+    },
+    {
+     "t": 41.98,
+     "voice": "penguins:bray",
+     "right": 30.2,
+     "ahead": -3.9,
+     "y": 0,
+     "d": 30.4,
+     "played": true,
+     "gain": 0.31897202365186805
+    },
+    {
+     "t": 45.04,
+     "voice": "penguins:bray",
+     "right": 26.6,
+     "ahead": -1.5,
+     "y": 0,
+     "d": 26.6,
+     "played": true,
+     "gain": 0.4062051718773805
+    },
+    {
+     "t": 45.38,
+     "voice": "seals:bark",
+     "right": -30,
+     "ahead": -55.9,
+     "y": 0,
+     "d": 63.4,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 45.61,
+     "voice": "penguins:bray",
+     "right": 28.4,
+     "ahead": -4.9,
+     "y": 0,
+     "d": 28.8,
+     "played": true,
+     "gain": 0.3541547172760817
+    },
+    {
+     "t": 46.44,
+     "voice": "whale:fluke",
+     "right": -8.2,
+     "ahead": 111.5,
+     "y": 0,
+     "d": 111.8,
+     "played": true,
+     "gain": 0.34514602795308374
+    },
+    {
+     "t": 48.24,
+     "voice": "penguins:bray",
+     "right": 28.1,
+     "ahead": -6,
+     "y": 0,
+     "d": 28.8,
+     "played": true,
+     "gain": 0.3542030161988172
+    },
+    {
+     "t": 48.31,
+     "voice": "penguins:bray",
+     "right": 37.9,
+     "ahead": -9.8,
+     "y": 0,
+     "d": 39.1,
+     "played": true,
+     "gain": 0.12263276539105528
+    },
+    {
+     "t": 49.14,
+     "voice": "seals:splash",
+     "right": -36.9,
+     "ahead": -51.3,
+     "y": 0,
+     "d": 63.2,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 50.14,
+     "voice": "seals:splash",
+     "right": -38,
+     "ahead": -53,
+     "y": 0,
+     "d": 65.2,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 51.08,
+     "voice": "penguins:bray",
+     "right": 29.2,
+     "ahead": -8.1,
+     "y": 0,
+     "d": 30.3,
+     "played": true,
+     "gain": 0.31897202365186805
+    },
+    {
+     "t": 52.77,
+     "voice": "seals:splash",
+     "right": -41,
+     "ahead": -54.3,
+     "y": 0,
+     "d": 68,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 53.78,
+     "voice": "seals:splash",
+     "right": -43.3,
+     "ahead": -53.5,
+     "y": 0,
+     "d": 68.9,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 54.21,
+     "voice": "seals:splash",
+     "right": -43.7,
+     "ahead": -52.5,
+     "y": 0,
+     "d": 68.3,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 55.21,
+     "voice": "penguins:bray",
+     "right": 27.6,
+     "ahead": -7.6,
+     "y": 0,
+     "d": 28.7,
+     "played": true,
+     "gain": 0.3542030167816641
+    },
+    {
+     "t": 55.21,
+     "voice": "seals:splash",
+     "right": -42.4,
+     "ahead": -51.1,
+     "y": 0,
+     "d": 66.4,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 55.78,
+     "voice": "oystercatchers:pipe",
+     "right": -6.6,
+     "ahead": -1.1,
+     "y": 0,
+     "d": 6.6,
+     "played": true,
+     "gain": 0.8834321409753947
+    },
+    {
+     "t": 58.04,
+     "voice": "penguins:bray",
+     "right": 37.9,
+     "ahead": -10.9,
+     "y": 0,
+     "d": 39.5,
+     "played": true,
+     "gain": 0.11420427882931694
+    },
+    {
+     "t": 58.71,
+     "voice": "oystercatchers:pipe",
+     "right": -6.6,
+     "ahead": -1,
+     "y": 0,
+     "d": 6.7,
+     "played": true,
+     "gain": 0.8834678631212219
+    },
+    {
+     "t": 62.07,
+     "voice": "penguins:splash",
+     "right": 34.8,
+     "ahead": -5.9,
+     "y": 0,
+     "d": 35.3,
+     "played": true,
+     "gain": 0.10532418293676876
+    },
+    {
+     "t": 62.11,
+     "voice": "penguins:splash",
+     "right": 34.8,
+     "ahead": -5.9,
+     "y": 0,
+     "d": 35.3,
+     "played": true,
+     "gain": 0.10540705977377751
+    },
+    {
+     "t": 62.14,
+     "voice": "penguins:splash",
+     "right": 34.8,
+     "ahead": -5.9,
+     "y": 0,
+     "d": 35.2,
+     "played": true,
+     "gain": 0.10548990877781161
+    },
+    {
+     "t": 62.18,
+     "voice": "penguins:splash",
+     "right": 34.8,
+     "ahead": -5.8,
+     "y": 0,
+     "d": 35.2,
+     "played": true,
+     "gain": 0.10557248200538805
+    },
+    {
+     "t": 62.21,
+     "voice": "penguins:splash",
+     "right": 34.7,
+     "ahead": -5.8,
+     "y": 0,
+     "d": 35.2,
+     "played": true,
+     "gain": 0.10565354046996789
+    },
+    {
+     "t": 62.24,
+     "voice": "penguins:splash",
+     "right": 34.7,
+     "ahead": -5.8,
+     "y": 0,
+     "d": 35.2,
+     "played": true,
+     "gain": 0.10573729757927197
+    },
+    {
+     "t": 62.27,
+     "voice": "penguins:splash",
+     "right": 34.7,
+     "ahead": -5.8,
+     "y": 0,
+     "d": 35.2,
+     "played": true,
+     "gain": 0.1058202830863374
+    },
+    {
+     "t": 62.41,
+     "voice": "seals:splash",
+     "right": -42.1,
+     "ahead": -50.8,
+     "y": 0,
+     "d": 65.9,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 63.38,
+     "voice": "seals:splash",
+     "right": -41.4,
+     "ahead": -52.5,
+     "y": 0,
+     "d": 66.9,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 63.84,
+     "voice": "seals:splash",
+     "right": -41.3,
+     "ahead": -53.5,
+     "y": 0,
+     "d": 67.6,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 64.47,
+     "voice": "penguins:bray",
+     "right": 27.7,
+     "ahead": -6.4,
+     "y": 0,
+     "d": 28.5,
+     "played": true,
+     "gain": 0.36019763632736945
+    },
+    {
+     "t": 64.81,
+     "voice": "seals:splash",
+     "right": -42.7,
+     "ahead": -54.8,
+     "y": 0,
+     "d": 69.5,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 65.38,
+     "voice": "oystercatchers:pipe",
+     "right": -6.5,
+     "ahead": -1.2,
+     "y": 0,
+     "d": 6.6,
+     "played": true,
+     "gain": 0.8834826893779253
+    },
+    {
+     "t": 66.87,
+     "voice": "seals:bark",
+     "right": -39.6,
+     "ahead": -51.3,
+     "y": 0,
+     "d": 64.8,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 69.74,
+     "voice": "gull:idle",
+     "right": 19.8,
+     "ahead": -29.4,
+     "y": 14.8,
+     "d": 35.4,
+     "played": true
+    },
+    {
+     "t": 70.84,
+     "voice": "penguins:bray",
+     "right": 26.9,
+     "ahead": -5.5,
+     "y": 0,
+     "d": 27.5,
+     "played": true,
+     "gain": 0.383259223711351
+    },
+    {
+     "t": 71.11,
+     "voice": "penguins:splash",
+     "right": 31.9,
+     "ahead": -4.5,
+     "y": 0,
+     "d": 32.3,
+     "played": true,
+     "gain": 0.1391805684439491
+    },
+    {
+     "t": 71.14,
+     "voice": "penguins:splash",
+     "right": 31.9,
+     "ahead": -4.5,
+     "y": 0,
+     "d": 32.3,
+     "played": true,
+     "gain": 0.13909723058429513
+    },
+    {
+     "t": 71.17,
+     "voice": "penguins:splash",
+     "right": 32,
+     "ahead": -4.5,
+     "y": 0,
+     "d": 32.3,
+     "played": true,
+     "gain": 0.1390148578456019
+    },
+    {
+     "t": 71.21,
+     "voice": "penguins:splash",
+     "right": 32,
+     "ahead": -4.5,
+     "y": 0,
+     "d": 32.3,
+     "played": true,
+     "gain": 0.1389332023333309
+    },
+    {
+     "t": 71.24,
+     "voice": "penguins:splash",
+     "right": 32,
+     "ahead": -4.5,
+     "y": 0,
+     "d": 32.3,
+     "played": true,
+     "gain": 0.13885027220062557
+    },
+    {
+     "t": 71.27,
+     "voice": "penguins:splash",
+     "right": 32,
+     "ahead": -4.5,
+     "y": 0,
+     "d": 32.3,
+     "played": true,
+     "gain": 0.13876606611293085
+    },
+    {
+     "t": 71.31,
+     "voice": "penguins:splash",
+     "right": 32,
+     "ahead": -4.5,
+     "y": 0,
+     "d": 32.3,
+     "played": true,
+     "gain": 0.13868282612897487
+    },
+    {
+     "t": 72.01,
+     "voice": "penguins:splash",
+     "right": 34.6,
+     "ahead": -6.7,
+     "y": 0,
+     "d": 35.3,
+     "played": true,
+     "gain": 0.10509379533489294
+    },
+    {
+     "t": 72.04,
+     "voice": "penguins:splash",
+     "right": 34.6,
+     "ahead": -6.7,
+     "y": 0,
+     "d": 35.2,
+     "played": true,
+     "gain": 0.10517249444387877
+    },
+    {
+     "t": 72.07,
+     "voice": "penguins:splash",
+     "right": 34.6,
+     "ahead": -6.7,
+     "y": 0,
+     "d": 35.2,
+     "played": true,
+     "gain": 0.10525092809507913
+    },
+    {
+     "t": 72.11,
+     "voice": "penguins:splash",
+     "right": 34.6,
+     "ahead": -6.7,
+     "y": 0,
+     "d": 35.2,
+     "played": true,
+     "gain": 0.10533027710429799
+    },
+    {
+     "t": 72.14,
+     "voice": "penguins:splash",
+     "right": 34.6,
+     "ahead": -6.7,
+     "y": 0,
+     "d": 35.2,
+     "played": true,
+     "gain": 0.10540676397803461
+    },
+    {
+     "t": 72.18,
+     "voice": "penguins:bray",
+     "right": 37.1,
+     "ahead": -12.8,
+     "y": 0,
+     "d": 39.3,
+     "played": true,
+     "gain": 0.11697590718367856
+    },
+    {
+     "t": 72.18,
+     "voice": "penguins:splash",
+     "right": 34.6,
+     "ahead": -6.7,
+     "y": 0,
+     "d": 35.2,
+     "played": true,
+     "gain": 0.10548605439318082
+    },
+    {
+     "t": 72.21,
+     "voice": "penguins:splash",
+     "right": 34.6,
+     "ahead": -6.7,
+     "y": 0,
+     "d": 35.2,
+     "played": true,
+     "gain": 0.10556531495195248
+    },
+    {
+     "t": 73.41,
+     "voice": "penguins:splash",
+     "right": 34.1,
+     "ahead": -2,
+     "y": 0,
+     "d": 34.1,
+     "played": true,
+     "gain": 0.05943094548461414
+    },
+    {
+     "t": 76.07,
+     "voice": "penguins:bray",
+     "right": 26.4,
+     "ahead": -6.6,
+     "y": 0,
+     "d": 27.2,
+     "played": true,
+     "gain": 0.3868017429908205
+    },
+    {
+     "t": 76.98,
+     "voice": "penguins:bray",
+     "right": 26.9,
+     "ahead": -5.6,
+     "y": 0,
+     "d": 27.4,
+     "played": true,
+     "gain": 0.383259223711351
+    },
+    {
+     "t": 79.57,
+     "voice": "penguins:splash",
+     "right": 37.6,
+     "ahead": -2.8,
+     "y": 0,
+     "d": 37.7,
+     "played": true,
+     "gain": 0.040011450591431824
+    },
+    {
+     "t": 83.78,
+     "voice": "penguins:splash",
+     "right": 38.2,
+     "ahead": -4.6,
+     "y": 0,
+     "d": 38.5,
+     "played": true,
+     "gain": 0.07066432349805746
+    },
+    {
+     "t": 83.81,
+     "voice": "penguins:splash",
+     "right": 38.2,
+     "ahead": -4.6,
+     "y": 0,
+     "d": 38.5,
+     "played": true,
+     "gain": 0.07030630358204754
+    },
+    {
+     "t": 83.84,
+     "voice": "penguins:splash",
+     "right": 38.3,
+     "ahead": -4.6,
+     "y": 0,
+     "d": 38.5,
+     "played": true,
+     "gain": 0.06998311820784675
+    },
+    {
+     "t": 83.87,
+     "voice": "penguins:splash",
+     "right": 38.3,
+     "ahead": -4.6,
+     "y": 0,
+     "d": 38.6,
+     "played": true,
+     "gain": 0.06972799246308214
+    },
+    {
+     "t": 83.91,
+     "voice": "penguins:splash",
+     "right": 38.3,
+     "ahead": -4.6,
+     "y": 0,
+     "d": 38.6,
+     "played": true,
+     "gain": 0.06947490780154109
+    },
+    {
+     "t": 84.41,
+     "voice": "penguins:splash",
+     "right": 38.6,
+     "ahead": -4.3,
+     "y": 0,
+     "d": 38.8,
+     "played": true,
+     "gain": 0.03329916212496914
+    },
+    {
+     "t": 85.81,
+     "voice": "penguins:splash",
+     "right": 36.9,
+     "ahead": 0.8,
+     "y": 0,
+     "d": 37,
+     "played": true,
+     "gain": 0.04443975877732392
+    },
+    {
+     "t": 85.94,
+     "voice": "penguins:bray",
+     "right": 28.5,
+     "ahead": -10.2,
+     "y": 0,
+     "d": 30.3,
+     "played": true,
+     "gain": 0.31685977297837487
+    },
+    {
+     "t": 87.34,
+     "voice": "penguins:bray",
+     "right": 25.6,
+     "ahead": -6.6,
+     "y": 0,
+     "d": 26.5,
+     "played": true,
+     "gain": 0.4038183027898683
+    },
+    {
+     "t": 89.31,
+     "voice": "penguins:splash",
+     "right": 34.3,
+     "ahead": 2.8,
+     "y": 0,
+     "d": 34.5,
+     "played": true,
+     "gain": 0.058807070370274744
+    },
+    {
+     "t": 92.24,
+     "voice": "penguins:splash",
+     "right": 39.2,
+     "ahead": -0.5,
+     "y": 0,
+     "d": 39.2,
+     "played": true,
+     "gain": 0.032264636927810314
+    },
+    {
+     "t": 92.87,
+     "voice": "penguins:bray",
+     "right": 28.7,
+     "ahead": -6,
+     "y": 0,
+     "d": 29.3,
+     "played": true,
+     "gain": 0.34213164676998464
+    },
+    {
+     "t": 92.91,
+     "voice": "penguins:splash",
+     "right": 30.2,
+     "ahead": 2.9,
+     "y": 0,
+     "d": 30.3,
+     "played": true,
+     "gain": 0.08221901767762682
+    },
+    {
+     "t": 93.01,
+     "voice": "seals:splash",
+     "right": -41.8,
+     "ahead": -47.8,
+     "y": 0,
+     "d": 63.5,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 93.84,
+     "voice": "penguins:splash",
+     "right": 40.9,
+     "ahead": -1.9,
+     "y": 0,
+     "d": 41,
+     "played": true,
+     "gain": 0.022252093619007957
+    },
+    {
+     "t": 94.01,
+     "voice": "seals:splash",
+     "right": -43.7,
+     "ahead": -47.3,
+     "y": 0,
+     "d": 64.4,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 94.41,
+     "voice": "seals:splash",
+     "right": -43.9,
+     "ahead": -46.4,
+     "y": 0,
+     "d": 63.9,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 94.47,
+     "voice": "whale:blow",
+     "right": 12.7,
+     "ahead": 111.8,
+     "y": 0,
+     "d": 112.5,
+     "played": true,
+     "gain": 0.45797147128700566
+    },
+    {
+     "t": 95.38,
+     "voice": "seals:splash",
+     "right": -44.1,
+     "ahead": -44.3,
+     "y": 0,
+     "d": 62.6,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 95.5,
+     "voice": "penguins:bray",
+     "right": 26.8,
+     "ahead": -5.7,
+     "y": 0,
+     "d": 27.4,
+     "played": true,
+     "gain": 0.383259223711351
+    },
+    {
+     "t": 96.07,
+     "voice": "penguins:splash",
+     "right": 31.3,
+     "ahead": 2.8,
+     "y": 0,
+     "d": 31.4,
+     "played": true,
+     "gain": 0.07570578107594703
+    },
+    {
+     "t": 97.51,
+     "voice": "penguins:splash",
+     "right": 30.6,
+     "ahead": 4.8,
+     "y": 0,
+     "d": 31,
+     "played": true,
+     "gain": 0.07872814149494428
+    },
+    {
+     "t": 97.57,
+     "voice": "oystercatchers:pipe",
+     "right": -6.6,
+     "ahead": -0.9,
+     "y": 0,
+     "d": 6.7,
+     "played": true,
+     "gain": 0.883390440752802
+    },
+    {
+     "t": 99.11,
+     "voice": "penguins:bray",
+     "right": 26.4,
+     "ahead": -6.6,
+     "y": 0,
+     "d": 27.3,
+     "played": true,
+     "gain": 0.38634695254252327
+    },
+    {
+     "t": 99.81,
+     "voice": "oystercatchers:pipe",
+     "right": -6.8,
+     "ahead": -0.1,
+     "y": 0,
+     "d": 6.8,
+     "played": true,
+     "gain": 0.8836443697936767
+    },
+    {
+     "t": 100.74,
+     "voice": "penguins:splash",
+     "right": 27.3,
+     "ahead": 7.3,
+     "y": 0,
+     "d": 28.3,
+     "played": true,
+     "gain": 0.0947049595444518
+    },
+    {
+     "t": 101.27,
+     "voice": "penguins:splash",
+     "right": 40.4,
+     "ahead": -3.1,
+     "y": 0,
+     "d": 40.6,
+     "played": true,
+     "gain": 0.023669056494879798
+    },
+    {
+     "t": 102.24,
+     "voice": "penguins:splash",
+     "right": 33.3,
+     "ahead": 3.2,
+     "y": 0,
+     "d": 33.5,
+     "played": true,
+     "gain": 0.06484417623139668
+    },
+    {
+     "t": 102.41,
+     "voice": "penguins:splash",
+     "right": 28,
+     "ahead": 7.3,
+     "y": 0,
+     "d": 29,
+     "played": true,
+     "gain": 0.09096902722103425
+    },
+    {
+     "t": 103.39,
+     "voice": "seals:splash",
+     "right": -41.7,
+     "ahead": -47.7,
+     "y": 0,
+     "d": 63.4,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 103.47,
+     "voice": "whale:blow",
+     "right": 2.8,
+     "ahead": 111.2,
+     "y": 0,
+     "d": 111.3,
+     "played": true,
+     "gain": 0.46186413941011734
+    },
+    {
+     "t": 104.37,
+     "voice": "seals:splash",
+     "right": -42.7,
+     "ahead": -49.4,
+     "y": 0,
+     "d": 65.3,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 107.56,
+     "voice": "gull:idle",
+     "right": 21.3,
+     "ahead": -24.3,
+     "y": 14.8,
+     "d": 32.3,
+     "played": true
+    },
+    {
+     "t": 108.99,
+     "voice": "penguins:bray",
+     "right": 28.4,
+     "ahead": -5.9,
+     "y": 0,
+     "d": 29,
+     "played": true,
+     "gain": 0.3476976029904971
+    },
+    {
+     "t": 109.19,
+     "voice": "seals:splash",
+     "right": -44.3,
+     "ahead": -45.9,
+     "y": 0,
+     "d": 63.8,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 109.49,
+     "voice": "penguins:splash",
+     "right": 31.9,
+     "ahead": 3.8,
+     "y": 0,
+     "d": 32.1,
+     "played": true,
+     "gain": 0.07242677086137037
+    },
+    {
+     "t": 110.15,
+     "voice": "seals:splash",
+     "right": -43.7,
+     "ahead": -43.9,
+     "y": 0,
+     "d": 62,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 110.62,
+     "voice": "seals:splash",
+     "right": -43.3,
+     "ahead": -43,
+     "y": 0,
+     "d": 61,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 111.63,
+     "voice": "seals:splash",
+     "right": -44.3,
+     "ahead": -41.2,
+     "y": 0,
+     "d": 60.5,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 112.52,
+     "voice": "whale:blow",
+     "right": -7.1,
+     "ahead": 109.4,
+     "y": 0,
+     "d": 109.6,
+     "played": true,
+     "gain": 0.46695672665848076
+    },
+    {
+     "t": 113.25,
+     "voice": "penguins:bray",
+     "right": 37.2,
+     "ahead": -12.4,
+     "y": 0,
+     "d": 39.2,
+     "played": true,
+     "gain": 0.11806576977206429
+    },
+    {
+     "t": 114.26,
+     "voice": "seals:splash",
+     "right": -45.4,
+     "ahead": -43.2,
+     "y": 0,
+     "d": 62.6,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 115.19,
+     "voice": "penguins:bray",
+     "right": 26.8,
+     "ahead": -5.7,
+     "y": 0,
+     "d": 27.4,
+     "played": true,
+     "gain": 0.38325016610631957
+    },
+    {
+     "t": 115.22,
+     "voice": "seals:splash",
+     "right": -43.8,
+     "ahead": -44.5,
+     "y": 0,
+     "d": 62.5,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 115.39,
+     "voice": "penguins:bray",
+     "right": 28.4,
+     "ahead": -5.9,
+     "y": 0,
+     "d": 29,
+     "played": true,
+     "gain": 0.3476976029904971
+    },
+    {
+     "t": 115.69,
+     "voice": "seals:splash",
+     "right": -43.1,
+     "ahead": -45.2,
+     "y": 0,
+     "d": 62.4,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 116.15,
+     "voice": "penguins:bray",
+     "right": 37,
+     "ahead": -13.1,
+     "y": 0,
+     "d": 39.3,
+     "played": true,
+     "gain": 0.11696295573320059
+    },
+    {
+     "t": 116.69,
+     "voice": "seals:splash",
+     "right": -42.9,
+     "ahead": -47.3,
+     "y": 0,
+     "d": 63.9,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 118.79,
+     "voice": "penguins:bray",
+     "right": 37,
+     "ahead": -13.1,
+     "y": 0,
+     "d": 39.3,
+     "played": true,
+     "gain": 0.11696295573320059
+    },
+    {
+     "t": 121.56,
+     "voice": "whale:blow",
+     "right": -16.8,
+     "ahead": 106.3,
+     "y": 0,
+     "d": 107.6,
+     "played": true,
+     "gain": 0.4731433971537506
+    },
+    {
+     "t": 121.69,
+     "voice": "penguins:bray",
+     "right": 27.3,
+     "ahead": -7,
+     "y": 0,
+     "d": 28.1,
+     "played": true,
+     "gain": 0.3663565442710962
+    },
+    {
+     "t": 124.29,
+     "voice": "penguins:bray",
+     "right": 28.4,
+     "ahead": -5.9,
+     "y": 0,
+     "d": 29,
+     "played": true,
+     "gain": 0.3476976029904971
+    },
+    {
+     "t": 126.55,
+     "voice": "penguins:bray",
+     "right": 26.9,
+     "ahead": -9.2,
+     "y": 0,
+     "d": 28.4,
+     "played": true,
+     "gain": 0.35795952201775216
+    },
+    {
+     "t": 127.86,
+     "voice": "penguins:bray",
+     "right": 25.8,
+     "ahead": -6.4,
+     "y": 0,
+     "d": 26.6,
+     "played": true,
+     "gain": 0.40024593151656174
+    },
+    {
+     "t": 134.02,
+     "voice": "seals:splash",
+     "right": -41.8,
+     "ahead": -50.4,
+     "y": 0,
+     "d": 65.5,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 135.02,
+     "voice": "seals:splash",
+     "right": -41.5,
+     "ahead": -48.2,
+     "y": 0,
+     "d": 63.6,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 135.02,
+     "voice": "whale:fluke",
+     "right": -30.8,
+     "ahead": 99.5,
+     "y": 0,
+     "d": 104.1,
+     "played": true,
+     "gain": 0.362721195865558
+    },
+    {
+     "t": 135.42,
+     "voice": "seals:splash",
+     "right": -41.4,
+     "ahead": -47.4,
+     "y": 0,
+     "d": 62.9,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 136.32,
+     "voice": "penguins:bray",
+     "right": 28.2,
+     "ahead": -5.7,
+     "y": 0,
+     "d": 28.8,
+     "played": true,
+     "gain": 0.3543657324827951
+    },
+    {
+     "t": 136.39,
+     "voice": "seals:splash",
+     "right": -42.7,
+     "ahead": -45.9,
+     "y": 0,
+     "d": 62.7,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 137.02,
+     "voice": "penguins:bray",
+     "right": 35.4,
+     "ahead": -14.9,
+     "y": 0,
+     "d": 38.4,
+     "played": true,
+     "gain": 0.13432092749250868
+    },
+    {
+     "t": 138.55,
+     "voice": "penguins:bray",
+     "right": 28.1,
+     "ahead": -10.3,
+     "y": 0,
+     "d": 29.9,
+     "played": true,
+     "gain": 0.324146732747988
+    },
+    {
+     "t": 140.66,
+     "voice": "gull:idle",
+     "right": 2.1,
+     "ahead": -52.2,
+     "y": 14.8,
+     "d": 52.2,
+     "played": true
+    },
+    {
+     "t": 141.39,
+     "voice": "penguins:bray",
+     "right": 35.4,
+     "ahead": -15,
+     "y": 0,
+     "d": 38.5,
+     "played": true,
+     "gain": 0.13195744888931749
+    },
+    {
+     "t": 144.69,
+     "voice": "penguins:bray",
+     "right": 37.1,
+     "ahead": -12.8,
+     "y": 0,
+     "d": 39.3,
+     "played": true,
+     "gain": 0.11721491129508321
+    },
+    {
+     "t": 148.19,
+     "voice": "penguins:bray",
+     "right": 35.4,
+     "ahead": -15,
+     "y": 0,
+     "d": 38.5,
+     "played": true,
+     "gain": 0.13194738962918662
+    },
+    {
+     "t": 150.82,
+     "voice": "penguins:bray",
+     "right": 35.4,
+     "ahead": -15,
+     "y": 0,
+     "d": 38.5,
+     "played": true,
+     "gain": 0.13194738962918662
+    },
+    {
+     "t": 151.72,
+     "voice": "penguins:bray",
+     "right": 25.6,
+     "ahead": -6.6,
+     "y": 0,
+     "d": 26.4,
+     "played": true,
+     "gain": 0.40434552859367445
+    },
+    {
+     "t": 154.76,
+     "voice": "penguins:bray",
+     "right": 37.2,
+     "ahead": -12.3,
+     "y": 0,
+     "d": 39.2,
+     "played": true,
+     "gain": 0.11960153135274476
+    },
+    {
+     "t": 155.22,
+     "voice": "penguins:bray",
+     "right": 26,
+     "ahead": -5.6,
+     "y": 0,
+     "d": 26.6,
+     "played": true,
+     "gain": 0.4027987977317873
+    },
+    {
+     "t": 155.59,
+     "voice": "penguins:bray",
+     "right": 36.2,
+     "ahead": -14,
+     "y": 0,
+     "d": 38.9,
+     "played": true,
+     "gain": 0.12490873339877939
+    },
+    {
+     "t": 157.49,
+     "voice": "penguins:bray",
+     "right": 28.1,
+     "ahead": -10.3,
+     "y": 0,
+     "d": 29.9,
+     "played": true,
+     "gain": 0.3241594450977541
+    },
+    {
+     "t": 158.22,
+     "voice": "penguins:bray",
+     "right": 36.2,
+     "ahead": -14,
+     "y": 0,
+     "d": 38.9,
+     "played": true,
+     "gain": 0.12490873312221062
+    },
+    {
+     "t": 159.92,
+     "voice": "penguins:bray",
+     "right": 28.2,
+     "ahead": -5.7,
+     "y": 0,
+     "d": 28.8,
+     "played": true,
+     "gain": 0.3543657324827951
+    },
+    {
+     "t": 160.82,
+     "voice": "penguins:bray",
+     "right": 25.6,
+     "ahead": -6.6,
+     "y": 0,
+     "d": 26.4,
+     "played": true,
+     "gain": 0.40435248026178894
+    },
+    {
+     "t": 161.46,
+     "voice": "seals:splash",
+     "right": -43,
+     "ahead": -43.1,
+     "y": 0,
+     "d": 60.9,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 162.42,
+     "voice": "seals:splash",
+     "right": -44.6,
+     "ahead": -44.1,
+     "y": 0,
+     "d": 62.7,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 164.82,
+     "voice": "penguins:bray",
+     "right": 28.1,
+     "ahead": -10.3,
+     "y": 0,
+     "d": 29.9,
+     "played": true,
+     "gain": 0.3241594450977541
+    },
+    {
+     "t": 165.92,
+     "voice": "penguins:bray",
+     "right": 28.5,
+     "ahead": -5.8,
+     "y": 0,
+     "d": 29.1,
+     "played": true,
+     "gain": 0.34704691840193536
+    },
+    {
+     "t": 166.02,
+     "voice": "penguins:bray",
+     "right": 37.2,
+     "ahead": -12.3,
+     "y": 0,
+     "d": 39.2,
+     "played": true,
+     "gain": 0.11962512228953104
+    },
+    {
+     "t": 168.66,
+     "voice": "penguins:bray",
+     "right": 37.2,
+     "ahead": -12.3,
+     "y": 0,
+     "d": 39.2,
+     "played": true,
+     "gain": 0.11962512228953104
+    },
+    {
+     "t": 170.09,
+     "voice": "gull:idle",
+     "right": 12.3,
+     "ahead": -52.9,
+     "y": 14.8,
+     "d": 54.3,
+     "played": true
+    },
+    {
+     "t": 171.22,
+     "voice": "seals:bark",
+     "right": -40.3,
+     "ahead": -50.7,
+     "y": 0,
+     "d": 64.8,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 172.52,
+     "voice": "seals:splash",
+     "right": -43.4,
+     "ahead": -46,
+     "y": 0,
+     "d": 63.2,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 173.52,
+     "voice": "seals:splash",
+     "right": -43.4,
+     "ahead": -48,
+     "y": 0,
+     "d": 64.7,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 177.12,
+     "voice": "penguins:bray",
+     "right": 26.9,
+     "ahead": -5.4,
+     "y": 0,
+     "d": 27.4,
+     "played": true,
+     "gain": 0.38440930970429865
+    },
+    {
+     "t": 177.39,
+     "voice": "penguins:bray",
+     "right": 36.2,
+     "ahead": -14.2,
+     "y": 0,
+     "d": 38.9,
+     "played": true,
+     "gain": 0.12465969834209889
+    },
+    {
+     "t": 178.82,
+     "voice": "penguins:bray",
+     "right": 28.2,
+     "ahead": -10.4,
+     "y": 0,
+     "d": 30,
+     "played": true,
+     "gain": 0.32148065538777115
+    },
+    {
+     "t": 185.59,
+     "voice": "penguins:bray",
+     "right": 27.2,
+     "ahead": -9,
+     "y": 0,
+     "d": 28.6,
+     "played": true,
+     "gain": 0.35339423774546164
+    },
+    {
+     "t": 186.92,
+     "voice": "penguins:bray",
+     "right": 35.4,
+     "ahead": -15.1,
+     "y": 0,
+     "d": 38.5,
+     "played": true,
+     "gain": 0.1320325822443026
+    },
+    {
+     "t": 191.19,
+     "voice": "seals:splash",
+     "right": -45.1,
+     "ahead": -49.6,
+     "y": 0,
+     "d": 67,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 192.15,
+     "voice": "seals:splash",
+     "right": -45.9,
+     "ahead": -47.8,
+     "y": 0,
+     "d": 66.3,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 192.59,
+     "voice": "seals:splash",
+     "right": -45.4,
+     "ahead": -47,
+     "y": 0,
+     "d": 65.3,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 193.29,
+     "voice": "penguins:bray",
+     "right": 36.7,
+     "ahead": -11.5,
+     "y": 0,
+     "d": 38.4,
+     "played": true,
+     "gain": 0.13632387517662026
+    },
+    {
+     "t": 193.59,
+     "voice": "seals:splash",
+     "right": -45.9,
+     "ahead": -45.1,
+     "y": 0,
+     "d": 64.3,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 193.99,
+     "voice": "seals:splash",
+     "right": -46.7,
+     "ahead": -44.7,
+     "y": 0,
+     "d": 64.6,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 194.99,
+     "voice": "seals:splash",
+     "right": -48.2,
+     "ahead": -45.9,
+     "y": 0,
+     "d": 66.6,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 195.22,
+     "voice": "penguins:bray",
+     "right": 26.9,
+     "ahead": -5.4,
+     "y": 0,
+     "d": 27.4,
+     "played": true,
+     "gain": 0.38440930970429865
+    },
+    {
+     "t": 195.39,
+     "voice": "seals:splash",
+     "right": -48.1,
+     "ahead": -46.7,
+     "y": 0,
+     "d": 67,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 196.35,
+     "voice": "seals:splash",
+     "right": -47.8,
+     "ahead": -48.8,
+     "y": 0,
+     "d": 68.3,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 197.19,
+     "voice": "penguins:bray",
+     "right": 28.5,
+     "ahead": -5.8,
+     "y": 0,
+     "d": 29.1,
+     "played": true,
+     "gain": 0.34703532302332774
+    },
+    {
+     "t": 199.02,
+     "voice": "seals:splash",
+     "right": -46.1,
+     "ahead": -49.2,
+     "y": 0,
+     "d": 67.4,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 200.02,
+     "voice": "seals:splash",
+     "right": -44.1,
+     "ahead": -49.3,
+     "y": 0,
+     "d": 66.1,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 200.45,
+     "voice": "seals:splash",
+     "right": -43.7,
+     "ahead": -50.1,
+     "y": 0,
+     "d": 66.5,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 201.42,
+     "voice": "seals:splash",
+     "right": -42.1,
+     "ahead": -51.2,
+     "y": 0,
+     "d": 66.3,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 202.39,
+     "voice": "gull:idle",
+     "right": 51.6,
+     "ahead": -21.6,
+     "y": 14.8,
+     "d": 56,
+     "played": true
+    },
+    {
+     "t": 204.99,
+     "voice": "penguins:bray",
+     "right": 36.2,
+     "ahead": -14.2,
+     "y": 0,
+     "d": 38.9,
+     "played": true,
+     "gain": 0.12465931741589897
+    },
+    {
+     "t": 208.49,
+     "voice": "penguins:bray",
+     "right": 26.9,
+     "ahead": -5.4,
+     "y": 0,
+     "d": 27.4,
+     "played": true,
+     "gain": 0.38440930970429865
+    },
+    {
+     "t": 210.79,
+     "voice": "seals:splash",
+     "right": -41.2,
+     "ahead": -49.3,
+     "y": 0,
+     "d": 64.3,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 211.75,
+     "voice": "seals:splash",
+     "right": -42.5,
+     "ahead": -47.9,
+     "y": 0,
+     "d": 64,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 212.32,
+     "voice": "penguins:bray",
+     "right": 28.3,
+     "ahead": -6.1,
+     "y": 0,
+     "d": 29,
+     "played": true,
+     "gain": 0.3491379970365167
+    },
+    {
+     "t": 214.12,
+     "voice": "penguins:bray",
+     "right": 36.6,
+     "ahead": -11.4,
+     "y": 0,
+     "d": 38.3,
+     "played": true,
+     "gain": 0.13858280798915856
+    },
+    {
+     "t": 216.72,
+     "voice": "whale:blow",
+     "right": -101.1,
+     "ahead": 40.7,
+     "y": 0,
+     "d": 109,
+     "played": true,
+     "gain": 0.46622784690198515
+    },
+    {
+     "t": 217.09,
+     "voice": "penguins:bray",
+     "right": 37.1,
+     "ahead": -12.8,
+     "y": 0,
+     "d": 39.3,
+     "played": true,
+     "gain": 0.1169552502208493
+    },
+    {
+     "t": 217.49,
+     "voice": "penguins:bray",
+     "right": 27.3,
+     "ahead": -7,
+     "y": 0,
+     "d": 28.2,
+     "played": true,
+     "gain": 0.3655265962883364
+    },
+    {
+     "t": 221.98,
+     "voice": "penguins:bray",
+     "right": 28.3,
+     "ahead": -6.1,
+     "y": 0,
+     "d": 29,
+     "played": true,
+     "gain": 0.3491379970365167
+    },
+    {
+     "t": 223.85,
+     "voice": "penguins:bray",
+     "right": 35.8,
+     "ahead": -14.9,
+     "y": 0,
+     "d": 38.8,
+     "played": true,
+     "gain": 0.12672878914517682
+    },
+    {
+     "t": 225.32,
+     "voice": "seals:bark",
+     "right": -38.4,
+     "ahead": -50.6,
+     "y": 0,
+     "d": 63.5,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 225.75,
+     "voice": "whale:blow",
+     "right": -93.8,
+     "ahead": 47.5,
+     "y": 0,
+     "d": 105.2,
+     "played": true,
+     "gain": 0.47831174551561273
+    },
+    {
+     "t": 226.35,
+     "voice": "gull:idle",
+     "right": 4.4,
+     "ahead": -34.1,
+     "y": 14.8,
+     "d": 34.4,
+     "played": true
+    },
+    {
+     "t": 228.05,
+     "voice": "penguins:bray",
+     "right": 25.5,
+     "ahead": -6.4,
+     "y": 0,
+     "d": 26.3,
+     "played": true,
+     "gain": 0.40697994538421667
+    },
+    {
+     "t": 228.45,
+     "voice": "penguins:bray",
+     "right": 27.3,
+     "ahead": -7,
+     "y": 0,
+     "d": 28.2,
+     "played": true,
+     "gain": 0.3655265963493022
+    },
+    {
+     "t": 230.78,
+     "voice": "penguins:bray",
+     "right": 36.6,
+     "ahead": -11.4,
+     "y": 0,
+     "d": 38.3,
+     "played": true,
+     "gain": 0.1385800595731954
+    },
+    {
+     "t": 232.22,
+     "voice": "seals:bark",
+     "right": -38.6,
+     "ahead": -49,
+     "y": 0,
+     "d": 62.4,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 234.78,
+     "voice": "whale:blow",
+     "right": -86.3,
+     "ahead": 54.1,
+     "y": 0,
+     "d": 101.9,
+     "played": true,
+     "gain": 0.48867609710054793
+    },
+    {
+     "t": 234.99,
+     "voice": "penguins:bray",
+     "right": 36.4,
+     "ahead": -14.3,
+     "y": 0,
+     "d": 39,
+     "played": true,
+     "gain": 0.12077601941708282
+    },
+    {
+     "t": 235.72,
+     "voice": "penguins:bray",
+     "right": 26.8,
+     "ahead": -9.1,
+     "y": 0,
+     "d": 28.3,
+     "played": true,
+     "gain": 0.3607273218021114
+    },
+    {
+     "t": 238.35,
+     "voice": "penguins:bray",
+     "right": 26.8,
+     "ahead": -9.1,
+     "y": 0,
+     "d": 28.3,
+     "played": true,
+     "gain": 0.3607273218021114
+    },
+    {
+     "t": 239.72,
+     "voice": "seals:bark",
+     "right": -39.6,
+     "ahead": -49.4,
+     "y": 0,
+     "d": 63.3,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 240.32,
+     "voice": "penguins:bray",
+     "right": 27.3,
+     "ahead": -7,
+     "y": 0,
+     "d": 28.2,
+     "played": true,
+     "gain": 0.3655265963493022
+    },
+    {
+     "t": 240.49,
+     "voice": "penguins:bray",
+     "right": 36.4,
+     "ahead": -14.3,
+     "y": 0,
+     "d": 39,
+     "played": true,
+     "gain": 0.12077601941708282
+    },
+    {
+     "t": 242.92,
+     "voice": "penguins:bray",
+     "right": 27.3,
+     "ahead": -7,
+     "y": 0,
+     "d": 28.2,
+     "played": true,
+     "gain": 0.3655265963493022
+    },
+    {
+     "t": 243.15,
+     "voice": "penguins:bray",
+     "right": 37.2,
+     "ahead": -12.2,
+     "y": 0,
+     "d": 39.2,
+     "played": true,
+     "gain": 0.11969237976884828
+    },
+    {
+     "t": 245.55,
+     "voice": "penguins:bray",
+     "right": 27.3,
+     "ahead": -7,
+     "y": 0,
+     "d": 28.2,
+     "played": true,
+     "gain": 0.3655265963493022
+    },
+    {
+     "t": 246.82,
+     "voice": "seals:splash",
+     "right": -42.5,
+     "ahead": -46.9,
+     "y": 0,
+     "d": 63.3,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 247.79,
+     "voice": "seals:splash",
+     "right": -42.3,
+     "ahead": -48.8,
+     "y": 0,
+     "d": 64.6,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 248.22,
+     "voice": "whale:fluke",
+     "right": -75.1,
+     "ahead": 64,
+     "y": 0,
+     "d": 98.6,
+     "played": true,
+     "gain": 0.3743837205445841
+    },
+    {
+     "t": 250.92,
+     "voice": "penguins:bray",
+     "right": 27.1,
+     "ahead": -8.9,
+     "y": 0,
+     "d": 28.5,
+     "played": true,
+     "gain": 0.3563089673779619
+    },
+    {
+     "t": 251.92,
+     "voice": "penguins:bray",
+     "right": 37.2,
+     "ahead": -12.2,
+     "y": 0,
+     "d": 39.2,
+     "played": true,
+     "gain": 0.11969237976884828
+    },
+    {
+     "t": 253.82,
+     "voice": "seals:splash",
+     "right": -41.3,
+     "ahead": -46.8,
+     "y": 0,
+     "d": 62.5,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 254.35,
+     "voice": "penguins:bray",
+     "right": 26.1,
+     "ahead": -5.5,
+     "y": 0,
+     "d": 26.6,
+     "played": true,
+     "gain": 0.4010379208236594
+    },
+    {
+     "t": 254.75,
+     "voice": "penguins:bray",
+     "right": 36.6,
+     "ahead": -11.4,
+     "y": 0,
+     "d": 38.3,
+     "played": true,
+     "gain": 0.1385800595731954
+    },
+    {
+     "t": 254.78,
+     "voice": "seals:splash",
+     "right": -40.4,
+     "ahead": -48.5,
+     "y": 0,
+     "d": 63.2,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 256.89,
+     "voice": "penguins:bray",
+     "right": 37.2,
+     "ahead": -12.2,
+     "y": 0,
+     "d": 39.2,
+     "played": true,
+     "gain": 0.11969237976884828
+    },
+    {
+     "t": 257.05,
+     "voice": "penguins:bray",
+     "right": 25.5,
+     "ahead": -6.4,
+     "y": 0,
+     "d": 26.3,
+     "played": true,
+     "gain": 0.40699189489010223
+    },
+    {
+     "t": 257.49,
+     "voice": "seals:splash",
+     "right": -40.2,
+     "ahead": -47.3,
+     "y": 0,
+     "d": 62.1,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 258.05,
+     "voice": "penguins:bray",
+     "right": 28.4,
+     "ahead": -10.4,
+     "y": 0,
+     "d": 30.2,
+     "played": true,
+     "gain": 0.3167640494499734
+    },
+    {
+     "t": 258.49,
+     "voice": "seals:splash",
+     "right": -41.5,
+     "ahead": -45.6,
+     "y": 0,
+     "d": 61.6,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 259.69,
+     "voice": "penguins:bray",
+     "right": 25.5,
+     "ahead": -6.4,
+     "y": 0,
+     "d": 26.3,
+     "played": true,
+     "gain": 0.40699189489010223
+    },
+    {
+     "t": 261.58,
+     "voice": "gull:idle",
+     "right": 25.7,
+     "ahead": -27.2,
+     "y": 14.8,
+     "d": 37.4,
+     "played": true
+    },
+    {
+     "t": 262.32,
+     "voice": "penguins:bray",
+     "right": 25.5,
+     "ahead": -6.4,
+     "y": 0,
+     "d": 26.3,
+     "played": true,
+     "gain": 0.40699189489010223
+    },
+    {
+     "t": 263.62,
+     "voice": "penguins:bray",
+     "right": 36.4,
+     "ahead": -14.3,
+     "y": 0,
+     "d": 39,
+     "played": true,
+     "gain": 0.12077601941708282
+    },
+    {
+     "t": 265.15,
+     "voice": "penguins:bray",
+     "right": 28.3,
+     "ahead": -6.1,
+     "y": 0,
+     "d": 29,
+     "played": true,
+     "gain": 0.3491379970365167
+    },
+    {
+     "t": 266.68,
+     "voice": "penguins:bray",
+     "right": 27.1,
+     "ahead": -8.9,
+     "y": 0,
+     "d": 28.5,
+     "played": true,
+     "gain": 0.35630270918114415
+    },
+    {
+     "t": 269.38,
+     "voice": "penguins:bray",
+     "right": 25.5,
+     "ahead": -6.4,
+     "y": 0,
+     "d": 26.3,
+     "played": true,
+     "gain": 0.40699189489010223
+    },
+    {
+     "t": 269.62,
+     "voice": "seals:splash",
+     "right": -43.3,
+     "ahead": -43.9,
+     "y": 0,
+     "d": 61.7,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 270.58,
+     "voice": "seals:splash",
+     "right": -44.2,
+     "ahead": -45.8,
+     "y": 0,
+     "d": 63.6,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 271.05,
+     "voice": "seals:splash",
+     "right": -44.7,
+     "ahead": -46.7,
+     "y": 0,
+     "d": 64.6,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 271.22,
+     "voice": "penguins:bray",
+     "right": 36.9,
+     "ahead": -12.8,
+     "y": 0,
+     "d": 39.1,
+     "played": true,
+     "gain": 0.12170738935728054
+    },
+    {
+     "t": 272.02,
+     "voice": "penguins:bray",
+     "right": 25.5,
+     "ahead": -6.4,
+     "y": 0,
+     "d": 26.3,
+     "played": true,
+     "gain": 0.40699189489010223
+    },
+    {
+     "t": 272.05,
+     "voice": "seals:splash",
+     "right": -46.6,
+     "ahead": -47.1,
+     "y": 0,
+     "d": 66.3,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 272.49,
+     "voice": "seals:splash",
+     "right": -47.2,
+     "ahead": -46.3,
+     "y": 0,
+     "d": 66.1,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 273.45,
+     "voice": "seals:splash",
+     "right": -49,
+     "ahead": -45.7,
+     "y": 0,
+     "d": 67,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 274.62,
+     "voice": "penguins:bray",
+     "right": 25.5,
+     "ahead": -6.4,
+     "y": 0,
+     "d": 26.3,
+     "played": true,
+     "gain": 0.40699189489010223
+    },
+    {
+     "t": 277.75,
+     "voice": "penguins:bray",
+     "right": 27.3,
+     "ahead": -7,
+     "y": 0,
+     "d": 28.2,
+     "played": true,
+     "gain": 0.3655265963493022
+    },
+    {
+     "t": 278.68,
+     "voice": "seals:bark",
+     "right": -40.3,
+     "ahead": -50.7,
+     "y": 0,
+     "d": 64.8,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 282.35,
+     "voice": "penguins:bray",
+     "right": 37.2,
+     "ahead": -12.2,
+     "y": 0,
+     "d": 39.2,
+     "played": true,
+     "gain": 0.11969237976884828
+    },
+    {
+     "t": 286.15,
+     "voice": "penguins:bray",
+     "right": 35.6,
+     "ahead": -15.1,
+     "y": 0,
+     "d": 38.7,
+     "played": true,
+     "gain": 0.12839964168161533
+    },
+    {
+     "t": 286.68,
+     "voice": "gull:idle",
+     "right": 49.9,
+     "ahead": -21.1,
+     "y": 14.8,
+     "d": 54.2,
+     "played": true
+    },
+    {
+     "t": 287.35,
+     "voice": "penguins:bray",
+     "right": 27.1,
+     "ahead": -8.9,
+     "y": 0,
+     "d": 28.5,
+     "played": true,
+     "gain": 0.35630270918114415
+    },
+    {
+     "t": 289.22,
+     "voice": "penguins:bray",
+     "right": 37.2,
+     "ahead": -12.2,
+     "y": 0,
+     "d": 39.2,
+     "played": true,
+     "gain": 0.11969237976884828
+    },
+    {
+     "t": 291.85,
+     "voice": "penguins:bray",
+     "right": 37.2,
+     "ahead": -12.2,
+     "y": 0,
+     "d": 39.2,
+     "played": true,
+     "gain": 0.11969237976884828
+    },
+    {
+     "t": 297.65,
+     "voice": "seals:bark",
+     "right": -40.3,
+     "ahead": -50.7,
+     "y": 0,
+     "d": 64.8,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 299.95,
+     "voice": "penguins:bray",
+     "right": 26.8,
+     "ahead": -5.7,
+     "y": 0,
+     "d": 27.4,
+     "played": true,
+     "gain": 0.3839584675667036
+    }
+   ],
+   "night": 0,
+   "inland": 3.1984008826420336,
+   "wind": [
+    -1.7500000000000016,
+    3.0310889132455343
+   ],
+   "state": "running",
+   "wallSeconds": 300.175
+  },
+  {
+   "name": "seed 1847, dusk, standing",
+   "seed": 1847,
+   "minutes": 1188,
+   "seconds": 90,
+   "setup": {
+    "state": "running",
+    "cat": [
+     12.906352188616161,
+     9.297012561598642
+    ],
+    "inland": 3.200000000000003,
+    "wind": [
+     -1.7500000000000016,
+     3.0310889132455343
+    ],
+    "colony": null
+   },
+   "heard": [
+    {
+     "t": 1.62,
+     "voice": "penguins:bray",
+     "right": -9.8,
+     "ahead": 27.8,
+     "y": 0,
+     "d": 29.5,
+     "played": true,
+     "gain": 0.3637513052414356
+    },
+    {
+     "t": 2.13,
+     "voice": "penguins:bray",
+     "right": -11.7,
+     "ahead": 38.1,
+     "y": 0,
+     "d": 39.8,
+     "played": true,
+     "gain": 0.13531102975151943
+    },
+    {
+     "t": 4.35,
+     "voice": "penguins:bray",
+     "right": -9.4,
+     "ahead": 27.1,
+     "y": 0,
+     "d": 28.7,
+     "played": true,
+     "gain": 0.38300680484465255
+    },
+    {
+     "t": 7.05,
+     "voice": "penguins:bray",
+     "right": -10.4,
+     "ahead": 26.8,
+     "y": 0,
+     "d": 28.7,
+     "played": true,
+     "gain": 0.3808142597902041
+    },
+    {
+     "t": 8.02,
+     "voice": "gull:idle",
+     "right": -2.3,
+     "ahead": 40.7,
+     "y": 14.8,
+     "d": 40.7,
+     "played": true
+    },
+    {
+     "t": 14.38,
+     "voice": "penguins:bray",
+     "right": -7.6,
+     "ahead": 30.6,
+     "y": 0,
+     "d": 31.5,
+     "played": true,
+     "gain": 0.32048040377859277
+    },
+    {
+     "t": 14.65,
+     "voice": "whale:blow",
+     "right": -63.9,
+     "ahead": -80.8,
+     "y": 0,
+     "d": 103,
+     "played": true,
+     "gain": 0.48081549438393234
+    },
+    {
+     "t": 15.98,
+     "voice": "seals:bark",
+     "right": 64.6,
+     "ahead": 1.4,
+     "y": 0,
+     "d": 64.6,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 16.51,
+     "voice": "penguins:bray",
+     "right": -10.4,
+     "ahead": 26.8,
+     "y": 0,
+     "d": 28.7,
+     "played": true,
+     "gain": 0.3808142597902041
+    },
+    {
+     "t": 17.01,
+     "voice": "penguins:bray",
+     "right": -11.1,
+     "ahead": 28.3,
+     "y": 0,
+     "d": 30.4,
+     "played": true,
+     "gain": 0.3446714702839725
+    },
+    {
+     "t": 20.65,
+     "voice": "seals:splash",
+     "right": 60.8,
+     "ahead": -5.4,
+     "y": 0,
+     "d": 61,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 21.11,
+     "voice": "penguins:bray",
+     "right": -6.5,
+     "ahead": 40.2,
+     "y": 0,
+     "d": 40.7,
+     "played": true,
+     "gain": 0.11577781419251765
+    },
+    {
+     "t": 23.68,
+     "voice": "whale:blow",
+     "right": -104.3,
+     "ahead": -17.9,
+     "y": 0,
+     "d": 105.8,
+     "played": true,
+     "gain": 0.4738033731447864
+    },
+    {
+     "t": 24.68,
+     "voice": "penguins:bray",
+     "right": 21.5,
+     "ahead": 33.8,
+     "y": 0,
+     "d": 40,
+     "played": true,
+     "gain": 0.13046911098814262
+    },
+    {
+     "t": 24.71,
+     "voice": "penguins:bray",
+     "right": 11.4,
+     "ahead": 26.5,
+     "y": 0,
+     "d": 28.9,
+     "played": true,
+     "gain": 0.3808142597902041
+    },
+    {
+     "t": 26.41,
+     "voice": "penguins:bray",
+     "right": 28.2,
+     "ahead": 28.7,
+     "y": 0,
+     "d": 40.3,
+     "played": true,
+     "gain": 0.12262249323202745
+    },
+    {
+     "t": 27.45,
+     "voice": "penguins:bray",
+     "right": 20.4,
+     "ahead": 20,
+     "y": 0,
+     "d": 28.6,
+     "played": true,
+     "gain": 0.38300680484465255
+    },
+    {
+     "t": 28.35,
+     "voice": "penguins:bray",
+     "right": 33,
+     "ahead": 23.6,
+     "y": 0,
+     "d": 40.5,
+     "played": true,
+     "gain": 0.11420430713143304
+    },
+    {
+     "t": 29.81,
+     "voice": "penguins:bray",
+     "right": 26.9,
+     "ahead": 13.5,
+     "y": 0,
+     "d": 30.1,
+     "played": true,
+     "gain": 0.3435376576934194
+    },
+    {
+     "t": 30.11,
+     "voice": "penguins:bray",
+     "right": 24.2,
+     "ahead": 15,
+     "y": 0,
+     "d": 28.5,
+     "played": true,
+     "gain": 0.3808142597902041
+    },
+    {
+     "t": 30.41,
+     "voice": "penguins:bray",
+     "right": 25.9,
+     "ahead": 15.3,
+     "y": 0,
+     "d": 30.1,
+     "played": true,
+     "gain": 0.3446714702839725
+    },
+    {
+     "t": 31.85,
+     "voice": "gull:idle",
+     "right": 43,
+     "ahead": -2.4,
+     "y": 14.8,
+     "d": 43,
+     "played": true
+    },
+    {
+     "t": 32.45,
+     "voice": "penguins:bray",
+     "right": 28.8,
+     "ahead": 7.9,
+     "y": 0,
+     "d": 29.8,
+     "played": true,
+     "gain": 0.3435376576934194
+    },
+    {
+     "t": 32.61,
+     "voice": "penguins:bray",
+     "right": 38.6,
+     "ahead": 7.7,
+     "y": 0,
+     "d": 39.4,
+     "played": true,
+     "gain": 0.13046911098814262
+    },
+    {
+     "t": 32.71,
+     "voice": "whale:blow",
+     "right": -66.2,
+     "ahead": 86.6,
+     "y": 0,
+     "d": 109.1,
+     "played": true,
+     "gain": 0.4675159398891932
+    },
+    {
+     "t": 33.88,
+     "voice": "penguins:bray",
+     "right": 26.2,
+     "ahead": 7.1,
+     "y": 0,
+     "d": 27.2,
+     "played": true,
+     "gain": 0.40331637817124966
+    },
+    {
+     "t": 37.61,
+     "voice": "penguins:bray",
+     "right": 29.4,
+     "ahead": 3.8,
+     "y": 0,
+     "d": 29.6,
+     "played": true,
+     "gain": 0.3446714702839725
+    },
+    {
+     "t": 43.34,
+     "voice": "penguins:bray",
+     "right": 28.4,
+     "ahead": -4,
+     "y": 0,
+     "d": 28.7,
+     "played": true,
+     "gain": 0.35722523809121276
+    },
+    {
+     "t": 44.51,
+     "voice": "penguins:bray",
+     "right": 39.3,
+     "ahead": -6.3,
+     "y": 0,
+     "d": 39.8,
+     "played": true,
+     "gain": 0.11094507248016783
+    },
+    {
+     "t": 45.08,
+     "voice": "seals:bark",
+     "right": -30.2,
+     "ahead": -55.8,
+     "y": 0,
+     "d": 63.4,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 46.14,
+     "voice": "whale:fluke",
+     "right": -7.9,
+     "ahead": 111.5,
+     "y": 0,
+     "d": 111.8,
+     "played": true,
+     "gain": 0.3451460197754866
+    },
+    {
+     "t": 48.81,
+     "voice": "seals:splash",
+     "right": -37.1,
+     "ahead": -51.3,
+     "y": 0,
+     "d": 63.3,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 49.81,
+     "voice": "seals:splash",
+     "right": -38.2,
+     "ahead": -53,
+     "y": 0,
+     "d": 65.3,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 52.45,
+     "voice": "seals:splash",
+     "right": -41.1,
+     "ahead": -54.3,
+     "y": 0,
+     "d": 68.1,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 53.41,
+     "voice": "seals:splash",
+     "right": -43.4,
+     "ahead": -53.6,
+     "y": 0,
+     "d": 69,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 53.88,
+     "voice": "seals:splash",
+     "right": -43.8,
+     "ahead": -52.5,
+     "y": 0,
+     "d": 68.4,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 54.84,
+     "voice": "seals:splash",
+     "right": -42.5,
+     "ahead": -51.1,
+     "y": 0,
+     "d": 66.5,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 56.85,
+     "voice": "gull:idle",
+     "right": 24.8,
+     "ahead": -37.1,
+     "y": 14.8,
+     "d": 44.6,
+     "played": true
+    },
+    {
+     "t": 56.88,
+     "voice": "penguins:bray",
+     "right": 37,
+     "ahead": -12.4,
+     "y": 0,
+     "d": 39,
+     "played": true,
+     "gain": 0.12262249323202745
+    },
+    {
+     "t": 60.61,
+     "voice": "penguins:splash",
+     "right": 31.2,
+     "ahead": -3.6,
+     "y": 0,
+     "d": 31.4,
+     "played": true,
+     "gain": 0.14946491843148646
+    },
+    {
+     "t": 60.65,
+     "voice": "penguins:splash",
+     "right": 31.2,
+     "ahead": -3.6,
+     "y": 0,
+     "d": 31.4,
+     "played": true,
+     "gain": 0.14934214999386347
+    },
+    {
+     "t": 60.68,
+     "voice": "penguins:splash",
+     "right": 31.2,
+     "ahead": -3.6,
+     "y": 0,
+     "d": 31.4,
+     "played": true,
+     "gain": 0.1492260536446825
+    },
+    {
+     "t": 60.71,
+     "voice": "penguins:splash",
+     "right": 31.2,
+     "ahead": -3.6,
+     "y": 0,
+     "d": 31.4,
+     "played": true,
+     "gain": 0.14911276091330045
+    },
+    {
+     "t": 60.74,
+     "voice": "penguins:splash",
+     "right": 31.2,
+     "ahead": -3.6,
+     "y": 0,
+     "d": 31.4,
+     "played": true,
+     "gain": 0.1489899564025972
+    },
+    {
+     "t": 60.78,
+     "voice": "penguins:splash",
+     "right": 31.2,
+     "ahead": -3.6,
+     "y": 0,
+     "d": 31.4,
+     "played": true,
+     "gain": 0.14887488176066022
+    },
+    {
+     "t": 60.81,
+     "voice": "penguins:splash",
+     "right": 31.2,
+     "ahead": -3.6,
+     "y": 0,
+     "d": 31.4,
+     "played": true,
+     "gain": 0.14875944414992676
+    },
+    {
+     "t": 62.05,
+     "voice": "seals:splash",
+     "right": -42.2,
+     "ahead": -50.7,
+     "y": 0,
+     "d": 66,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 62.07,
+     "voice": "penguins:splash",
+     "right": 31,
+     "ahead": -3.7,
+     "y": 0,
+     "d": 31.3,
+     "played": true,
+     "gain": 0.15065227495108208
+    },
+    {
+     "t": 62.11,
+     "voice": "penguins:splash",
+     "right": 31,
+     "ahead": -3.7,
+     "y": 0,
+     "d": 31.3,
+     "played": true,
+     "gain": 0.15053419869261586
+    },
+    {
+     "t": 62.14,
+     "voice": "penguins:splash",
+     "right": 31.1,
+     "ahead": -3.7,
+     "y": 0,
+     "d": 31.3,
+     "played": true,
+     "gain": 0.15042349137953442
+    },
+    {
+     "t": 62.18,
+     "voice": "penguins:splash",
+     "right": 31.1,
+     "ahead": -3.7,
+     "y": 0,
+     "d": 31.3,
+     "played": true,
+     "gain": 0.15030258002144203
+    },
+    {
+     "t": 62.21,
+     "voice": "penguins:splash",
+     "right": 31.1,
+     "ahead": -3.7,
+     "y": 0,
+     "d": 31.3,
+     "played": true,
+     "gain": 0.1501830623912458
+    },
+    {
+     "t": 62.25,
+     "voice": "penguins:splash",
+     "right": 31.1,
+     "ahead": -3.7,
+     "y": 0,
+     "d": 31.3,
+     "played": true,
+     "gain": 0.1500652905186376
+    },
+    {
+     "t": 62.28,
+     "voice": "penguins:splash",
+     "right": 31.1,
+     "ahead": -3.7,
+     "y": 0,
+     "d": 31.3,
+     "played": true,
+     "gain": 0.1499496165628793
+    },
+    {
+     "t": 63.01,
+     "voice": "seals:splash",
+     "right": -41.5,
+     "ahead": -52.5,
+     "y": 0,
+     "d": 66.9,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 63.38,
+     "voice": "penguins:bray",
+     "right": 25.9,
+     "ahead": -4.9,
+     "y": 0,
+     "d": 26.4,
+     "played": true,
+     "gain": 0.4075188974022772
+    },
+    {
+     "t": 63.48,
+     "voice": "seals:splash",
+     "right": -41.4,
+     "ahead": -53.4,
+     "y": 0,
+     "d": 67.6,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 64.47,
+     "voice": "seals:splash",
+     "right": -39.8,
+     "ahead": -54.4,
+     "y": 0,
+     "d": 67.4,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 66.61,
+     "voice": "seals:bark",
+     "right": -39.6,
+     "ahead": -51.3,
+     "y": 0,
+     "d": 64.8,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 70.47,
+     "voice": "penguins:splash",
+     "right": 31.7,
+     "ahead": -4.3,
+     "y": 0,
+     "d": 32,
+     "played": true,
+     "gain": 0.14260326110741112
+    },
+    {
+     "t": 70.51,
+     "voice": "penguins:splash",
+     "right": 31.7,
+     "ahead": -4.3,
+     "y": 0,
+     "d": 32,
+     "played": true,
+     "gain": 0.14250188568856081
+    },
+    {
+     "t": 70.54,
+     "voice": "penguins:splash",
+     "right": 31.7,
+     "ahead": -4.3,
+     "y": 0,
+     "d": 32,
+     "played": true,
+     "gain": 0.1424023165385095
+    },
+    {
+     "t": 70.58,
+     "voice": "penguins:splash",
+     "right": 31.7,
+     "ahead": -4.3,
+     "y": 0,
+     "d": 32,
+     "played": true,
+     "gain": 0.14230120434708038
+    },
+    {
+     "t": 70.61,
+     "voice": "penguins:splash",
+     "right": 31.7,
+     "ahead": -4.3,
+     "y": 0,
+     "d": 32,
+     "played": true,
+     "gain": 0.14219946214257967
+    },
+    {
+     "t": 70.65,
+     "voice": "penguins:splash",
+     "right": 31.7,
+     "ahead": -4.3,
+     "y": 0,
+     "d": 32,
+     "played": true,
+     "gain": 0.14209769898966917
+    },
+    {
+     "t": 70.68,
+     "voice": "penguins:splash",
+     "right": 31.7,
+     "ahead": -4.3,
+     "y": 0,
+     "d": 32,
+     "played": true,
+     "gain": 0.14199652445400168
+    },
+    {
+     "t": 72.01,
+     "voice": "penguins:splash",
+     "right": 31.9,
+     "ahead": 2.9,
+     "y": 0,
+     "d": 32,
+     "played": true,
+     "gain": 0.07260627016624172
+    },
+    {
+     "t": 73.67,
+     "voice": "seals:splash",
+     "right": -40.9,
+     "ahead": -51.8,
+     "y": 0,
+     "d": 66,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 74.68,
+     "voice": "seals:splash",
+     "right": -42.8,
+     "ahead": -50.9,
+     "y": 0,
+     "d": 66.5,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 76.25,
+     "voice": "penguins:bray",
+     "right": 35.8,
+     "ahead": -14.6,
+     "y": 0,
+     "d": 38.7,
+     "played": true,
+     "gain": 0.12861365930457636
+    },
+    {
+     "t": 77.34,
+     "voice": "penguins:bray",
+     "right": 36.6,
+     "ahead": -11.3,
+     "y": 0,
+     "d": 38.3,
+     "played": true,
+     "gain": 0.139334631649206
+    },
+    {
+     "t": 78.87,
+     "voice": "penguins:bray",
+     "right": 35.8,
+     "ahead": -14.7,
+     "y": 0,
+     "d": 38.7,
+     "played": true,
+     "gain": 0.12861365930457636
+    },
+    {
+     "t": 79.98,
+     "voice": "penguins:bray",
+     "right": 36.6,
+     "ahead": -11.3,
+     "y": 0,
+     "d": 38.3,
+     "played": true,
+     "gain": 0.1393346316595796
+    },
+    {
+     "t": 80.98,
+     "voice": "penguins:bray",
+     "right": 25.5,
+     "ahead": -6.5,
+     "y": 0,
+     "d": 26.3,
+     "played": true,
+     "gain": 0.40658318185854636
+    },
+    {
+     "t": 81.88,
+     "voice": "penguins:bray",
+     "right": 27.2,
+     "ahead": -8.9,
+     "y": 0,
+     "d": 28.6,
+     "played": true,
+     "gain": 0.3540702388661353
+    },
+    {
+     "t": 82.14,
+     "voice": "penguins:bray",
+     "right": 28.3,
+     "ahead": -10.4,
+     "y": 0,
+     "d": 30.2,
+     "played": true,
+     "gain": 0.31874383940047935
+    },
+    {
+     "t": 82.28,
+     "voice": "penguins:splash",
+     "right": 40.8,
+     "ahead": -6,
+     "y": 0,
+     "d": 41.3,
+     "played": true,
+     "gain": 0.01947283720413817
+    },
+    {
+     "t": 83.21,
+     "voice": "penguins:splash",
+     "right": 35.5,
+     "ahead": 1,
+     "y": 0,
+     "d": 35.5,
+     "played": true,
+     "gain": 0.05291180292876277
+    },
+    {
+     "t": 83.61,
+     "voice": "penguins:bray",
+     "right": 25.5,
+     "ahead": -6.5,
+     "y": 0,
+     "d": 26.3,
+     "played": true,
+     "gain": 0.40658318185854636
+    },
+    {
+     "t": 83.91,
+     "voice": "seals:splash",
+     "right": -45.3,
+     "ahead": -50.4,
+     "y": 0,
+     "d": 67.8,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 84.78,
+     "voice": "penguins:bray",
+     "right": 28.3,
+     "ahead": -10.4,
+     "y": 0,
+     "d": 30.2,
+     "played": true,
+     "gain": 0.31874383940047857
+    },
+    {
+     "t": 84.91,
+     "voice": "seals:splash",
+     "right": -47.2,
+     "ahead": -50.6,
+     "y": 0,
+     "d": 69.2,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 86.87,
+     "voice": "seals:bark",
+     "right": -38.3,
+     "ahead": -50.7,
+     "y": 0,
+     "d": 63.5,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 87.94,
+     "voice": "penguins:splash",
+     "right": 38.1,
+     "ahead": -2.1,
+     "y": 0,
+     "d": 38.2,
+     "played": true,
+     "gain": 0.03770825005416917
+    },
+    {
+     "t": 89.38,
+     "voice": "penguins:splash",
+     "right": 39.5,
+     "ahead": -3.7,
+     "y": 0,
+     "d": 39.7,
+     "played": true,
+     "gain": 0.028952873710554328
+    },
+    {
+     "t": 89.94,
+     "voice": "seals:splash",
+     "right": -46.8,
+     "ahead": -46.3,
+     "y": 0,
+     "d": 65.8,
+     "played": true,
+     "gain": 0
+    }
+   ],
+   "night": 1.3481277886632899,
+   "inland": 3.200000000000003,
+   "wind": [
+    -1.7500000000000016,
+    3.0310889132455343
+   ],
+   "state": "running",
+   "wallSeconds": 90.044
+  },
+  {
+   "name": "seed 1847, night, standing",
+   "seed": 1847,
+   "minutes": 1320,
+   "seconds": 90,
+   "setup": {
+    "state": "running",
+    "cat": [
+     12.906352188616161,
+     9.297012561598642
+    ],
+    "inland": 3.200000000000003,
+    "wind": [
+     -1.7500000000000016,
+     3.0310889132455343
+    ],
+    "colony": null
+   },
+   "heard": [
+    {
+     "t": 14.41,
+     "voice": "whale:blow",
+     "right": -63.9,
+     "ahead": -80.8,
+     "y": 0,
+     "d": 103,
+     "played": true,
+     "gain": 0.48080070737977076
+    },
+    {
+     "t": 15.71,
+     "voice": "seals:bark",
+     "right": 64.6,
+     "ahead": 1.4,
+     "y": 0,
+     "d": 64.6,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 20.38,
+     "voice": "seals:splash",
+     "right": 61,
+     "ahead": -4.6,
+     "y": 0,
+     "d": 61.2,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 23.45,
+     "voice": "whale:blow",
+     "right": -103.7,
+     "ahead": -20.9,
+     "y": 0,
+     "d": 105.8,
+     "played": true,
+     "gain": 0.4737892001323292
+    },
+    {
+     "t": 32.48,
+     "voice": "whale:blow",
+     "right": -67.1,
+     "ahead": 85.9,
+     "y": 0,
+     "d": 109,
+     "played": true,
+     "gain": 0.4675033532347044
+    },
+    {
+     "t": 44.78,
+     "voice": "seals:bark",
+     "right": -14.4,
+     "ahead": -61.7,
+     "y": 0,
+     "d": 63.3,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 45.95,
+     "voice": "whale:fluke",
+     "right": -37.8,
+     "ahead": 105.1,
+     "y": 0,
+     "d": 111.7,
+     "played": true,
+     "gain": 0.345128646067797
+    },
+    {
+     "t": 48.54,
+     "voice": "seals:splash",
+     "right": -19.1,
+     "ahead": -60.2,
+     "y": 0,
+     "d": 63.1,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 49.51,
+     "voice": "seals:splash",
+     "right": -19,
+     "ahead": -62.3,
+     "y": 0,
+     "d": 65.1,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 52.18,
+     "voice": "seals:splash",
+     "right": -19.9,
+     "ahead": -65,
+     "y": 0,
+     "d": 68,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 53.14,
+     "voice": "seals:splash",
+     "right": -21.8,
+     "ahead": -65.3,
+     "y": 0,
+     "d": 68.8,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 53.58,
+     "voice": "seals:splash",
+     "right": -22.3,
+     "ahead": -64.5,
+     "y": 0,
+     "d": 68.2,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 54.58,
+     "voice": "seals:splash",
+     "right": -21.3,
+     "ahead": -62.8,
+     "y": 0,
+     "d": 66.3,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 72.04,
+     "voice": "seals:bark",
+     "right": -16,
+     "ahead": -61.1,
+     "y": 0,
+     "d": 63.2,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 75.01,
+     "voice": "penguins:bray",
+     "right": 29.1,
+     "ahead": 5.9,
+     "y": 0,
+     "d": 29.7,
+     "played": true,
+     "gain": 0.3446714702839725
+    },
+    {
+     "t": 76.07,
+     "voice": "penguins:bray",
+     "right": 38.8,
+     "ahead": 4.1,
+     "y": 0,
+     "d": 39,
+     "played": true,
+     "gain": 0.13531102975151943
+    },
+    {
+     "t": 77.28,
+     "voice": "penguins:bray",
+     "right": 39.8,
+     "ahead": 3.8,
+     "y": 0,
+     "d": 40,
+     "played": true,
+     "gain": 0.11356124410816004
+    },
+    {
+     "t": 77.74,
+     "voice": "seals:splash",
+     "right": -19.4,
+     "ahead": -60.8,
+     "y": 0,
+     "d": 63.8,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 78.71,
+     "voice": "seals:splash",
+     "right": -20.2,
+     "ahead": -58.8,
+     "y": 0,
+     "d": 62.2,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 82.94,
+     "voice": "penguins:bray",
+     "right": 28.4,
+     "ahead": 4.7,
+     "y": 0,
+     "d": 28.8,
+     "played": true,
+     "gain": 0.3637513052414356
+    },
+    {
+     "t": 86.61,
+     "voice": "penguins:bray",
+     "right": 39.7,
+     "ahead": 3.2,
+     "y": 0,
+     "d": 39.8,
+     "played": true,
+     "gain": 0.11641974338306404
+    }
+   ],
+   "night": 0.9107811823215632,
+   "inland": 3.200000000000003,
+   "wind": [
+    -1.7500000000000016,
+    3.0310889132455343
+   ],
+   "state": "running",
+   "wallSeconds": 90.036
+  },
+  {
+   "name": "seed 2, noon, standing",
+   "seed": 2,
+   "minutes": 750,
+   "seconds": 90,
+   "setup": {
+    "state": "running",
+    "cat": [
+     12.906352188616161,
+     9.297012561598642
+    ],
+    "inland": 3.200000000000003,
+    "wind": [
+     -1.7500000000000016,
+     3.0310889132455343
+    ],
+    "colony": null
+   },
+   "heard": [
+    {
+     "t": 4.95,
+     "voice": "penguins:bray",
+     "right": 25.5,
+     "ahead": -0.6,
+     "y": 0,
+     "d": 25.5,
+     "played": true,
+     "gain": 0.43308078478703027
+    },
+    {
+     "t": 8.02,
+     "voice": "gull:idle",
+     "right": 7.7,
+     "ahead": 51.3,
+     "y": 14.8,
+     "d": 51.8,
+     "played": true
+    },
+    {
+     "t": 8.31,
+     "voice": "whale:blow",
+     "right": -119.8,
+     "ahead": -2.3,
+     "y": 0,
+     "d": 119.8,
+     "played": true,
+     "gain": 0.43139024707894613
+    },
+    {
+     "t": 9.91,
+     "voice": "penguins:bray",
+     "right": 24.4,
+     "ahead": -2.2,
+     "y": 0,
+     "d": 24.5,
+     "played": true,
+     "gain": 0.4536471419718697
+    },
+    {
+     "t": 11.45,
+     "voice": "penguins:bray",
+     "right": 22.9,
+     "ahead": -3,
+     "y": 0,
+     "d": 23.1,
+     "played": true,
+     "gain": 0.4828333315457798
+    },
+    {
+     "t": 14.05,
+     "voice": "penguins:bray",
+     "right": 22.9,
+     "ahead": -3,
+     "y": 0,
+     "d": 23.1,
+     "played": true,
+     "gain": 0.4828333315457798
+    },
+    {
+     "t": 14.28,
+     "voice": "penguins:bray",
+     "right": 26.1,
+     "ahead": 1,
+     "y": 0,
+     "d": 26.1,
+     "played": true,
+     "gain": 0.42098031477669595
+    },
+    {
+     "t": 14.88,
+     "voice": "penguins:bray",
+     "right": 25.5,
+     "ahead": -0.6,
+     "y": 0,
+     "d": 25.5,
+     "played": true,
+     "gain": 0.43308078478703027
+    },
+    {
+     "t": 17.35,
+     "voice": "whale:blow",
+     "right": -121.1,
+     "ahead": 7.6,
+     "y": 0,
+     "d": 121.4,
+     "played": true,
+     "gain": 0.42669312672664206
+    },
+    {
+     "t": 22.58,
+     "voice": "penguins:bray",
+     "right": 28.9,
+     "ahead": -9.1,
+     "y": 0,
+     "d": 30.3,
+     "played": true,
+     "gain": 0.3185396196786362
+    },
+    {
+     "t": 24.28,
+     "voice": "penguins:bray",
+     "right": 19,
+     "ahead": -15.9,
+     "y": 0,
+     "d": 24.8,
+     "played": true,
+     "gain": 0.43308078478703027
+    },
+    {
+     "t": 25.25,
+     "voice": "penguins:bray",
+     "right": 19.8,
+     "ahead": -22,
+     "y": 0,
+     "d": 29.6,
+     "played": true,
+     "gain": 0.3241254689020464
+    },
+    {
+     "t": 26.38,
+     "voice": "whale:blow",
+     "right": -53.4,
+     "ahead": 112.3,
+     "y": 0,
+     "d": 124.4,
+     "played": true,
+     "gain": 0.4204521594371121
+    },
+    {
+     "t": 27.95,
+     "voice": "penguins:bray",
+     "right": 5,
+     "ahead": -21.6,
+     "y": 0,
+     "d": 22.1,
+     "played": true,
+     "gain": 0.4828333315457798
+    },
+    {
+     "t": 28.02,
+     "voice": "penguins:bray",
+     "right": 11.9,
+     "ahead": -27.1,
+     "y": 0,
+     "d": 29.6,
+     "played": true,
+     "gain": 0.3185396196786362
+    },
+    {
+     "t": 35.38,
+     "voice": "whale:blow",
+     "right": 48.9,
+     "ahead": 117.2,
+     "y": 0,
+     "d": 127,
+     "played": true,
+     "gain": 0.4127341156459931
+    },
+    {
+     "t": 39.62,
+     "voice": "gull:idle",
+     "right": 36.3,
+     "ahead": -20.3,
+     "y": 14.8,
+     "d": 41.6,
+     "played": true
+    },
+    {
+     "t": 41.95,
+     "voice": "penguins:bray",
+     "right": -10.4,
+     "ahead": -21.1,
+     "y": 0,
+     "d": 23.6,
+     "played": true,
+     "gain": 0.45006470956974354
+    },
+    {
+     "t": 48.35,
+     "voice": "penguins:bray",
+     "right": -14.9,
+     "ahead": -16.5,
+     "y": 0,
+     "d": 22.2,
+     "played": true,
+     "gain": 0.4836971063081734
+    },
+    {
+     "t": 48.82,
+     "voice": "whale:fluke",
+     "right": 98.8,
+     "ahead": 86.3,
+     "y": 0,
+     "d": 131.2,
+     "played": true,
+     "gain": 0.2992210208156329
+    },
+    {
+     "t": 55.68,
+     "voice": "penguins:splash",
+     "right": -18.1,
+     "ahead": -15.3,
+     "y": 0,
+     "d": 23.7,
+     "played": true,
+     "gain": 0.2264253073219794
+    },
+    {
+     "t": 55.71,
+     "voice": "penguins:splash",
+     "right": -18.1,
+     "ahead": -15.3,
+     "y": 0,
+     "d": 23.7,
+     "played": true,
+     "gain": 0.22650970734699666
+    },
+    {
+     "t": 55.75,
+     "voice": "penguins:splash",
+     "right": -18.1,
+     "ahead": -15.3,
+     "y": 0,
+     "d": 23.7,
+     "played": true,
+     "gain": 0.22659561335076633
+    },
+    {
+     "t": 55.78,
+     "voice": "penguins:splash",
+     "right": -18.1,
+     "ahead": -15.3,
+     "y": 0,
+     "d": 23.7,
+     "played": true,
+     "gain": 0.2266812240190879
+    },
+    {
+     "t": 55.81,
+     "voice": "penguins:splash",
+     "right": -18.1,
+     "ahead": -15.3,
+     "y": 0,
+     "d": 23.7,
+     "played": true,
+     "gain": 0.22676705349412757
+    },
+    {
+     "t": 55.85,
+     "voice": "penguins:splash",
+     "right": -18.1,
+     "ahead": -15.2,
+     "y": 0,
+     "d": 23.7,
+     "played": true,
+     "gain": 0.22685361499801904
+    },
+    {
+     "t": 55.88,
+     "voice": "penguins:splash",
+     "right": -18.1,
+     "ahead": -15.2,
+     "y": 0,
+     "d": 23.7,
+     "played": true,
+     "gain": 0.22693808390564313
+    },
+    {
+     "t": 56.58,
+     "voice": "penguins:bray",
+     "right": -18.3,
+     "ahead": -22.9,
+     "y": 0,
+     "d": 29.3,
+     "played": true,
+     "gain": 0.3249050892264319
+    },
+    {
+     "t": 56.65,
+     "voice": "penguins:splash",
+     "right": -18.2,
+     "ahead": -15.6,
+     "y": 0,
+     "d": 23.9,
+     "played": true,
+     "gain": 0.22395269570336945
+    },
+    {
+     "t": 56.68,
+     "voice": "penguins:splash",
+     "right": -18.2,
+     "ahead": -15.6,
+     "y": 0,
+     "d": 23.9,
+     "played": true,
+     "gain": 0.22403971799849376
+    },
+    {
+     "t": 56.71,
+     "voice": "penguins:splash",
+     "right": -18.2,
+     "ahead": -15.5,
+     "y": 0,
+     "d": 23.9,
+     "played": true,
+     "gain": 0.22412644266570103
+    },
+    {
+     "t": 56.75,
+     "voice": "penguins:splash",
+     "right": -18.2,
+     "ahead": -15.5,
+     "y": 0,
+     "d": 23.9,
+     "played": true,
+     "gain": 0.22421313027141665
+    },
+    {
+     "t": 56.78,
+     "voice": "penguins:bray",
+     "right": -16.3,
+     "ahead": -16.9,
+     "y": 0,
+     "d": 23.4,
+     "played": true,
+     "gain": 0.4573301219720457
+    },
+    {
+     "t": 56.78,
+     "voice": "penguins:splash",
+     "right": -18.2,
+     "ahead": -15.5,
+     "y": 0,
+     "d": 23.9,
+     "played": true,
+     "gain": 0.22430004093651934
+    },
+    {
+     "t": 56.82,
+     "voice": "penguins:splash",
+     "right": -18.2,
+     "ahead": -15.5,
+     "y": 0,
+     "d": 23.9,
+     "played": true,
+     "gain": 0.2243871742903371
+    },
+    {
+     "t": 56.85,
+     "voice": "penguins:splash",
+     "right": -18.2,
+     "ahead": -15.5,
+     "y": 0,
+     "d": 23.9,
+     "played": true,
+     "gain": 0.2244734902347706
+    },
+    {
+     "t": 57.01,
+     "voice": "penguins:bray",
+     "right": -15.7,
+     "ahead": -18.6,
+     "y": 0,
+     "d": 24.3,
+     "played": true,
+     "gain": 0.4355687892935176
+    },
+    {
+     "t": 57.31,
+     "voice": "penguins:splash",
+     "right": -18.2,
+     "ahead": -15.8,
+     "y": 0,
+     "d": 24.1,
+     "played": true,
+     "gain": 0.22182559359964332
+    },
+    {
+     "t": 57.35,
+     "voice": "penguins:splash",
+     "right": -18.2,
+     "ahead": -15.8,
+     "y": 0,
+     "d": 24.1,
+     "played": true,
+     "gain": 0.22191245767745937
+    },
+    {
+     "t": 57.38,
+     "voice": "penguins:splash",
+     "right": -18.2,
+     "ahead": -15.8,
+     "y": 0,
+     "d": 24.1,
+     "played": true,
+     "gain": 0.22200086459238272
+    },
+    {
+     "t": 57.41,
+     "voice": "penguins:splash",
+     "right": -18.2,
+     "ahead": -15.8,
+     "y": 0,
+     "d": 24.1,
+     "played": true,
+     "gain": 0.22208791987374482
+    },
+    {
+     "t": 57.45,
+     "voice": "penguins:splash",
+     "right": -18.2,
+     "ahead": -15.7,
+     "y": 0,
+     "d": 24.1,
+     "played": true,
+     "gain": 0.22217572786925782
+    },
+    {
+     "t": 57.48,
+     "voice": "penguins:splash",
+     "right": -18.2,
+     "ahead": -15.7,
+     "y": 0,
+     "d": 24.1,
+     "played": true,
+     "gain": 0.2222632366255894
+    },
+    {
+     "t": 57.51,
+     "voice": "penguins:splash",
+     "right": -18.2,
+     "ahead": -15.7,
+     "y": 0,
+     "d": 24.1,
+     "played": true,
+     "gain": 0.22235070906107113
+    },
+    {
+     "t": 60.65,
+     "voice": "penguins:splash",
+     "right": -20.9,
+     "ahead": -12.1,
+     "y": 0,
+     "d": 24.1,
+     "played": true,
+     "gain": 0.1121693370037069
+    },
+    {
+     "t": 61.38,
+     "voice": "penguins:bray",
+     "right": -16.3,
+     "ahead": -15.2,
+     "y": 0,
+     "d": 22.3,
+     "played": true,
+     "gain": 0.4836971063081734
+    },
+    {
+     "t": 63.35,
+     "voice": "penguins:splash",
+     "right": -22.2,
+     "ahead": -9.7,
+     "y": 0,
+     "d": 24.2,
+     "played": true,
+     "gain": 0.11251571012182471
+    },
+    {
+     "t": 65.51,
+     "voice": "penguins:splash",
+     "right": -19.9,
+     "ahead": -10,
+     "y": 0,
+     "d": 22.3,
+     "played": true,
+     "gain": 0.12255275737841545
+    },
+    {
+     "t": 66.15,
+     "voice": "penguins:bray",
+     "right": -14.7,
+     "ahead": -18.5,
+     "y": 0,
+     "d": 23.7,
+     "played": true,
+     "gain": 0.45006470956974354
+    },
+    {
+     "t": 66.75,
+     "voice": "penguins:bray",
+     "right": -16.5,
+     "ahead": -15,
+     "y": 0,
+     "d": 22.3,
+     "played": true,
+     "gain": 0.4836971063081734
+    },
+    {
+     "t": 67.11,
+     "voice": "penguins:splash",
+     "right": -19.3,
+     "ahead": -7.8,
+     "y": 0,
+     "d": 20.8,
+     "played": true,
+     "gain": 0.1310787236983062
+    },
+    {
+     "t": 68.78,
+     "voice": "penguins:bray",
+     "right": -14.8,
+     "ahead": -18.5,
+     "y": 0,
+     "d": 23.7,
+     "played": true,
+     "gain": 0.45006470956974354
+    },
+    {
+     "t": 70.75,
+     "voice": "penguins:bray",
+     "right": -15.7,
+     "ahead": -18,
+     "y": 0,
+     "d": 23.9,
+     "played": true,
+     "gain": 0.4463447549708277
+    },
+    {
+     "t": 70.95,
+     "voice": "gull:idle",
+     "right": 16.7,
+     "ahead": -31.2,
+     "y": 14.8,
+     "d": 35.4,
+     "played": true
+    },
+    {
+     "t": 71.95,
+     "voice": "penguins:splash",
+     "right": -18.1,
+     "ahead": -3.8,
+     "y": 0,
+     "d": 18.5,
+     "played": true,
+     "gain": 0.14539870927867504
+    },
+    {
+     "t": 77.25,
+     "voice": "penguins:splash",
+     "right": -21.3,
+     "ahead": -8.9,
+     "y": 0,
+     "d": 23.1,
+     "played": true,
+     "gain": 0.11861535117744773
+    },
+    {
+     "t": 77.45,
+     "voice": "penguins:bray",
+     "right": -15,
+     "ahead": -18.4,
+     "y": 0,
+     "d": 23.7,
+     "played": true,
+     "gain": 0.45006470956974354
+    },
+    {
+     "t": 78.35,
+     "voice": "penguins:bray",
+     "right": -19.2,
+     "ahead": -22.2,
+     "y": 0,
+     "d": 29.3,
+     "played": true,
+     "gain": 0.3249050892264319
+    },
+    {
+     "t": 79.08,
+     "voice": "penguins:splash",
+     "right": -16.4,
+     "ahead": 0.4,
+     "y": 0,
+     "d": 16.4,
+     "played": true,
+     "gain": 0.15876637721146114
+    },
+    {
+     "t": 81.58,
+     "voice": "penguins:splash",
+     "right": -16.6,
+     "ahead": -2.9,
+     "y": 0,
+     "d": 16.9,
+     "played": true,
+     "gain": 0.1549052223714881
+    },
+    {
+     "t": 84.41,
+     "voice": "penguins:splash",
+     "right": -13.8,
+     "ahead": -2.5,
+     "y": 0,
+     "d": 14.1,
+     "played": true,
+     "gain": 0.17019852595870122
+    },
+    {
+     "t": 87.71,
+     "voice": "penguins:splash",
+     "right": -17.7,
+     "ahead": -3.3,
+     "y": 0,
+     "d": 18,
+     "played": true,
+     "gain": 0.14785932647933042
+    },
+    {
+     "t": 88.58,
+     "voice": "penguins:splash",
+     "right": -18.3,
+     "ahead": -6.4,
+     "y": 0,
+     "d": 19.4,
+     "played": true,
+     "gain": 0.13959937507469122
+    },
+    {
+     "t": 89.11,
+     "voice": "penguins:splash",
+     "right": -16.6,
+     "ahead": -1.5,
+     "y": 0,
+     "d": 16.6,
+     "played": true,
+     "gain": 0.15636877798362966
+    }
+   ],
+   "night": 0,
+   "inland": 3.200000000000003,
+   "wind": [
+    -1.7500000000000016,
+    3.0310889132455343
+   ],
+   "state": "running",
+   "wallSeconds": 90.095
+  },
+  {
+   "name": "seed 3, noon, standing",
+   "seed": 3,
+   "minutes": 750,
+   "seconds": 90,
+   "setup": {
+    "state": "running",
+    "cat": [
+     12.906352188616161,
+     9.297012561598642
+    ],
+    "inland": 3.200000000000003,
+    "wind": [
+     -1.7500000000000016,
+     3.0310889132455343
+    ],
+    "colony": null
+   },
+   "heard": [
+    {
+     "t": 7.94,
+     "voice": "penguins:bray",
+     "right": 47.2,
+     "ahead": 4.8,
+     "y": 0,
+     "d": 47.4,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 8.01,
+     "voice": "gull:idle",
+     "right": -37,
+     "ahead": 35.3,
+     "y": 14.8,
+     "d": 51.1,
+     "played": true
+    },
+    {
+     "t": 13.87,
+     "voice": "whale:blow",
+     "right": -120.6,
+     "ahead": 6.1,
+     "y": 0,
+     "d": 120.7,
+     "played": true,
+     "gain": 0.42865970666812486
+    },
+    {
+     "t": 15.11,
+     "voice": "penguins:bray",
+     "right": 44.2,
+     "ahead": 3.3,
+     "y": 0,
+     "d": 44.3,
+     "played": true,
+     "gain": 0.016602158073392825
+    },
+    {
+     "t": 17.9,
+     "voice": "penguins:bray",
+     "right": 43.8,
+     "ahead": 2.3,
+     "y": 0,
+     "d": 43.9,
+     "played": true,
+     "gain": 0.026055447330229242
+    },
+    {
+     "t": 19.71,
+     "voice": "penguins:bray",
+     "right": 47.2,
+     "ahead": 4.8,
+     "y": 0,
+     "d": 47.4,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 22.91,
+     "voice": "whale:blow",
+     "right": -107,
+     "ahead": 61,
+     "y": 0,
+     "d": 123.1,
+     "played": true,
+     "gain": 0.42263250785104384
+    },
+    {
+     "t": 24.61,
+     "voice": "gull:idle",
+     "right": 25.1,
+     "ahead": 53.2,
+     "y": 14.8,
+     "d": 58.9,
+     "played": true
+    },
+    {
+     "t": 24.71,
+     "voice": "penguins:bray",
+     "right": 37.4,
+     "ahead": -25.3,
+     "y": 0,
+     "d": 45.1,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 27.5,
+     "voice": "penguins:bray",
+     "right": 25.3,
+     "ahead": -39,
+     "y": 0,
+     "d": 46.5,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 27.71,
+     "voice": "penguins:bray",
+     "right": 21.7,
+     "ahead": -39.3,
+     "y": 0,
+     "d": 44.9,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 28.17,
+     "voice": "penguins:bray",
+     "right": 19.8,
+     "ahead": -37.6,
+     "y": 0,
+     "d": 42.5,
+     "played": true,
+     "gain": 0.03178982562736554
+    },
+    {
+     "t": 30.14,
+     "voice": "penguins:bray",
+     "right": 13.3,
+     "ahead": -44.3,
+     "y": 0,
+     "d": 46.3,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 32.77,
+     "voice": "penguins:bray",
+     "right": 3.7,
+     "ahead": -46.1,
+     "y": 0,
+     "d": 46.2,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 34.41,
+     "voice": "penguins:bray",
+     "right": -4.2,
+     "ahead": -42.4,
+     "y": 0,
+     "d": 42.6,
+     "played": true,
+     "gain": 0.026055447330351145
+    },
+    {
+     "t": 34.44,
+     "voice": "penguins:bray",
+     "right": -3.3,
+     "ahead": -40.7,
+     "y": 0,
+     "d": 40.9,
+     "played": true,
+     "gain": 0.06359573558354714
+    },
+    {
+     "t": 35.1,
+     "voice": "penguins:bray",
+     "right": -4.3,
+     "ahead": -43.1,
+     "y": 0,
+     "d": 43.3,
+     "played": true,
+     "gain": 0.009007500526610146
+    },
+    {
+     "t": 35.4,
+     "voice": "penguins:bray",
+     "right": -3.7,
+     "ahead": -46,
+     "y": 0,
+     "d": 46.2,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 36.37,
+     "voice": "whale:fluke",
+     "right": 56.8,
+     "ahead": 114.3,
+     "y": 0,
+     "d": 127.6,
+     "played": true,
+     "gain": 0.3081455881997223
+    },
+    {
+     "t": 37.34,
+     "voice": "penguins:bray",
+     "right": -7,
+     "ahead": -44.8,
+     "y": 0,
+     "d": 45.4,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 38.14,
+     "voice": "penguins:bray",
+     "right": -9,
+     "ahead": -41.3,
+     "y": 0,
+     "d": 42.3,
+     "played": true,
+     "gain": 0.03178982562693777
+    },
+    {
+     "t": 39.97,
+     "voice": "penguins:bray",
+     "right": -11.3,
+     "ahead": -44,
+     "y": 0,
+     "d": 45.4,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 41.07,
+     "voice": "penguins:bray",
+     "right": -13.7,
+     "ahead": -44.1,
+     "y": 0,
+     "d": 46.2,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 42.81,
+     "voice": "penguins:bray",
+     "right": -17,
+     "ahead": -41.3,
+     "y": 0,
+     "d": 44.7,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 43.74,
+     "voice": "penguins:bray",
+     "right": -15.2,
+     "ahead": -41.7,
+     "y": 0,
+     "d": 44.4,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 45.44,
+     "voice": "gull:idle",
+     "right": 40.3,
+     "ahead": -11.8,
+     "y": 14.8,
+     "d": 41.9,
+     "played": true
+    },
+    {
+     "t": 51.37,
+     "voice": "penguins:bray",
+     "right": -21.1,
+     "ahead": -37.8,
+     "y": 0,
+     "d": 43.3,
+     "played": true,
+     "gain": 0.010852904300384325
+    },
+    {
+     "t": 54.7,
+     "voice": "penguins:bray",
+     "right": -23.1,
+     "ahead": -35.8,
+     "y": 0,
+     "d": 42.7,
+     "played": true,
+     "gain": 0.026836454370150364
+    },
+    {
+     "t": 55.94,
+     "voice": "penguins:bray",
+     "right": -21,
+     "ahead": -39.3,
+     "y": 0,
+     "d": 44.6,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 57.54,
+     "voice": "penguins:bray",
+     "right": -23.8,
+     "ahead": -38.1,
+     "y": 0,
+     "d": 44.9,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 58.57,
+     "voice": "penguins:bray",
+     "right": -21.5,
+     "ahead": -39.1,
+     "y": 0,
+     "d": 44.6,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 58.77,
+     "voice": "penguins:bray",
+     "right": -23.9,
+     "ahead": -35.4,
+     "y": 0,
+     "d": 42.7,
+     "played": true,
+     "gain": 0.026836454370150364
+    },
+    {
+     "t": 61.24,
+     "voice": "penguins:bray",
+     "right": -24.7,
+     "ahead": -36.4,
+     "y": 0,
+     "d": 44,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 62.91,
+     "voice": "gull:idle",
+     "right": 23.2,
+     "ahead": -19.1,
+     "y": 14.8,
+     "d": 30.1,
+     "played": true
+    },
+    {
+     "t": 67.97,
+     "voice": "penguins:bray",
+     "right": -24.8,
+     "ahead": -39.2,
+     "y": 0,
+     "d": 46.4,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 70.6,
+     "voice": "penguins:bray",
+     "right": -22.5,
+     "ahead": -38.5,
+     "y": 0,
+     "d": 44.6,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 73.24,
+     "voice": "penguins:bray",
+     "right": -22.6,
+     "ahead": -38.4,
+     "y": 0,
+     "d": 44.6,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 75.21,
+     "voice": "penguins:bray",
+     "right": -24,
+     "ahead": -36.1,
+     "y": 0,
+     "d": 43.4,
+     "played": true,
+     "gain": 0.010852904300384325
+    },
+    {
+     "t": 78.17,
+     "voice": "penguins:bray",
+     "right": -23.6,
+     "ahead": -35.3,
+     "y": 0,
+     "d": 42.4,
+     "played": true,
+     "gain": 0.031551992621438485
+    },
+    {
+     "t": 79.24,
+     "voice": "oystercatchers:pipe",
+     "right": 6.5,
+     "ahead": 3.9,
+     "y": 0,
+     "d": 7.6,
+     "played": true,
+     "gain": 0.8835141169571474
+    },
+    {
+     "t": 79.31,
+     "voice": "penguins:bray",
+     "right": -22.7,
+     "ahead": -38,
+     "y": 0,
+     "d": 44.3,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 85.37,
+     "voice": "penguins:bray",
+     "right": -25.2,
+     "ahead": -38.9,
+     "y": 0,
+     "d": 46.4,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 86.44,
+     "voice": "penguins:bray",
+     "right": -25.3,
+     "ahead": -35.6,
+     "y": 0,
+     "d": 43.7,
+     "played": true,
+     "gain": 0.004976186055690501
+    }
+   ],
+   "night": 0,
+   "inland": 3.200000000000003,
+   "wind": [
+    -1.7500000000000016,
+    3.0310889132455343
+   ],
+   "state": "running",
+   "wallSeconds": 90.037
+  },
+  {
+   "name": "seed 1847, noon, walking past the penguins and seals",
+   "seed": 1847,
+   "minutes": 750,
+   "seconds": 60,
+   "walk": true,
+   "setup": {
+    "state": "running",
+    "cat": [
+     -11.116346093338933,
+     60.03971525830583
+    ],
+    "inland": 3,
+    "wind": [
+     -1.7500000000000016,
+     3.0310889132455343
+    ],
+    "colony": {
+     "id": "penguins",
+     "x": -5.109813992644944,
+     "z": 36.15699361243085
+    }
+   },
+   "heard": [
+    {
+     "t": 1.28,
+     "voice": "penguins:bray",
+     "right": 4.9,
+     "ahead": 28.8,
+     "y": 0,
+     "d": 29.2,
+     "played": true,
+     "gain": 0.37348803449610535
+    },
+    {
+     "t": 1.8,
+     "voice": "penguins:bray",
+     "right": 5.3,
+     "ahead": 18,
+     "y": 0,
+     "d": 18.8,
+     "played": true,
+     "gain": 0.6037962281569906
+    },
+    {
+     "t": 3.99,
+     "voice": "penguins:bray",
+     "right": -2.2,
+     "ahead": 27.6,
+     "y": 0,
+     "d": 27.7,
+     "played": true,
+     "gain": 0.40689164453701865
+    },
+    {
+     "t": 6.66,
+     "voice": "penguins:bray",
+     "right": -1.6,
+     "ahead": 25.4,
+     "y": 0,
+     "d": 25.5,
+     "played": true,
+     "gain": 0.45548919809048893
+    },
+    {
+     "t": 8.02,
+     "voice": "gull:idle",
+     "right": -29.3,
+     "ahead": -17.3,
+     "y": 14.8,
+     "d": 34,
+     "played": true
+    },
+    {
+     "t": 14.46,
+     "voice": "penguins:bray",
+     "right": -5.7,
+     "ahead": 18.6,
+     "y": 0,
+     "d": 19.5,
+     "played": true,
+     "gain": 0.6127414700164999
+    },
+    {
+     "t": 14.85,
+     "voice": "whale:blow",
+     "right": 19.5,
+     "ahead": 140.8,
+     "y": 0,
+     "d": 142.2,
+     "played": true,
+     "gain": 0.3691550139114778
+    },
+    {
+     "t": 16.33,
+     "voice": "seals:bark",
+     "right": -83,
+     "ahead": 27.9,
+     "y": 0,
+     "d": 87.6,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 16.85,
+     "voice": "penguins:bray",
+     "right": -5.4,
+     "ahead": 23.3,
+     "y": 0,
+     "d": 24,
+     "played": true,
+     "gain": 0.5168021408866634
+    },
+    {
+     "t": 17.36,
+     "voice": "penguins:bray",
+     "right": -2.9,
+     "ahead": 21.7,
+     "y": 0,
+     "d": 21.9,
+     "played": true,
+     "gain": 0.5647688430742767
+    },
+    {
+     "t": 21.04,
+     "voice": "seals:splash",
+     "right": -63.3,
+     "ahead": 58.3,
+     "y": 0,
+     "d": 86,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 23.08,
+     "voice": "penguins:honk",
+     "right": 0.1,
+     "ahead": 4.3,
+     "y": 0,
+     "d": 4.3,
+     "played": true,
+     "gain": 0.5571874596401546
+    },
+    {
+     "t": 24.03,
+     "voice": "whale:blow",
+     "right": 78.5,
+     "ahead": 109.6,
+     "y": 0,
+     "d": 134.8,
+     "played": true,
+     "gain": 0.3879588615103708
+    },
+    {
+     "t": 24.68,
+     "voice": "penguins:honk",
+     "right": 2.7,
+     "ahead": 2.4,
+     "y": 0,
+     "d": 3.6,
+     "played": true,
+     "gain": 0.5599502305417197
+    },
+    {
+     "t": 26.28,
+     "voice": "penguins:honk",
+     "right": 3.1,
+     "ahead": 1.1,
+     "y": 0,
+     "d": 3.2,
+     "played": true,
+     "gain": 0.5592983822101357
+    },
+    {
+     "t": 27.9,
+     "voice": "penguins:honk",
+     "right": 2.8,
+     "ahead": 0.2,
+     "y": 0,
+     "d": 2.8,
+     "played": true,
+     "gain": 0.5614388574722009
+    },
+    {
+     "t": 28.54,
+     "voice": "gull:idle",
+     "right": -46.2,
+     "ahead": -1.8,
+     "y": 14.8,
+     "d": 46.2,
+     "played": true
+    },
+    {
+     "t": 29.51,
+     "voice": "penguins:honk",
+     "right": 1,
+     "ahead": -1.1,
+     "y": 0,
+     "d": 1.5,
+     "played": true,
+     "gain": 0.5785263844482301
+    },
+    {
+     "t": 31.13,
+     "voice": "penguins:honk",
+     "right": 1.7,
+     "ahead": -2.3,
+     "y": 0,
+     "d": 2.9,
+     "played": true,
+     "gain": 0.5593967241697476
+    },
+    {
+     "t": 33.05,
+     "voice": "whale:blow",
+     "right": 8.7,
+     "ahead": 126.9,
+     "y": 0,
+     "d": 127.2,
+     "played": true,
+     "gain": 0.4103713898580244
+    },
+    {
+     "t": 33.83,
+     "voice": "penguins:honk",
+     "right": -2.9,
+     "ahead": 2.2,
+     "y": 0,
+     "d": 3.7,
+     "played": true,
+     "gain": 0.5571210730838663
+    },
+    {
+     "t": 42.23,
+     "voice": "penguins:bray",
+     "right": -6.2,
+     "ahead": -3.6,
+     "y": 0,
+     "d": 7.2,
+     "played": true,
+     "gain": 0.8266123260743882
+    },
+    {
+     "t": 42.54,
+     "voice": "penguins:bray",
+     "right": -4.6,
+     "ahead": -6.6,
+     "y": 0,
+     "d": 8,
+     "played": true,
+     "gain": 0.8013842093545003
+    },
+    {
+     "t": 45.38,
+     "voice": "seals:bark",
+     "right": -42.1,
+     "ahead": -76.3,
+     "y": 0,
+     "d": 87.1,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 46.5,
+     "voice": "whale:fluke",
+     "right": -80.2,
+     "ahead": 86.9,
+     "y": 0,
+     "d": 118.3,
+     "played": true,
+     "gain": 0.3288921108133531
+    },
+    {
+     "t": 47.4,
+     "voice": "penguins:bray",
+     "right": 6.4,
+     "ahead": -6.5,
+     "y": 0,
+     "d": 9.1,
+     "played": true,
+     "gain": 0.7802147541215173
+    },
+    {
+     "t": 49.16,
+     "voice": "seals:splash",
+     "right": -46.9,
+     "ahead": -76.4,
+     "y": 0,
+     "d": 89.7,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 49.3,
+     "voice": "penguins:bray",
+     "right": -7,
+     "ahead": -8.4,
+     "y": 0,
+     "d": 10.9,
+     "played": true,
+     "gain": 0.7395876345149541
+    },
+    {
+     "t": 49.4,
+     "voice": "penguins:bray",
+     "right": 6.4,
+     "ahead": -7.4,
+     "y": 0,
+     "d": 9.8,
+     "played": true,
+     "gain": 0.7651819832123606
+    },
+    {
+     "t": 49.73,
+     "voice": "penguins:bray",
+     "right": -4.7,
+     "ahead": -6.7,
+     "y": 0,
+     "d": 8.2,
+     "played": true,
+     "gain": 0.7987140966749466
+    },
+    {
+     "t": 50.14,
+     "voice": "seals:splash",
+     "right": -46.6,
+     "ahead": -79.1,
+     "y": 0,
+     "d": 91.8,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 50.2,
+     "voice": "penguins:bray",
+     "right": -6.3,
+     "ahead": -7.5,
+     "y": 0,
+     "d": 9.8,
+     "played": true,
+     "gain": 0.7642029288419384
+    },
+    {
+     "t": 52.26,
+     "voice": "penguins:bray",
+     "right": -6.1,
+     "ahead": -10,
+     "y": 0,
+     "d": 11.8,
+     "played": true,
+     "gain": 0.718134585702369
+    },
+    {
+     "t": 52.78,
+     "voice": "seals:splash",
+     "right": -47.3,
+     "ahead": -83.7,
+     "y": 0,
+     "d": 96.1,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 52.98,
+     "voice": "penguins:bray",
+     "right": -4.6,
+     "ahead": -12.4,
+     "y": 0,
+     "d": 13.2,
+     "played": true,
+     "gain": 0.6844163217701
+    },
+    {
+     "t": 53.25,
+     "voice": "penguins:bray",
+     "right": 5.7,
+     "ahead": -13.5,
+     "y": 0,
+     "d": 14.7,
+     "played": true,
+     "gain": 0.6515509988573233
+    },
+    {
+     "t": 53.76,
+     "voice": "seals:splash",
+     "right": -49.1,
+     "ahead": -84.9,
+     "y": 0,
+     "d": 98.1,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 54.2,
+     "voice": "seals:splash",
+     "right": -49.7,
+     "ahead": -84.5,
+     "y": 0,
+     "d": 98.1,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 54.47,
+     "voice": "penguins:bray",
+     "right": -3,
+     "ahead": -13.8,
+     "y": 0,
+     "d": 14.2,
+     "played": true,
+     "gain": 0.6622651504343873
+    },
+    {
+     "t": 55.16,
+     "voice": "penguins:bray",
+     "right": -7.1,
+     "ahead": -12.3,
+     "y": 0,
+     "d": 14.2,
+     "played": true,
+     "gain": 0.663794062284957
+    },
+    {
+     "t": 55.18,
+     "voice": "seals:splash",
+     "right": -48.9,
+     "ahead": -83.5,
+     "y": 0,
+     "d": 96.8,
+     "played": true,
+     "gain": 0
+    },
+    {
+     "t": 55.38,
+     "voice": "penguins:bray",
+     "right": 6.3,
+     "ahead": -11.2,
+     "y": 0,
+     "d": 12.9,
+     "played": true,
+     "gain": 0.6928830997048703
+    },
+    {
+     "t": 57.98,
+     "voice": "penguins:bray",
+     "right": -5.9,
+     "ahead": -11.7,
+     "y": 0,
+     "d": 13.1,
+     "played": true,
+     "gain": 0.6869339945036101
+    }
+   ],
+   "night": 0,
+   "inland": -12.459791106111439,
+   "wind": [
+    -1.7500000000000016,
+    3.0310889132455343
+   ],
+   "state": "running",
+   "wallSeconds": 60.096
+  }
+ ],
+ "errors": []
+}
