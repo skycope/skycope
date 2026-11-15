@@ -366,7 +366,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       // pacing on a boundary does not flip it (each flip redrew the map,
       // and the leaves' self-shadowing changed).
       const wantX = pose.x + hx * 8, wantZ = pose.z + hz * 8;
-      if (!shadowAnchor || Math.abs(wantX - shadowAnchor[0]) > 11 || Math.abs(wantZ - shadowAnchor[1]) > 11) {
+      if (!shadowAnchor || Math.abs(wantX - shadowAnchor[0]) > 9 || Math.abs(wantZ - shadowAnchor[1]) > 9) {
         shadowAnchor = [Math.round(wantX / 10) * 10, Math.round(wantZ / 10) * 10];
       }
       const [anchorX, anchorZ] = shadowAnchor;
