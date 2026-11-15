@@ -386,6 +386,8 @@ uniform vec4 catTrail[ 3 ];
 // the lens; w 0 off) and the eye it is seen from.
 uniform vec4 sightLine;
 uniform vec3 sightEye;
+// stability: 0 (at the lens) … 1, foliage's dither near the lens (FOLD_GLSL).
+varying float vLensFade;
 // waking: the kindled light's source (Three world) and front (land-magic.js).
 uniform vec4 wakeSource;
 uniform vec4 wakeFront;
@@ -477,53 +479,45 @@ export function release(age) {
   return Math.exp(-zeta * omega * age) * (Math.cos(wd * age) + ((zeta * omega) / wd) * Math.sin(wd * age));
 }
 
-// Foliage the camera noses into folds out of its way: leaves and blades
-// within about a metre of the eye close up toward their own stem or base,
-// the way a hand pushed into a bush parts it, instead of slicing through
-// the lens as flat green planes. No discard: the geometry just moves.
-//
-// move: so do leaves between the lens and the cat (a cone round the line of
-// sight, widest at the lens, closing before the cat so the plants it stands
-// in still touch it), so the cat is never lost behind a bush. Only in the
-// view the eye sees (sightEye): the shadow pass keeps every leaf.
+// stability: foliage the lens is in thins out, nothing else. Leaves and
+// blades within LENS_FADE metres of the eye fade by an ordered dither in
+// the fragment stage (FOLIAGE_LENS_GLSL), so a bush the camera passes
+// through thins gradually instead of filling the view with flat green.
+// Nothing moves, folds or shrinks, and nothing between the lens and the cat
+// is cleared: the owner saw plants vanish as the cat walked through them
+// and the camera passed through them ("the vegetation kind of goes
+// invisible"), which the old fold (leaves collapsed to their stems within
+// a metre of the lens and in a cone round the line of sight to the cat) did.
+// The fade is measured from where the leaf rests, before the wind moves it,
+// so a leaf swaying across the boundary does not flicker; and only in the
+// view (the shadow pass's camera is far away, so it keeps every leaf).
+const LENS_FADE = [0.2, 0.75];
 const FOLD_GLSL = /* glsl */ `
 {
-  vec3 foldWorld = ( modelMatrix * vec4( mvPosition.xyz, 1.0 ) ).xyz;
-  float fold = 1.0 - smoothstep( 0.3, 1.1, length( foldWorld - cameraPosition ) );
-  if ( sightLine.w > 0.0 && distance( cameraPosition, sightEye ) < 0.01 ) {
-    vec3 sightAxis = sightLine.xyz - cameraPosition;
-    float sightLength = length( sightAxis ) + 1e-4;
-    float along = dot( foldWorld - cameraPosition, sightAxis ) / sightLength;
-    float across = length( foldWorld - cameraPosition - sightAxis * ( along / sightLength ) );
-    float radius = sightLine.w * mix( 1.0, 0.6, clamp( along / sightLength, 0.0, 1.0 ) );
-    float sight = ( 1.0 - smoothstep( radius * 0.55, radius, across ) )
-      * smoothstep( 0.0, 0.3, along ) * ( 1.0 - smoothstep( sightLength - 0.5, sightLength - 0.22, along ) );
-    fold = max( fold, sight );
-  }
-  if ( fold > 0.0 ) {
-    #ifdef USE_INSTANCING
-      vec3 foldAnchor = instanceMatrix[3].xyz;
-    #else
-      vec3 foldAnchor = mvPosition.xyz;
-    #endif
-    mvPosition.xyz = mix( mvPosition.xyz, foldAnchor, fold * 0.94 );
-  }
+  #ifdef USE_INSTANCING
+    vec3 lensRest = ( instanceMatrix * vec4( transformed, 1.0 ) ).xyz;
+  #else
+    vec3 lensRest = transformed;
+  #endif
+  vLensFade = smoothstep( ${LENS_FADE[0].toFixed(2)}, ${LENS_FADE[1].toFixed(2)}, length( ( modelMatrix * vec4( lensRest, 1.0 ) ).xyz - cameraPosition ) );
 }`;
 
-// move: twigs and thin limbs (radius under 3–6 cm) fold out of the lens and
-// the line of sight like the leaves; trunks and big limbs stay (the camera
-// arm keeps clear of those).
-const TWIG_FOLD_GLSL = /* glsl */ `
-#ifdef USE_INSTANCING
+// Twigs and limbs no longer fold: the camera arm keeps clear of trunks and
+// big limbs, and a thin twig across the lens for a moment reads as a twig.
+const TWIG_FOLD_GLSL = "";
+
+// The fragment half: a 4×4 ordered (Bayer) dither against the fade, stable
+// on screen, so the thinning reads as a soft veil rather than sparkle.
+const FOLIAGE_LENS_GLSL = /* glsl */ `
 {
-  float girth = length( instanceMatrix[0].xyz );
-  float thin = 1.0 - smoothstep( 0.03, 0.06, girth );
-  if ( thin > 0.0 ) {
-    ${FOLD_GLSL.replace("if ( fold > 0.0 ) {", "fold *= thin;\n  if ( fold > 0.0 ) {")}
+  if ( vLensFade < 1.0 ) {
+    ivec2 bayerAt = ivec2( mod( gl_FragCoord.xy, 4.0 ) );
+    int bayerIndex = bayerAt.x + bayerAt.y * 4;
+    float bayer = 0.0;
+    ${[0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v, i) => `if ( bayerIndex == ${i} ) bayer = ${((v + 0.5) / 16).toFixed(5)};`).join("\n    ")}
+    if ( vLensFade < bayer ) discard;
   }
-}
-#endif
-`;
+}`;
 
 const PROJECT_GLSL = /* glsl */ `
 vec4 mvPosition = vec4( transformed, 1.0 );
@@ -1636,18 +1630,11 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
         .replace("void main() {", `${MAGIC_LIGHT_DECLARATIONS}\nvoid main() {`);
     if (foliage)
       // solid: leaves and blades the lens is in (the spring arm keeps to
-      // trunks and solids, not shrubs) thin out to nothing over the last
-      // 0.6 m, dithered, instead of a wall of leaf filling the view.
-      shader.fragmentShader = shader.fragmentShader.replace(
+      // trunks and solids, not shrubs) thin out over the last 0.75 m,
+      // dithered, instead of a wall of leaf filling the view (FOLD_GLSL).
+      shader.fragmentShader = "varying float vLensFade;\n" + shader.fragmentShader.replace(
         "#include <clipping_planes_fragment>",
-        `#include <clipping_planes_fragment>
-        {
-          float lensD = length( vViewPosition );
-          if ( lensD < 0.7 ) {
-            float h = fract( sin( dot( floor( gl_FragCoord.xy ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
-            if ( h > smoothstep( 0.15, 0.7, lensD ) ) discard;
-          }
-        }`,
+        `#include <clipping_planes_fragment>\n${FOLIAGE_LENS_GLSL}`,
       );
     if (ground)
       // Plankton the uprush lights at night (the sky's reflection in the
