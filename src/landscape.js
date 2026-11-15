@@ -140,6 +140,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   const boat = boatPlace ? createBoat(land, { light, shared: land.userData.forestShared, landmark: boatPlace, hull: places.boatHull, seed }) : null;
   scene.add(land);
   const motes = createMotes(scene, seed);
+  const moteWaveRecord = {}; // waking: reused each frame
   // land-magic: the milkwood's fireflies (one draw of points, hidden asleep).
   const fireflies = createFireflies(scene, seed, { light, crown: places.crown, surface: surfaceOf(forest.obstacles) }); // solid: surface
   let flyPixels = 600, magicScan = 0, starLevel = 0;
@@ -449,7 +450,10 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       if (wild && (!interest || wild.d < Math.hypot(interest.x - pose.x, interest.z - pose.z))) interest = wild;
       // Motes glow only in daylight, dimmed by cloud like the direct sun.
       moteLight.copy(sun.color).multiplyScalar(sun.intensity * THREE.MathUtils.smoothstep(sunWorld.y, 0.0, 0.1) * (1 - night));
-      motes.update(time, wind, camera.position, sunWorld, moteLight, pixelScale);
+      // waking: embers lifting behind the wave's front (motes.js).
+      const lw = landMagic.state.wave, wk = magic?.waking;
+      const moteWave = lw && lw.presence > 0 && wk ? Object.assign(moteWaveRecord, { x: wk.x, y: wk.y, z: -wk.z, radius: lw.radius, tail: lw.tail, presence: lw.presence, tint: WAKE_LIGHT[wk.gift]?.tint ?? [1, 1, 1], light: 0.8 + 1.5 * night }) : null;
+      motes.update(time, wind, camera.position, sunWorld, moteLight, pixelScale, moteWave);
       wisp.update(time, night, renderer.domElement.height); // wisp:
       lens.update({
         camera, time, rain, wind, sky: lighting.sky, sunDirection: sunWorld, sunColour: sun.color,

@@ -235,8 +235,13 @@ if ( magicOn > 0.0 ) {
         vec3 tint = mix( wakeTint, hue * max( wakeTint.r, max( wakeTint.g, wakeTint.b ) ), 0.35 * ahead );
         // The tail shimmers: slow cells of light that thin as it fades.
         // (Fixed in space and slow in time: a point never flickers, < 0.4 Hz.)
-        float shimmer = 0.45 + 0.55 * sin( dot( mWorld.xz, vec2( 0.9, 1.3 ) ) + magicBeam.w * 2.2 );
-        float glow = crest + tail * 0.22 * shimmer;
+        vec2 sq = mWorld.xz * 0.6 + vec2( magicBeam.w * 0.15, 0.0 );
+        vec2 si = floor( sq ), sf = fract( sq );
+        sf = sf * sf * ( 3.0 - 2.0 * sf );
+        float sn = mix( mix( magicHash( vec3( si, 1.0 ) ), magicHash( vec3( si + vec2( 1.0, 0.0 ), 1.0 ) ), sf.x ), mix( magicHash( vec3( si + vec2( 0.0, 1.0 ), 1.0 ) ), magicHash( vec3( si + 1.0, 1.0 ) ), sf.x ), sf.y );
+        float shimmer = smoothstep( 0.25, 0.85, sn );
+        // (The crest itself is uneven too: never one even stroke.)
+        float glow = crest * ( 0.7 + 0.5 * sn ) + tail * 0.22 * shimmer;
         mWake += tint * wakeWave.w * glow * face;
         mWakeSpec += tint * wakeWave.w * (
           crest * ( vEdge * 0.7 * alb + vGloss * 1.4 + magicSparkle( mWorld, mView, 40.0, 0.95 ) * 2.0 )

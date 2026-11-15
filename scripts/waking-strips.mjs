@@ -20,6 +20,7 @@ const before = process.env.MODE === "before";
 const AGES = (process.env.AGES ?? "-1,0.7,2.2,5,14").split(",").map(Number);
 const TIMES = (process.env.TIMES ?? "1320,750").split(",").map(Number);
 const W = 1280, H = 800;
+const VIEW = process.env.VIEW ?? "ceremony";
 // Where the cat stands for each gift's shot (see setup below); STANDS='{"lamp":[1.2,16]}' overrides.
 const STANDS = { fireflies: [0, 4], tideglow: [0, 5], lamp: [1.2, 16], stars: [0, 5], seafolk: [0, 5], boat: [-0.9, 6], ...JSON.parse(process.env.STANDS ?? "{}") };
 await mkdir(out, { recursive: true });
@@ -52,18 +53,22 @@ await evaluate(`(async () => {
       const shot = SHOTS[gift] ?? SHOTS.default;
       const yaw = Math.atan2(poi.x - x, poi.z - z);
       const f = ceremonyFrames(w, { place: poi, gift, ground, shot, yaw, crown: s.landscape.places?.crown, canopies: s.landscape.obstacles?.canopies ?? [], fov: 1 }).wide;
-      this.shot = { f, gift, x, z };
+      this.shot = { f, gift, x, z, yaw };
       this.hold();
       return { poi: [poi.x, poi.z], cat: [x, z], shot: f && { yaw: f.yaw, elevation: f.elevation, distance: f.distance } };
     },
     hold() {
-      const { f } = this.shot;
+      const { f, yaw } = this.shot;
       const w = s.walker, c = w.cat, cam = w.camera;
       s.keys.clear();
       c.idle = 0; c.sit = 0;
       w.freeCamera(true);
-      cam.yaw = f.yaw; cam.elevation = f.elevation; cam.distance = f.distance; cam.targetY = c.y;
-      w.lookAt(f.look, 1);
+      // VIEW=follow: the cat's own camera behind it, looking toward the
+      // source; VIEW=wide: high over the island; else the ceremony's shot.
+      const view = ${JSON.stringify(VIEW)};
+      if (view === "follow") { cam.yaw = yaw; cam.elevation = 0.22; cam.distance = 4.5; cam.targetY = c.y; w.lookAt(null); }
+      else if (view === "wide") { cam.yaw = yaw + Math.PI; cam.elevation = 0.95; cam.distance = 80; cam.targetY = c.y; w.lookAt(null); }
+      else { cam.yaw = f.yaw; cam.elevation = f.elevation; cam.distance = f.distance; cam.targetY = c.y; w.lookAt(f.look, 1); }
     },
   };
   // Keep the cat and the camera where they were put (no wandering, no

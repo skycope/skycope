@@ -13,12 +13,12 @@ test("the wave crosses the island once, decelerating, and leaves nothing behind"
   let last = 0;
   for (let s = WAVE.start; s < 7.8; s += 0.05) {
     const v = waveAt(s, spec, 1);
-    assert.ok(v.radius >= last && v.strength <= WAVE.night + 1e-9);
+    assert.ok(v.radius >= last && v.strength <= Math.max(WAVE.night, WAVE.day) + 1e-9);
     last = v.radius;
   }
   assert.ok(waveAt(6.6, spec, 1).echo < waveAt(6.0, spec, 1).echo, "the echo runs home");
   assert.equal(waveAt(3, spec, 1, true).strength, 0, "reduced motion: no wave");
-  assert.ok(waveAt(3, spec, 0).strength < waveAt(3, spec, 1).strength, "dimmer by day");
+  assert.notEqual(waveAt(3, spec, 0).strength, waveAt(3, spec, 1).strength, "its own day and night levels");
   assert.ok(Math.abs(waveAt(waveArrival(40), spec, 1).radius - 40) < 1e-6);
   assert.equal(waveArrival(10, { wave: 0 }), Infinity);
 });

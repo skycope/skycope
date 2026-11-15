@@ -33,6 +33,11 @@ export function createMotes(scene, seed) {
     sunDir: { value: new THREE.Vector3(0, 1, 0) },
     sunLight: { value: new THREE.Color(0, 0, 0) },
     pixelScale: { value: 600 },
+    // waking: the wave (waking.js waveAt) lifting embers behind its front:
+    // its source (scene space), its radius, tail (m) and presence; their light.
+    waveSource: { value: new THREE.Vector3() },
+    wave: { value: new THREE.Vector4(0, 1, 0, 0) },
+    waveLight: { value: new THREE.Color(0, 0, 0) },
   };
   const material = new THREE.ShaderMaterial({
     uniforms,
@@ -52,8 +57,11 @@ export function createMotes(scene, seed) {
       uniform vec3 eye;
       uniform vec3 sunDir;
       uniform float pixelScale;
+      uniform vec3 waveSource;
+      uniform vec4 wave;
       attribute vec2 trait;
       varying float vBright;
+      varying float vWave;
       void main() {
         // Wind carries the whole cloud; each mote wanders on its own eddy.
         float ph = trait.y;
@@ -62,6 +70,17 @@ export function createMotes(scene, seed) {
         vec3 box = vec3( ${BOX.toFixed(1)}, ${(BOX * 0.35).toFixed(2)}, ${BOX.toFixed(1)} );
         vec3 origin = eye - vec3( box.x * 0.5, 0.6, box.z * 0.5 );
         p = origin + mod( p - origin, box );
+        // waking: a third of them, just behind the wave's front, catch its
+        // light and lift as embers, fading as the tail passes (only these,
+        // only near the eye: at most ~200 of the 600).
+        vWave = 0.0;
+        if ( wave.z > 0.0 && fract( ph * 0.37 ) < 0.35 ) {
+          float k = ( wave.x - length( p.xz - waveSource.xz ) ) / wave.y;
+          if ( k > 0.0 && k < 3.0 ) {
+            p.y += ( 1.0 - exp( -k * 1.2 ) ) * ( 0.6 + fract( ph * 1.3 ) * 0.8 );
+            vWave = sin( 3.14159 * k / 3.0 ) * wave.z;
+          }
+        }
         vec4 mv = modelViewMatrix * vec4( p, 1.0 );
         gl_Position = projectionMatrix * mv;
         float dist = length( mv.xyz );
@@ -74,18 +93,20 @@ export function createMotes(scene, seed) {
         // Sub-pixel motes: keep the point about 1.5 px and put the rest of
         // their size into brightness, so they twinkle instead of swelling.
         float size = trait.x * 0.004 * pixelScale / dist;
-        gl_PointSize = clamp( size, 1.0, 2.5 );
+        gl_PointSize = max( clamp( size, 1.0, 2.5 ), 2.0 + 1.5 * vWave );
         vBright = phase * fade * trait.x * max( size / gl_PointSize, 0.15 )
           * ( 0.75 + 0.25 * sin( time * 3.1 + ph * 5.0 ) );
       }
     `,
     fragmentShader: /* glsl */ `
       uniform vec3 sunLight;
+      uniform vec3 waveLight;
       varying float vBright;
+      varying float vWave;
       void main() {
         vec2 c = gl_PointCoord - 0.5;
         float disc = 1.0 - smoothstep( 0.2, 0.5, length( c ) );
-        gl_FragColor = vec4( sunLight * vBright * disc * 0.04, 0.0 );
+        gl_FragColor = vec4( sunLight * vBright * disc * 0.04 + waveLight * vWave * disc, 0.0 );
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }
@@ -100,7 +121,9 @@ export function createMotes(scene, seed) {
   return {
     // All in scene (world) space: `eye` the camera, `sunWorld` the sun's
     // direction, `light` its colour times intensity.
-    update(time, wind, eye, sunWorld, light, pixelScale) {
+    // `wave`: the waking's wave ({ x, y, z } its source in scene space,
+    // radius, tail, presence, tint, light), or null.
+    update(time, wind, eye, sunWorld, light, pixelScale, wave = null) {
       const dt = last === null ? 0 : Math.min(0.1, Math.max(0, time - last));
       last = time;
       // Wind is in coast axes; the scene mirrors z.
@@ -113,7 +136,12 @@ export function createMotes(scene, seed) {
       uniforms.sunDir.value.copy(sunWorld);
       uniforms.sunLight.value.copy(light);
       uniforms.pixelScale.value = pixelScale;
-      points.visible = light.r + light.g + light.b > 0.02;
+      if (wave && wave.presence > 0) {
+        uniforms.waveSource.value.set(wave.x, wave.y, wave.z);
+        uniforms.wave.value.set(wave.radius, wave.tail, wave.presence, 0);
+        uniforms.waveLight.value.setRGB(wave.tint[0] * wave.light, wave.tint[1] * wave.light, wave.tint[2] * wave.light);
+      } else uniforms.wave.value.z = 0;
+      points.visible = light.r + light.g + light.b > 0.02 || uniforms.wave.value.z > 0;
     },
   };
 }
