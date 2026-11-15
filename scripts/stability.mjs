@@ -829,6 +829,25 @@ function markdown(results) {
   return lines.join("\n");
 }
 
+// ---------------------------------------------------------------- compare
+// node scripts/stability.mjs compare <before dir> <after dir> [out.md]:
+// one table, before → after per session and column.
+if (process.argv[2] === "compare") {
+  const [a, b, out] = process.argv.slice(3);
+  const load = async (d) => JSON.parse(await readFile(join(d, "stability.json"), "utf8"));
+  const A = await load(a), B = await load(b);
+  const cols = ["blank", "lum", "sharp", "popStill", "popMoving", "flashStill", "flashMoving", "vanishStill", "vanishMoving", "flicker", "hitches", "worstHitchMs", "resizes", "unsynced", "quality", "reveal", "shadowSwaps"];
+  const lines = [`| session | ${cols.join(" | ")} |`, `| --- | ${cols.map(() => "---").join(" | ")} |`];
+  for (const r of B) {
+    const before = A.find((x) => x.summary.session === r.summary.session)?.summary ?? {};
+    lines.push(`| ${r.summary.session} | ${cols.map((c) => `${before[c] ?? "–"} → ${r.summary[c] ?? "–"}`).join(" | ")} |`);
+  }
+  const text = lines.join("\n") + "\n";
+  if (out) await writeFile(out, text);
+  console.log(text);
+  process.exit(0);
+}
+
 // ---------------------------------------------------------------- main
 await mkdir(OUT, { recursive: true });
 const browser = await launchChrome();
