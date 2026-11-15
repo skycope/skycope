@@ -161,7 +161,12 @@ export function vegetationLayout(seed) {
     // Groves and gaps: trees gather where a grove field is high (sheltered
     // hollows and kloofs) with open fynbos between them; the odd tree stands
     // alone in the heath. (An even scatter read as an orchard.)
-    const grove = noise2(x * 0.05 + patch * 0.7, z * 0.045 - patch * 0.3) * 0.75 + shelter * 0.25;
+    // Behind each beach, where the slope rises from the dunes, a belt of
+    // coastal thicket trees (milkwood, sea guarrie) in clumps of a few with
+    // fynbos between: the first trees a visitor sees from the sand.
+    const belt = smoothstep(7, 10, inland) * (1 - smoothstep(18, 26, inland)) *
+      smoothstep(0.45, 0.62, noise2(x * 0.13 + patch * 0.4, z * 0.13 - patch * 0.2));
+    const grove = Math.max(noise2(x * 0.05 + patch * 0.7, z * 0.045 - patch * 0.3) * 0.75 + shelter * 0.25, belt * 0.72);
     const inGrove = smoothstep(0.42, 0.6, grove);
     if (random() > (0.3 + shelter * 0.8) * (0.3 + edge * 0.7) * (0.1 + 0.9 * inGrove)) continue;
     // A spatial habitat field selects related traits across a grove, not per-row models.
@@ -358,16 +363,16 @@ export function vegetationLayout(seed) {
 // shrubs stand in it, straw and ochre where plants are old or dry, and the
 // few flowers are small and muted.
 const SPECIES = {
-  renoster: { hsl: [0.2, 0.16, 0.29], spread: [0.38, 0.75], tall: [0.66, 0.92] },
-  erica: { hsl: [0.22, 0.24, 0.22], spread: [0.28, 0.52], tall: [0.72, 0.95], bloom: 0.4, flowers: [[0.87, 0.24, 0.6], [0.93, 0.22, 0.7], [0.12, 0.1, 0.86]] },
+  renoster: { hsl: [0.2, 0.11, 0.33], spread: [0.38, 0.75], tall: [0.66, 0.92] },
+  erica: { hsl: [0.17, 0.3, 0.25], spread: [0.28, 0.52], tall: [0.72, 0.95], bloom: 0.4, flowers: [[0.87, 0.24, 0.6], [0.93, 0.22, 0.7], [0.12, 0.1, 0.86]] },
   pelargonium: { hsl: [0.25, 0.26, 0.24], spread: [0.38, 0.68], tall: [0.66, 0.92], bloom: 0.35, flowers: [[0.85, 0.28, 0.66], [0.9, 0.2, 0.74]] },
-  blombos: { hsl: [0.27, 0.27, 0.19], spread: [0.5, 0.92], tall: [0.7, 0.98] },
-  restiold: { hsl: [0.13, 0.24, 0.31], spread: [0.28, 0.52], tall: [0.66, 0.9] },
-  dune: { hsl: [0.17, 0.12, 0.33], spread: [0.25, 0.5], tall: [0.6, 0.9] },
+  blombos: { hsl: [0.29, 0.3, 0.18], spread: [0.5, 0.92], tall: [0.7, 0.98] },
+  restiold: { hsl: [0.11, 0.33, 0.34], spread: [0.28, 0.52], tall: [0.66, 0.9] },
+  dune: { hsl: [0.15, 0.13, 0.36], spread: [0.25, 0.5], tall: [0.6, 0.9] },
   sourfig: { hsl: [0.2, 0.3, 0.24], spread: [0.4, 0.85], tall: [0.18, 0.28], bloom: 0.25, flowers: [[0.86, 0.3, 0.62], [0.14, 0.42, 0.66]] },
 };
 // Drifts: one species holds a few metres of slope, as real fynbos does.
-const HEATH = ["renoster", "renoster", "erica", "renoster", "pelargonium", "renoster", "erica", "blombos", "restiold", "renoster"];
+const HEATH = ["renoster", "renoster", "erica", "restiold", "renoster", "pelargonium", "renoster", "erica", "blombos", "restiold", "renoster", "erica"];
 const THICKET = ["blombos", "blombos", "pelargonium", "renoster", "erica"];
 
 // The understory: fynbos shrubs, one rounded mass each, closing the ground
