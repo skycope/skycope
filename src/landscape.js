@@ -574,6 +574,9 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       shadows.centre = shadows.anchor;
       shadows.casters.length = 0;
       if (shadows.count > 1) scene.traverse((o) => { if (o.castShadow && (o.isMesh || o.isLine || o.isPoints)) shadows.casters.push(o); });
+      // lod: plants keep their levels and fades for the shadow pass until
+      // the last slice (forest.js packLod), so the map has no holes or doubles.
+      forest.holdShadowLod?.(shadows.count > 1);
     }
     const { count, slice, casters } = shadows;
     // Render with the light where this refresh began.
@@ -614,6 +617,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       return;
     }
     if (count > 1) shadows.back = front;
+    forest.holdShadowLod?.(false);
     forest.updateShadowCentre(shadows.centre[0], shadows.centre[1]);
     shadows.slice = 0;
     shadows.jump = false;
