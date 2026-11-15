@@ -71,6 +71,11 @@ export struct Atmosphere {
   // boat: the boat's hurricane lantern: flame position (coast metres) and
   // strength (w; 0 = no boat afloat).
   lantern: vec4f,
+  // waking: the wave crossing the bay (src/waking.js waveAt): its radius
+  // (m) from the waking's source (waking.xy), tail (m), strength, and its
+  // echo home's radius; the gift's tint (rgb) and the echo's strength (w).
+  wakingWave: vec4f,
+  wakingTint: vec4f,
 };
 
 // sea-sky-magic: false compiles every gift's code out of the sky and water

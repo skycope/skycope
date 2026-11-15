@@ -14,7 +14,7 @@
 // and lights things through the quest (quest.js → magic.wake).
 import { createQuest } from "./quest.js";
 import { createWispMind } from "./wisp-mind.js";
-import { WAKE_LIGHT, createWaking, wakingSource, frontArrival } from "./waking.js";
+import { WAKE_LIGHT, createWaking, wakingSource, waveArrival } from "./waking.js";
 import { SWIM_LIMIT } from "./walker.js";
 import { groundHeight } from "./terrain.js";
 import { homeLandingPoint } from "./place-home.js";
@@ -359,10 +359,10 @@ export function createJourney({ state, card, findLine, now, onChange = () => {},
       magic.waking = createWaking(gift, c.source, { follow: gift === "boat" ? boatLantern : null });
       // sound: every diegetic cue of the waking, scheduled by the sound side
       // from the moment the light is kindled (src/sound/cues.js `waking`);
-      // tCat is when the light's front reaches the cat.
+      // tCat is when the wave reaches the cat (waking.js waveArrival).
       const cat = state.walker?.cat;
       const dCat = cat ? Math.hypot(cat.x - c.source[0], (cat.y ?? c.source[1]) - c.source[1], cat.z - c.source[2]) : Infinity;
-      const tCat = frontArrival(dCat, WAKE_LIGHT[gift]);
+      const tCat = waveArrival(dCat, WAKE_LIGHT[gift]);
       state.sound?.waking?.(gift, { x: c.source[0], y: c.source[1], z: c.source[2] }, Number.isFinite(tCat) ? { tCat } : {});
     }
   }

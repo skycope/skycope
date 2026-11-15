@@ -297,6 +297,52 @@ export fn waking_on_sea(s: SeaPoint, waking: vec4f, light: vec4f, time: f32, day
   return out;
 }
 
+// The wave (src/waking.js waveAt) on the sea: a travelling line of the
+// gift's light riding the swell. Faces of the swell turned to the source
+// catch it, crests and foam flare, it glitters toward the eye, and behind it
+// a short tail of single cells sparkles out like plankton. Then a fainter
+// echo runs back home. at: the source (coast metres). wave: radius (m),
+// tail (m), strength, echo radius; tint: rgb, echo strength (w). By day the
+// line is the sun's own glitter switched on.
+export fn wave_on_sea(s: SeaPoint, at: vec3f, wave: vec4f, tint: vec4f, time: f32, daylight: f32) -> vec3f {
+  let d = length(s.p.xz - at.xz);
+  let lead = 1.6 + 0.02 * wave.x;                       // = waveAt().lead
+  let wf = d - wave.x;
+  let width = 2.5 + 0.02 * wave.w;                       // the echo's half-width
+  let ef = d - wave.w;
+  let inWave = wave.z > 0.0 && wf < 3.0 * lead && wf > -4.0 * wave.y;
+  let inEcho = tint.w > 0.0 && abs(ef) < 3.0 * width;
+  if (!(inWave || inEcho)) { return vec3f(0.0); }
+  let to = normalize(at - s.p);
+  let vv = normalize(to + vec3f(0.0, 0.4, 0.0));
+  let face = pow(max(dot(s.normal, vv), 0.0), 3.0);
+  let h = normalize(vv - s.ray);
+  let nh = max(dot(s.normal, h), 0.0);
+  let spec = (pow(nh, 300.0) * 3.0 + pow(nh, 40.0) * 0.3) * s.fresnel * 4.0;
+  // Single cells, fixed in place, twinkling slowly (< 0.3 Hz): the tail
+  // passing over them is what makes them run.
+  let scale = max(0.35, s.pixel * 1.4);
+  let g = s.p.xz / scale;
+  let hh = hash22m(floor(g));
+  let spot = 1.0 - smoothstep(0.06, 0.22, length(fract(g) - 0.2 - hh * 0.6));
+  let sparks = step(0.9, hh.x) * spot * (0.6 + 0.4 * sin(time * 1.8 + hh.y * 40.0));
+  var out = vec3f(0.0);
+  if (inWave) {
+    let crest = exp(-wf * wf / (lead * lead));
+    let tail = select(0.0, exp(wf / wave.y), wf < 0.0);
+    let ahead = select(0.0, crest, wf > 0.0);
+    let hue = 0.55 + 0.45 * cos(6.2832 * (wf / (lead * 3.0) + vec3f(0.0, 0.33, 0.67)));
+    let peak = max(tint.r, max(tint.g, tint.b));
+    let col = mix(mix(tint.rgb, hue * peak, 0.35 * ahead), vec3f(peak), 0.5 * daylight);
+    out += col * wave.z * (crest * (face * 0.5 + s.foam.x * 0.6 + spec + sparks * 1.5) + tail * (sparks * 1.2 * tail + face * 0.08));
+  }
+  if (inEcho) {
+    let back = exp(-ef * ef / (width * width));
+    out += tint.rgb * tint.w * back * (sparks * 1.5 + spec * 0.5 + face * 0.1);
+  }
+  return out / (1.0 + max(out.r, max(out.g, out.b)) * 0.4);
+}
+
 // ---- The wisp: the guiding light's reflection and pool on the water. --------
 export fn wisp_on_sea(s: SeaPoint, wisp: vec4f, colour: vec3f) -> vec3f {
   let to = wisp.xyz - s.p;

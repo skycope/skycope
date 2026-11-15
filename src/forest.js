@@ -431,6 +431,8 @@ uniform vec3 sightEye;
 // waking: the kindled light's source (Three world) and front (land-magic.js).
 uniform vec4 wakeSource;
 uniform vec4 wakeFront;
+uniform vec4 wakeWave;
+uniform vec4 wakeEcho;
 varying float vGlint;
 // Height of the plant's base (per instance): wind bends from there, so a trunk
 // or stem is rooted wherever it stands. Zero for non-instanced meshes.
@@ -463,13 +465,19 @@ vec3 windOffset(vec3 p) {
   // waking: a breath of air runs out with the kindled light's front (a few
   // centimetres, inside its reach only). Land-group positions are coast
   // space, so the source's mirrored z is turned back.
-  if ( wakeFront.z > 0.0 ) {
+  // The wave: everything that grows bows away as it passes and springs
+  // back behind it, a little past upright, then still (once: < 3 Hz).
+  if ( wakeFront.z + wakeEcho.w > 0.0 ) {
     vec2 pd = p.xz - vec2( wakeSource.x, -wakeSource.z );
     float pl = length( pd ) + 1e-3;
     float fb = ( pl - wakeFront.x ) / ( wakeFront.y * 2.5 );
-    float bow = exp( -fb * fb ) * min( wakeFront.z * 2.0, 1.0 ) * h / ( 0.5 + h ) * 0.045;
+    float bow = exp( -fb * fb ) * min( wakeFront.z * 2.0, 1.0 ) * 0.045;
+    float wb = ( pl - wakeWave.x ) / ( wakeWave.y * 2.0 );
+    float back = ( pl - wakeWave.x + wakeWave.y * 5.0 ) / ( wakeWave.y * 2.5 );
+    bow += ( exp( -wb * wb ) - 0.35 * exp( -back * back ) ) * wakeEcho.w * 0.07;
+    bow *= h / ( 0.5 + h );
     offset.xz += pd / pl * bow;
-    offset.y -= bow * 0.25;
+    offset.y -= abs( bow ) * 0.25;
   }
   return offset;
 }
@@ -689,7 +697,7 @@ const FOLIAGE_GLSL = /* glsl */ `
   float gate = 0.2 + 0.8 * smoothstep( 0.7, 0.97, fract( vGlint * 9.173 + breezeTime * 0.11 ) );
   // waking: as the kindled light's front passes, the crowns shimmer in the
   // sun leaf by leaf, as when a gust turns them (land-magic.js).
-  float wk = wakeFront.z > 0.0 ? wakeBandAt( cameraPosition + ( vec4( -vViewPosition, 0.0 ) * viewMatrix ).xyz ) : 0.0;
+  float wk = wakeFront.z + wakeEcho.w > 0.0 ? wakeBandAt( cameraPosition + ( vec4( -vViewPosition, 0.0 ) * viewMatrix ).xyz ) : 0.0;
   gate = max( gate, min( wk * 2.0, 1.0 ) );
   reflectedLight.directSpecular += leafSun * sparkle * gate * 0.2 * ( SHEEN / 0.6 ) * ( 1.0 + 3.0 * wk );
   #ifdef ROOTED
@@ -754,7 +762,7 @@ reflectedLight.indirectDiffuse *= 1.0 + lowCover * vec3( 0.1, 0.35, 0.0 );
 reflectedLight.directDiffuse += leafSun * diffuseColor.rgb * vec3( 0.2, 0.3, 0.08 ) * lowCover * RECIPROCAL_PI;
 // waking: a line of sun-sparkle runs down the beach with the kindled
 // light's front (land-magic.js).
-float wk = wakeFront.z > 0.0 ? wakeBandAt( cameraPosition + ( vec4( -vViewPosition, 0.0 ) * viewMatrix ).xyz ) : 0.0;
+float wk = wakeFront.z + wakeEcho.w > 0.0 ? wakeBandAt( cameraPosition + ( vec4( -vViewPosition, 0.0 ) * viewMatrix ).xyz ) : 0.0;
 if ( sandGlint > 0.01 && dHash( glintCell + 0.37 ) < 0.1 + 0.25 * wk ) {
   vec3 tilt = vec3( dHash( glintCell + 1.1 ), dHash( glintCell + 2.3 ), dHash( glintCell + 3.7 ) ) - 0.5;
   vec3 facet = normalize( normal + tilt * 0.9 );

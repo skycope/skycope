@@ -1,6 +1,40 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { WAKING, WAKE_LIGHT, GIFT_COLOURS, wakingAt, wakingSea, frontArrival, createWaking, stepWaking, wakingSource, practicalLevel, lampCatch } from "../src/waking.js";
+import { WAKING, WAKE_LIGHT, GIFT_COLOURS, WAVE, wakingAt, wakingSea, waveAt, waveArrival, frontArrival, createWaking, stepWaking, wakingSource, practicalLevel, lampCatch } from "../src/waking.js";
+
+test("the wave crosses the island once, decelerating, and leaves nothing behind", () => {
+  const spec = WAKE_LIGHT.fireflies;
+  assert.equal(waveAt(0.5, spec, 1).strength, 0, "not before the catch");
+  assert.equal(waveAt(8, spec, 1).strength + waveAt(8, spec, 1).echoStrength, 0, "over by 8 s");
+  const v0 = waveAt(WAVE.start + 0.01, spec, 1).speed;
+  assert.ok(v0 > 25 && v0 < 36, `starts at about 30 m/s (${v0})`);
+  const r6 = waveAt(6.5, spec, 1).radius;
+  assert.ok(r6 > 110 && r6 < 160, `past the island's far shore by 6.5 s (${r6})`);
+  let last = 0;
+  for (let s = WAVE.start; s < 7.8; s += 0.05) {
+    const v = waveAt(s, spec, 1);
+    assert.ok(v.radius >= last && v.strength <= WAVE.night + 1e-9);
+    last = v.radius;
+  }
+  assert.ok(waveAt(6.6, spec, 1).echo < waveAt(6.0, spec, 1).echo, "the echo runs home");
+  assert.equal(waveAt(3, spec, 1, true).strength, 0, "reduced motion: no wave");
+  assert.ok(waveAt(3, spec, 0).strength < waveAt(3, spec, 1).strength, "dimmer by day");
+  assert.ok(Math.abs(waveAt(waveArrival(40), spec, 1).radius - 40) < 1e-6);
+  assert.equal(waveArrival(10, { wave: 0 }), Infinity);
+});
+
+test("no flicker above 3 Hz: the catch's gutters, at any catch speed", () => {
+  for (const speed of [1, 2]) {
+    let dips = 0, prev = lampCatch(0, speed), falling = false;
+    for (let s = 0.01; s <= 1.0; s += 0.002) {
+      const c = lampCatch(s, speed);
+      if (c < prev) falling = true;
+      else if (falling && c > prev) { dips++; falling = false; }
+      prev = c;
+    }
+    assert.ok(dips <= 3, `speed ${speed}: ${dips} dips in the first second`);
+  }
+});
 
 const GIFTS = ["fireflies", "tideglow", "lamp", "stars", "seafolk", "boat", "finale"];
 
