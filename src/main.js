@@ -1162,7 +1162,8 @@ function joinWorld() {
   state.thread.discoveries.add([
     ...(state.landscape.pois ?? []).map((p) => lower(p, "place")),
     ...(state.boat?.pois ?? []).map((p) => lower(p, "place")), // boat: places only the boat reaches
-    ...(state.landscape.wildlife?.pois ?? []).map((p) => lower(p, "creature")),
+    // (No creature finds by proximity: an animal is written when it answers
+    // an act, with its own line; story-and-wow.md 6.)
     ...SKY_FINDS.map(([id, title]) => ({ id, title, kind: "sky", scope: "island", hold: 1.5, when: spectacleSeen(id) })),
   ]);
   // What the sky is staging, refreshed once a second.
