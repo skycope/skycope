@@ -24,6 +24,7 @@ import { horizonRadiance, skyDomeRatio, skyDomeMean, skyEnvironmentKey } from ".
 import toneSource from "./shaders/tone.wgsl?raw";
 import { customToneMapping, toneAdapt } from "./tone-glsl.js";
 import { note } from "./stability-log.js"; // stability: `?perf` event log
+import { easeBias } from "./quality.js";
 
 // The mesh layer tonemaps with the WebGPU sky and sea's own curve, so land,
 // sea and sky share one exposure, one highlight shoulder and one grade:
@@ -229,6 +230,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   const profiler = createMeshProfiler(renderer, canvas, perf);
   // quality: the render budget's settings for this layer (quality.js).
   let quality = null;
+  const lodEase = { eased: 1, at: null };
   const drawingBuffer = new THREE.Vector2();
   const msaa = createMsaa(renderer);
 
@@ -431,7 +433,12 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       camera.lookAt(lookTarget);
       camera.updateMatrixWorld();
       // lod: vegetation detail by each instance's distance (quality: bias).
-      if (debug?.lod !== false) forest.updateLod(camera.position, quality?.lodBias ?? 1);
+      // quality: the budget's LOD bias, eased in over seconds (quality.js easeBias).
+      const biasAt = performance.now();
+      const bias = easeBias(lodEase.eased, quality?.lodBias ?? 1, lodEase.at === null ? 1 : Math.min(0.1, (biasAt - lodEase.at) / 1000));
+      lodEase.eased = bias.eased;
+      lodEase.at = biasAt;
+      if (debug?.lod !== false) forest.updateLod(camera.position, bias.drawn);
       if (perf) watchLod();
       boat?.render({ time, night, camera }); // boat: before the cat (its lantern lights it)
       const far = archipelago.camera;

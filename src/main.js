@@ -85,9 +85,12 @@ const LIGHT =
 // keeps vsync jitter from skipping frames.
 const ACTIVE_FPS = 60;
 const IDLE_FPS = 30;
-// The reveal's resolution steps (fraction of full) and how long each holds.
-const REVEAL = [1 / 32, 1 / 16, 1 / 8, 1 / 4, 1 / 2, 1];
-const REVEAL_STEP_MS = 260;
+// The reveal: the world comes into focus as the veil hands over, one smooth
+// pull from soft to sharp (a compositor blur on both canvases, eased out),
+// not resolution steps. The canvases render at their final size from the
+// first frame, so nothing is resized or re-rendered in front of the visitor.
+const REVEAL_BLUR_PX = 7;
+const REVEAL_MS = 1400;
 
 const canvas = document.querySelector("#sky");
 const slider = document.querySelector("#time");
@@ -124,9 +127,8 @@ const state = {
   lastFrame: 0,
   weatherFrame: 0,
   firstFrame: false,
-  // The world sharpens in from coarse pixels: a fraction of full
-  // resolution that steps up to 1 after the first frame (see REVEAL).
-  reveal: matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : REVEAL[0],
+  // renderSizes' coarse-grid fraction (1: full size; see REVEAL_MS).
+  reveal: 1,
   revealTimer: 0,
   loadingRaf: 0,
   lastChirp: -10,
@@ -375,7 +377,14 @@ function connectControls() {
     options,
   );
   window.addEventListener("blur", () => state.keys.clear(), options);
-  window.addEventListener("resize", applySizes, options);
+  // stability: a new size is applied at the next frame boundary, in the task
+  // that draws both canvases at it (resizing clears a canvas; done here, a
+  // blank or half-drawn frame could be shown). Without the loop (reduced
+  // motion) applySizes draws the still itself.
+  window.addEventListener("resize", () => {
+    if (state.raf && !motionPreference.matches) state.sizesPending = true;
+    else applySizes();
+  }, options);
   document.addEventListener(
     "visibilitychange",
     () => {
@@ -939,17 +948,34 @@ async function startAtmosphere() {
   syncLoop();
 }
 
-// Steps the reveal up to full resolution, one resize per step.
+// The canvases start soft (before their first frame, under the veil)...
+function soften() {
+  if (motionPreference.matches) return;
+  for (const layer of [canvas, document.querySelector("#landscape")]) {
+    if (layer) layer.style.filter = `blur(${REVEAL_BLUR_PX}px)`;
+  }
+}
+soften();
+
+// ...and come into focus in one eased pull as the veil hands over; the
+// filter is then removed, so it costs nothing afterwards.
 function sharpen() {
   clearTimeout(state.revealTimer);
-  if (state.reveal >= 1) state.revealedAt ??= performance.now();
-  if (state.reveal >= 1 || state.disposed) return;
+  state.revealedAt ??= performance.now();
+  note("reveal", { ms: REVEAL_MS });
+  if (state.disposed) return;
+  const layers = [canvas, document.querySelector("#landscape")].filter(Boolean);
+  for (const layer of layers) {
+    // (The sky canvas keeps its own fade-in.)
+    layer.style.transition = `${layer === canvas ? "opacity 0.7s ease, " : ""}filter ${REVEAL_MS}ms cubic-bezier(0.25, 0.6, 0.3, 1)`;
+    layer.style.filter = "blur(0px)";
+  }
   state.revealTimer = setTimeout(() => {
-    state.reveal = REVEAL[REVEAL.indexOf(state.reveal) + 1] ?? 1;
-    note("reveal", { reveal: state.reveal });
-    applySizes();
-    sharpen();
-  }, REVEAL_STEP_MS);
+    for (const layer of layers) {
+      layer.style.filter = "";
+      layer.style.transition = "";
+    }
+  }, REVEAL_MS + 100);
 }
 
 // Until the walker exists (the landscape builds it), shaders compile against
@@ -1294,7 +1320,16 @@ function adaptQuality(deltaTime, cpuMs) {
     sample = { cost: deltaTime * 1000, source: "interval" };
   }
   const level = state.quality.level;
-  state.quality = stepQuality(state.quality, { now: performance.now() / 1000, ...sample });
+  // stability: the budget restores only while the camera moves, and sheds
+  // at rest only when it cannot help it (quality.js).
+  const view = state.flight;
+  const pose = (state.budgetPose ??= [NaN, 0, 0, 0, 0]);
+  const moved = Math.abs(view.x - pose[0]) + Math.abs(view.y - pose[1]) + Math.abs(view.z - pose[2]) > 0.002 || Math.abs(view.azimuth - pose[3]) + Math.abs(view.pitch - pose[4]) > 0.0005;
+  pose[0] = view.x; pose[1] = view.y; pose[2] = view.z; pose[3] = view.azimuth; pose[4] = view.pitch;
+  const now = performance.now() / 1000;
+  if (moved) state.budgetMoved = now;
+  const still = now - (state.budgetMoved ?? 0) > 0.5;
+  state.quality = stepQuality(state.quality, { now, still, ...sample });
   // Applied before the next frame (tick), never inside this one: resizing
   // the sea's swap chain after its texture was acquired destroys it before
   // the submit.
@@ -1430,10 +1465,11 @@ function tick(timestamp) {
   }
   if (timestamp - state.lastFrame < interval - 3) return;
   // quality: a new level's sizes, at the frame boundary.
-  if (state.qualityChanged) {
-    state.qualityChanged = false;
+  if (state.qualityChanged || state.sizesPending) {
     state.atBoundary = true;
-    applyQuality();
+    if (state.qualityChanged) applyQuality();
+    else applySizes();
+    state.qualityChanged = state.sizesPending = false;
     state.atBoundary = false;
   }
   state.lastFrame = timestamp;
