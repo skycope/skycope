@@ -1,0 +1,181 @@
+// Writes docs/review/sound/: a spectrogram PNG for every cue in the
+// catalogue, a table of its numbers (README.md), the bus calibration, and
+// the scripted 60 s walk's mix with its loudness curve.
+//   node scripts/sound-evidence.mjs [out-dir]
+import { mkdirSync, writeFileSync } from "node:fs";
+import { PNG } from "pngjs";
+import { CUES, CHECKLIST } from "../src/sound/catalog.js";
+import { numbered } from "../src/sound/audition.js";
+import { measure } from "./sound-measure.mjs";
+import { measureBus, measureMix } from "./sound-calibrate.mjs";
+import { render, SR } from "../tests/audio/render.js";
+import { WALK, LEGS } from "../tests/audio/walk.js";
+import { SCENES } from "../tests/audio/scenes.js";
+import { BUSES } from "../src/sound/mix.js";
+import * as A from "../tests/audio/analysis.js";
+
+const out = process.argv[2] ?? "docs/review/sound";
+mkdirSync(`${out}/spectrograms`, { recursive: true });
+
+// Colour ramp (dark blue → teal → yellow), dB −110…−20 dBFS.
+const STOPS = [[8, 10, 30], [30, 40, 110], [20, 120, 140], [90, 190, 110], [240, 230, 90], [255, 255, 230]];
+function colour(v) {
+  const x = Math.max(0, Math.min(0.9999, v)) * (STOPS.length - 1);
+  const i = Math.floor(x);
+  const f = x - i;
+  return STOPS[i].map((c, k) => Math.round(c + (STOPS[i + 1][k] - c) * f));
+}
+
+// Log-frequency spectrogram (40 Hz–20 kHz, 160 rows) over `width` columns,
+// with a 48 px strip under it: the 10 ms envelope in dBFS (−90…0).
+export function spectrogram(signal, path, { width = 640, rows = 160, lo = 40, hi = 20000 } = {}) {
+  const size = 2048;
+  const hop = Math.max(64, Math.floor((signal.length - size) / width));
+  const cols = Math.max(1, Math.min(width, Math.floor((signal.length - size) / hop)));
+  const strip = 48;
+  const png = new PNG({ width: cols, height: rows + strip + 2 });
+  const win = Float64Array.from({ length: size }, (_, i) => 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / size));
+  for (let x = 0; x < cols; x++) {
+    const re = new Float64Array(size), im = new Float64Array(size);
+    for (let i = 0; i < size; i++) re[i] = (signal[x * hop + i] ?? 0) * win[i];
+    A.fft(re, im);
+    for (let y = 0; y < rows; y++) {
+      const f0 = lo * (hi / lo) ** ((rows - 1 - y) / rows);
+      const f1 = lo * (hi / lo) ** ((rows - y) / rows);
+      let p = 0, n = 0;
+      for (let k = Math.floor((f0 * size) / SR); k <= Math.ceil((f1 * size) / SR); k++) {
+        p += re[k] * re[k] + im[k] * im[k];
+        n++;
+      }
+      const dbv = 10 * Math.log10(p / Math.max(1, n) / (size / 4) ** 2 + 1e-20);
+      const [r, g, b] = colour((dbv + 110) / 90);
+      const at = (y * cols + x) * 4;
+      png.data[at] = r; png.data[at + 1] = g; png.data[at + 2] = b; png.data[at + 3] = 255;
+    }
+  }
+  // The envelope strip.
+  for (let y = rows; y < rows + strip + 2; y++)
+    for (let x = 0; x < cols; x++) {
+      const at = (y * cols + x) * 4;
+      png.data[at] = png.data[at + 1] = png.data[at + 2] = y < rows + 2 ? 0 : 245;
+      png.data[at + 3] = 255;
+    }
+  for (let x = 0; x < cols; x++) {
+    let s = 0;
+    for (let i = x * hop; i < Math.min(signal.length, x * hop + Math.max(hop, 480)); i++) s += signal[i] * signal[i];
+    const dbv = 10 * Math.log10(s / Math.max(hop, 480) + 1e-20);
+    const h = Math.round(Math.max(0, Math.min(1, (dbv + 90) / 90)) * strip);
+    for (let y = rows + 2 + strip - h; y < rows + 2 + strip; y++) {
+      const at = (y * cols + x) * 4;
+      png.data[at] = 40; png.data[at + 1] = 60; png.data[at + 2] = 70;
+    }
+  }
+  writeFileSync(path, PNG.sync.write(png));
+}
+
+// A loudness curve: short-term (3 s) and momentary (0.4 s) LUFS over time.
+function loudnessPlot(momentary, short, path, { seconds, legs = [], width = 900, height = 260, lo = -60, hi = -15 } = {}) {
+  const png = new PNG({ width, height });
+  png.data.fill(255);
+  const put = (x, y, [r, g, b]) => {
+    if (x < 0 || y < 0 || x >= width || y >= height) return;
+    const at = (Math.round(y) * width + Math.round(x)) * 4;
+    png.data[at] = r; png.data[at + 1] = g; png.data[at + 2] = b; png.data[at + 3] = 255;
+  };
+  const Y = (l) => height - ((l - lo) / (hi - lo)) * height;
+  // Grid every 5 LU, the −30 target, leg boundaries.
+  for (let l = lo; l <= hi; l += 5) for (let x = 0; x < width; x++) put(x, Y(l), l === -30 ? [220, 120, 90] : [225, 225, 225]);
+  for (const leg of legs) for (let y = 0; y < height; y++) put((leg.from / seconds) * width, y, [200, 200, 230]);
+  const line = (curve, hop, rgb) => {
+    let prev = null;
+    curve.forEach((l, i) => {
+      if (!Number.isFinite(l)) return;
+      const x = ((i * hop + (hop === 0.1 ? 0.2 : 1.5)) / seconds) * width;
+      const y = Y(Math.max(lo, Math.min(hi, l)));
+      if (prev) for (let k = 0; k <= 20; k++) put(prev[0] + ((x - prev[0]) * k) / 20, prev[1] + ((y - prev[1]) * k) / 20, rgb);
+      prev = [x, y];
+    });
+  };
+  line(momentary, 0.1, [150, 180, 200]);
+  line(short, 0.5, [20, 50, 70]);
+  writeFileSync(path, PNG.sync.write(png));
+}
+
+const f = (x, d = 1) => (Number.isFinite(x) ? x.toFixed(d) : "−∞");
+const rows = [];
+for (const cue of numbered()) {
+  const x = await measure(cue);
+  spectrogram(A.mono(x.render.channels), `${out}/spectrograms/${cue.number}-${cue.id}.png`);
+  rows.push({ cue, x });
+  process.stdout.write(".");
+}
+console.log();
+
+const busRows = [];
+for (const name of Object.keys(SCENES)) busRows.push(await measureBus(name));
+const mix = await measureMix();
+
+// The walk.
+const walk = await render(WALK);
+const wm = A.mono(walk.channels);
+const momentary = A.momentaryCurve(walk.channels, SR, 0.1);
+const short = A.shortTermCurve(walk.channels, SR, 0.5);
+loudnessPlot(momentary, short, `${out}/walk-loudness.png`, { seconds: WALK.seconds, legs: LEGS });
+spectrogram(wm, `${out}/walk-spectrogram.png`, { width: 900 });
+const legLoudness = LEGS.map((l) => ({ ...l, lufs: A.integratedLoudness(walk.channels.map((c) => c.subarray(l.from * SR, l.to * SR)), SR) }));
+const ws = walk.sound.stats;
+
+function writeWav(path, channels, sr) {
+  const n = channels[0].length;
+  const buf = Buffer.alloc(44 + n * 4);
+  buf.write("RIFF", 0); buf.writeUInt32LE(36 + n * 4, 4); buf.write("WAVE", 8); buf.write("fmt ", 12);
+  buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20); buf.writeUInt16LE(2, 22); buf.writeUInt32LE(sr, 24);
+  buf.writeUInt32LE(sr * 4, 28); buf.writeUInt16LE(4, 32); buf.writeUInt16LE(16, 34); buf.write("data", 36); buf.writeUInt32LE(n * 4, 40);
+  for (let i = 0; i < n; i++)
+    for (let c = 0; c < 2; c++) buf.writeInt16LE(Math.max(-32768, Math.min(32767, Math.round(channels[c][i] * 32767))), 44 + i * 4 + c * 2);
+  writeFileSync(path, buf);
+}
+
+const md = [];
+md.push(`# Sound evidence (${new Date().toISOString().slice(0, 10)})`);
+md.push("");
+md.push("Generated by `node scripts/sound-evidence.mjs`. Every number here is a measurement of an off-line render (`tests/audio/sim.js`, a plain-JS Web Audio renderer checked against Chrome's own `OfflineAudioContext`: the audition page's `soundCheck()` gives the Chrome figures; on 15 Nov they agreed within 1.5 LU for the 14 cues compared). **Nobody has listened to any of this.** The numbers say the sounds are where the plan put them, not that they sound right.");
+md.push("");
+md.push("Loudness: *peak* is sample peak (dBFS) and *tp* true peak (dBTP, 4x oversampled); *max M* the loudest 400 ms (LUFS), *int* integrated (LUFS, gated, BS.1770-4) over the render; *centroid* the spectral centroid (Hz); *len* the time above −50 dB of its own peak. Positioned cues are measured from where the audition page puts the listener (named in the cue). Spectrograms: log frequency 40 Hz (bottom) to 20 kHz (top), colour −110 to −20 dBFS; the strip under each is the envelope (−90 to 0 dBFS).");
+md.push("");
+md.push("## Buses over their reference scenes");
+md.push("");
+md.push("| bus | reference scene | integrated (master at 1) | target | short-term max | true peak |");
+md.push("|---|---|---|---|---|---|");
+const sceneText = { amb: "home beach, noon, wind 7 m/s", weather: "rain 4 mm/h in the open", foley: "running on dry sand", voice: "one meow every 5 s", world: "penguin bray at 10 m every 8 s", magic: "one ceremony (tideglow)", music: "noon mood" };
+for (const b of busRows) md.push(`| ${b.name} | ${sceneText[b.name]} | ${f(b.integrated)} LUFS | ${BUSES[b.name].target} | ${f(b.shortMax)} | ${f(b.truePeak)} dBTP |`);
+md.push(`| **mix** | home beach, noon, walking, one meow | **${f(mix.integrated)} LUFS** | −30 ± 2 | ${f(Math.max(...mix.short.filter(Number.isFinite)))} | ${f(mix.truePeak)} dBTP |`);
+md.push("");
+md.push("## The scripted 60 s walk");
+md.push("");
+md.push(`Beach → grass (a bush, a meow) → rock (a jump) → wading and a swim → the boat; noon, wind 7 m/s, music on. Hear it on the audition page, item 13.1. Integrated ${f(A.integratedLoudness(walk.channels, SR))} LUFS, true peak ${f(A.db(A.truePeak(walk.channels)))} dBTP, limiter reduction at most ${f(walk.sound._qa.mix.reduction, 2)} dB. Voices: peak ${ws.peak} alive at once (cap 40); loops ${ws.loops} (budget 14); node creations ${(ws.created / WALK.seconds).toFixed(1)} per second averaged (budget 40), busiest second ${f(walk.sound._qa.core.stats.maxRate, 0)} (budget 150); stolen ${ws.stolen}, refused ${ws.refused}.`);
+md.push("");
+md.push("| leg | seconds | integrated |");
+md.push("|---|---|---|");
+for (const l of legLoudness) md.push(`| ${l.name} | ${l.from}–${l.to} | ${f(l.lufs)} LUFS |`);
+md.push("");
+md.push("![loudness](walk-loudness.png)");
+md.push("");
+md.push("Loudness curve: dark line short-term (3 s), light line momentary (400 ms); orange line −30 LUFS; grid every 5 LU from −60 to −15; violet lines the legs.");
+md.push("");
+md.push("![walk](walk-spectrogram.png)");
+md.push("");
+md.push("## Every cue");
+md.push("");
+md.push("Numbered as on the audition page (`/?audition`) and in the listening checklist (sound-plan.md section 10).");
+for (const item of CHECKLIST) {
+  md.push("");
+  md.push(`### ${item.n}. ${item.title}`);
+  md.push("");
+  md.push("| # | cue | len s | peak | tp | max M | int | centroid | meant to be | spectrogram |");
+  md.push("|---|---|---|---|---|---|---|---|---|---|");
+  for (const { cue, x } of rows.filter((r) => r.cue.n === item.n))
+    md.push(`| ${cue.number} | ${cue.name} | ${f(x.seconds, 2)} | ${f(x.peak)} | ${f(x.truePeak)} | ${f(x.momentary)} | ${f(x.integrated)} | ${f(x.centroid, 0)} | ${cue.says} | [png](spectrograms/${cue.number}-${cue.id}.png) |`);
+}
+writeFileSync(`${out}/README.md`, md.join("\n") + "\n");
+console.log(`wrote ${out}: ${rows.length} cues, mix ${f(mix.integrated)} LUFS, walk ${f(A.integratedLoudness(walk.channels, SR))} LUFS`);
