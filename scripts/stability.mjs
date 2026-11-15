@@ -36,10 +36,12 @@
 //
 // Start the server first:
 //   node node_modules/vite/bin/vite.js --port 5357 --strictPort --host 127.0.0.1
-import { spawn } from "node:child_process";
-import { mkdir, writeFile, rm } from "node:fs/promises";
+import { spawn, execFileSync } from "node:child_process";
+import { mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { ISLAND } from "../src/terrain.js";
 import { PNG } from "pngjs";
 
 const argv = process.argv.slice(2);
@@ -60,6 +62,20 @@ const KEEP = Number(opt.keep ?? 3);
 const SESSIONS = String(opt.sessions ?? "still,walk,orbit,time,gift,throttle").split(",");
 const OUT = resolve(opt.out ?? join(tmpdir(), "skycope-stability"));
 const QUERY = opt.query ? `&${opt.query}` : "";
+// --base <git ref>: measure that commit instead of the working tree, served
+// by the same dev server from a snapshot in ./stab-base (so editing src/
+// while a run is going changes nothing it measures).
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+let PATH = "/";
+if (opt.base) {
+  const dir = join(ROOT, "stab-base");
+  await rm(dir, { recursive: true, force: true });
+  await mkdir(dir, { recursive: true });
+  execFileSync("sh", ["-c", `git archive ${opt.base} src index.html | tar -x -C stab-base`], { cwd: ROOT });
+  const html = await readFile(join(dir, "index.html"), "utf8");
+  await writeFile(join(dir, "index.html"), html.replace('src="/src/main.js"', 'src="/stab-base/src/main.js"'));
+  PATH = "/stab-base/";
+}
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // The page's own background (index.html :root): what shows where no canvas drew.
@@ -194,14 +210,24 @@ function measure(png) {
   }
   const gw = Math.floor(w / BLOCK), gh = Math.floor(h / BLOCK);
   const grid = new Float32Array(gw * gh);
+  // Foliage cells: most of the block green or olive (green over red and blue).
+  const leafy = new Uint8Array(gw * gh);
   for (let gj = 0; gj < gh; gj++) {
     for (let gi = 0; gi < gw; gi++) {
-      let s = 0;
-      for (let j = gj * BLOCK; j < (gj + 1) * BLOCK; j++) for (let i = gi * BLOCK; i < (gi + 1) * BLOCK; i++) s += y[j * w + i];
+      let s = 0, g = 0;
+      for (let j = gj * BLOCK; j < (gj + 1) * BLOCK; j++) {
+        for (let i = gi * BLOCK; i < (gi + 1) * BLOCK; i++) {
+          const k = j * w + i;
+          s += y[k];
+          const p = k * 4;
+          if (data[p + 1] > data[p] + 3 && data[p + 1] > data[p + 2] + 6) g++;
+        }
+      }
       grid[gj * gw + gi] = s / (BLOCK * BLOCK);
+      leafy[gj * gw + gi] = g > BLOCK * BLOCK * 0.5 && gj * BLOCK > h * 0.12 ? 1 : 0;
     }
   }
-  return { mean, landStd, bg: bg / ln, sharp: lap / lapN, grid, gw, gh, w, h };
+  return { mean, landStd, bg: bg / ln, sharp: lap / lapN, grid, leafy, gw, gh, w, h };
 }
 
 // Cells that changed abruptly in frame b (against a→b's neighbours in time),
@@ -224,6 +250,23 @@ function abrupt(f) {
     else if (after > T.cell && stays < 0.3 * d && before < 0.5 * d) flash[i] = 1;
   }
   return { pop: components(pop, b.gw, b.gh), flash: components(flash, b.gw, b.gh) };
+}
+
+// Foliage flicker in frame b: how far each leafy cell sits off the line
+// between its neighbours in time (a, c), i.e. the frame-rate component of
+// its brightness. Smooth sway and slow light changes give little; a light
+// that jumps between frames (and back, or on) gives a lot. Returns the mean
+// over leafy cells and the share of them off by more than 3/255.
+function flicker(a, b, c) {
+  let sum = 0, n = 0, over = 0;
+  const wa = (c.t - b.t) / Math.max(1, c.t - a.t);
+  for (let i = 0; i < b.grid.length; i++) {
+    if (!b.leafy[i]) continue;
+    const e = Math.abs(b.grid[i] - (a.grid[i] * wa + c.grid[i] * (1 - wa)));
+    sum += e; n++;
+    if (e > 3) over++;
+  }
+  return n > 20 ? { mean: sum / n, share: over / n, cells: n } : null;
 }
 
 function components(mask, gw, gh) {
@@ -290,10 +333,11 @@ async function runSession(browser, name) {
         const f = frames.slice(k - 3, k + 1);
         const r = abrupt(f);
         frames[k - 1].abrupt = r;
+        frames[k - 1].flicker = flicker(f[1], f[2], f[3]);
         if (r.pop.cells >= T.popCells || r.flash.cells >= T.popCells) { keepRaw(k - 2); keepRaw(k - 1); keepRaw(k); }
       }
       // Drop the grids the pop test no longer needs (memory).
-      if (k >= 6) frames[k - 6].grid = frames[k - 6].act = null;
+      if (k >= 6) frames[k - 6].grid = frames[k - 6].act = frames[k - 6].leafy = null;
     });
   };
   const tab = await openTab(browser, onFrame);
@@ -303,7 +347,7 @@ async function runSession(browser, name) {
   const rendered = [];
   await tab.send("Page.startScreencast", { format: "png", maxWidth: W, maxHeight: H, everyNthFrame: 1 });
   mark("navigate");
-  await tab.send("Page.navigate", { url: `http://127.0.0.1:${PORT}/?perf&seed=${SEED}&weather=clear${QUERY}` });
+  await tab.send("Page.navigate", { url: `http://127.0.0.1:${PORT}${PATH}?perf&seed=${SEED}&weather=clear${QUERY}` });
   for (let i = 0; i < 300; i++) {
     if (await tab.evaluate("!!(window.skycope && skycope.stability && skycope.renderFrame && skycope.walker)").catch(() => false)) break;
     await sleep(200);
@@ -389,6 +433,56 @@ const SCRIPTS = {
       await sleep(12000);
     }
   },
+  // Plant lighting flicker: the camera on the milkwood's slope, one suspect
+  // switched off per phase (src/landscape.js `debug`), still and then slowly
+  // turning, then walking. The budget is pinned so its steps do not confound.
+  async foliage({ tab, mark, key }) {
+    await settleAfterLoad(tab, 6);
+    await tab.evaluate(`(() => {
+      const s = skycope, I = ${JSON.stringify({ x: ISLAND.x, z: ISLAND.z })};
+      const p = s.landscape.pois.find((q) => q.id === "milkwood");
+      const a = Math.atan2(I.x - p.x, I.z - p.z);
+      const x = p.x + Math.sin(a) * 11, z = p.z + Math.cos(a) * 11;
+      const c = s.walker.cat, cam = s.walker.camera;
+      c.x = x; c.z = z; c.y = s.walker.surface(x, z); c.speed = 0; c.vy = 0; c.air = 0; c.heading = Math.atan2(p.x - x, p.z - z);
+      cam.yaw = c.heading; cam.elevation = 0.22; cam.distance = 3.6; cam.targetY = c.y;
+      s.budget?.pin(0);
+      return 1;
+    })()`);
+    await sleep(5000);
+    const reset = `Object.assign(skycope.landscape.debug, { shadows: "live", canopy: true, fold: true, lod: true, wind: true }); skycope.landscape.setQuality(skycope.settings);`;
+    const phases = [
+      ["live", ""],
+      ["shadows frozen", `skycope.landscape.debug.shadows = "frozen"`],
+      ["shadows whole", `skycope.landscape.debug.shadows = "whole"`],
+      ["canopy frozen", `skycope.landscape.debug.canopy = false`],
+      ["fold off", `skycope.landscape.debug.fold = false`],
+      ["lod frozen", `skycope.landscape.debug.lod = false`],
+      ["wind off", `skycope.landscape.debug.wind = false`],
+      ["msaa 4", `skycope.landscape.setQuality({ ...skycope.settings, msaa: 4 })`],
+      ["msaa 0", `skycope.landscape.setQuality({ ...skycope.settings, msaa: 0 })`],
+    ];
+    for (const motion of ["still", "turning", "walking"]) {
+      for (const [label, js] of motion === "still" ? phases : phases.slice(0, 6)) {
+        await tab.evaluate(`${reset} ${js}; 1`);
+        mark(`${motion}: ${label}`);
+        if (motion === "turning") {
+          await tab.evaluate(`(() => { window.__turn = setInterval(() => skycope.walker.orbit(0.004, 0), 16); return 1; })()`);
+          await sleep(6000);
+          await tab.evaluate("clearInterval(window.__turn), 1");
+        } else if (motion === "walking") {
+          // Out and back, the same way each phase.
+          await key("keyDown", "w");
+          await sleep(4000);
+          await key("keyUp", "w");
+          await key("keyDown", "s");
+          await sleep(4000);
+          await key("keyUp", "s");
+        } else await sleep(6000);
+      }
+    }
+    await tab.evaluate(`${reset} 1`);
+  },
   async throttle({ tab, mark }) {
     await settleAfterLoad(tab, 8);
     mark("throttle 4x");
@@ -472,6 +566,17 @@ function analyse(run) {
       hitches.push({ t: Math.round(t0 - first), ms: Math.round(gap), phase: phase(t0), events: events.filter((e) => e.t >= t0 - 5 && e.t <= t1).map(describe) });
     }
   }
+  // Foliage flicker by phase (and over every frame with the camera still).
+  const byPhase = {};
+  let stillSum = 0, stillN = 0;
+  for (let k = 2; k + 1 < frames.length; k++) {
+    const fl = frames[k].flicker;
+    if (!fl || !loaded(k)) continue;
+    const p = (byPhase[phase(frames[k].t)] ??= { mean: 0, share: 0, frames: 0, still: 0 });
+    p.mean += fl.mean; p.share += fl.share; p.frames++;
+    if (stillOver(k - 1, k + 1)) { p.still++; stillSum += fl.mean; stillN++; }
+  }
+  const flicker = Object.fromEntries(Object.entries(byPhase).map(([k, p]) => [k, { mean: +(p.mean / p.frames).toFixed(3), share: +(p.share / p.frames).toFixed(4), frames: p.frames, still: p.still }]));
   const resizes = events.filter((e) => e.kind === "resize");
   const count = (kind, still = null) => flags.filter((f) => f.kind === kind && (still === null || f.still === still)).length;
   const summary = {
@@ -496,9 +601,10 @@ function analyse(run) {
     shadowSwaps: events.filter((e) => e.kind === "shadow-swap").length,
     placeLod: events.filter((e) => e.kind === "place-lod").length,
     animalLod: events.filter((e) => e.kind === "animal-lod").length,
+    flicker: stillN ? +(stillSum / stillN).toFixed(3) : null,
     errors: run.errors.length,
   };
-  return { summary, flags, hitches, lighting: lightingAfterTime(run, frames, events, rendered, first), events: events.filter((e) => e.kind !== "lod-pack").map((e) => ({ ...e, t: Math.round(e.t - first) })) };
+  return { summary, flags, hitches, flicker, lighting: lightingAfterTime(run, frames, events, rendered, first), events: events.filter((e) => e.kind !== "lod-pack").map((e) => ({ ...e, t: Math.round(e.t - first) })) };
 }
 
 // After each time jump: how long the picture takes to settle, how many
@@ -594,7 +700,7 @@ function pairImage(a, b, box) {
 }
 
 function markdown(results) {
-  const cols = ["session", "captured", "seconds", "blank", "lum", "sharp", "popStill", "popMoving", "worstPopPixels", "flashStill", "flashMoving", "hitches", "worstHitchMs", "resizes", "unsynced", "quality", "reveal", "shadowSwaps", "placeLod", "animalLod", "errors"];
+  const cols = ["session", "captured", "seconds", "blank", "lum", "sharp", "popStill", "popMoving", "worstPopPixels", "flashStill", "flashMoving", "flicker", "hitches", "worstHitchMs", "resizes", "unsynced", "quality", "reveal", "shadowSwaps", "placeLod", "animalLod", "errors"];
   const lines = [
     `# Stability, ${new Date().toISOString().slice(0, 16)} (${W}x${H} @${DPR}, seed ${SEED})`,
     "",
@@ -616,6 +722,11 @@ function markdown(results) {
     const moving = r.flags.filter((f) => f.kind === "pop" && !f.still).length;
     if (moving) lines.push(`- (${moving} pops while the camera moved; in stability.json)`);
     for (const h of r.hitches.slice(0, 12)) lines.push(`- ${h.t} ms [${h.phase}] **hitch** ${h.ms} ms — ${h.events.join("; ") || "no event"}`);
+    if (r.summary.session === "foliage") {
+      lines.push("", "| phase | flicker (mean /255) | cells > 3/255 | frames | still |", "| --- | --- | --- | --- | --- |");
+      for (const [p, v] of Object.entries(r.flicker)) lines.push(`| ${p} | ${v.mean} | ${(v.share * 100).toFixed(2)}% | ${v.frames} | ${v.still} |`);
+      lines.push("");
+    }
     for (const l of r.lighting) lines.push(`- time → ${l.minutes}: settles in ${l.settleMs} ms, ${l.stepsAfterFirst} visible steps after the first frame, shadows swap ${l.shadowLagFrames} frames after the sun moves`);
     lines.push("");
   }

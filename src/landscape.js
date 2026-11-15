@@ -202,9 +202,12 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   // a teleport) or the first frame renders it at once.
   const drawShadows = renderer.shadowMap.render.bind(renderer.shadowMap);
   renderer.shadowMap.render = (lights, target, eye) => {
-    // The cat's own shadow pass renders this scene too: a slice belongs to
-    // the frame's main render only, or two run in one frame.
-    if (target !== scene || !shadows.pending || shadows.catPass) return drawShadows(lights, target, eye);
+    // The cat's own shadow pass renders this scene too: it never draws the
+    // sun's map (a slice belongs to the frame's main render only, or two
+    // run in one frame, and an unsliced redraw there would bypass the
+    // bookkeeping).
+    if (shadows.catPass) return;
+    if (target !== scene || !shadows.pending) return drawShadows(lights, target, eye);
     renderShadowSlice(() => drawShadows(lights, target, eye));
   };
   const shadows = { key: "", anchor: null, pending: false, again: false, jump: false, catPass: false, slice: 0, count: 1, casters: [], cast: [], back: null, light: new THREE.Vector3(), target: new THREE.Vector3(), centre: [0, 0], matrix: new THREE.Matrix4() };
@@ -218,6 +221,11 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   // The first frame's triangle and draw counts go on the canvas for QA.
   let counted = false;
   const perf = new URLSearchParams(window.location.search).has("perf");
+  // stability: `?perf` switches that turn one suspect of a flicker off at a
+  // time (scripts/stability.mjs foliage session): shadows "live" | "frozen"
+  // (no refresh) | "whole" (unsliced); false freezes the canopy light, the
+  // line-of-sight fold, the vegetation LOD packing, or the wind.
+  const debug = perf ? { shadows: "live", canopy: true, fold: true, lod: true, wind: true } : null;
   const profiler = createMeshProfiler(renderer, canvas, perf);
   // quality: the render budget's settings for this layer (quality.js).
   let quality = null;
@@ -262,6 +270,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     wakingPlaces: { crown: places.crown, beacon: places.beacon, anchors: places.wakingAnchors },
     nightLand: perf ? NIGHT_LAND : null, // land-look: `?perf` tuning
     shadows: perf ? shadows : null, // shadow: `?perf` QA of the sliced refresh
+    debug, // stability: `?perf` suspect switches
     // land-magic: the lighthouse lamp this frame (coast metres; `angle` is
     // the beams' bearing, see land-magic.js), for the sea's own beam.
     get lamp() { return landMagic.state.lamp; },
@@ -285,30 +294,55 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       };
     },
     // hitch: compile every program the land layer can draw, sleeping
-    // gifts' and hidden levels' included, ahead of their first frame (a
-    // gift's first waking compiled 9 programs mid-frame). Hidden meshes
-    // are shown only for the compile's traversal; lights are left alone
-    // (their count is part of every program).
-    prewarm() {
-      const hidden = [];
-      scene.traverse((o) => {
-        if (!o.visible && !o.isLight) {
-          hidden.push(o);
-          o.visible = true;
-        }
+    // gifts' and hidden levels' included (three's compile walks hidden
+    // objects too), ahead of their first frame (a gift's first waking
+    // compiled 9 programs mid-frame). stability: one new program at a time,
+    // in idle time, and the next only once the GPU has linked it
+    // (KHR_parallel_shader_compile): compiling ~30 at once queued seconds
+    // of driver work in front of the next frame, and the picture froze or
+    // went blank for 3–6 s. Lights are read from the scene as it is (their
+    // count is part of every program). Resolves when every program is in.
+    prewarm({ idle = prewarmIdle, sliceMs = 4 } = {}) {
+      const work = prewarmWork(scene);
+      const holder = new THREE.Scene(); // compile walks only its children
+      const linked = (materials) => materials.every((m) => renderer.properties.get(m).currentProgram?.isReady?.() ?? true);
+      let next = 0;
+      let slices = 0;
+      return new Promise((resolve) => {
+        const slice = () => {
+          const started = performance.now();
+          const programs = renderer.info.programs.length;
+          const touched = [];
+          while (next < work.length) {
+            const object = work[next++];
+            holder.children = [object];
+            // The main pass draws into the multisampled target, and three
+            // keys tone mapping and output space on the bound target: compile
+            // the variant that pass will use, not the canvas's.
+            renderer.setRenderTarget(msaa.target);
+            try { renderer.compile(holder, camera, scene); } finally { renderer.setRenderTarget(null); }
+            touched.push(...[object.material].flat());
+            if (renderer.info.programs.length !== programs || performance.now() - started > sliceMs) break;
+          }
+          holder.children = [];
+          slices++;
+          const wait = () => {
+            if (!linked(touched)) return setTimeout(wait, 16);
+            if (next < work.length) idle(slice);
+            else {
+              note("prewarm-done", { slices, programs: renderer.info.programs.length });
+              resolve();
+            }
+          };
+          wait();
+        };
+        idle(slice);
       });
-      let done;
-      try {
-        done = renderer.compileAsync ? renderer.compileAsync(scene, camera) : Promise.resolve(renderer.compile(scene, camera));
-      } finally {
-        for (const o of hidden) o.visible = false;
-      }
-      return done;
     },
     render({ celestial, cover, weather = null, time, wind, rain = 0, view: flight, lighting, pose, dt, weatherDt = dt, reducedMotion = false, paused = false, surface, water = null, onStep, wake = null, skyFlash = 0, magic = null }) {
       const pointer = [0.5, 0.5];
       const night = THREE.MathUtils.smoothstep(celestial.scene, 1, 2);
-      forest.updateWind(time, wind);
+      forest.updateWind(time, debug?.wind === false ? [0, 0] : wind);
       forest.updateNight(night);
       land.userData.forestShared.landNightFill.value = night; // land-look: canopy fill by night
       fauna.update(time, wind, night, boat?.afloatNow ?? null); // boat: the pod rides its bow
@@ -397,7 +431,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       camera.lookAt(lookTarget);
       camera.updateMatrixWorld();
       // lod: vegetation detail by each instance's distance (quality: bias).
-      forest.updateLod(camera.position, quality?.lodBias ?? 1);
+      if (debug?.lod !== false) forest.updateLod(camera.position, quality?.lodBias ?? 1);
       if (perf) watchLod();
       boat?.render({ time, night, camera }); // boat: before the cat (its lantern lights it)
       const far = archipelago.camera;
@@ -430,6 +464,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       if (water) forest.updateSurf(time, [flight.x, flight.y, flight.z], pixelScale, water);
       // Plants part round the cat as it walks through them.
       forest.pushAt(pose.x, pose.z, pose.air > 0.05 ? 0 : 1, pose.y); // move: (y aims the line of sight)
+      if (debug?.fold === false) land.userData.forestShared.sightLine.value.w = 0;
       interest = critters.update(dt, time, pose, night);
       // wildlife: update, and the nearer of a critter and an animal holds the cat's eye.
       wildEye.x = flight.x; wildEye.y = flight.y; wildEye.z = flight.z;
@@ -563,6 +598,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   }
 
   function requestShadow(jump) {
+    if (debug?.shadows === "frozen" && sun.shadow.map) return;
     if (shadows.pending && shadows.slice > 0 && !jump) {
       shadows.again = true;
       return;
@@ -578,7 +614,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   function renderShadowSlice(draw) {
     const shadow = sun.shadow;
     if (shadows.slice === 0) {
-      shadows.count = !shadow.map || shadows.jump ? 1 : Math.max(1, quality?.shadowSlices ?? 1);
+      shadows.count = !shadow.map || shadows.jump || debug?.shadows === "whole" ? 1 : Math.max(1, quality?.shadowSlices ?? 1);
       shadows.light.copy(sun.position);
       shadows.target.copy(sun.target.position);
       shadows.centre = shadows.anchor;
@@ -739,7 +775,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     // grade: a crown is a volume: a low sun lights its side as much as a
     // high one lights its top, so the light that filters through to the
     // floor holds up into the golden hour (forest.js occlusionGlsl).
-    forest.updateCanopyLight(lighting.direct.map((v, i) => (v * (0.35 + 0.65 * Math.max(sunWorld.y, 0)) * overcast) / Math.PI + sky[i]));
+    if (debug?.canopy !== false) forest.updateCanopyLight(lighting.direct.map((v, i) => (v * (0.35 + 0.65 * Math.max(sunWorld.y, 0)) * overcast) / Math.PI + sky[i]));
     CAT_SEA.foam.value.setRGB(...foamLight);
     // The water column's own colour, as ocean.wgsl scatters it: sun and sky
     // light times scattering over extinction.
@@ -865,6 +901,29 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     envTarget = pmrem.fromEquirectangular(envSource, previous ?? null);
     scene.environment = envTarget.texture;
   }
+}
+
+// stability: prewarm's work list, one drawable per distinct program shape
+// (its material and the object kind three keys programs on), in scene order.
+export function prewarmWork(root) {
+  const work = [];
+  const seen = new Set();
+  root.traverse((o) => {
+    if (!(o.isMesh || o.isPoints || o.isLine || o.isSprite) || !o.material) return;
+    const kind = `${o.isInstancedMesh ? "i" : ""}${o.isSkinnedMesh ? "s" : ""}${o.isPoints ? "p" : o.isLine ? "l" : o.isSprite ? "r" : "m"}${o.receiveShadow ? "r" : ""}`;
+    const key = [o.material].flat().map((m) => m.uuid).join() + kind;
+    if (seen.has(key)) return;
+    seen.add(key);
+    work.push(o);
+  });
+  return work;
+}
+
+// The next idle moment (or the next task where there is no idle callback),
+// never inside a frame.
+function prewarmIdle(fn) {
+  if (globalThis.requestIdleCallback) requestIdleCallback(fn, { timeout: 500 });
+  else setTimeout(fn, 16);
 }
 
 // Freezes the roots' own matrices, and every object under them flagged

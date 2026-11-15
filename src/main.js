@@ -782,17 +782,24 @@ async function startAtmosphere() {
   };
   // hitch: build the awake sky/sea pipelines and the land layer's sleeping
   // programs in the first idle moment after the scene is up, not in the
-  // frame a gift first wakes.
-  setTimeout(() => {
-    const warm = () => {
-      if (state.gpu !== gpu || state.disposed) return;
-      note("prewarm-start");
-      wakeMagicPasses();
-      state.landscape?.prewarm?.()?.then?.(() => note("prewarm-end"), () => note("prewarm-end", { failed: true }));
-    };
-    if (globalThis.requestIdleCallback) requestIdleCallback(warm, { timeout: 3000 });
-    else warm();
-  }, 4000);
+  // frame a gift first wakes. stability: only once the reveal is whole and
+  // has had a few seconds (it raced the first frame under load and froze
+  // the reveal half-sharp), the land's programs one at a time, then the
+  // sky and sea's (one queue of driver work at a time).
+  const warm = () => {
+    if (state.gpu !== gpu || state.disposed) return;
+    if (state.revealedAt === undefined || performance.now() - state.revealedAt < 3000) {
+      setTimeout(warm, 1000);
+      return;
+    }
+    note("prewarm-start");
+    const land = state.landscape?.prewarm?.() ?? Promise.resolve();
+    land.then(() => {
+      note("prewarm-end");
+      if (state.gpu === gpu && !state.disposed) wakeMagicPasses();
+    }, () => note("prewarm-end", { failed: true }));
+  };
+  setTimeout(warm, 4000);
   const gpuClock = clock(gpu);
   // quality: one span per WebGPU pass; their sum is the sky and sea's cost.
   const passTimer = timed ? timer(gpu) : null;
