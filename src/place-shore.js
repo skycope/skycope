@@ -5,6 +5,8 @@ import { seededRandom } from "./random.js";
 import { part, merge, sweep, lathe, place, smooth01, srgb, staticMesh, glowMaterial, prop } from "./place-kit.js";
 import { heightTile, discTile, timberTile } from "./place-kit.js";
 import { POOL } from "./place-rocks.js";
+import { HULL, hullPoint as boatPoint, halfBreadth, outerColour } from "./boat-forms.js";
+import { restPose } from "./boat-launch.js";
 
 // The smaller places: a fisherman's upturned boat with its gear and a
 // lantern that burns at night; the trig beacon on the summit cairn; and a
@@ -21,10 +23,60 @@ const frameOf = (φ) => {
 // ---- The fisherman's boat ----------------------------------------------------
 
 const ANTIFOUL = srgb("#6e3426");
-const TOPSIDE = srgb("#2f5f7e");
-const RUBBING = srgb("#c9c3b4");
 const DRIFTWOOD = srgb("#80786c");
 const LANTERN = new THREE.Color(3.2, 1.75, 0.6);
+
+// The two driftwood logs the upturned boat rests on (coast x, y, z; their
+// radius LOG_R): the prop draws and tiles them, and the launch
+// (boat-ride.js) slides the hull over them, not through them.
+export const LOG_R = 0.12;
+export function boatLogs(p) {
+  const { at } = frameOf(p.facing);
+  const ground = (x, z) => groundHeight(p.x + x, p.z + z);
+  const { point } = restFrame(p);
+  // Under the gunwale at each log's station.
+  const gunwale = (s) => Math.min(point(s, 1, -1)[1], point(s, 1, 1)[1]);
+  return [-0.62, 0.55].map((s) => [-1.3, -0.4, 0.4, 1.3].map((v) => {
+    const [x, z] = at(s * HULL.half + v * 0.12, v);
+    return { x: p.x + x, y: Math.max(ground(x, z) + 0.06, gunwale(s) - LOG_R - 0.01), z: p.z + z };
+  }));
+}
+
+// The upturned hull's frame on its logs (boat-launch.js restPose, in the
+// place's local x, z): the afloat boat's own hull form (boat-forms.js),
+// so the two are one boat and nothing changes shape or jumps when the
+// cat pushes it off. point(s, t, side) → local [x, y, z]; toHull(q) the
+// inverse, for painting.
+function restFrame(p) {
+  const rest = restPose(p);
+  const m = new THREE.Matrix4().compose(new THREE.Vector3(0, rest.y, 0), new THREE.Quaternion().setFromEuler(new THREE.Euler(-rest.pitch, rest.heading, -rest.roll, "YXZ")), new THREE.Vector3(1, 1, 1));
+  const inv = m.clone().invert();
+  const v = new THREE.Vector3();
+  const q = [0, 0, 0];
+  return {
+    point(s, t, side) {
+      boatPoint(s, t, side, q);
+      v.set(q[0], q[1], q[2]).applyMatrix4(m);
+      return [v.x, v.y, v.z];
+    },
+    toHull(x, y, z) {
+      return v.set(x, y, z).applyMatrix4(inv);
+    },
+  };
+}
+// The girth (0 keel … 1 gunwale) at which the skin at station s is
+// `across` out from the centreline, or at height y (hull frame).
+function girthAt(s, value, axis) {
+  const q = [0, 0, 0];
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 22; i++) {
+    const mid = (lo + hi) / 2;
+    boatPoint(s, mid, 1, q);
+    if (q[axis] < value) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
 
 export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
   const random = seededRandom((seed ^ 0xb0a7) >>> 0 || 1);
@@ -39,29 +91,11 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
   const lowTiles = [];
   // solid: the hull and traps the camera keeps out of (blockers.js).
   const blockers = [];
-  const L = 4.6, B = 1.55, depth = 0.62;
-  // The gunwale rests on two driftwood logs, so the boat lies along the
-  // slope of the beach: its height at each end from the sand beneath.
-  const endRest = (s0, s1) => {
-    let g = -Infinity;
-    for (let s = s0; s <= s1 + 1e-6; s += 0.125) for (const v of [-0.8, 0, 0.8]) g = Math.max(g, ground(...at(s * L / 2, v)));
-    return g + 0.2;
-  };
-  const restStern = endRest(-1, -0.4), restBow = endRest(0.4, 1);
-  const restAt = (s) => restStern + (restBow - restStern) * (s + 1) / 2;
-  const keelAt = (s) => restAt(s) + depth;
-  const half = (s) => (B / 2) * (s > 0 ? Math.pow(Math.max(0, 1 - s * s), 0.6) : 1 - 0.28 * Math.pow(-s, 3));
-  // Upturned clinker hull: girth t from the keel (0) to the gunwale (1),
-  // each of six strakes lapping the one above.
-  const hullPoint = (s, t, side) => {
-    const a = t * Math.PI / 2;
-    const lap = 0.014 * ((t * 6) % 1);
-    const v = (half(s) * Math.sin(a) + lap) * side;
-    const sheer = 0.12 * s * s;
-    const y = keelAt(s) + sheer * 0.4 - depth * (1 - Math.cos(a)) - sheer * t;
-    const [x, z] = at(s * L / 2, v);
-    return [x, y, z];
-  };
+  const L = 2 * HULL.half;
+  // The upturned hull on its logs: the afloat boat's own skin and paint,
+  // in the pose the launch starts from (restFrame).
+  const frame = restFrame(p);
+  const hullPoint = frame.point;
   const hull = (ns, nt) => {
     const positions = [], index = [];
     for (const side of [-1, 1]) {
@@ -71,8 +105,8 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
       for (let i = 0; i < ns; i++)
         for (let j = 0; j < nt; j++) {
           const a = o + i * (nt + 1) + j, b = a + 1, c = a + nt + 1, d = c + 1;
-          if (side > 0) index.push(a, c, b, b, c, d);
-          else index.push(a, b, c, b, d, c);
+          if (side > 0) index.push(a, b, c, b, d, c);
+          else index.push(a, c, b, b, c, d);
         }
     }
     const g = new THREE.BufferGeometry();
@@ -82,12 +116,13 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
     return g;
   };
   const hullColour = (q, n, out) => {
-    // Bottom (now on top) in red antifouling to the waterline, then the
-    // blue topsides and a pale rubbing strake at the gunwale.
-    const t = (keelAt((q.x * fx + q.z * fz) / (L / 2)) - q.y) / depth;
-    out.copy(t < 0.42 ? ANTIFOUL : t < 0.88 ? TOPSIDE : RUBBING);
+    const h = frame.toHull(q.x, q.y, q.z);
+    const s = Math.max(-1, Math.min(1, h.z / HULL.half));
+    const t = girthAt(s, h.y, 1);
+    return outerColour(t, Math.min(HULL.strakes - 1, Math.floor(t * HULL.strakes)), h.y, s, out);
   };
-  const shadeUnder = (q) => 0.4 * (1 - smooth01(restAt((q.x * fx + q.z * fz) / (L / 2)) - 0.2, restAt((q.x * fx + q.z * fz) / (L / 2)) + 0.3, q.y));
+  // Darker where the gunwale nears the sand.
+  const shadeUnder = (q) => 0.4 * (1 - smooth01(anchor(q) + 0.05, anchor(q) + 0.45, q.y));
   hullParts.push(part(hull(light ? 18 : 28, light ? 18 : 30), { colour: hullColour, shade: shadeUnder, anchor })); // boat:
   hullFar.push(part(hull(10, 6), { colour: hullColour, anchor })); // boat:
   // Transom: a flat board closing the stern.
@@ -114,14 +149,11 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
     hullParts.push(part(sweep(pts, pts.map(() => [0.035, 0.05]), 4), { colour: ANTIFOUL })); // boat:
   }
   // Two driftwood logs it rests on.
-  for (const s of [-0.62, 0.55]) {
-    const pts = [-1.3, -0.4, 0.4, 1.3].map((v) => {
-      const [x, z] = at(s * L / 2 + v * 0.12, v);
-      return new THREE.Vector3(x, Math.max(ground(x, z) + 0.06, restAt(s) - 0.13), z);
-    });
+  for (const log of boatLogs(p)) {
+    const pts = log.map((q) => new THREE.Vector3(q.x - p.x, q.y, q.z - p.z));
     wood.push(part(sweep(pts, [0.12, 0.13, 0.12, 0.1], light ? 6 : 8), { colour: DRIFTWOOD, anchor }));
     // solid: the cat walked through the logs' ends; now it steps up on them.
-    lowTiles.push(timberTile(pts.map((q) => ({ x: p.x + q.x, y: q.y, z: p.z + q.z })), 0.12));
+    lowTiles.push(timberTile(log, LOG_R));
     woodFar.push(part(sweep(pts, [0.12, 0.13, 0.12, 0.1], 4), { colour: DRIFTWOOD, anchor }));
   }
   // (Oars, a rope coil and orange floats were cut: clutter round the boat
@@ -181,8 +213,8 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
   // as the beam and topped at the keel (the cat stands on it by the tile).
   {
     const keelPoint = (s) => {
-      const [x, z] = at(s * L / 2, 0);
-      return { x: p.x + x, y: keelAt(s) - 0.72, z: p.z + z };
+      const [x, y, z] = hullPoint(s, 0, 1);
+      return { x: p.x + x, y: y - 0.72, z: p.z + z };
     };
     hullBlockers.push(capsule(keelPoint(-0.6), keelPoint(0), 0.72, { body: false }), capsule(keelPoint(0), keelPoint(0.55), 0.72, { body: false })); // boat:
     blockers.push(...hullBlockers);
@@ -193,10 +225,9 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
     const u = lx2 * fx + lz2 * fz, v = lx2 * rx + lz2 * rz;
     const s = u / (L / 2);
     if (Math.abs(s) > 1) return -Infinity;
-    const b = half(s);
-    if (Math.abs(v) > b) return -Infinity;
-    const a = Math.asin(Math.min(1, Math.abs(v) / b));
-    return keelAt(s) + 0.12 * s * s * 0.4 - depth * (1 - Math.cos(a)) - 0.12 * s * s * (a / (Math.PI / 2)) + 0.02;
+    if (Math.abs(v) > halfBreadth(s)) return -Infinity;
+    // The skin where it is |v| out from the keel line, upturned.
+    return hullPoint(s, girthAt(s, Math.abs(v), 0), 1)[1] + 0.02;
   })];
   return prop({
     // solid: no cull. Gone at 80 m, the hull popped out of the cove in
@@ -214,6 +245,8 @@ export function buildBoat(p, materials, { light = false, seed = 1 } = {}) {
       },
     },
     lights: [{ kind: "lantern", x: p.x + lamp.x, y: lamp.y, z: p.z + lamp.z, size: 1.5, colour: [1.0, 0.6, 0.24], flicker: true }],
+    // waking.js: the boat's gift is kindled in its lantern on the post.
+    waking: [p.x + lamp.x, lamp.y, p.z + lamp.z],
     extra: pool.mesh,
     update({ time, lit }) {
       pool.update(time, lit);
@@ -585,6 +618,9 @@ export function buildPool(p, materials, { light = false, seed = 1 } = {}) {
   })];
   let last = 0;
   return prop({
+    // waking.js: the sea folk's light, under the still water over the
+    // basin's floor.
+    waking: [p.x, floor + 0.12, p.z],
     // solid: culled where the fog has the shelf (it popped at 70 m).
     lod: { near, far, farDistance: 30, cullDistance: 115 },
     // solid: the camera keeps above the pool's still water (it slid under

@@ -85,7 +85,7 @@ export const SHOTS = {
 // the subject, every plant crown (and the milkwood's) as something to keep
 // the lens out of and look past. Exported for tests/movement.test.js.
 export function ceremonyFrames(walker, { place, gift, ground, shot, yaw, crown = null, canopies = [], fov = 1 }) {
-  const tops = { lamp: 17.6, fireflies: crown ? crown.top - ground : 7, stars: 3, tideglow: 2.6, boat: 1.4, seafolk: 0.8 };
+  const tops = { lamp: Number.isFinite(place.top) ? place.top - ground : 15.6, fireflies: crown ? crown.top - ground : 7, stars: 3, tideglow: 2.6, boat: 1.4, seafolk: 0.8 };
   // (r: how far out from its centre its own solids reach: a line to its
   // top may end anywhere inside that.)
   const radii = { lamp: 3.5, fireflies: crown ? crown.radius : 6, stars: 1.5, tideglow: 4, boat: 2.5, seafolk: 2 };
@@ -93,6 +93,13 @@ export function ceremonyFrames(walker, { place, gift, ground, shot, yaw, crown =
   const all = crown ? [...canopies, { x: crown.x, z: crown.z, y: crown.top - crown.radius * 0.45, r: crown.radius }] : canopies;
   const frame = (elevation, distance) => walker.frameShot({ subject, yaw, elevation, distance, canopies: all, fov });
   return { subject, dive: frame(shot.elevation, shot.distance), wide: frame(shot.wide[0], shot.wide[1]) };
+}
+
+// The ground a ceremony stands its place on: the place's own foot where it
+// gives one (the lighthouse's apron: the walk surface at its centre is the
+// top of the tower), else the walk surface there.
+export function placeGround(place, surface) {
+  return Number.isFinite(place.foot) ? place.foot : surface(place.x, place.z);
 }
 
 // sky: the lapse (thread.js): { run(keys, { onDone }), running(), live(),
@@ -298,7 +305,7 @@ export function createJourney({ state, card, findLine, now, onChange = () => {},
     if (event.type === "ending") return startEnding(event);
     const place = event.place;
     const surface = state.walker.surface;
-    const ground = surface(place.x, place.z);
+    const ground = placeGround(place, surface);
     const cat = state.walker.cat;
     // waking: where the gift's light is kindled (the hollow, the furnace
     // mouth, the lantern room…): the wisp dives into it.
@@ -784,7 +791,7 @@ export function wakingSourceFor(state, gift) {
   // practical it resolves into must stay put.)
   const cat = state.walker?.cat;
   return wakingSource(gift, {
-    pois: land.pois ?? [], crown: land.wakingPlaces?.crown, beacon: land.wakingPlaces?.beacon, blockers: land.obstacles?.blockers ?? [],
+    pois: land.pois ?? [], crown: land.wakingPlaces?.crown, beacon: land.wakingPlaces?.beacon, anchors: land.wakingPlaces?.anchors, blockers: land.obstacles?.blockers ?? [],
     // (The pool's light is under its water: the walker's surface there.)
     surface: gift === "seafolk" && state.walker?.surface ? state.walker.surface : groundHeight, toward: gift === "fireflies" && cat ? [cat.x, cat.z] : undefined,
   });

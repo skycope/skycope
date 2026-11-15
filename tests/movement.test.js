@@ -164,16 +164,21 @@ test('the walker and its camera allocate little per frame', () => {
 // place's top seen past the land and the landmarks. Counts the old,
 // straight-on shot's failures alongside, for the report.
 test('each ceremony ends on a clear view of its place', async () => {
-  const { ceremonyFrames, SHOTS } = await import('../src/journey.js');
+  const { ceremonyFrames, placeGround, SHOTS } = await import('../src/journey.js');
   const { KEEPSAKES } = await import('../src/magic.js');
   const { forest, places, obstacles } = island(SEED);
   const walker = walkerFor(SEED);
   const { cat, camera, solids } = walker;
   const canopies = forest.obstacles.canopies;
   const crown = places.crown;
+  let cuts = 0;
   const settle = (yaw, elevation, distance, look) => {
     walker.freeCamera(true);
-    camera.yaw = yaw; camera.elevation = elevation; camera.distance = distance; camera.targetY = cat.y;
+    // (targetY a hair different every time: the rig takes a write as a cut
+    // only when it differs from what it last wrote, and a searched shot
+    // equal to the straight-on one was left at the follow camera's
+    // clamped 8 m.)
+    camera.yaw = yaw; camera.elevation = elevation; camera.distance = distance; camera.targetY = cat.y + ++cuts * 1e-9;
     walker.lookAt(look, 1);
     for (let i = 0; i < 120; i++) walker.update(1 / 60, { move: [0, 0], run: false, jump: false }, null);
     const view = { x: camera.x, y: camera.y, z: camera.z, azimuth: camera.azimuth + Math.PI / 4, pitch: camera.pitch };
@@ -226,7 +231,7 @@ test('each ceremony ends on a clear view of its place', async () => {
       for (let i = 0; i < 20 && walker.surface(x, z) < 0.05; i++) { x += (place.x - x) * 0.1; z += (place.z - z) * 0.1; }
       cat.x = x; cat.z = z; cat.y = walker.surface(x, z); cat.speed = cat.air = cat.vy = 0;
       cat.heading = Math.atan2(place.x - x, place.z - z);
-      const ground = walker.surface(place.x, place.z);
+      const ground = placeGround(place, walker.surface);
       const shot = SHOTS[gift] ?? SHOTS.default;
       const yaw = cat.heading;
       const frames = ceremonyFrames(walker, { place, gift, ground, shot, yaw, crown, canopies, fov: 1.0 });
@@ -238,7 +243,7 @@ test('each ceremony ends on a clear view of its place', async () => {
     }
   }
   console.log(`ceremony shots with a fault: ${before}/${shots} straight-on, ${after}/${shots} searched\n  was: ${old.join('\n  was: ')}\n  now: ${report.join('\n  now: ')}`);
-  assert.ok(after <= 1, `ceremony shots still faulty:\n${report.join('\n')}`);
+  assert.equal(report.length, 0, `ceremony shots still faulty:\n${report.join('\n')}`);
   assert.ok(after < before || before === 0, `no better than straight-on (${before} -> ${after})`);
 });
 
@@ -273,6 +278,33 @@ test('walking straight at a trunk, the keel or a boulder never pins the cat', ()
     }
     const moved = Math.hypot(cat.x - x, cat.z - z);
     if (worst > 3 || (mustPass && moved < 3)) fails.push(`(${x.toFixed(1)}, ${z.toFixed(1)}) heading ${heading.toFixed(2)}: pinned ${worst} s, moved ${moved.toFixed(1)} m`);
+  }
+  assert.equal(fails.length, 0, fails.join('\n'));
+});
+
+// Pressed into a corner where every step goes a hair and comes back (the
+// lighthouse's door steps against the tower; a boulder by the boat's logs),
+// the cat used to jitter in place for 3-4 s with W held; now it takes the
+// open way within about a second.
+test('a cat jittering in a corner with input held gets out', () => {
+  island(SEED);
+  const walker = walkerFor(SEED);
+  const { cat, camera } = walker;
+  const fails = [];
+  for (const [x, z, heading] of [[127.0, 55.5, 5.41], [127.0, 55.5, 5.76], [78.7, 41.7, 3.32], [76.0, 34.8, 9.25]]) {
+    cat.x = x; cat.z = z; cat.y = walker.surface(x, z); cat.heading = heading;
+    cat.speed = cat.vy = cat.air = cat.turn = 0; cat.sit = cat.idle = 0; cat.swim = cat.wade = cat.water = 0;
+    camera.yaw = heading; camera.elevation = 0.38; camera.distance = 3.4; camera.targetY = cat.y;
+    let still = 0, worst = 0, px = cat.x, pz = cat.z;
+    for (let f = 0; f < 6 * 60; f++) {
+      walker.update(1 / 60, { move: [0, 1], run: false, jump: false }, null);
+      if (f % 15 === 14) {
+        still = Math.hypot(cat.x - px, cat.z - pz) < 0.05 ? still + 0.25 : 0;
+        worst = Math.max(worst, still);
+        px = cat.x; pz = cat.z;
+      }
+    }
+    if (worst > 2) fails.push(`from (${x}, ${z}) heading ${heading}: still ${worst} s`);
   }
   assert.equal(fails.length, 0, fails.join('\n'));
 });

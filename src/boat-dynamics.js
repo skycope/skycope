@@ -348,9 +348,19 @@ export function createBoatDynamics({ sea, bed, solids = null } = {}) {
       }
     }
     const keelY = mid - BOAT.draft + 0.02 * load;
+    // How far the keel is in where it already lies: the water falling away
+    // in a trough sets it down on the sand where it is. Only motion that
+    // drives it further in is pushed back (otherwise each trough at a
+    // shallow mooring shoved it seaward, out past its painter).
+    const settled = probe(s.x, s.z, s.heading, keelY);
     let depth = probe(nx, nz, nh, keelY);
     let groundedNow = 0;
     let bowNow = false;
+    if (depth > 0.005 && !contact.rock && depth <= settled + 0.002) {
+      groundedNow = 1;
+      bowNow = contact.bow;
+      depth = 0;
+    }
     for (let k = 0; k < 4 && depth > 0.005; k++) {
       const cnx = contact.nx, cnz = contact.nz;
       const rock = contact.rock;
@@ -505,6 +515,10 @@ export function rockyAt(x, z, b) {
 // logs) a straight run from there that passes over no boulder or solid, so
 // its launch glides clear. Bow toward the beach, as if its painter were
 // made fast ashore. Prefers straight out and close in; null if none.
+// `clear`: water under the keel at mean level, enough for the swell's
+// troughs (to ~0.4 m below the mean in a fresh breeze); with less, the keel
+// touched the sand in each trough, and the bed shoved the boat out past
+// its painter.
 export function findMooring(x, z, bed, { clear = 0.18, solids = null, from = null, margin = 2.5 } = {}) {
   const theta = Math.atan2(z - ISLAND.z, x - ISLAND.x);
   const candidates = [];

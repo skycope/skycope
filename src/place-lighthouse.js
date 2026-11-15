@@ -394,8 +394,22 @@ export function buildLighthouse(p, materials, { light = false } = {}) {
     cylinder(p.x, p.z, 2.45, yP, yC + 1.3, { above: true }),
   ];
   {
-    const c = W(cu + stoepDepth / 2 - 0.15, cv + side * 0.65);
-    solids.push(box(c.x, c.z, φ, (depth + stoepDepth) / 2 + overhang + 0.2, width / 2 + 1.05, lowest - 0.6, wallTop + rise + 0.15, { body: false }));
+    // The house under its roof (and chimney), the stoep's platform, the
+    // lean-to over it and the tank: one box round all of them took in the
+    // open yard by the gables, where a cat stood "inside" it and no lens
+    // could see it.
+    const c = W(cu, cv);
+    // (The walls to the eaves, and the roof with its overhang above them:
+    // one box to the roof's edge took in the sills under the eaves, so a
+    // cat on a sill was "inside" and the lens went into the house.)
+    solids.push(box(c.x, c.z, φ, depth / 2 + 0.02, width / 2 + 0.02, lowest - 0.6, wallTop, { body: false }));
+    solids.push(box(c.x, c.z, φ, depth / 2 + overhang + 0.05, width / 2 + 0.35, eave - 0.05, wallTop + Math.max(rise, 1.7) + 0.1, { body: false, above: true }));
+    const s = W(front + stoepDepth / 2, cv);
+    solids.push(box(s.x, s.z, φ, stoepDepth / 2, width / 2 - 0.1, stoep.lo - 0.6, stoepTop, { body: false }));
+    const l = W(front + (stoepDepth + 0.15) / 2, cv);
+    solids.push(box(l.x, l.z, φ, (stoepDepth + 0.15) / 2, width / 2, floor + 2.05, wallTop - 0.1, { body: false, above: true }));
+    const t = W(tank.u, tank.v);
+    solids.push(cylinder(t.x, t.z, 0.88, lowest - 0.6, tank.top + 0.1, { body: false }));
   }
   for (const w of walls) {
     const m = W(w.u0 + Math.cos(w.yaw) * w.len / 2, w.v0 + Math.sin(w.yaw) * w.len / 2);
@@ -411,6 +425,10 @@ export function buildLighthouse(p, materials, { light = false } = {}) {
   const [cx, cz] = at(cu, cv);
   return prop({
     lod: { near: nearGroup, far: farGroup },
+    // What a ceremony frames (journey.js): the apron the tower stands on
+    // (the walk surface at its centre is the tower's own top) and the
+    // ventilator ball on the dome.
+    frame: { foot: yP, top: yC + 1.2 },
     surfaces: { trunks, tiles, solids },
     covers: [
       { kind: "roof", x: p.x + cx, z: p.z + cz, yaw: φ, hu: depth / 2 + overhang, hv: width / 2 + overhang, y: wallTop },

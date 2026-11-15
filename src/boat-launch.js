@@ -1,4 +1,6 @@
 import { HULL, hullPoint, keel, sheer, halfBreadth } from "./boat-forms.js";
+import { shoreDistance, groundHeight } from "./terrain.js";
+import { seabedDepth, shoreAlong } from "./sea-surface.js";
 
 // The launch, without any drawing: the boat lies upturned on its two logs
 // (places' prop) until the cat pushes at it or hops onto it; then it rocks
@@ -32,11 +34,57 @@ for (let i = 0; i <= 10; i++) for (const side of [-1, 1]) {
   SECTION.push([p[0], p[1]]);
 }
 const KEEL = [-0.92, -0.45, 0, 0.45, 0.8].map((s) => [s * H, keel(s) - 0.02]);
+// The bottom, finely (along, across, height): where it rides over a log.
+const BOTTOM = [];
+for (let s = -0.98; s <= 0.92; s += 0.05)
+  for (const t of [0, 0.2, 0.4]) for (const side of t ? [-1, 1] : [1]) {
+    const p = hullPoint(s, t, side);
+    BOTTOM.push([s * H, p[0], p[1] - (t ? 0 : 0.02)]);
+  }
+// (along, height) pairs a hull over a log may bear on; reused.
+const support = new Float64Array(2 * (KEEL.length + BOTTOM.length));
+
+// The bare sand and seabed: what the launch slides on (not the hull's own
+// walk tile).
+export function bareSand(x, z) {
+  const inland = shoreDistance(x, z);
+  return inland < 0 ? Math.max(groundHeight(x, z), -seabedDepth(-inland, shoreAlong(x, z))) : groundHeight(x, z);
+}
+
+// The lowest point of the midship section rolled by `roll` (hull frame).
+function lowest(roll) {
+  const c = Math.cos(roll), s = Math.sin(roll);
+  let low = Infinity;
+  for (const [v, y] of SECTION) low = Math.min(low, y * c - v * s);
+  return low;
+}
+
+// Upturned on its two logs (landmark { x, z, facing }; bed: bareSand):
+// each end's gunwale LAUNCH.logs above the highest sand under that end,
+// the gunwale straight between them. The pose the places prop draws its
+// hull in (place-shore.js) and the launch starts from, so nothing jumps
+// when the cat pushes it: { x, y, z, heading, pitch, roll, logY } (y the
+// hull frame's origin; boat.js's euler (−pitch, heading, −roll), YXZ).
+export function restPose(landmark, bed = bareSand) {
+  const fx = Math.sin(landmark.facing), fz = Math.cos(landmark.facing);
+  const endRest = (s0, s1) => {
+    let g = -Infinity;
+    for (let s = s0; s <= s1 + 1e-6; s += 0.125)
+      for (const v of [-0.8, 0, 0.8]) g = Math.max(g, bed(landmark.x + fx * s * H + fz * v, landmark.z + fz * s * H - fx * v));
+    return g;
+  };
+  const sternRest = endRest(-1, -0.4), bowRest = endRest(0.4, 1);
+  const logY = (sternRest + bowRest) / 2;
+  return { x: landmark.x, y: logY + LAUNCH.logs - lowest(Math.PI), z: landmark.z, heading: landmark.facing, pitch: Math.atan2(bowRest - sternRest, 2 * H), roll: Math.PI, logY };
+}
 
 // landmark { x, z, facing }; to { x, z } where it is going (the cove);
 // bed(x, z): the sand, seabed or a boulder's top; water(x, z): the sea's
 // surface as drawn (−∞ on dry land).
-export function createLaunch({ landmark, to, bed, water }) {
+// logs(x, z): the top of the logs it lay on (−∞ off them): once it is on
+// its keel it slides over them, not through them.
+export function createLaunch({ landmark, to, bed, water, logs = null }) {
+  const over = logs ? (x, z) => Math.max(bed(x, z), logs(x, z)) : bed;
   const dx = to.x - landmark.x, dz = to.z - landmark.z;
   const run = Math.hypot(dx, dz) || 1;
   const ux = dx / run, uz = dz / run;
@@ -45,26 +93,11 @@ export function createLaunch({ landmark, to, bed, water }) {
   const bowFirst = Math.cos(down - landmark.facing) >= 0;
   const slideHeading = bowFirst ? down : down + Math.PI;
   const turn = wrap(slideHeading - landmark.facing);
-  // Upturned on its logs: each end's gunwale on the sand under it, plus the
-  // logs (as places' prop lies, place-shore.js).
-  const fx0 = Math.sin(landmark.facing), fz0 = Math.cos(landmark.facing);
-  const endRest = (s0, s1) => {
-    let g = -Infinity;
-    for (let s = s0; s <= s1 + 1e-6; s += 0.125)
-      for (const v of [-0.8, 0, 0.8]) g = Math.max(g, bed(landmark.x + fx0 * s * H + fz0 * v, landmark.z + fz0 * s * H - fx0 * v));
-    return g;
-  };
-  const sternRest = endRest(-1, -0.4), bowRest = endRest(0.4, 1);
-  const logPitch = Math.atan2(bowRest - sternRest, 1.4 * H);
-  const logY = (sternRest + bowRest) / 2;
-
-  // The lowest point of the midship section rolled by `roll`.
-  function lowest(roll) {
-    const c = Math.cos(roll), s = Math.sin(roll);
-    let low = Infinity;
-    for (const [v, y] of SECTION) low = Math.min(low, y * c - v * s);
-    return low;
-  }
+  // Upturned on its logs, as the places prop lies (restPose; the pitch
+  // was steeper here than the prop's, so the hull jumped at the push).
+  const rest0 = restPose(landmark, bed);
+  const logPitch = rest0.pitch;
+  const logY = rest0.logY;
   // Resting on its keel at (x, z, heading): height and pitch from the sand
   // under its keel stations (and the logs while it is still on them).
   const rest = { y: 0, pitch: 0 };
@@ -73,11 +106,48 @@ export function createLaunch({ landmark, to, bed, water }) {
     // Each keel station's height were the hull level there (sand less its
     // keel's own height), the pitch that lays it on both ends, and the
     // height that keeps every station on or above its sand.
-    const h = KEEL.map(([u, k]) => bed(x + fx * u, z + fz * u) + lift - k);
+    const h = KEEL.map(([u, k]) => over(x + fx * u, z + fz * u) + lift - k);
     const first = KEEL[0][0], last = KEEL[KEEL.length - 1][0];
-    const tan = Math.max(-0.25, Math.min(0.25, (h[h.length - 1] - h[0]) / (last - first)));
+    let tan = Math.max(-0.25, Math.min(0.25, (h[h.length - 1] - h[0]) / (last - first)));
     let y = -Infinity;
     for (let i = 0; i < KEEL.length; i++) y = Math.max(y, h[i] - KEEL[i][0] * tan);
+    // The logs are narrower than the stations' spacing: the bottom bears
+    // on them wherever it crosses one. Over a log it see-saws: it settles
+    // on the two supports either side of its middle (the log and the sand
+    // or the other log), as low as they let its middle go, instead of
+    // being lifted level and perched on the log with both ends in the air.
+    if (logs) {
+      let n = 0;
+      for (let i = 0; i < KEEL.length; i++) {
+        support[n++] = KEEL[i][0];
+        support[n++] = h[i];
+      }
+      let onLog = false;
+      for (const [u, v, k] of BOTTOM) {
+        const top = logs(x + fx * u + fz * v, z + fz * u - fx * v);
+        if (top > -Infinity && top + lift - k > y + u * tan - 1e-4) onLog = true;
+        if (top > -Infinity) {
+          support[n++] = u;
+          support[n++] = top + lift - k;
+        }
+      }
+      if (onLog) {
+        // The lowest middle over every pair of supports astride it.
+        let best = -Infinity, slope = tan;
+        for (let i = 0; i < n; i += 2) {
+          if (support[i] > 0) continue;
+          for (let j = 0; j < n; j += 2) {
+            if (support[j] <= 0) continue;
+            const s = (support[j + 1] - support[i + 1]) / (support[j] - support[i]);
+            const mid = support[i + 1] - support[i] * s;
+            if (mid > best) { best = mid; slope = s; }
+          }
+        }
+        tan = Math.max(-0.4, Math.min(0.4, slope));
+        y = -Infinity;
+        for (let i = 0; i < n; i += 2) y = Math.max(y, support[i + 1] - support[i] * tan);
+      }
+    }
     rest.pitch = Math.atan(tan);
     rest.y = y;
     return rest;

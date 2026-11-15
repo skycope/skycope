@@ -15,7 +15,7 @@ import { markSolid, SOLID_ORDER } from "./cat-coat.js";
 // blue night are the strongest "come here" the island has.
 //
 //   createPlaces(group, seed, { light, shared }) → {
-//     pois: [{ id, title, x, z, r }],
+//     pois: [{ id, title, x, z, r, foot?, top? }],
 //     obstacles: { trunks, domes },   // walker.js formats
 //     blockers: [...],                // camera/body solids (blockers.js)
 //     update({ time, night, wind, eye, pose }), dispose() }
@@ -79,13 +79,19 @@ export function createPlaces(group, seed, { light = false, shared } = {}) {
   return {
     group: root,
     layout,
-    pois: layout.map(({ id, title, x, z, r }) => ({ id, title, x, z, r })),
+    // foot, top: what a ceremony frames, where the place says (else the
+    // walk surface at its centre).
+    pois: layout.map(({ id, title, x, z, r }) => ({ id, title, x, z, r, ...built.find((b) => b.place.id === id)?.frame })),
     obstacles,
     blockers,
     // The prop contracts' data, for the systems that will read it:
     // covers for precipitation.js, affordances for affordances.js.
     covers: built.flatMap((b) => b.covers.map((c) => ({ place: b.place.id, ...c }))),
     affordances: built.flatMap((b) => b.affordances.map((a) => ({ place: b.place.id, ...a }))),
+    // waking.js: where a keepsake's light is kindled, by place id (coast
+    // [x, y, z]), where its prop says (the boiler's furnace, the pool's
+    // water, the boat's lantern).
+    wakingAnchors: Object.fromEntries(built.filter((b) => b.waking).map((b) => [b.place.id, b.waking])),
     // boat: the fisherman's boat's hull ({ launch() }, place-shore.js).
     boatHull: built.find((b) => b.hull)?.hull ?? null,
     // land-magic: the lighthouse lamp (coast metres) and the island's lamps.

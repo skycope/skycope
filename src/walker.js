@@ -166,7 +166,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
   let target = null;
   // Running state kept in one object, not closure variables: a closure's
   // number is re-boxed on every write (an allocation a frame each).
-  const rt = { blocked: 0, armLift: 0, lastDrag: -10, clock: 0, escape: 0, escapeUntil: -1 };
+  const rt = { blocked: 0, armLift: 0, lastDrag: -10, clock: 0, escape: 0, escapeUntil: -1, pinX: 0, pinZ: 0, pinned: 0 };
   // Where the aim is easing to when it is not simply following: the slow
   // drift of sitting to watch the sky. { yaw, elevation, distance, rate }
   let goal = null;
@@ -332,7 +332,20 @@ export function createWalker(obstacles, sea = null, wake = null) {
       // trunk dead ahead, a pocket between boulders, a keel), the cat looks
       // for the nearest way that is open, either side of where it wants to
       // go, and heads that way for a moment; with none open, it hops.
-      if (want > 0.01 && rt.blocked > 0.35 && cat.air === 0 && cat.swim < 0.5) {
+      // (Pinned also when each frame's step goes somewhere but the cat gets
+      // nowhere: jittering in a corner between a step and a wall, where
+      // the skewed tries each move it a hair and back; it stood 3 s at the
+      // lighthouse's door steps with W held.)
+      // (Longer than a pivot to slide round a trunk, where the cat stands
+      // still on purpose for half a second.)
+      if (want > 0.3 && rt.clock >= rt.escapeUntil && cat.air === 0 && cat.swim < 0.5 && hyp(cat.x - rt.pinX, cat.z - rt.pinZ) < 0.06) rt.pinned += dt;
+      else {
+        rt.pinX = cat.x;
+        rt.pinZ = cat.z;
+        rt.pinned = 0;
+      }
+      if (want > 0.01 && (rt.blocked > 0.35 || rt.pinned > 0.8) && cat.air === 0 && cat.swim < 0.5) {
+        rt.pinned = 0;
         const base = Math.atan2(dirX, dirZ);
         let found = NaN;
         for (let k = 1; k <= 8 && found !== found; k++)
@@ -1008,10 +1021,11 @@ export function createWalker(obstacles, sea = null, wake = null) {
     // Turn the view to the middle of the cat and the subject's top (by
     // angle), so both sit in the frame.
     // (The bisector of the directions from the lens to the cat and to the
-    // subject's upper part: a midpoint in space put a near cat out of the
-    // bottom of the frame.)
+    // subject's top: a midpoint in space put a near cat out of the bottom
+    // of the frame, and aiming two-thirds up left the lighthouse's lantern
+    // above it; the search keeps their span inside the frame.)
     const L = best.lens;
-    const fx = subject.x, fy = sy0 + (sy1 - sy0) * 0.65, fz = subject.z;
+    const fx = subject.x, fy = sy1, fz = subject.z;
     const dc = hyp(hyp(tx - L.x, tz - L.z), ty - 0.1 - L.y) || 1;
     const ds = hyp(hyp(fx - L.x, fz - L.z), fy - L.y) || 1;
     const ux = (tx - L.x) / dc + (fx - L.x) / ds, uy = (ty - 0.1 - L.y) / dc + (fy - L.y) / ds, uz = (tz - L.z) / dc + (fz - L.z) / ds;

@@ -119,7 +119,7 @@ const c1 = new THREE.Color();
 // Paint and timber colour for the outer skin at girth t, strake k, height
 // y: antifouling below the waterline, a cream boot-top, blue topsides
 // (each plank its own slight shade), the darker sheer strake.
-function outerColour(t, k, y, s, out) {
+export function outerColour(t, k, y, s, out) {
   const n = (hash(k * 7.1, s * 3.3) - 0.5) * 0.06 + (hash(k * 13.7) - 0.5) * 0.1;
   if (y < -0.035) out.copy(ANTIFOUL);
   else if (y < 0.02) out.copy(BOOT);

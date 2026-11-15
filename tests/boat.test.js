@@ -299,9 +299,13 @@ test("the launch: nothing moves until the cat touches it, and the hull always be
   const { groundHeight } = await import("../src/terrain.js");
   const { seabedDepth, shoreAlong } = await import("../src/sea-surface.js");
   // The bare sand and seabed (not the upturned hull's own walk tile).
-  const sand = (x, z) => (shoreDistance(x, z) < 0 ? Math.max(groundHeight(x, z), -seabedDepth(-shoreDistance(x, z), shoreAlong(x, z))) : groundHeight(x, z));
+  const { boatLogs, LOG_R } = await import("../src/place-shore.js");
+  const { timberHeight } = await import("../src/place-kit.js");
+  const bare = (x, z) => (shoreDistance(x, z) < 0 ? Math.max(groundHeight(x, z), -seabedDepth(-shoreDistance(x, z), shoreAlong(x, z))) : groundHeight(x, z));
   const points = [];
   for (const s of [-0.95, -0.5, 0, 0.5, 0.9]) for (const t of [0, 0.25, 0.5, 0.75, 1]) for (const side of [-1, 1]) points.push(new THREE.Vector3(...hullPoint(s, t, side)));
+  // (Finely along the bottom too: a log bears on it between the stations.)
+  for (let s = -0.98; s <= 0.92; s += 0.05) for (const t of [0, 0.2, 0.4]) for (const side of [-1, 1]) points.push(new THREE.Vector3(...hullPoint(s, t, side)));
   const euler = new THREE.Euler(0, 0, 0, "YXZ");
   const v = new THREE.Vector3();
   for (const seed of SEEDS) {
@@ -311,6 +315,12 @@ test("the launch: nothing moves until the cat touches it, and the hull always be
     const ride = createBoatRide({ landmark, sea, bed: walker.bed, solids: walker.solids, magic });
     const cat = { ...walker.cat, x: landmark.x + 6, z: landmark.z + 6, y: 5, air: 0 };
     const none = { move: [0, 0] };
+    // The logs it lay on (the places prop's own): sliding, it rides over
+    // them; it went 0.4 m through them when the slide saw only the sand.
+    const logs = boatLogs(landmark).map((q) => timberHeight(q, LOG_R));
+    const logTop = (x, z) => Math.max(logs[0](x, z), logs[1](x, z));
+    const sand = (x, z) => Math.max(bare(x, z), logTop(x, z));
+    let through = 0;
     let t = 0;
     magic.wake("boat");
     for (; t < 10; t += 1 / 30) {
@@ -340,12 +350,14 @@ test("the launch: nothing moves until the cat touches it, and the hull always be
         const under = p.phase === "slide" ? Math.max(floor, Number.isFinite(water) ? water - 0.25 : -Infinity) : top + LAUNCH.logs;
         gap = Math.min(gap, w.y - under);
         sunk = Math.min(sunk, w.y - floor);
+        if (p.phase === "slide") through = Math.max(through, logTop(w.x, w.z) - w.y);
       }
       lowestGap = Math.min(lowestGap, gap);
       assert.ok(gap < 0.09, `seed ${seed}: ${p.phase} at ${(t).toFixed(2)} s, its lowest point ${gap.toFixed(3)} m above what bears it`);
       assert.ok(sunk > -0.12, `seed ${seed}: ${p.phase}, ${(-sunk).toFixed(3)} m into the sand`);
       frames++;
     }
+    assert.ok(through < 0.03, `seed ${seed}: the hull slid ${through.toFixed(3)} m through a log`);
     assert.equal(ride.ride.state, "waiting", `seed ${seed}: afloat in the end (${phase})`);
     assert.ok(frames > 60, "a launch you can watch");
     assert.ok(ride.tether, "on its painter");
@@ -355,23 +367,67 @@ test("the launch: nothing moves until the cat touches it, and the hull always be
 test("on its painter the boat swings to the wind but stays by its post", async () => {
   const { createBoatRide, RIDE } = await import("../src/boat-ride.js");
   const { createMagic } = await import("../src/magic.js");
-  for (const wind of [[0, 0], [7, 0], [-5, 5]]) {
-    const { walker, sea, places } = world(1847);
+  for (const [seed, wind] of [1847, 1, 99999].flatMap((sd) => [[0, 0], [7, 0], [-5, 5]].map((w) => [sd, w]))) {
+    const { walker, sea, places } = world(seed);
     const landmark = places.layout.find((p) => p.id === "boat");
     const ride = createBoatRide({ landmark, sea, bed: walker.bed, solids: walker.solids, magic: createMagic({ force: ["boat"] }) });
-    const swell = (await import("../src/swell.js")).swellUniform(1847, wind);
-    const modes = createWaveModes(1847);
+    const swell = (await import("../src/swell.js")).swellUniform(seed, wind);
+    const modes = createWaveModes(seed);
     const cat = { ...walker.cat, x: landmark.x + 6, z: landmark.z + 6, y: 5, air: 0 };
-    let far = 0;
+    let far = 0, jolt = 0;
     const s = ride.state;
+    let px = s.x, pz = s.z;
     for (let t = 0; t < 120; t += 1 / 30) {
       modes.update(t, wind);
       sea.set(t, swell, wind);
       ride.update(1 / 30, { move: [0, 0] }, cat);
       const stem = { x: s.x + Math.sin(s.heading) * 2.32, z: s.z + Math.cos(s.heading) * 2.32 };
       far = Math.max(far, Math.hypot(stem.x - ride.post.x, stem.z - ride.post.z));
+      jolt = Math.max(jolt, Math.hypot(s.x - px, s.z - pz));
+      px = s.x;
+      pz = s.z;
       assert.ok(shoreDistance(s.x, s.z) < 0, "afloat");
     }
-    assert.ok(far < RIDE.painter + 0.35, `wind ${wind}: the stem within its painter of the post (${far.toFixed(2)} m)`);
+    // Set down on the sand in a trough, it sits; it is not shoved (that
+    // threw it 0.2 m in a frame, out past its painter).
+    assert.ok(jolt < 0.03, `seed ${seed} wind ${wind}: jolted ${jolt.toFixed(3)} m in a frame at its mooring`);
+    assert.ok(far < RIDE.painter + 0.35, `seed ${seed} wind ${wind}: the stem within its painter of the post (${far.toFixed(2)} m)`);
+  }
+});
+
+// The upturned hull ashore (places' prop) is the afloat boat's own form in
+// the pose the launch starts from: at the push nothing changes shape or
+// jumps (it was a lower, flatter hull, pitched 0.09 rad less), and the
+// gunwale sits on the logs.
+test("ashore and at the push the hull is one boat in one pose, on its logs", async () => {
+  const { placesLayout } = await import("../src/place-layout.js");
+  const { buildBoat, boatLogs } = await import("../src/place-shore.js");
+  const { createMaterials } = await import("../src/place-kit.js");
+  const { createLaunch, restPose, bareSand } = await import("../src/boat-launch.js");
+  const { hullPoint, HULL } = await import("../src/boat-forms.js");
+  for (const seed of SEEDS) {
+    const p = placesLayout(seed).find((q) => q.kind === "boat");
+    const b = buildBoat(p, createMaterials({}), { seed });
+    const launch = createLaunch({ landmark: p, to: { x: p.x + 10, z: p.z }, bed: bareSand, water: () => -Infinity });
+    const pose = launch.pose(0, {});
+    const rest = restPose(p);
+    assert.ok(Math.abs(pose.y - rest.y) < 1e-9 && Math.abs(pose.pitch - rest.pitch) < 1e-9, `seed ${seed}: the launch starts where the prop lies`);
+    const m = new THREE.Matrix4().compose(new THREE.Vector3(pose.x, pose.y, pose.z), new THREE.Quaternion().setFromEuler(new THREE.Euler(-pose.pitch, pose.heading, -pose.roll, "YXZ")), new THREE.Vector3(1, 1, 1));
+    const at = (s, t, side) => new THREE.Vector3(...hullPoint(s, t, side)).applyMatrix4(m);
+    // The prop's standing tile follows the launched hull's keel.
+    const tile = b.surfaces.tiles[0];
+    const tileAt = (x, z) => tile.heights[Math.round((z - tile.z0) / tile.cell) * tile.nx + Math.round((x - tile.x0) / tile.cell)];
+    for (const s of [-0.6, 0, 0.5]) {
+      const k = at(s, 0, 1);
+      assert.ok(Math.abs(tileAt(k.x, k.z) - 0.02 - k.y) < 0.06, `seed ${seed}: the keel at ${s} stands where the launched hull's is (${(tileAt(k.x, k.z) - 0.02).toFixed(3)} vs ${k.y.toFixed(3)})`);
+    }
+    // The gunwale on the logs: each log's top just under it.
+    const logs = boatLogs(p);
+    for (const [i, s] of [-0.62, 0.55].entries()) {
+      const g = Math.min(at(s, 1, -1).y, at(s, 1, 1).y);
+      const top = Math.max(...logs[i].slice(1, 3).map((q) => q.y)) + 0.12;
+      assert.ok(g - top > -0.005 && g - top < 0.04, `seed ${seed}: gunwale ${(g - top).toFixed(3)} m over log ${i}`);
+    }
+    assert.equal(HULL.half * 2, 4.6);
   }
 });
