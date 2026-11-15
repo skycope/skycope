@@ -162,7 +162,36 @@ test("the table: whole, finite, half floats that read back", () => {
     assert.ok(Math.abs(fromHalf(table.half[i]) - table.hdr[i]) <= Math.abs(table.hdr[i]) * 1e-3 + 1e-7, `${i}`);
   // Row 0 is the sky at the horizon, row HALF the sea there.
   assert.equal(tableColour(table, 0, 0).length, 3);
-  assert.match(cssSky(table, HOME_VIEW), /^linear-gradient\(rgb/);
+  assert.match(cssSky(table, HOME_VIEW), /^linear-gradient\(#[0-9a-f]{6} /);
+});
+
+test("the first paint: index.html's inline sky is the table the model writes, and close to the drawn one", async () => {
+  const { block, inlined } = await import("../scripts/veil-palette.mjs");
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const script = inlined(html);
+  assert.equal(script, block().trim(), "run `node scripts/veil-palette.mjs` after changing the sky model");
+  const body = script.replace(/^<script>/, "").replace(/<\/script>$/, "");
+  const deltaE = (a, b) => Math.hypot(...a.map((v, i) => v - b[i]));
+  for (const minutes of [350, 420, 750, 1050, 1145, 1188, 1320]) {
+    const when = Date.UTC(2026, 10, 15, 0, minutes) - 2 * 3600000;
+    class Then extends Date {
+      constructor(...a) {
+        super(...(a.length ? a : [when]));
+      }
+    }
+    const element = { style: {} };
+    new Function("document", "Date", body)({ getElementById: () => element }, Then);
+    const painted = [...element.style.backgroundImage.matchAll(/rgb\((\d+),(\d+),(\d+)\) ([\d.]+)%/g)].map((m) => ({ c: m.slice(1, 4).map(Number), at: Number(m[4]) / 100 }));
+    assert.ok(painted.length >= 6, `${minutes}: ${element.style.backgroundImage}`);
+    // Against the exact sky for that moment (clear, no moon), stop by stop:
+    // within a few sRGB levels.
+    const sky = skyAt(new Date(when));
+    const exact = skyTable({ ...sky, moon: [0, -1, 0] }, null);
+    for (const { c, at: v } of painted) {
+      const [r, g, b] = (await import("../src/loading-sky.js")).cssStops(exact, HOME_VIEW, 1, 64, 64).reduce((best, s) => (Math.abs(s.at - v) < Math.abs(best.at - v) ? s : best)).colour.match(/../g).map((x) => parseInt(x, 16));
+      assert.ok(deltaE(c, [r, g, b]) < 14, `${minutes} at ${v}: ${c} vs ${[r, g, b]}`);
+    }
+  }
 });
 
 // A DOM just big enough for the controller (no WebGL: the CSS sky).

@@ -300,8 +300,12 @@ export function createLoadingScreen({ document: doc = globalThis.document, stora
       else draw();
     } else draw();
     // The same sky as a gradient: under the canvas, and the whole picture
-    // where WebGL2 is missing.
-    root.style.backgroundImage = cssSky(table, tween?.to ?? scene.view, view.innerWidth / Math.max(1, view.innerHeight));
+    // where WebGL2 is missing. The first time, the drawn sky fades in over
+    // index.html's first-paint gradient (from a table), which stays under
+    // it until then.
+    const gradient = cssSky(table, tween?.to ?? scene.view, view.innerWidth / Math.max(1, view.innerHeight));
+    if (first && painter) timers.push(setTimeout(() => state === "loading" && (root.style.backgroundImage = gradient), 900));
+    else if (!(first && painter) && state === "loading") root.style.backgroundImage = gradient;
     if (first) {
       if (painter) root.dataset.painted = "";
       view.performance?.mark?.("loading:painted");

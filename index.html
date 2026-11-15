@@ -901,7 +901,8 @@
         transition: opacity 0.7s cubic-bezier(0.4, 0, 0.6, 1);
         --glow: 0;
       }
-      .loading-screen canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+      .loading-screen canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
+      .loading-screen[data-painted] canvas { opacity: 1; }
       /* The page's own lens falloff (.vignette), so the world arrives under
          the same corners. */
       .loading-screen::after {
@@ -1001,6 +1002,40 @@
       <div class="wisp" aria-hidden="true"><div class="wisp-bob"><div class="wisp-light"></div></div></div>
       <p class="quiet">loading</p>
     </div>
+    <!-- veil palette: begin -->
+    <script>
+      // The veil's first paint: this moment's sky from a table (scripts/veil-palette.mjs).
+      (function () {
+        var P = {"at":[0,0.0539,0.1079,0.1618,0.2158,0.2697,0.2707,0.5138,0.7569,1],"morning":["07192e081a30091b30091b310a1c320b1d3305172c011022011021011021","07192e081a30091b30091b310a1c320b1d3305172c011022011021011021","07192e081a30091b30091b310a1c320b1d3305172c011022011021011021","07192e081a30091b30091b310a1c320b1d3305172c011022011021011021","07192e081a30081a30091b310a1c320a1d3305172c011021011021011021","06182d07192e07192f081a30081a30091b3104162a011020011020011020","080f2605152a05162b05172c05182d06182e04152b021127021127021127","2e1629290f22220b20050b23031327031428031429031229021329021329","52333a58302f5b2c26561c15330518010f2102132604162b03172b03172b","9c7872af7e67b87f5dc8793dc9601c4d040a390e240e283f0b293f0b293f","d1bcb4eac8aaf0c89df6bf7bf9ad5ef98650e870341b415c16405b16405b","ede8e5f5e8d2f7e6c4fadca6fcce8dfcb17df8a3632254741c52731b5272","e2edf3f2f6eaf8f7dffbedc0fcdfa5fdc595faba7e215b7e1b597d1a587c","d5e9f6e8f7f3eef8eafaf8d2fceab3fdcf9ffbc68b1f5c83195a81185a81","c9e4f8dcf4f8e5f9f4f2fbdefcf4c3fdd9a9fbd1991d5d87175b84165b84","c0e0f9d2eefadcf6faeafbe8fbfcd2fde0b3fbdaa61b5e8a155c87155b87","bbddf9cbeafad4f2fae6fbeff5fcdafde5bbfae1b11a5e8c145c8a145c89","b6dafac5e6fbceedfbe2fbf5f1fce1fdeac2fae7bb195f8e135c8c135c8b","b3d8fac1e3fbc9eafbdffbfaedfce6fdeec9faebc4185f90125c8d125c8d","afd6fabde1fbc5e7fbdbf9fbeafceafdf0cdfaeec9165d8e115b8c105a8b","acd3fabadffbc1e5fbd6f5fbe8fcedfdf3d1f9f1cf145b8d0f598a0f598a","a2cdf9b0d8fab8defbcbedfbe1fbf6fcf9def7f7de0f56870b54850b5385","9bc8f8a9d3fab1dafac3e8fbdcfafbfafbe5f1f6e40c5283095081095081","96c5f7a4d0f9acd6fabee5fad6f6faf7fbe8edf5e70a4f80074d7d074d7d","91c1f5a0cdf8a8d3f9bae2fad2f3faf5faebe9f3e8094c7d064b7b064b7a","8ebff49dcbf7a4d1f8b7e0f9cff1faf3faece6f1e9084b7b064a79064979","8cbef49bcaf7a3d0f8b5dff9cdeff9f2faede4f0ea084b7b064a7a064979","8bbdf399c9f7a1cff8b4def9cbeef9f1faeee2efea084b7c064a7a06497a","89bcf398c8f6a0cef7b2ddf9caedf9f0f9efe1eeea084b7c064a7a06497a","88bbf297c7f69fcdf7b1dcf8c8ecf9eff9efdfedea084b7b064a79064979","86b9f195c6f59dccf6b0dbf8c7ecf8eff9efddebe9084b7a064979064978"],"evening":["07192e081a30091b30091b310a1c320b1d3305172c011022011021011021","07192e081a30091b30091b310a1c320b1d3305172c011022011021011021","07192e081a30091b30091b310a1c320b1d3305172c011022011021011021","07192e081a30091b30091b310b1b320d1b3206162b011022011021011021","08182e0a192f0b192f0f183016152f1e152f0e0c27011021011021011021","12162f1c1a33231d36332539412838441a30300f26011020011020011020","42374f554558604b5b77545b8854517929335a1928021026021026021026","544356664e5b70535c845b579258487d24245d1721031329021329021329","634f5c765a5e80605d946754a364408f2d1a6b1c1803162a03162a03162a","9f8689ba9688c89e85e6aa73f3a151f2692dc14f260d273d0a273d0a273d","d2c4c3edd5c0f2d6b5f8d199fbc57ffca576f7914f1a405a153e59153e59","eaecedf5f0def7eed3fbe7b5fcdb9dfdc192fbb2742253721b51711b5171","dcebf4edf7eef3f8e5faf5cbfce8affece9ffbc386215b7e1b587c1a587c","d0e7f6e4f7f7e9f9eef6fad9fcf1bcfdd6a6fbce921f5c83195a81185a81","c7e3f7d9f2f8e2f9f6effbe1fcf8c8fddcadfbd69c1d5d86175b84165b84","bfdff8d0edf9daf5fae8fbe9f8fcd3fde3b5fbdda81b5e89155c87155b87","b9dcf9c9e9fad2f0fae4fbf0f3fcdbfde7bcfbe3b3195e8c145c8a145c89","b6daf9c4e6facdedfbe1fbf6effce1fdebc3fae8bb195f8e135c8c135c8b","b2d8fac1e3fbc9eafbdefbfaecfce6fdeec9faecc3185f90135d8d125c8d","afd5fabde1fbc5e7fbdaf8fbeafceafdf0cdfaeec9165d8e115b8c115b8c","acd3fabadefbc1e5fbd6f5fbe7fcedfdf2d1f9f1ce145b8d0f598a0f598a","a3cef9b1d8fab8defbcbeefbe1fbf5fcf8dcf8f6dc1056880c54850b5485","9ecaf8abd4fab2dafac4e9fbddfafbfbfbe4f3f6e30d5283095081095081","99c7f8a7d1f9aed7fabfe5fbd7f7faf8fbe8eef5e60b4f80084d7e074d7d","95c4f7a3cff9aad5f9bce3fad3f4faf6fbeaebf3e80a4d7d074b7b064b7b","92c2f6a0cdf8a7d3f9b9e1fad0f2faf4faece8f2e9094c7c064a7a064a79","91c1f69eccf8a5d2f9b7e0facef0faf3faede6f2ea094c7c064a7a064a7a","8fc0f59ccbf8a4d0f9b5defacceffaf2faeee4f1eb094b7c064a7a064a7a","8dbef59bc9f7a2cff8b4ddf9cbeef9f1faefe2f0eb084b7c064a7a064a7a","8bbdf499c8f7a0cef8b2dcf9c9edf9f0f9efe0eeeb084b7c064a7a064a79","88bbf297c7f69ecdf7b0dbf8c8ecf9eff9efddece9084b7b064979064979"]};
+        function capeSun(now) {
+  var r = Math.PI / 180;
+  var g = ((2 * Math.PI) / 365) * ((now - Date.UTC(now.getUTCFullYear(), 0, 1)) / 864e5);
+  var dec = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g) + 0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
+  var eq = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g) - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
+  var minutes = now.getUTCHours() * 60 + now.getUTCMinutes() + now.getUTCSeconds() / 60;
+  var hour = ((minutes + eq + 4 * 18.4241) / 4 - 180) * r;
+  var lat = -33.9249 * r;
+  return { altitude: Math.asin(Math.sin(lat) * Math.sin(dec) + Math.cos(lat) * Math.cos(dec) * Math.cos(hour)) / r, morning: hour < 0 };
+}
+        try {
+          var sun = capeSun(new Date());
+          var rows = sun.morning ? P.morning : P.evening;
+          var f = sun.altitude <= 12 ? (sun.altitude + 18) / 1.5 : 20 + (sun.altitude - 12) / 6;
+          f = Math.max(0, Math.min(rows.length - 1.001, f));
+          var i = Math.floor(f), t = f - i;
+          var stops = [];
+          for (var k = 0; k < P.at.length; k++) {
+            var c = [0, 1, 2].map(function (n) {
+              var a = parseInt(rows[i].substr(k * 6 + n * 2, 2), 16), b = parseInt(rows[i + 1].substr(k * 6 + n * 2, 2), 16);
+              return Math.round(a + (b - a) * t);
+            });
+            stops.push("rgb(" + c.join(",") + ") " + (P.at[k] * 100).toFixed(2) + "%");
+          }
+          document.getElementById("loading-screen").style.backgroundImage = "linear-gradient(" + stops.join(",") + ")";
+        } catch (e) {}
+      })();
+    </script>
+    <!-- veil palette: end -->
     <div class="focus" aria-hidden="true"></div>
 
     <div class="fallback" aria-hidden="true"></div>

@@ -334,19 +334,26 @@ export function tableColour(table, row, column) {
 // The table down the centre of a view as a CSS gradient (sky stops above
 // the horizon, sea below, a hard step between).
 export function cssSky(table, view, aspect = 16 / 10) {
+  const stops = cssStops(table, view, aspect).map(({ at, colour }) => `#${colour} ${(at * 100).toFixed(2)}%`);
+  return `linear-gradient(${stops.join(", ")})`;
+}
+
+// The stops: `sky` + 1 from the top to the horizon, `sea` + 1 from there to
+// the bottom; { at (0…1 down), colour (hex) }.
+export function cssStops(table, view, aspect = 16 / 10, sky = 8, sea = 6) {
   const h = horizonAt(view);
   const stop = (v) => {
     const ray = viewRay(view, 0.5, v, aspect);
     const u = (((Math.atan2(ray[0], ray[2]) / (Math.PI * 2)) % 1) + 1) % 1;
     const s = Math.sqrt(Math.min(Math.abs(Math.asin(clamp(ray[1], -1, 1))), Math.PI / 2) / (Math.PI / 2));
     const row = Math.round(s * (HALF - 1)) + (ray[1] < 0 ? HALF : 0);
-    const [r, g, b] = tableColour(table, row, Math.min(TABLE_W - 1, Math.floor(u * TABLE_W)));
-    return `rgb(${r}, ${g}, ${b}) ${(v * 100).toFixed(2)}%`;
+    const colour = tableColour(table, row, Math.min(TABLE_W - 1, Math.floor(u * TABLE_W)));
+    return { at: v, colour: colour.map((c) => c.toString(16).padStart(2, "0")).join("") };
   };
   const stops = [];
-  if (h > 0) for (let k = 0; k <= 8; k++) stops.push(stop(Math.min(1, h - 0.0005) * (k / 8)));
-  if (h < 1) for (let k = 0; k <= 6; k++) stops.push(stop(Math.max(0, h + 0.0005) + (1 - Math.max(0, h + 0.0005)) * (k / 6)));
-  return `linear-gradient(${stops.join(", ")})`;
+  if (h > 0) for (let k = 0; k <= sky; k++) stops.push(stop(Math.min(1, h - 0.0005) * (k / sky)));
+  if (h < 1) for (let k = 0; k <= sea; k++) stops.push(stop(Math.max(0, h + 0.0005) + (1 - Math.max(0, h + 0.0005)) * (k / sea)));
+  return stops;
 }
 
 const F32 = new Float32Array(1);
