@@ -1,12 +1,15 @@
 import * as THREE from "three";
 import {
   terrainHeight,
+  shoreDistance,
+  ISLAND,
   islandPoint,
   noise2,
   smoothstep,
 } from "./terrain.js";
 import { seededRandom } from "./random.js";
-import { createHabitat, sampleHabitat } from "./habitat.js";
+import { createHabitat, sampleHabitat, graniteAt } from "./habitat.js";
+import { groundCover } from "./ground-detail.js";
 import { foliageDemand, demandRadius } from "./plant-growth.js";
 import { MATERIAL_HEX } from "./material-palette.js";
 import { plantClear } from "./place-layout.js"; // places:
@@ -62,8 +65,11 @@ export function createVegetation(seed, { avoid = null } = {}) {
   const succulents = [];
   const needles = [];
   const reeds = [];
-  const parts = { wood, leaves, clusters, flowers, turf, fronds, succulents, needles, reeds };
-  const lists = () => [wood, leaves, clusters, turf, fronds, succulents, needles, reeds, ...Object.values(flowers)];
+  // Fynbos shrubs, each one rounded mass of foliage (plant-forms.js
+  // shrubMassGeometry): the understory that closes the ground.
+  const masses = [];
+  const parts = { wood, leaves, clusters, flowers, turf, fronds, succulents, needles, reeds, masses };
+  const lists = () => [wood, leaves, clusters, turf, fronds, succulents, needles, reeds, masses, ...Object.values(flowers)];
   const layout = vegetationLayout(seed);
   // move: nothing grows up through a boulder (a tree's trunk keeps clear
   // of one by its own girth and a little).
@@ -103,8 +109,7 @@ export function createVegetation(seed, { avoid = null } = {}) {
       growGrass(root, plant.height, plant.dune, random, leaves, turf);
     // Moss is a velvet on the soil (forest.js ground cover), not geometry.
     else if (plant.kind === "moss") continue;
-    else if (plant.kind === "shrub")
-      growShrub(root, plant, ecotypes[plant.ecotype], random, wood, plant.dune ? needles : clusters);
+    else if (plant.kind === "shrub") growMass(plant, random, parts);
     else
       growTree(
         root,
@@ -121,7 +126,7 @@ export function createVegetation(seed, { avoid = null } = {}) {
     lists().forEach((list, i) => {
       for (let k = before[i]; k < list.length; k++) {
         const organ = list[k];
-        organ.ground = root.y;
+        organ.ground ??= root.y;
         organ.id = `${plant.id}:${i}:${k - before[i]}`;
         organ.patchId = plant.patchId;
         organ.materialClass ??= plant.kind === "aloe" || plant.kind === "protea" ? "waxy" : plant.form === "snag" ? "dead" : "live";
@@ -133,7 +138,7 @@ export function createVegetation(seed, { avoid = null } = {}) {
       }
     });
   }
-  growTurf(seed, layout, turf);
+  growTurf(seed, layout, turf, masses);
   { let n = 0; for (const t of turf) if (plantClear(seed, "grass", t.position.x, t.position.z) && !avoid?.(t.position.x, t.position.z, 0)) turf[n++] = t; turf.length = n; } // places: move:
   return { ...parts, layout, habitat, producers: habitat.producers, plants: layout.length };
 }
@@ -153,7 +158,12 @@ export function vegetationLayout(seed) {
     const { x, z } = islandPoint(theta, inland);
     const shelter = noise2(x * 0.085 + patch, z * 0.06 + patch);
     const edge = smoothstep(4, 13, inland);
-    if (random() > (0.3 + shelter * 0.8) * (0.3 + edge * 0.7)) continue;
+    // Groves and gaps: trees gather where a grove field is high (sheltered
+    // hollows and kloofs) with open fynbos between them; the odd tree stands
+    // alone in the heath. (An even scatter read as an orchard.)
+    const grove = noise2(x * 0.05 + patch * 0.7, z * 0.045 - patch * 0.3) * 0.75 + shelter * 0.25;
+    const inGrove = smoothstep(0.42, 0.6, grove);
+    if (random() > (0.3 + shelter * 0.8) * (0.3 + edge * 0.7) * (0.1 + 0.9 * inGrove)) continue;
     // A spatial habitat field selects related traits across a grove, not per-row models.
     const ecotype = Math.min(
       ecotypes.length - 1,
@@ -169,9 +179,12 @@ export function vegetationLayout(seed) {
     const form =
       roll < 0.025 ? "snag" : roll < 0.12 && interior > 0.35 ? "sapling" : "blend";
     const scale = form === "sapling" ? 0.3 + random() * 0.2 : 1;
+    // Tallest at a grove's heart, lower toward its edge and alone; each
+    // tree its own age.
     const height =
       traits.height *
-      (0.6 + random() * 0.6) *
+      (0.5 + random() * 0.8) *
+      (0.7 + 0.5 * smoothstep(0.5, 0.85, grove)) *
       (0.55 + exposure * 0.45) *
       mix(SCRUB.height, CANOPY.height, Math.min(1, interior)) *
       scale;
@@ -198,6 +211,8 @@ export function vegetationLayout(seed) {
       form,
       interior: Math.min(1, interior),
       exposure: 1 - edge,
+      // 1 at a grove's rim or alone: the crown is skirted down to the ground.
+      rim: 1 - smoothstep(0.5, 0.7, grove),
       seed: Math.max(1, Math.floor(random() * 0xffffffff)),
     };
     plants.push(plant);
@@ -214,6 +229,7 @@ export function vegetationLayout(seed) {
     const scrubby = random() < 0.16 && inland > 4;
     plants.push({
       kind: scrubby ? "shrub" : "grass",
+      species: scrubby ? "dune" : undefined,
       dune: true,
       form: "blend",
       interior: 0,
@@ -232,8 +248,10 @@ export function vegetationLayout(seed) {
     const { x, z } = islandPoint(theta, inland);
     if (noise2(x * 0.2 + patch, z * 0.16) < 0.27) continue;
     const choice = random();
+    // Ferns only in the shade of the groves (kloof forest), not out on
+    // the fynbos slopes.
     const kind =
-      choice < 0.24 && inland > 7
+      choice < 0.24 && inland > 7 && noise2(x * 0.085 + patch, z * 0.06 + patch) > 0.55 && random() < 0.45
         ? "fern"
         : choice < 0.38 && inland > 9
           ? "moss"
@@ -242,12 +260,13 @@ export function vegetationLayout(seed) {
             : "grass";
     const height =
       kind === "shrub"
-        ? 0.7 + random() * 1.4
+        ? 0.6 + random() * 0.7
         : kind === "moss"
           ? 0.08 + random() * 0.16
           : 0.25 + random() * 0.85;
     plants.push({
       kind,
+      species: kind === "shrub" ? "blombos" : undefined,
       dune: false,
       form: "blend",
       interior: smoothstep(7, 26, inland),
@@ -305,6 +324,7 @@ export function vegetationLayout(seed) {
       seed: Math.max(1, Math.floor(random() * 0xffffffff)),
     });
   }
+  understoryLayout(seed, plants, patch);
   // places: nothing grows through a landmark (place-layout.js).
   { let n = 0; for (const p of plants) if (plantClear(seed, p.kind, p.x, p.z, p.height)) plants[n++] = p; plants.length = n; }
   // Stable identities and a regional age; every candidate keeps its kind, so
@@ -318,6 +338,131 @@ export function vegetationLayout(seed) {
     plant.age = plant.form === "sapling" ? 0.12 : site.age;
   });
   return plants;
+}
+
+// Fynbos shrub species, as the eye sorts them on a Cape hillside: by hue
+// family and size. Colours are sRGB HSL (a painter's pick); `spread` is the
+// mass's radius (m) and `tall` its height over its radius. Nothing
+// saturated: grey-green renosterbos is the matrix, olive and deeper green
+// shrubs stand in it, straw and ochre where plants are old or dry, and the
+// few flowers are small and muted.
+const SPECIES = {
+  renoster: { hsl: [0.2, 0.16, 0.29], spread: [0.38, 0.75], tall: [0.66, 0.92] },
+  erica: { hsl: [0.22, 0.24, 0.22], spread: [0.28, 0.52], tall: [0.72, 0.95], bloom: 0.4, flowers: [[0.87, 0.24, 0.6], [0.93, 0.22, 0.7], [0.12, 0.1, 0.86]] },
+  pelargonium: { hsl: [0.25, 0.26, 0.24], spread: [0.38, 0.68], tall: [0.66, 0.92], bloom: 0.35, flowers: [[0.85, 0.28, 0.66], [0.9, 0.2, 0.74]] },
+  blombos: { hsl: [0.27, 0.27, 0.19], spread: [0.5, 0.92], tall: [0.7, 0.98] },
+  restiold: { hsl: [0.13, 0.24, 0.31], spread: [0.28, 0.52], tall: [0.66, 0.9] },
+  dune: { hsl: [0.17, 0.12, 0.33], spread: [0.25, 0.5], tall: [0.6, 0.9] },
+  sourfig: { hsl: [0.2, 0.3, 0.24], spread: [0.4, 0.85], tall: [0.18, 0.28], bloom: 0.25, flowers: [[0.86, 0.3, 0.62], [0.14, 0.42, 0.66]] },
+};
+// Drifts: one species holds a few metres of slope, as real fynbos does.
+const HEATH = ["renoster", "renoster", "erica", "renoster", "pelargonium", "renoster", "erica", "blombos", "restiold", "renoster"];
+const THICKET = ["blombos", "blombos", "pelargonium", "renoster", "erica"];
+
+// The understory: fynbos shrubs, one rounded mass each, closing the ground
+// between the trees on every slope, so soil shows only on paths, in
+// clearings and under the darkest crowns. Shrubs stand where the ground's
+// painted scrub is (ground-detail.js groundCover), so near and far agree;
+// they thin over granite and toward the sand, where sour-fig mats take
+// over, and under a crown they grow sparse and low. Spacing is a jittered
+// grid broken by a patch field, so they clump with gaps between them.
+function understoryLayout(seed, plants, patch) {
+  const random = seededRandom(seed ^ 0x3c6ef372);
+  const cell = 0.72;
+  // What is already rooted (trunks, rosettes, reeds): shrubs keep clear.
+  const taken = new Map();
+  const key = (x, z) => `${Math.floor(x / 2)},${Math.floor(z / 2)}`;
+  for (const p of plants) {
+    if (p.kind === "grass" || p.kind === "moss" || p.kind === "daisies") continue;
+    const k = key(p.x, p.z);
+    if (!taken.has(k)) taken.set(k, []);
+    taken.get(k).push(p);
+  }
+  const trees = new Map();
+  for (const p of plants) {
+    if (p.kind !== "tree") continue;
+    const k = `${Math.floor(p.x / 6)},${Math.floor(p.z / 6)}`;
+    if (!trees.has(k)) trees.set(k, []);
+    trees.get(k).push(p);
+  }
+  const shadeAt = (x, z) => {
+    let shade = 0;
+    const cx = Math.floor(x / 6), cz = Math.floor(z / 6);
+    for (let dx = -1; dx <= 1; dx++)
+      for (let dz = -1; dz <= 1; dz++)
+        for (const t of trees.get(`${cx + dx},${cz + dz}`) ?? []) {
+          const d2 = (x - t.x) ** 2 + (z - t.z) ** 2;
+          shade += Math.exp(-d2 / Math.max(0.5, t.height * t.height * 0.1)) * (t.form === "snag" ? 0.2 : 0.7);
+        }
+    return Math.min(1, shade);
+  };
+  const crowded = (x, z, r) => {
+    const cx = Math.floor(x / 2), cz = Math.floor(z / 2);
+    for (let dx = -1; dx <= 1; dx++)
+      for (let dz = -1; dz <= 1; dz++)
+        for (const p of taken.get(`${cx + dx},${cz + dz}`) ?? []) {
+          // Shrub masses may run into each other (a thicket is one mass of
+          // many plants); trunks and rosettes keep a little room.
+          const clear = p.kind === "tree" ? 0.25 + p.height * 0.034 : p.kind === "shrub" ? (p.spread ?? 0.4) * 0.55 : 0.35;
+          if (Math.hypot(x - p.x, z - p.z) < clear + r * (p.kind === "shrub" ? 0.5 : 0.75)) return true;
+        }
+    return false;
+  };
+  const drift = random() * 100;
+  const R = 70;
+  for (let gz = -R; gz < R; gz += cell)
+    for (let gx = -R; gx < R; gx += cell) {
+      const x = ISLAND.x + gx + random() * cell;
+      const z = ISLAND.z + gz + random() * cell;
+      const roll = random();
+      const inland = shoreDistance(x, z);
+      if (inland < 2.2) continue;
+      const shade = shadeAt(x, z);
+      const { scrub, sourfig } = groundCover(x, z, inland, shade * 0.4);
+      const granite = graniteAt(x, z, inland);
+      // Clumps and gaps at a few metres: a patch field thins the cover.
+      const clump = noise2(x * 0.42 + patch, z * 0.38 - patch) * 0.7 + noise2(x * 1.1 - 3, z * 1.1 + 7) * 0.3;
+      const open = smoothstep(0.14, 0.4, clump);
+      // Closed fynbos inland, thinning toward the dunes. Under the crowns
+      // it carries on as thicket (shade-tolerant blombos and pelargonium,
+      // lower and a little sparser), so the floor between trunks is cover,
+      // not bare soil.
+      const cover = Math.max(scrub, smoothstep(4, 9, inland) * 0.95) * open * (1 - granite * 0.8) * (1 - shade * 0.12);
+      let species = null;
+      if (roll < cover * 0.92) {
+        const site = noise2(x * 0.06 + drift, z * 0.05 - drift);
+        // (Value noise bunches round 0.5: spread it over the whole list.)
+        const pick = smoothstep(0.22, 0.78, noise2(x * 0.23 + drift, z * 0.21 + drift * 0.5)) * 0.999;
+        const list = site > 0.58 || shade > 0.3 ? THICKET : HEATH;
+        species = list[Math.min(list.length - 1, Math.floor(pick * list.length))];
+        if (inland < 6 && random() < 0.6) species = "dune";
+      } else if (roll < cover * 0.92 + sourfig * 0.5 * open) species = "sourfig";
+      if (!species) continue;
+      const sp = SPECIES[species];
+      // Smaller toward the sea wind and in the shade; neighbours alike.
+      const size = (0.75 + noise2(x * 0.5 - drift, z * 0.5) * 0.5) * (0.6 + smoothstep(2.5, 9, inland) * 0.4) * (1 - shade * 0.15);
+      const spread = (sp.spread[0] + random() * (sp.spread[1] - sp.spread[0])) * size;
+      if (crowded(x, z, spread)) continue;
+      const plant = {
+        kind: "shrub",
+        species,
+        understory: true,
+        dune: inland < 6,
+        form: "blend",
+        interior: smoothstep(7, 26, inland),
+        exposure: 1 - smoothstep(4, 13, inland),
+        ecotype: 0,
+        x,
+        z,
+        spread,
+        height: spread * (sp.tall[0] + random() * (sp.tall[1] - sp.tall[0])),
+        seed: Math.max(1, Math.floor(random() * 0xffffffff)),
+      };
+      plants.push(plant);
+      const k = key(x, z);
+      if (!taken.has(k)) taken.set(k, []);
+      taken.get(k).push(plant);
+    }
 }
 
 // Growth habits reshape the colonized crown volume and its growth biases, so
@@ -416,10 +561,15 @@ function growTree(root, plant, traits, crowns, random, wood, clusters, fronds) {
   const bark = snag
     ? hslColour(0.1, 0.04, 0.4 + random() * 0.12)
     : new THREE.Color(traits.bark).multiplyScalar(0.7 + random() * 0.35);
+  // Hue families, as a hillside of mixed evergreens reads at a distance:
+  // the grove's own deep green, olive, and a silvery grey-green (wild olive,
+  // sea guarrie); each tree a little lighter or darker than its neighbour.
+  const family = random();
+  const [dh, ds, dl] = family < 0.5 ? [0, 0, 0] : family < 0.78 ? [-0.065, -0.06, 0.03] : [-0.03, -0.15, 0.06];
   const color = hslColour(
-    traits.hue + (random() - 0.5) * 0.035,
-    traits.saturation + random() * 0.1,
-    traits.light + random() * 0.04,
+    traits.hue + dh + (random() - 0.5) * 0.035,
+    Math.max(0.1, traits.saturation + ds + random() * 0.08),
+    traits.light + dl + (random() - 0.5) * 0.05,
   );
   // Flagging: crowns lean away from the prevailing onshore wind, hardest at
   // the exposed edge, plus each individual's own asymmetry.
@@ -465,14 +615,18 @@ function growTree(root, plant, traits, crowns, random, wood, clusters, fronds) {
   const crownCenter = spine[6]
     .clone()
     .addScaledVector(PREVAILING, flag * crownR * 0.4);
-  crownCenter.y = root.y + height * (habit.center ?? 0.68);
+  // A tree at a grove's rim or alone keeps its lower limbs: the crown
+  // skirts down toward the ground instead of a lollipop on a bare stem.
+  const rim = snag ? 0 : plant.rim ?? 0;
+  arche.lift *= 1 - rim * 0.55;
+  crownCenter.y = root.y + height * ((habit.center ?? 0.68) - rim * 0.12);
   const neighbours = crowns.filter(
     (c) =>
       (c.x !== plant.x || c.z !== plant.z) &&
       Math.hypot(c.x - crownCenter.x, c.z - crownCenter.z) < c.r + crownR,
   );
   colonizeCrown({
-    seeds: [spine[4], spine[6]],
+    seeds: rim > 0.5 ? [spine[2], spine[4], spine[6]] : [spine[4], spine[6]],
     crownCenter,
     crownR,
     arche,
@@ -493,44 +647,69 @@ function growTree(root, plant, traits, crowns, random, wood, clusters, fronds) {
   });
 }
 
-function growShrub(root, plant, traits, random, wood, clusters) {
-  // (Dune shrubs pass the heath `needles` list: fine-leaved coastal fynbos.)
-  const arche = archetype(plant);
+// A fynbos shrub: one rounded mass (shrubMassGeometry), seated in the
+// slope (sunk to the lowest ground under its rim, leaning a little with
+// the slope and away from the sea wind), in its species colour with its own
+// variation in value and hue; old or dry ones go toward straw. Flowering
+// ones carry a few small, muted heads on their upper surface.
+function growMass(plant, random, { masses, flowers }) {
+  const sp = SPECIES[plant.species] ?? SPECIES.blombos;
+  const spread = plant.spread ?? Math.max(0.35, plant.height * 0.6);
   const height = plant.height;
-  const bark = new THREE.Color(traits.bark).multiplyScalar(0.7 + random() * 0.4);
-  const color = hslColour(
-    traits.hue + (random() - 0.5) * 0.04,
-    traits.saturation + random() * 0.1,
-    traits.light + random() * 0.04,
+  let seat = terrainHeight(plant.x, plant.z);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    seat = Math.min(seat, terrainHeight(plant.x + Math.cos(a) * spread * 0.85, plant.z + Math.sin(a) * spread * 0.85));
+  }
+  seat -= 0.02;
+  const gx = (terrainHeight(plant.x + 0.5, plant.z) - terrainHeight(plant.x - 0.5, plant.z));
+  const gz = (terrainHeight(plant.x, plant.z + 0.5) - terrainHeight(plant.x, plant.z - 0.5));
+  const flag = plant.exposure * 0.12;
+  // Lean: half the slope (the mass hugs the ground), plus the wind.
+  const up = new THREE.Vector3(-gx * 0.45 - PREVAILING.x * flag, 1, -gz * 0.45 - PREVAILING.z * flag).normalize();
+  const yaw = random() * Math.PI * 2;
+  const rotation = new THREE.Euler().setFromQuaternion(
+    new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), up).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw)),
   );
-  const flag = (0.5 + plant.exposure) * (plant.dune ? 1 : 0.5);
-  const crownR = Math.max(0.45, height * 0.9);
-  const crownCenter = root
-    .clone()
-    .add(new THREE.Vector3(PREVAILING.x * flag * 0.3, height * 0.75, 0));
-  // A short stem carries the upper seed: without it, the branches grown
-  // from there started in mid-air.
-  const stem = root.clone().add(new THREE.Vector3(0, height * 0.3, 0));
-  branch(wood, root, stem, height * 0.02, bark, height * 0.017);
-  colonizeCrown({
-    seeds: [root, stem],
-    crownCenter,
-    crownR,
-    arche: { ...arche, flatten: 0.55, points: 0.4 },
-    traits,
-    flag,
-    detail: false,
-    snag: false,
-    baseRadius: height * 0.02,
+  const age = plant.age ?? 0.5;
+  const dry = smoothstep(0.55, 0.9, age) * 0.35 + (random() < 0.07 ? 0.5 : 0);
+  const [h, s, l] = sp.hsl;
+  // A slope is a mosaic at tens of metres, the thing the eye reads from
+  // afar: damp hollows and seeps deeper and greener, dry rises and ridges
+  // greyer and paler; and within it plant by plant a wider spread of value,
+  // a few silver-green (helichrysum, a silvered renosterbos) among them,
+  // still green enough not to read as a boulder.
+  const moist = smoothstep(0.25, 0.75, noise2(plant.x * 0.045 + 7, plant.z * 0.05 - 3)) * 2 - 1;
+  const silver = random() < 0.04 ? 1 : 0;
+  const color = hslColour(
+    h + (random() - 0.5) * 0.04 - dry * 0.07 + moist * 0.018 - silver * 0.03,
+    (s * (0.8 + random() * 0.4) + dry * 0.08 + moist * 0.035) * (1 - silver * 0.35),
+    l * (0.78 + random() * 0.44) + dry * 0.05 - moist * 0.03 + silver * 0.05,
+  );
+  const squash = 0.85 + random() * 0.3;
+  // (forest.js coverFor paints the ground at its foot in this colour.)
+  plant.tint = color;
+  masses.push({
+    position: new THREE.Vector3(plant.x, seat, plant.z),
+    scale: new THREE.Vector3(spread * squash, height, spread / squash),
+    rotation,
     color,
-    bark,
-    neighbours: [],
-    age: plant.age,
-    site: plant.habitat,
-    random,
-    wood,
-    clusters,
+    ground: seat,
+    bend: new THREE.Vector3(0, 1, 0),
+    materialClass: dry > 0.4 ? "thatch" : "live",
   });
+  if (!sp.flowers || random() > sp.bloom) return;
+  const tint = sp.flowers[Math.floor(random() * sp.flowers.length)];
+  const count = 3 + Math.floor(random() * 6);
+  for (let i = 0; i < count; i++) {
+    const a = random() * Math.PI * 2;
+    const r = Math.sqrt(random()) * 0.8;
+    const at = new THREE.Vector3(Math.cos(a) * r * spread, height * Math.sqrt(1 - r * r) * 0.98, Math.sin(a) * r * spread)
+      .applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), up))
+      .add(new THREE.Vector3(plant.x, seat, plant.z));
+    head(flowers.bell, at, 0.018 + random() * 0.012, new THREE.Vector3((random() - 0.5) * 0.6, -1, (random() - 0.5) * 0.6), random() * 6.28,
+      hslColour(tint[0] + (random() - 0.5) * 0.02, tint[1], tint[2] + (random() - 0.5) * 0.08));
+  }
 }
 
 // Space colonization (Runions et al.): attraction points scatter through the
@@ -772,6 +951,9 @@ function colonizeCrown(options) {
         crownCenter,
         occlusion,
       );
+      // Deep in the crown a shoot is hidden by the ones round it from any
+      // distance but underneath: forest.js draws it only near the eye.
+      if (depth < 0.55) clusters[clusters.length - 1].inner = true;
     }
   }
   // Weeping crowns hang leafy vines from their upper branches.
@@ -1003,16 +1185,18 @@ function leaf(leaves, attachment, width, length, rotation, color, random) {
 function growProtea(root, plant, random, { wood, clusters, flowers }) {
   const height = plant.height;
   const pincushion = random() < 0.35;
-  const leafColour = hslColour(0.19 + random() * 0.07, 0.2, 0.2 + random() * 0.05);
+  // Stiff grey-green leaves; heads in the dusty, muted colours real bracts
+  // have in sun (old rose, blush, cream), never a saturated pink.
+  const leafColour = hslColour(0.2 + random() * 0.05, 0.15, 0.24 + random() * 0.05);
   const bark = hslColour(0.06, 0.25, 0.2);
   const heart = root.clone().add(new THREE.Vector3(0, height * 0.5, 0));
   const headColour = pincushion
-    ? hslColour(0.03 + random() * 0.07, 0.85, 0.5)
+    ? hslColour(0.06 + random() * 0.05, 0.5, 0.52)
     : [
-        hslColour(0.95 + random() * 0.03, 0.55, 0.62),
-        hslColour(0.98, 0.45, 0.72),
-        hslColour(0.1, 0.35, 0.82),
-        hslColour(0.95, 0.42, 0.5),
+        hslColour(0.96 + random() * 0.03, 0.32, 0.6),
+        hslColour(0.98, 0.26, 0.7),
+        hslColour(0.11, 0.24, 0.8),
+        hslColour(0.95, 0.24, 0.52),
       ][Math.floor(random() * 4)];
   const grow = (start, direction, length, radius, depth) => {
     // A stem bends toward the light as it grows, wandering a little.
@@ -1037,7 +1221,7 @@ function growProtea(root, plant, random, { wood, clusters, flowers }) {
         grow(point.clone().addScaledVector(dir, -length * 0.2), side, length * 0.55, radius * 0.6, depth + 1);
       }
     }
-    if (random() < 0.8) {
+    if (random() < 0.45) {
       const size = height * (pincushion ? 0.07 : 0.085) * (0.8 + random() * 0.45);
       const face = dir.clone().lerp(new THREE.Vector3(0, 1, 0), 0.4).normalize();
       head(flowers[pincushion ? "pincushion" : "protea"], point, size, face, random() * 6.28,
@@ -1096,7 +1280,7 @@ function growAloe(root, height, random, { wood, leaves, succulents, flowers }) {
     );
   }
   const spikes = 1 + Math.floor(random() * 3);
-  const flame = hslColour(0.02 + random() * 0.07, 0.9, 0.5);
+  const flame = hslColour(0.03 + random() * 0.06, 0.55, 0.5);
   for (let s = 0; s < spikes; s++) {
     const angle = s * 2.2 + random();
     const top = crown.clone().add(
@@ -1148,10 +1332,10 @@ function growErica(root, height, random, { wood, needles, flowers }) {
   const green = hslColour(0.24 + random() * 0.04, 0.32, 0.15 + random() * 0.05);
   const bark = hslColour(0.07, 0.25, 0.2);
   const bloom = [
-    hslColour(0.92, 0.7, 0.6),
-    hslColour(0.88, 0.6, 0.45),
-    hslColour(0.97, 0.75, 0.5),
-    hslColour(0.1, 0.2, 0.9),
+    hslColour(0.9, 0.32, 0.62),
+    hslColour(0.87, 0.28, 0.5),
+    hslColour(0.96, 0.3, 0.6),
+    hslColour(0.1, 0.12, 0.86),
   ][Math.floor(random() * 4)];
   const heart = root.clone().add(new THREE.Vector3(0, height * 0.4, 0));
   const sprigs = 14 + Math.floor(random() * 8);
@@ -1184,12 +1368,15 @@ function growErica(root, height, random, { wood, needles, flowers }) {
 
 // Namaqualand-style daisy drifts: many small heads on slender stems, turned
 // toward the sun, in the drift's shared colour.
+// Muted as they look in sun at a few metres: soft yellow, cream, white,
+// mauve and a dusty apricot, not the saturated pinks and oranges of a
+// seed packet.
 const DAISY_COLOURS = [
-  [0.08, 0.95, 0.52],
-  [0.13, 0.95, 0.55],
-  [0.0, 0.0, 0.95],
-  [0.87, 0.65, 0.55],
-  [0.04, 0.85, 0.5],
+  [0.13, 0.5, 0.62],
+  [0.12, 0.3, 0.8],
+  [0.1, 0.06, 0.88],
+  [0.86, 0.28, 0.64],
+  [0.07, 0.4, 0.6],
 ];
 function growDaisies(root, height, random, leaves, flowers, palette) {
   const [h, sat, l] = DAISY_COLOURS[(palette ?? Math.floor(random() * 5)) % 5];
@@ -1229,8 +1416,23 @@ function head(list, position, size, direction, roll, color) {
 // Turf: a continuous layer of grass clumps so soil shows only in paths,
 // dune blowouts and deep shade. Straw-coloured on the exposed dunes, green
 // and lusher inland; sparser under dense canopy.
-function growTurf(seed, layout, turf) {
+function growTurf(seed, layout, turf, masses = []) {
   const random = seededRandom(seed ^ 0x2545f491);
+  // Grass grows between the shrubs, not under them.
+  const shrubs = new Map();
+  for (const m of masses) {
+    const key = `${Math.floor(m.position.x / 2)},${Math.floor(m.position.z / 2)}`;
+    if (!shrubs.has(key)) shrubs.set(key, []);
+    shrubs.get(key).push(m);
+  }
+  const underShrub = (x, z) => {
+    const cx = Math.floor(x / 2), cz = Math.floor(z / 2);
+    for (let dx = -1; dx <= 1; dx++)
+      for (let dz = -1; dz <= 1; dz++)
+        for (const m of shrubs.get(`${cx + dx},${cz + dz}`) ?? [])
+          if ((x - m.position.x) ** 2 + (z - m.position.z) ** 2 < (Math.max(m.scale.x, m.scale.z) * 0.8) ** 2) return true;
+    return false;
+  };
   const trees = layout.filter((p) => p.kind === "tree");
   const grid = new Map();
   for (const t of trees) {
@@ -1257,12 +1459,17 @@ function growTurf(seed, layout, turf) {
           shade += Math.exp(-(d * d) / (t.height * t.height * 0.12)) * 0.5;
         }
     if (shade > 1 || random() < shade * 0.7) continue;
+    if (underShrub(x, z)) continue;
     const y = terrainHeight(x, z);
     const dune = 1 - smoothstep(3, 10, inland);
+    // Sward colour drifts over metres (a damp hollow greener, a dry rise
+    // olive), not tuft by tuft: neighbouring tufts agree, so the ground
+    // reads as one sward instead of a speckle of green and straw.
+    const sward = noise2(x * 0.15 + patch, z * 0.15 - patch);
     const colour = hslColour(
-      0.21 + random() * 0.08 - dune * 0.08,
-      0.38 - dune * 0.14,
-      0.15 + random() * 0.07 + dune * 0.09,
+      0.19 + sward * 0.07 + random() * 0.015 - dune * 0.07,
+      0.3 + sward * 0.06 - dune * 0.12,
+      0.16 + random() * 0.03 + (1 - sward) * 0.03 + dune * 0.08,
     );
     const size = (0.28 + random() * 0.3) * (1 - dune * 0.2);
     turf.push({

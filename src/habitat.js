@@ -58,4 +58,12 @@ export function groundProducers(layout) {
   }));
 }
 
+// Exposed granite painted on the ground (forest.js addGround's rocky mask,
+// before steepness): plants thin out over it.
+export function graniteAt(px, pz, inland = shoreDistance(px, pz)) {
+  const x = px * 0.13 + 4, z = pz * 0.13;
+  const fbm = noise2(x, z) * 0.5 + noise2(x * 2.1 + 5, z * 2.1) * 0.27 + noise2(x * 4.3, z * 4.3 + 3) * 0.15 + noise2(x * 8.7 + 1, z * 8.7) * 0.08;
+  return smoothstep(0.62, 0.76, fbm) * smoothstep(14, 24, inland);
+}
+
 function cellKey(x, z) { return `${Math.floor(x / 8)},${Math.floor(z / 8)}`; }

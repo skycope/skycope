@@ -1,0 +1,338 @@
+{
+ "750-forest-slope": {
+  "triangles": 1744085,
+  "calls": 323,
+  "parts": {
+   "ground-detail": 12928,
+   "near-ground": 48576,
+   "wood": 152212,
+   "shoots": 635260,
+   "needles": 36294,
+   "blades": 24956,
+   "fronds": 27930,
+   "turf": 167655,
+   "reeds": 8890,
+   "shrubs": 227629,
+   "succulents": 49848,
+   "flowers": 163098,
+   "other": 51576,
+   "rock": 7880,
+   "ground": 105579
+  }
+ },
+ "750-meadow": {
+  "triangles": 1708713,
+  "calls": 353,
+  "parts": {
+   "ground-detail": 9548,
+   "near-ground": 51072,
+   "wood": 153976,
+   "shoots": 534246,
+   "needles": 42794,
+   "fronds": 33126,
+   "blades": 27588,
+   "reeds": 12292,
+   "turf": 172920,
+   "shrubs": 162954,
+   "succulents": 57404,
+   "flowers": 208539,
+   "other": 96271,
+   "rock": 9500,
+   "ground": 105579
+  }
+ },
+ "750-shore-scrub": {
+  "triangles": 764429,
+  "calls": 154,
+  "parts": {
+   "ground-detail": 1980,
+   "near-ground": 31872,
+   "wood": 21032,
+   "shoots": 165064,
+   "needles": 8342,
+   "fronds": 8904,
+   "blades": 9748,
+   "turf": 28875,
+   "reeds": 6468,
+   "shrubs": 148374,
+   "succulents": 13388,
+   "flowers": 79015,
+   "other": 72972,
+   "rock": 39040,
+   "ground": 105579
+  }
+ },
+ "750-hilltop": {
+  "triangles": 1812114,
+  "calls": 354,
+  "parts": {
+   "ground-detail": 11348,
+   "near-ground": 29820,
+   "wood": 144250,
+   "shoots": 663640,
+   "needles": 48092,
+   "blades": 32100,
+   "fronds": 28886,
+   "turf": 190725,
+   "reeds": 13370,
+   "shrubs": 203215,
+   "succulents": 55084,
+   "flowers": 181097,
+   "other": 60284,
+   "rock": 13720,
+   "ground": 105579
+  }
+ },
+ "750-milkwood-under": {
+  "triangles": 1747873,
+  "calls": 364,
+  "parts": {
+   "ground-detail": 8804,
+   "near-ground": 52812,
+   "wood": 150180,
+   "shoots": 569696,
+   "needles": 34700,
+   "blades": 23428,
+   "fronds": 24542,
+   "turf": 177675,
+   "reeds": 10906,
+   "shrubs": 149712,
+   "succulents": 53044,
+   "flowers": 214994,
+   "other": 137247,
+   "rock": 10780,
+   "ground": 105579
+  }
+ },
+ "750-cat-plants": {
+  "triangles": 1875706,
+  "calls": 306,
+  "parts": {
+   "ground-detail": 10736,
+   "near-ground": 50676,
+   "wood": 143006,
+   "shoots": 687054,
+   "needles": 41146,
+   "blades": 32716,
+   "fronds": 29358,
+   "turf": 213285,
+   "reeds": 10136,
+   "shrubs": 197552,
+   "succulents": 45772,
+   "flowers": 189998,
+   "other": 80518,
+   "rock": 14400,
+   "ground": 105579
+  }
+ },
+ "750-slope-ground": {
+  "triangles": 1834863,
+  "calls": 299,
+  "parts": {
+   "ground-detail": 13704,
+   "near-ground": 48576,
+   "wood": 156028,
+   "shoots": 675020,
+   "needles": 35584,
+   "blades": 26408,
+   "fronds": 32082,
+   "turf": 168780,
+   "reeds": 9996,
+   "shrubs": 240806,
+   "succulents": 50820,
+   "flowers": 174996,
+   "other": 64750,
+   "rock": 7880,
+   "ground": 105579
+  }
+ },
+ "750-shrub-close": {
+  "triangles": 1885167,
+  "calls": 316,
+  "parts": {
+   "ground-detail": 11996,
+   "near-ground": 50196,
+   "wood": 154858,
+   "needles": 34456,
+   "shoots": 696154,
+   "blades": 33392,
+   "fronds": 42466,
+   "reeds": 10822,
+   "turf": 203550,
+   "shrubs": 198648,
+   "succulents": 45952,
+   "flowers": 187898,
+   "other": 79146,
+   "rock": 6200,
+   "ground": 105579
+  }
+ },
+ "1145-forest-slope": {
+  "triangles": 1744941,
+  "calls": 328,
+  "parts": {
+   "ground-detail": 12928,
+   "near-ground": 48576,
+   "wood": 152212,
+   "shoots": 635260,
+   "needles": 36294,
+   "blades": 24956,
+   "fronds": 27930,
+   "turf": 167655,
+   "reeds": 8890,
+   "shrubs": 227629,
+   "succulents": 49848,
+   "flowers": 163098,
+   "other": 52356,
+   "rock": 7880,
+   "ground": 105579
+  }
+ },
+ "1145-meadow": {
+  "triangles": 1701619,
+  "calls": 354,
+  "parts": {
+   "ground-detail": 9548,
+   "near-ground": 51072,
+   "wood": 153976,
+   "shoots": 534246,
+   "needles": 42794,
+   "fronds": 33126,
+   "blades": 27588,
+   "reeds": 12292,
+   "turf": 172920,
+   "shrubs": 162954,
+   "succulents": 57404,
+   "flowers": 208539,
+   "other": 96289,
+   "rock": 9500,
+   "ground": 105579
+  }
+ },
+ "1145-shore-scrub": {
+  "triangles": 764613,
+  "calls": 155,
+  "parts": {
+   "ground-detail": 1980,
+   "near-ground": 31872,
+   "wood": 21032,
+   "shoots": 165064,
+   "needles": 8342,
+   "fronds": 8904,
+   "blades": 9748,
+   "turf": 28875,
+   "reeds": 6468,
+   "shrubs": 148374,
+   "succulents": 13388,
+   "flowers": 79015,
+   "other": 73156,
+   "rock": 39040,
+   "ground": 105579
+  }
+ },
+ "1145-hilltop": {
+  "triangles": 1805168,
+  "calls": 354,
+  "parts": {
+   "ground-detail": 11348,
+   "near-ground": 29820,
+   "wood": 144250,
+   "shoots": 663640,
+   "needles": 48092,
+   "blades": 32100,
+   "fronds": 28886,
+   "turf": 190725,
+   "reeds": 13370,
+   "shrubs": 203215,
+   "succulents": 55084,
+   "flowers": 181097,
+   "other": 60468,
+   "rock": 13720,
+   "ground": 105579
+  }
+ },
+ "1145-milkwood-under": {
+  "triangles": 1747873,
+  "calls": 364,
+  "parts": {
+   "ground-detail": 8804,
+   "near-ground": 52812,
+   "wood": 150180,
+   "shoots": 569696,
+   "needles": 34700,
+   "blades": 23428,
+   "fronds": 24542,
+   "turf": 177675,
+   "reeds": 10906,
+   "shrubs": 149712,
+   "succulents": 53044,
+   "flowers": 214994,
+   "other": 137247,
+   "rock": 10780,
+   "ground": 105579
+  }
+ },
+ "1145-cat-plants": {
+  "triangles": 1875866,
+  "calls": 308,
+  "parts": {
+   "ground-detail": 10736,
+   "near-ground": 50676,
+   "wood": 143006,
+   "shoots": 687054,
+   "needles": 41146,
+   "blades": 32716,
+   "fronds": 29358,
+   "turf": 213285,
+   "reeds": 10136,
+   "shrubs": 197552,
+   "succulents": 45772,
+   "flowers": 189998,
+   "other": 80598,
+   "rock": 14400,
+   "ground": 105579
+  }
+ },
+ "1145-slope-ground": {
+  "triangles": 1834863,
+  "calls": 299,
+  "parts": {
+   "ground-detail": 13704,
+   "near-ground": 48576,
+   "wood": 156028,
+   "shoots": 675020,
+   "needles": 35584,
+   "blades": 26408,
+   "fronds": 32082,
+   "turf": 168780,
+   "reeds": 9996,
+   "shrubs": 240806,
+   "succulents": 50820,
+   "flowers": 174996,
+   "other": 64750,
+   "rock": 7880,
+   "ground": 105579
+  }
+ },
+ "1145-shrub-close": {
+  "triangles": 1885079,
+  "calls": 316,
+  "parts": {
+   "ground-detail": 11996,
+   "near-ground": 50196,
+   "wood": 154858,
+   "needles": 34456,
+   "shoots": 696154,
+   "blades": 33392,
+   "fronds": 42466,
+   "reeds": 10822,
+   "turf": 203550,
+   "shrubs": 198648,
+   "succulents": 45952,
+   "flowers": 187898,
+   "other": 79102,
+   "rock": 6200,
+   "ground": 105579
+  }
+ }
+}
