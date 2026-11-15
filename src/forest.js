@@ -21,7 +21,7 @@ import { bridgeCrevices } from "./walker.js"; // solid:
 import { MATERIAL_HEX, MATERIAL_LINEAR } from "./material-palette.js";
 import { groundDetailData, groundCover } from "./ground-detail.js";
 import { createNearGround } from "./near-ground.js";
-import { createLodChunk, packChunk, packDue, chunkRange, easeBias } from "./instance-lod.js"; // lod:
+import { createLodChunk, packChunk, packUrgency, easeBias } from "./instance-lod.js"; // lod:
 import { magicUniforms, MAGIC_LIGHT_DECLARATIONS, MAGIC_LIGHT_GLSL } from "./land-magic.js"; // land-magic:
 import {
   finish,
@@ -2956,23 +2956,34 @@ function packLod(group, eye, bias) {
   // A jump (home, a teleport) or the first frame packs everything now.
   const jump = !state.eye || Math.hypot(at[0] - state.eye[0], at[1] - state.eye[1], at[2] - state.eye[2]) > 15;
   state.eye = at;
+  state.packed = 0;
+  state.packMs = 0;
   // The render budget's bias is followed a step at a time, the next step
   // only once the last has been packed everywhere (instance-lod.js easeBias).
   if (jump) state.bias = bias;
   state.bias ??= bias;
   const due = [];
-  for (const chunk of chunks) if (packDue(chunk, at, state.bias)) due.push(chunk);
+  for (const chunk of chunks) {
+    const urgency = packUrgency(chunk, at, state.bias);
+    if (urgency > 0) due.push([urgency, chunk]);
+  }
   if (!due.length && state.bias !== bias) {
     state.bias = easeBias(state.bias, bias);
     return;
   }
   bias = state.bias;
   if (!due.length) return;
-  if (!jump) due.sort((a, b) => chunkRange(a, at)[0] - chunkRange(b, at)[0]);
+  // Most urgent first; a chunk about to outrun its margin is packed this
+  // frame whatever the budget (late, an instance would vanish).
+  if (!jump) due.sort((a, b) => b[0] - a[0]);
   let budget = jump ? Infinity : LOD_PACK_BUDGET;
-  for (const chunk of due) {
-    if (budget <= 0) break;
+  // (Under ?perf: instances packed and CPU time, this frame.)
+  const started = performance.now();
+  state.packed = 0;
+  for (const [urgency, chunk] of due) {
+    if (budget <= 0 && urgency < 0.9) break;
     budget -= chunk.count;
+    state.packed += chunk.count;
     const counts = packChunk(chunk, at, bias);
     chunk.meshes.forEach((mesh, level) => {
       if (!mesh) return;
@@ -2989,6 +3000,7 @@ function packLod(group, eye, bias) {
       }
     });
   }
+  state.packMs = performance.now() - started;
 }
 
 // The vertex stage of the cross-fade (instance-lod.js fadeScale): by its

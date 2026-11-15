@@ -101,17 +101,28 @@ export function chunkLevel(chunk, eye, bias = 1) {
   return far < boundary - fadeWidth(boundary) - m ? level : -1;
 }
 
-// Does the chunk need packing again for this eye and bias?
-export function packDue(chunk, eye, bias) {
-  if (chunk.state === -2 || chunk.bias !== bias) return true;
+// How urgently the chunk needs packing again for this eye and bias: 0 not
+// due; from 0.6, the share of its packing margin the eye has used up (at 1
+// an instance could be drawn at a level it was not packed into). One never
+// packed is 1. A whole chunk that has come within its margin of a band is
+// 0.8 (the band is still a margin away). A bias step is 0.7: until packed,
+// the chunk keeps the old boundaries, which is still a consistent picture.
+export function packUrgency(chunk, eye, bias) {
+  if (chunk.state === -2) return 1;
+  if (chunk.bias !== bias) return 0.7;
   const level = chunkLevel(chunk, eye, bias);
-  if (level >= 0) return level !== chunk.state;
-  if (chunk.state !== -1) return true;
+  if (level >= 0) return level !== chunk.state ? 0.8 : 0;
+  if (chunk.state !== -1) return 0.8;
   // Per instance: again once the eye has moved part of the margin the
   // windows were packed with.
-  const [near] = chunkRange(chunk, eye);
-  const moved = Math.hypot(eye[0] - chunk.eye[0], eye[1] - chunk.eye[1], eye[2] - chunk.eye[2]);
-  return moved > packMargin(near) * 0.6;
+  const m = packMargin(chunkRange(chunk, chunk.eye)[0]);
+  const used = Math.hypot(eye[0] - chunk.eye[0], eye[1] - chunk.eye[1], eye[2] - chunk.eye[2]) / m;
+  return used > 0.6 ? used : 0;
+}
+
+// Does the chunk need packing again for this eye and bias?
+export function packDue(chunk, eye, bias) {
+  return packUrgency(chunk, eye, bias) > 0;
 }
 
 // Writes each level's instances into `outputs[level]` (an object of
