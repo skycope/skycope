@@ -674,10 +674,17 @@ function growMass(plant, random, { masses, flowers }) {
   const age = plant.age ?? 0.5;
   const dry = smoothstep(0.55, 0.9, age) * 0.35 + (random() < 0.07 ? 0.5 : 0);
   const [h, s, l] = sp.hsl;
+  // A slope is a mosaic at tens of metres, the thing the eye reads from
+  // afar: damp hollows and seeps deeper and greener, dry rises and ridges
+  // greyer and paler; and within it plant by plant a wider spread of value,
+  // a few silver-green (helichrysum, a silvered renosterbos) among them,
+  // still green enough not to read as a boulder.
+  const moist = smoothstep(0.25, 0.75, noise2(plant.x * 0.045 + 7, plant.z * 0.05 - 3)) * 2 - 1;
+  const silver = random() < 0.04 ? 1 : 0;
   const color = hslColour(
-    h + (random() - 0.5) * 0.035 - dry * 0.07,
-    s * (0.8 + random() * 0.4) + dry * 0.08,
-    l * (0.85 + random() * 0.3) + dry * 0.05,
+    h + (random() - 0.5) * 0.04 - dry * 0.07 + moist * 0.018 - silver * 0.03,
+    (s * (0.8 + random() * 0.4) + dry * 0.08 + moist * 0.035) * (1 - silver * 0.35),
+    l * (0.78 + random() * 0.44) + dry * 0.05 - moist * 0.03 + silver * 0.05,
   );
   const squash = 0.85 + random() * 0.3;
   // (forest.js coverFor paints the ground at its foot in this colour.)

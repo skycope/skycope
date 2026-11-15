@@ -340,7 +340,7 @@ export function shrubMassGeometry(detail = 3) {
   lumps.push([0.12, 0.72, -0.1, 0.32]);
   const [keep, sectors, rings, sprigs, grow] = [[7, 9, 3, 30, 1], [7, 6, 2, 16, 1], [5, 6, 1, 8, 1.1], [1, 6, 1, 0, 1.6]][3 - detail];
   const occlusion = (p, n) => {
-    const foot = 0.36 + 0.64 * Math.pow(Math.min(1, Math.max(0, (p.y + 0.05) / 0.9)), 0.75);
+    const foot = 0.46 + 0.54 * Math.pow(Math.min(1, Math.max(0, (p.y + 0.05) / 0.9)), 0.75);
     // Facing into the bush (toward its axis) or down: a crease.
     const out = p.clone().sub(centre).setY(0).normalize();
     const crease = 0.72 + 0.28 * Math.min(1, Math.max(0, n.dot(out) * 0.7 + n.y * 0.6 + 0.35));
