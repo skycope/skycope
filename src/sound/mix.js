@@ -19,7 +19,9 @@ import { createReverb } from "../score.js";
 export const BUSES = {
   amb: { target: -36, short: -32, priority: 1 },
   weather: { target: -32, short: -24, priority: 0 },
-  foley: { target: -40, short: -34, priority: 2 },
+  // foley: running on dry sand. Was −40; footsteps re-voiced 15 Nov to sit
+  // well under the bed (the owner: "sound design is off (for footsteps)").
+  foley: { target: -46, short: -40, priority: 2 },
   voice: { target: -34, short: -28, priority: 5 },
   world: { target: -36, short: -28, priority: 3 },
   magic: { target: -34, short: -26, priority: 4 },

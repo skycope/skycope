@@ -19,7 +19,7 @@ import { createWeather } from "./weather.js";
 import { createWorld } from "./world.js";
 import { createCues, WAKING_CUES, STORY_CUES, camel } from "./cues.js";
 import { SURFACE } from "./patches.js";
-import { sampleHabitat } from "../habitat.js";
+import { createSurfaceResolver } from "./surface.js";
 
 const PREFS = { sound: "skycope.sound", music: "skycope.music" };
 export { WAKING_CUES, STORY_CUES };
@@ -44,6 +44,7 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
   const scoreInput = { sunAltitude: 30, sunAzimuth: 0, cover: 0, rain: 0, asleep: false, spectacle: 0 };
   const conditions = { sea: 0.5, seaPan: 0, wind: 0, rain: 0, night: 0, trees: 0, shore: 30 };
   // The world the sounds come from (setWorld): plants, roofs, places.
+  const surfaces = createSurfaceResolver();
   const scene = { habitat: null, plants: null, roofs: [], pois: [], milkwood: null, wreck: null, boat: null, lighthouse: null, pool: null };
 
   // The context is made on the first gesture; the graph only once sound is
@@ -54,7 +55,9 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
       else {
         const AudioContext = globalThis.AudioContext || globalThis.webkitAudioContext;
         if (!AudioContext) return;
-        ctx = new AudioContext({ latencyHint: "playback" });
+        // "interactive" (the default): a step must land with the paw, and
+        // "playback" buys a larger buffer at the cost of lag.
+        ctx = new AudioContext({ latencyHint: "interactive" });
       }
     } else if (ctx.state === "suspended" && !context && !globalThis.document?.hidden && enabled) ctx.resume();
     if (enabled && !mix) build();
@@ -98,24 +101,14 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
     return playCall(io, name, opts);
   }
 
-  // Refines the walker's surface kind (0 rock, 1 wet sand, 2 dry sand,
-  // 3 scrub, 4 forest floor, 5 water) into the sound's surfaces.
-  function surfaceFor(kind, { x, z, depth = 0 } = {}) {
-    if (kind === 5) return SURFACE.shallows;
-    if (inside === "boiler") return SURFACE.metal;
-    if (!Number.isFinite(x)) return kind;
-    if (kind === 0) {
-      for (const p of [scene.wreck, scene.boat]) if (p && Math.hypot(x - p.x, z - p.z) < (p.r ?? 6) * 0.6) return SURFACE.timber;
-      if (scene.milkwood && Math.hypot(x - scene.milkwood.x, z - scene.milkwood.z) < 5) return SURFACE.timber;
-      return SURFACE.rock;
-    }
-    if ((kind === 3 || kind === 4) && scene.habitat) {
-      const h = sampleHabitat(scene.habitat, x, z);
-      if (h.competition > 0.3 || h.community === "thicket") return SURFACE.forest;
-      if (kind === 3 && plantsAt(x, z, 0.6).density > 0.05) return SURFACE.scrub;
-      return SURFACE.grass;
-    }
-    return kind;
+  // What a paw is on (surface.js): the walker's kind plus what is really
+  // under it (info.under = walker.surfaceAt(x, z)). Returns a SURFACE id;
+  // the last resolution is kept for logging (`lastSurface`).
+  let lastSurface = null;
+  function surfaceFor(kind, info = {}) {
+    if (inside === "boiler" && kind !== 5) return SURFACE.metal;
+    lastSurface = surfaces.resolve(kind, info);
+    return lastSurface.surface;
   }
 
   // Plants the cat's body overlaps: density 0…1 and the dominant kind.
@@ -140,22 +133,13 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
     return { density: Math.min(1, density), kind };
   }
 
-  // Where the cat is sheltered: "eave", "tree", "boiler" or null; and the
-  // canopy over it (0…1).
-  function shelterAt(x, z, roofs = scene.roofs) {
+  // Where the cat is sheltered: "eave", "tree", "boiler" or null (the
+  // prop contract's covers), and the canopy over it (0…1).
+  function shelterAt(x, z, roofs = null) {
     if (inside === "boiler") return { under: "boiler", canopy: 0 };
-    for (const r of roofs) if (Math.hypot(x - r.x, z - r.z) < (r.r ?? 2.2)) return { under: "eave", canopy: 0 };
-    let canopy = 0;
-    if (scene.habitat) {
-      const cx = Math.floor(x / 8), cz = Math.floor(z / 8);
-      for (let dx = -1; dx <= 1; dx++)
-        for (let dz = -1; dz <= 1; dz++)
-          for (const c of scene.habitat.crowns.get(`${cx + dx},${cz + dz}`) ?? []) {
-            const radial = ((x - c.x) ** 2 + (z - c.z) ** 2) / (c.r * c.r);
-            if (radial < 1) canopy = Math.max(canopy, 1 - radial * 0.6);
-          }
-    }
-    return { under: canopy > 0.55 ? "tree" : null, canopy };
+    if (roofs) for (const r of roofs) if (Math.hypot(x - r.x, z - r.z) < (r.r ?? 2.2)) return { under: "eave", canopy: 0 };
+    const under = surfaces.shelter(x, z, conditions.cat?.y);
+    return { under, canopy: surfaces.canopy(x, z) };
   }
 
   function setInside(where) {
@@ -216,10 +200,12 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
       const dt = Math.min(0.1, Math.max(0, now - lastUpdate) || 1 / 30);
       lastUpdate = now;
       core.listener = listenerFrom(c.cat, c.camera);
-      if (c.inside !== undefined) setInside(c.inside);
       const cat = c.cat;
+      // In the boiler: under the wreck's cover (or as told).
+      if (c.inside !== undefined) setInside(c.inside);
+      else if (cat && surfaces.world.covers.length) setInside(surfaces.shelter(cat.x, cat.z, cat.y) === "boiler" ? "boiler" : null);
       const roofs = c.roofs ?? scene.roofs;
-      const shelter = c.under !== undefined ? { under: c.under, canopy: c.under === "tree" ? 1 : 0 } : cat ? shelterAt(cat.x, cat.z, roofs) : { under: null, canopy: 0 };
+      const shelter = c.under !== undefined ? { under: c.under, canopy: c.under === "tree" ? 1 : 0 } : cat ? shelterAt(cat.x, cat.z, c.roofs ?? null) : { under: null, canopy: 0 };
       if (c.beds !== false) beds.update({ ...c, dt, sheltered: shelter.under ? 1 : 0 });
       weather.update({ rain: c.rain, sea: c.sea, trees: c.trees, dt, listener: core.listener, roofs, under: shelter.under, canopy: shelter.canopy });
       // Foliage the cat is pushing through.
@@ -274,12 +260,13 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
       scene.boat = find("boat");
       scene.lighthouse = places?.beacon ? { ...find("lighthouse"), lampY: places.beacon.y } : find("lighthouse");
       scene.pool = find("pool");
-      // Roofs: the prop contract's covers when the places lane provides
-      // them; until then the keeper's cottage, found by its window light.
-      const covers = places?.covers?.filter((c) => c.kind === "roof" || c.roof);
-      scene.roofs = covers?.length
-        ? covers.map((c) => ({ x: c.x, z: c.z, y: c.y ?? 3, r: c.r ?? 2.2 }))
-        : (places?.lamps ?? []).filter((l) => l.reach === 4.5 && l.power === 0.9).map((l) => ({ x: l.x, z: l.z, y: l.y + 1.5, r: 2.2 }));
+      // Covers (the prop contract): roofs the rain drums on, the eave,
+      // the boiler, crowns. Without them, the cottage found by its window.
+      surfaces.world.pois = pois;
+      surfaces.world.habitat = habitat;
+      surfaces.world.covers = places?.covers ?? [];
+      scene.roofs = surfaces.roofs();
+      if (!scene.roofs.length) scene.roofs = (places?.lamps ?? []).filter((l) => l.reach === 4.5 && l.power === 0.9).map((l) => ({ x: l.x, z: l.z, y: l.y + 1.5, r: 2.2 }));
       // Plants the cat can push through, bucketed in 4 m cells.
       if (habitat?.producers) {
         const grid = new Map();
@@ -370,6 +357,10 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
       foley.step(s, running, pan, info);
     },
     surfaceFor,
+    // The last surface a step resolved to, and why (QA logging).
+    get lastSurface() {
+      return lastSurface;
+    },
     meow() {
       if (!live()) return 0;
       const c = conditions;
