@@ -59,7 +59,7 @@ const [W, H] = String(opt.size ?? "1280x800").split("x").map(Number);
 const DPR = Number(opt.dpr ?? 1);
 const SEED = Number(opt.seed ?? 1847);
 const STILL = Number(opt.still ?? 60);
-const KEEP = Number(opt.keep ?? 3);
+const KEEP = Number(opt.keep ?? 1);
 const SESSIONS = String(opt.sessions ?? "still,walk,orbit,time,gift,throttle").split(",");
 const OUT = resolve(opt.out ?? join(tmpdir(), "skycope-stability"));
 const WEATHER = opt.weather ?? "clear";
@@ -765,6 +765,8 @@ function pairImage(a, b, box) {
     x0 = Math.max(0, Math.min(w - cw, Math.round(cx - cw / 2)));
     y0 = Math.max(0, Math.min(h - ch, Math.round(cy - ch / 2)));
   }
+  // Each panel at most 360 px wide (evidence stays small in the repo).
+  scale = Math.max(scale, Math.ceil(cw / 360));
   const ow = Math.floor(cw / scale), oh = Math.floor(ch / scale);
   const out = new PNG({ width: ow * 3 + 8, height: oh });
   out.data.fill(255);

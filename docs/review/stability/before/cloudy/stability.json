@@ -1,0 +1,4899 @@
+[
+ {
+  "summary": {
+   "session": "leaves",
+   "captured": 710,
+   "rendered": 1770,
+   "seconds": 53.6,
+   "blank": 0,
+   "lum": 7,
+   "sharp": 4,
+   "popStill": 11,
+   "popMoving": 35,
+   "flashStill": 8,
+   "flashMoving": 31,
+   "vanishStill": 2,
+   "vanishMoving": 43,
+   "worstPopPixels": 5376,
+   "hitches": 3,
+   "worstHitchMs": 213,
+   "resizes": 20,
+   "unsynced": 15,
+   "quality": 10,
+   "reveal": 5,
+   "shadowSwaps": 4,
+   "placeLod": 7,
+   "animalLod": 4,
+   "flicker": 0.399,
+   "errors": 0
+  },
+  "flags": [
+   {
+    "kind": "lum",
+    "frame": 33,
+    "t": 928,
+    "phase": "navigate",
+    "still": true,
+    "step": -14.43,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": [
+     "reveal reveal=0.25",
+     "resize layer=land from=160x100 to=320x200 boundary=false",
+     "resize layer=sea from=160x100 to=320x200 boundary=false",
+     "resize layer=sky from=160x100 to=320x200 boundary=false",
+     "environment"
+    ],
+    "image": "leaves-lum-1.png"
+   },
+   {
+    "kind": "sharp",
+    "frame": 33,
+    "t": 928,
+    "phase": "navigate",
+    "still": true,
+    "step": 44.9,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": [
+     "reveal reveal=0.25",
+     "resize layer=land from=160x100 to=320x200 boundary=false",
+     "resize layer=sea from=160x100 to=320x200 boundary=false",
+     "resize layer=sky from=160x100 to=320x200 boundary=false",
+     "environment"
+    ],
+    "image": "leaves-sharp-3.png"
+   },
+   {
+    "kind": "pop",
+    "frame": 33,
+    "t": 928,
+    "phase": "navigate",
+    "still": true,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     672,
+     208,
+     688,
+     256
+    ],
+    "all": 9,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": [
+     "reveal reveal=0.25",
+     "resize layer=land from=160x100 to=320x200 boundary=false",
+     "resize layer=sea from=160x100 to=320x200 boundary=false",
+     "resize layer=sky from=160x100 to=320x200 boundary=false",
+     "environment"
+    ]
+   },
+   {
+    "kind": "lum",
+    "frame": 34,
+    "t": 1044,
+    "phase": "navigate",
+    "still": true,
+    "step": -6.13,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": [
+     "reveal reveal=0.25",
+     "resize layer=land from=160x100 to=320x200 boundary=false",
+     "resize layer=sea from=160x100 to=320x200 boundary=false",
+     "resize layer=sky from=160x100 to=320x200 boundary=false",
+     "environment"
+    ],
+    "image": "leaves-lum-3.png"
+   },
+   {
+    "kind": "sharp",
+    "frame": 34,
+    "t": 1044,
+    "phase": "navigate",
+    "still": true,
+    "step": 9.3,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": [
+     "reveal reveal=0.25",
+     "resize layer=land from=160x100 to=320x200 boundary=false",
+     "resize layer=sea from=160x100 to=320x200 boundary=false",
+     "resize layer=sky from=160x100 to=320x200 boundary=false",
+     "environment"
+    ]
+   },
+   {
+    "kind": "lum",
+    "frame": 35,
+    "t": 1311,
+    "phase": "navigate",
+    "still": true,
+    "step": -8.87,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": [
+     "environment",
+     "reveal reveal=0.5",
+     "resize layer=land from=320x200 to=640x400 boundary=false",
+     "resize layer=sea from=320x200 to=640x400 boundary=false",
+     "resize layer=sky from=320x200 to=640x400 boundary=false",
+     "environment"
+    ],
+    "image": "leaves-lum-2.png"
+   },
+   {
+    "kind": "sharp",
+    "frame": 35,
+    "t": 1311,
+    "phase": "navigate",
+    "still": true,
+    "step": 67.2,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": [
+     "environment",
+     "reveal reveal=0.5",
+     "resize layer=land from=320x200 to=640x400 boundary=false",
+     "resize layer=sea from=320x200 to=640x400 boundary=false",
+     "resize layer=sky from=320x200 to=640x400 boundary=false",
+     "environment"
+    ],
+    "image": "leaves-sharp-2.png"
+   },
+   {
+    "kind": "lum",
+    "frame": 36,
+    "t": 1544,
+    "phase": "navigate",
+    "still": true,
+    "step": -4.22,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": [
+     "reveal reveal=1",
+     "resize layer=land from=640x400 to=1280x800 boundary=false",
+     "resize layer=sea from=640x400 to=1280x800 boundary=false",
+     "resize layer=sky from=640x400 to=849x530 boundary=false",
+     "environment"
+    ]
+   },
+   {
+    "kind": "sharp",
+    "frame": 36,
+    "t": 1544,
+    "phase": "navigate",
+    "still": true,
+    "step": 210.9,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": [
+     "reveal reveal=1",
+     "resize layer=land from=640x400 to=1280x800 boundary=false",
+     "resize layer=sea from=640x400 to=1280x800 boundary=false",
+     "resize layer=sky from=640x400 to=849x530 boundary=false",
+     "environment"
+    ],
+    "image": "leaves-sharp-1.png"
+   },
+   {
+    "kind": "lum",
+    "frame": 37,
+    "t": 1744,
+    "phase": "navigate",
+    "still": true,
+    "step": -1.98,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": [
+     "environment",
+     "environment"
+    ]
+   },
+   {
+    "kind": "lum",
+    "frame": 38,
+    "t": 1928,
+    "phase": "navigate",
+    "still": true,
+    "step": -0.87,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": [
+     "environment"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 38,
+    "t": 1928,
+    "phase": "navigate",
+    "still": true,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     528,
+     736,
+     560,
+     784
+    ],
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": [
+     "environment"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 39,
+    "t": 2128,
+    "phase": "navigate",
+    "still": true,
+    "cells": 21,
+    "pixels": 5376,
+    "box": [
+     0,
+     736,
+     128,
+     800
+    ],
+    "all": 25,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": [
+     "environment"
+    ],
+    "image": "leaves-pop-2.png"
+   },
+   {
+    "kind": "flash",
+    "frame": 39,
+    "t": 2128,
+    "phase": "navigate",
+    "still": true,
+    "cells": 44,
+    "pixels": 11264,
+    "box": [
+     96,
+     672,
+     352,
+     800
+    ],
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": [
+     "environment"
+    ],
+    "image": "leaves-flash-1.png"
+   },
+   {
+    "kind": "lum",
+    "frame": 40,
+    "t": 2311,
+    "phase": "navigate",
+    "still": true,
+    "step": -0.91,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": [
+     "environment"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 40,
+    "t": 2311,
+    "phase": "navigate",
+    "still": true,
+    "cells": 8,
+    "pixels": 2048,
+    "box": [
+     304,
+     704,
+     368,
+     784
+    ],
+    "all": 28,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": [
+     "environment"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 40,
+    "t": 2311,
+    "phase": "navigate",
+    "still": true,
+    "cells": 20,
+    "pixels": 5120,
+    "box": [
+     352,
+     656,
+     560,
+     752
+    ],
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": [
+     "environment"
+    ],
+    "image": "leaves-flash-2.png"
+   },
+   {
+    "kind": "pop",
+    "frame": 41,
+    "t": 2544,
+    "phase": "navigate",
+    "still": true,
+    "cells": 12,
+    "pixels": 3072,
+    "box": [
+     320,
+     608,
+     448,
+     672
+    ],
+    "all": 24,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": [
+     "environment",
+     "environment"
+    ],
+    "image": "leaves-pop-3.png"
+   },
+   {
+    "kind": "flash",
+    "frame": 41,
+    "t": 2544,
+    "phase": "navigate",
+    "still": true,
+    "cells": 7,
+    "pixels": 1792,
+    "box": [
+     512,
+     640,
+     592,
+     672
+    ],
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": [
+     "environment",
+     "environment"
+    ],
+    "image": "leaves-flash-3.png"
+   },
+   {
+    "kind": "flash",
+    "frame": 42,
+    "t": 2778,
+    "phase": "navigate",
+    "still": true,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     464,
+     576,
+     528,
+     608
+    ],
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": [
+     "environment",
+     "environment"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 43,
+    "t": 3011,
+    "phase": "navigate",
+    "still": true,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     144,
+     496,
+     192,
+     528
+    ],
+    "all": 11,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": [
+     "environment",
+     "environment"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 44,
+    "t": 3261,
+    "phase": "navigate",
+    "still": true,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     304,
+     528,
+     352,
+     560
+    ],
+    "all": 15,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": [
+     "environment",
+     "environment"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 71,
+    "t": 8444,
+    "phase": "navigate",
+    "still": false,
+    "cells": 3370,
+    "pixels": 862720,
+    "box": [
+     0,
+     0,
+     1280,
+     800
+    ],
+    "all": 3385,
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": [
+     "environment",
+     "shadow-request jump=true",
+     "animal-lod herd=herd coarse=true distance=64",
+     "shadow-swap slice=1 count=1",
+     "place-lod place=12c1ee from=1 to=0 x=62 z=86",
+     "place-lod place=3e849f from=2 to=1 x=63.934342677373984 z=126.81560463466371",
+     "lod-pack 379 chunks"
+    ],
+    "image": "leaves-pop-1.png"
+   },
+   {
+    "kind": "vanish",
+    "frame": 71,
+    "t": 8444,
+    "phase": "navigate",
+    "still": false,
+    "cells": 12,
+    "pixels": 3072,
+    "box": [
+     1088,
+     208,
+     1184,
+     256
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": [
+     "environment",
+     "shadow-request jump=true",
+     "animal-lod herd=herd coarse=true distance=64",
+     "shadow-swap slice=1 count=1",
+     "place-lod place=12c1ee from=1 to=0 x=62 z=86",
+     "place-lod place=3e849f from=2 to=1 x=63.934342677373984 z=126.81560463466371",
+     "lod-pack 379 chunks"
+    ],
+    "image": "leaves-vanish-1.png"
+   },
+   {
+    "kind": "pop",
+    "frame": 72,
+    "t": 8627,
+    "phase": "navigate",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     624,
+     496,
+     656,
+     528
+    ],
+    "all": 7,
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": [
+     "environment",
+     "shadow-request jump=true",
+     "animal-lod herd=herd coarse=true distance=64",
+     "shadow-swap slice=1 count=1",
+     "place-lod place=12c1ee from=1 to=0 x=62 z=86",
+     "place-lod place=3e849f from=2 to=1 x=63.934342677373984 z=126.81560463466371",
+     "environment",
+     "lod-pack 379 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 77,
+    "t": 9427,
+    "phase": "navigate",
+    "still": true,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     592,
+     544,
+     624,
+     576
+    ],
+    "all": 15,
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": [
+     "environment",
+     "environment"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 78,
+    "t": 9594,
+    "phase": "navigate",
+    "still": true,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     576,
+     496,
+     624,
+     512
+    ],
+    "all": 9,
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": [
+     "environment"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 96,
+    "t": 11961,
+    "phase": "navigate",
+    "still": true,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     624,
+     464,
+     656,
+     496
+    ],
+    "all": 18,
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": [
+     "environment"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 118,
+    "t": 14527,
+    "phase": "still",
+    "still": true,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     1200,
+     352,
+     1216,
+     416
+    ],
+    "all": 5,
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": [
+     "environment"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 141,
+    "t": 17060,
+    "phase": "still",
+    "still": true,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     32,
+     352,
+     64,
+     384
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": [
+     "environment"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 146,
+    "t": 17460,
+    "phase": "still",
+    "still": true,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     192,
+     336,
+     224,
+     368
+    ],
+    "all": 3,
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": [
+     "environment"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 148,
+    "t": 17760,
+    "phase": "still",
+    "still": true,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     304,
+     320,
+     336,
+     352
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": [
+     "environment"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 151,
+    "t": 18160,
+    "phase": "still",
+    "still": true,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     496,
+     304,
+     528,
+     336
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": [
+     "environment"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 151,
+    "t": 18160,
+    "phase": "still",
+    "still": true,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     496,
+     304,
+     528,
+     336
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": [
+     "environment"
+    ],
+    "image": "leaves-vanish-2.png"
+   },
+   {
+    "kind": "vanish",
+    "frame": 152,
+    "t": 18394,
+    "phase": "still",
+    "still": true,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     576,
+     304,
+     608,
+     336
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": [
+     "environment"
+    ],
+    "image": "leaves-vanish-3.png"
+   },
+   {
+    "kind": "pop",
+    "frame": 190,
+    "t": 22627,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     368,
+     16,
+     400,
+     64
+    ],
+    "all": 98,
+    "eye": [
+     41.5,
+     10.9,
+     72.2
+    ],
+    "events": [
+     "environment"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 190,
+    "t": 22627,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     80,
+     176,
+     128,
+     208
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.2
+    ],
+    "events": [
+     "environment"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 191,
+    "t": 22660,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1136,
+     192,
+     1168,
+     240
+    ],
+    "all": 64,
+    "eye": [
+     41.5,
+     10.9,
+     72.2
+    ],
+    "events": [
+     "environment"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 192,
+    "t": 22760,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1200,
+     336,
+     1216,
+     384
+    ],
+    "all": 76,
+    "eye": [
+     41.5,
+     10.9,
+     72.3
+    ],
+    "events": [
+     "environment",
+     "lod-pack 1 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 192,
+    "t": 22760,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     64,
+     320,
+     80,
+     368
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.3
+    ],
+    "events": [
+     "environment",
+     "lod-pack 1 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 192,
+    "t": 22760,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     224,
+     208,
+     240,
+     256
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.3
+    ],
+    "events": [
+     "environment",
+     "lod-pack 1 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 193,
+    "t": 22893,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1136,
+     160,
+     1152,
+     208
+    ],
+    "all": 69,
+    "eye": [
+     41.6,
+     10.9,
+     72.4
+    ],
+    "events": [
+     "environment",
+     "lod-pack 2 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 193,
+    "t": 22893,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     224,
+     288,
+     256,
+     336
+    ],
+    "eye": [
+     41.6,
+     10.9,
+     72.4
+    ],
+    "events": [
+     "environment",
+     "lod-pack 2 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 193,
+    "t": 22893,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     560,
+     128,
+     608,
+     192
+    ],
+    "eye": [
+     41.6,
+     10.9,
+     72.4
+    ],
+    "events": [
+     "environment",
+     "lod-pack 2 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 195,
+    "t": 23027,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     672,
+     304,
+     688,
+     352
+    ],
+    "all": 35,
+    "eye": [
+     41.6,
+     10.9,
+     72.5
+    ],
+    "events": [
+     "environment",
+     "lod-pack 3 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 195,
+    "t": 23027,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     256,
+     288,
+     288,
+     336
+    ],
+    "eye": [
+     41.6,
+     10.9,
+     72.5
+    ],
+    "events": [
+     "environment",
+     "lod-pack 3 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 195,
+    "t": 23027,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     80,
+     208,
+     112,
+     240
+    ],
+    "eye": [
+     41.6,
+     10.9,
+     72.5
+    ],
+    "events": [
+     "environment",
+     "lod-pack 3 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 196,
+    "t": 23127,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1024,
+     336,
+     1056,
+     384
+    ],
+    "all": 35,
+    "eye": [
+     41.6,
+     10.9,
+     72.5
+    ],
+    "events": [
+     "environment",
+     "lod-pack 5 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 199,
+    "t": 23360,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1200,
+     112,
+     1216,
+     160
+    ],
+    "eye": [
+     41.6,
+     10.9,
+     72.7
+    ],
+    "events": [
+     "environment",
+     "lod-pack 20 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 201,
+    "t": 23593,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     320,
+     112,
+     352,
+     192
+    ],
+    "eye": [
+     41.6,
+     10.8,
+     72.9
+    ],
+    "events": [
+     "environment",
+     "environment",
+     "lod-pack 34 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 209,
+    "t": 24293,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     720,
+     128,
+     752,
+     176
+    ],
+    "eye": [
+     41.6,
+     10.8,
+     73.4
+    ],
+    "events": [
+     "environment",
+     "lod-pack 53 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 211,
+    "t": 24427,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     688,
+     112,
+     720,
+     176
+    ],
+    "eye": [
+     41.6,
+     10.8,
+     73.5
+    ],
+    "events": [
+     "environment",
+     "lod-pack 41 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 212,
+    "t": 24560,
+    "phase": "still",
+    "still": false,
+    "cells": 8,
+    "pixels": 2048,
+    "box": [
+     912,
+     368,
+     992,
+     448
+    ],
+    "all": 65,
+    "eye": [
+     41.6,
+     10.8,
+     73.6
+    ],
+    "events": [
+     "environment",
+     "lod-pack 45 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 214,
+    "t": 24693,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     64,
+     464,
+     112,
+     512
+    ],
+    "all": 66,
+    "eye": [
+     41.6,
+     10.8,
+     73.7
+    ],
+    "events": [
+     "environment",
+     "lod-pack 52 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 214,
+    "t": 24693,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     272,
+     416,
+     320,
+     464
+    ],
+    "eye": [
+     41.6,
+     10.8,
+     73.7
+    ],
+    "events": [
+     "environment",
+     "lod-pack 52 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 214,
+    "t": 24693,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     448,
+     144,
+     480,
+     224
+    ],
+    "eye": [
+     41.6,
+     10.8,
+     73.7
+    ],
+    "events": [
+     "environment",
+     "lod-pack 52 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 217,
+    "t": 25060,
+    "phase": "still",
+    "still": false,
+    "cells": 8,
+    "pixels": 2048,
+    "box": [
+     960,
+     368,
+     1056,
+     448
+    ],
+    "all": 84,
+    "eye": [
+     41.5,
+     10.8,
+     73.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 62 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 217,
+    "t": 25060,
+    "phase": "still",
+    "still": false,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     480,
+     144,
+     512,
+     240
+    ],
+    "eye": [
+     41.5,
+     10.8,
+     73.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 62 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 219,
+    "t": 25193,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     976,
+     384,
+     1024,
+     448
+    ],
+    "all": 67,
+    "eye": [
+     41.5,
+     10.8,
+     74
+    ],
+    "events": [
+     "environment",
+     "lod-pack 33 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 219,
+    "t": 25193,
+    "phase": "still",
+    "still": false,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     48,
+     272,
+     128,
+     336
+    ],
+    "eye": [
+     41.5,
+     10.8,
+     74
+    ],
+    "events": [
+     "environment",
+     "lod-pack 33 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 222,
+    "t": 25460,
+    "phase": "still",
+    "still": false,
+    "cells": 8,
+    "pixels": 2048,
+    "box": [
+     1008,
+     368,
+     1120,
+     448
+    ],
+    "all": 87,
+    "eye": [
+     41.5,
+     10.8,
+     74.2
+    ],
+    "events": [
+     "environment",
+     "environment",
+     "lod-pack 49 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 224,
+    "t": 25660,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     1232,
+     672,
+     1248,
+     752
+    ],
+    "all": 91,
+    "eye": [
+     41.4,
+     10.8,
+     74.3
+    ],
+    "events": [
+     "environment",
+     "lod-pack 54 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 224,
+    "t": 25660,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     192,
+     464,
+     240,
+     496
+    ],
+    "eye": [
+     41.4,
+     10.8,
+     74.3
+    ],
+    "events": [
+     "environment",
+     "lod-pack 54 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 224,
+    "t": 25660,
+    "phase": "still",
+    "still": false,
+    "cells": 7,
+    "pixels": 1792,
+    "box": [
+     560,
+     224,
+     608,
+     320
+    ],
+    "eye": [
+     41.4,
+     10.8,
+     74.3
+    ],
+    "events": [
+     "environment",
+     "lod-pack 54 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 227,
+    "t": 25893,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1168,
+     96,
+     1200,
+     144
+    ],
+    "all": 18,
+    "eye": [
+     41.4,
+     10.7,
+     74.4
+    ],
+    "events": [
+     "environment",
+     "lod-pack 34 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 228,
+    "t": 25960,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     48,
+     400,
+     80,
+     448
+    ],
+    "all": 8,
+    "eye": [
+     41.3,
+     10.7,
+     74.5
+    ],
+    "events": [
+     "lod-pack 33 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 231,
+    "t": 26260,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     1200,
+     496,
+     1216,
+     560
+    ],
+    "all": 27,
+    "eye": [
+     41.3,
+     10.7,
+     74.6
+    ],
+    "events": [
+     "environment",
+     "environment",
+     "lod-pack 53 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 231,
+    "t": 26260,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     1184,
+     176,
+     1248,
+     240
+    ],
+    "eye": [
+     41.3,
+     10.7,
+     74.6
+    ],
+    "events": [
+     "environment",
+     "environment",
+     "lod-pack 53 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 233,
+    "t": 26393,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     1168,
+     32,
+     1200,
+     80
+    ],
+    "all": 29,
+    "eye": [
+     41.2,
+     10.7,
+     74.7
+    ],
+    "events": [
+     "environment",
+     "lod-pack 43 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 233,
+    "t": 26393,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1184,
+     160,
+     1232,
+     208
+    ],
+    "eye": [
+     41.2,
+     10.7,
+     74.7
+    ],
+    "events": [
+     "environment",
+     "lod-pack 43 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 234,
+    "t": 26460,
+    "phase": "still",
+    "still": false,
+    "cells": 7,
+    "pixels": 1792,
+    "box": [
+     1168,
+     432,
+     1184,
+     544
+    ],
+    "all": 25,
+    "eye": [
+     41.2,
+     10.7,
+     74.7
+    ],
+    "events": [
+     "environment",
+     "lod-pack 21 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 235,
+    "t": 26627,
+    "phase": "still",
+    "still": false,
+    "cells": 7,
+    "pixels": 1792,
+    "box": [
+     1152,
+     480,
+     1168,
+     592
+    ],
+    "all": 58,
+    "eye": [
+     41.2,
+     10.7,
+     74.8
+    ],
+    "events": [
+     "environment",
+     "lod-pack 36 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 235,
+    "t": 26627,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     624,
+     208,
+     656,
+     256
+    ],
+    "eye": [
+     41.2,
+     10.7,
+     74.8
+    ],
+    "events": [
+     "environment",
+     "lod-pack 36 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 237,
+    "t": 26810,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     640,
+     176,
+     672,
+     256
+    ],
+    "eye": [
+     41.1,
+     10.7,
+     74.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 24 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 239,
+    "t": 26927,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     1072,
+     672,
+     1088,
+     736
+    ],
+    "all": 17,
+    "eye": [
+     41.1,
+     10.7,
+     75
+    ],
+    "events": [
+     "environment",
+     "lod-pack 14 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 239,
+    "t": 26927,
+    "phase": "still",
+    "still": false,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     1104,
+     112,
+     1152,
+     192
+    ],
+    "eye": [
+     41.1,
+     10.7,
+     75
+    ],
+    "events": [
+     "environment",
+     "lod-pack 14 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 241,
+    "t": 27160,
+    "phase": "still",
+    "still": false,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     1072,
+     480,
+     1104,
+     576
+    ],
+    "all": 34,
+    "eye": [
+     41,
+     10.7,
+     75.1
+    ],
+    "events": [
+     "environment",
+     "lod-pack 47 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 241,
+    "t": 27160,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     864,
+     208,
+     928,
+     240
+    ],
+    "eye": [
+     41,
+     10.7,
+     75.1
+    ],
+    "events": [
+     "environment",
+     "lod-pack 47 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 242,
+    "t": 27260,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     80,
+     400,
+     96,
+     448
+    ],
+    "eye": [
+     41,
+     10.7,
+     75.1
+    ],
+    "events": [
+     "environment",
+     "lod-pack 39 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 243,
+    "t": 27327,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     704,
+     432,
+     736,
+     480
+    ],
+    "eye": [
+     41,
+     10.7,
+     75.1
+    ],
+    "events": [
+     "environment",
+     "lod-pack 32 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 243,
+    "t": 27327,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     704,
+     432,
+     736,
+     480
+    ],
+    "eye": [
+     41,
+     10.7,
+     75.1
+    ],
+    "events": [
+     "environment",
+     "lod-pack 32 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 244,
+    "t": 27410,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     736,
+     432,
+     768,
+     464
+    ],
+    "eye": [
+     41,
+     10.7,
+     75.2
+    ],
+    "events": [
+     "environment",
+     "lod-pack 22 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 244,
+    "t": 27410,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     736,
+     432,
+     768,
+     464
+    ],
+    "eye": [
+     41,
+     10.7,
+     75.2
+    ],
+    "events": [
+     "environment",
+     "lod-pack 22 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 245,
+    "t": 27493,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     464,
+     320,
+     512,
+     352
+    ],
+    "all": 38,
+    "eye": [
+     40.9,
+     10.7,
+     75.2
+    ],
+    "events": [
+     "environment",
+     "lod-pack 22 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 245,
+    "t": 27493,
+    "phase": "still",
+    "still": false,
+    "cells": 7,
+    "pixels": 1792,
+    "box": [
+     768,
+     416,
+     832,
+     464
+    ],
+    "eye": [
+     40.9,
+     10.7,
+     75.2
+    ],
+    "events": [
+     "environment",
+     "lod-pack 22 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 247,
+    "t": 27593,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     0,
+     416,
+     16,
+     480
+    ],
+    "eye": [
+     40.9,
+     10.7,
+     75.3
+    ],
+    "events": [
+     "environment",
+     "lod-pack 23 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 251,
+    "t": 27927,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     848,
+     480,
+     864,
+     560
+    ],
+    "all": 18,
+    "eye": [
+     40.8,
+     10.7,
+     75.4
+    ],
+    "events": [
+     "lod-pack 37 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 251,
+    "t": 27927,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1040,
+     400,
+     1072,
+     432
+    ],
+    "eye": [
+     40.8,
+     10.7,
+     75.4
+    ],
+    "events": [
+     "lod-pack 37 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 253,
+    "t": 28027,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     64,
+     368,
+     80,
+     432
+    ],
+    "eye": [
+     40.8,
+     10.7,
+     75.4
+    ],
+    "events": [
+     "lod-pack 34 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 254,
+    "t": 28127,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     976,
+     288,
+     1008,
+     320
+    ],
+    "all": 12,
+    "eye": [
+     40.7,
+     10.7,
+     75.5
+    ],
+    "events": [
+     "lod-pack 45 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 256,
+    "t": 28260,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     800,
+     688,
+     816,
+     752
+    ],
+    "all": 18,
+    "eye": [
+     40.7,
+     10.7,
+     75.5
+    ],
+    "events": [
+     "environment",
+     "lod-pack 50 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 256,
+    "t": 28260,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     816,
+     352,
+     832,
+     400
+    ],
+    "eye": [
+     40.7,
+     10.7,
+     75.5
+    ],
+    "events": [
+     "environment",
+     "lod-pack 50 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 258,
+    "t": 28493,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     0,
+     688,
+     32,
+     768
+    ],
+    "eye": [
+     40.6,
+     10.6,
+     75.6
+    ],
+    "events": [
+     "environment",
+     "environment",
+     "lod-pack 45 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 259,
+    "t": 28460,
+    "phase": "still",
+    "still": false,
+    "cells": 10,
+    "pixels": 2560,
+    "box": [
+     592,
+     48,
+     736,
+     144
+    ],
+    "all": 68,
+    "eye": [
+     40.6,
+     10.7,
+     75.6
+    ],
+    "events": [
+     "environment",
+     "lod-pack 18 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 260,
+    "t": 28627,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     128,
+     416,
+     144,
+     480
+    ],
+    "eye": [
+     40.6,
+     10.6,
+     75.7
+    ],
+    "events": [
+     "environment",
+     "lod-pack 38 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 266,
+    "t": 29093,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     16,
+     352,
+     32,
+     432
+    ],
+    "eye": [
+     40.4,
+     10.6,
+     75.8
+    ],
+    "events": [
+     "environment",
+     "lod-pack 13 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 268,
+    "t": 29226,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     32,
+     352,
+     48,
+     432
+    ],
+    "eye": [
+     40.4,
+     10.6,
+     75.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 27 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 271,
+    "t": 29560,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     640,
+     512,
+     656,
+     576
+    ],
+    "all": 24,
+    "eye": [
+     40.3,
+     10.6,
+     75.9
+    ],
+    "events": [
+     "quality from=5 to=6 cost=10",
+     "environment",
+     "lod-pack 149 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 272,
+    "t": 29693,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     624,
+     512,
+     640,
+     576
+    ],
+    "all": 35,
+    "eye": [
+     40.2,
+     10.6,
+     76
+    ],
+    "events": [
+     "environment",
+     "lod-pack 228 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 272,
+    "t": 29693,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     624,
+     560,
+     640,
+     624
+    ],
+    "eye": [
+     40.2,
+     10.6,
+     76
+    ],
+    "events": [
+     "environment",
+     "lod-pack 228 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 273,
+    "t": 29826,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     608,
+     560,
+     624,
+     608
+    ],
+    "all": 31,
+    "eye": [
+     40.2,
+     10.6,
+     76
+    ],
+    "events": [
+     "environment",
+     "lod-pack 384 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 273,
+    "t": 29826,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     16,
+     432,
+     32,
+     480
+    ],
+    "eye": [
+     40.2,
+     10.6,
+     76
+    ],
+    "events": [
+     "environment",
+     "lod-pack 384 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 274,
+    "t": 29960,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     592,
+     512,
+     608,
+     592
+    ],
+    "all": 35,
+    "eye": [
+     40.1,
+     10.6,
+     76.1
+    ],
+    "events": [
+     "environment",
+     "lod-pack 282 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 274,
+    "t": 29960,
+    "phase": "still",
+    "still": false,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     96,
+     336,
+     112,
+     432
+    ],
+    "eye": [
+     40.1,
+     10.6,
+     76.1
+    ],
+    "events": [
+     "environment",
+     "lod-pack 282 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 277,
+    "t": 30260,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     672,
+     496,
+     688,
+     544
+    ],
+    "all": 10,
+    "eye": [
+     40,
+     10.6,
+     76.1
+    ],
+    "events": [
+     "environment",
+     "lod-pack 1 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 277,
+    "t": 30260,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     1232,
+     368,
+     1264,
+     416
+    ],
+    "eye": [
+     40,
+     10.6,
+     76.1
+    ],
+    "events": [
+     "environment",
+     "lod-pack 1 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 279,
+    "t": 30393,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     1184,
+     384,
+     1216,
+     432
+    ],
+    "eye": [
+     40,
+     10.6,
+     76.2
+    ],
+    "events": [
+     "environment",
+     "lod-pack 1 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 281,
+    "t": 30560,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1136,
+     384,
+     1152,
+     432
+    ],
+    "eye": [
+     39.9,
+     10.6,
+     76.2
+    ],
+    "events": [
+     "environment"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 281,
+    "t": 30560,
+    "phase": "still",
+    "still": false,
+    "cells": 7,
+    "pixels": 1792,
+    "box": [
+     528,
+     496,
+     544,
+     608
+    ],
+    "eye": [
+     39.9,
+     10.6,
+     76.2
+    ],
+    "events": [
+     "environment"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 282,
+    "t": 30593,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1136,
+     384,
+     1152,
+     432
+    ],
+    "all": 4,
+    "eye": [
+     39.9,
+     10.6,
+     76.2
+    ],
+    "events": [
+     "environment",
+     "lod-pack 11 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 283,
+    "t": 30660,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1072,
+     400,
+     1104,
+     432
+    ],
+    "eye": [
+     39.9,
+     10.6,
+     76.2
+    ],
+    "events": [
+     "environment",
+     "lod-pack 15 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 286,
+    "t": 30826,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1008,
+     400,
+     1040,
+     432
+    ],
+    "eye": [
+     39.8,
+     10.6,
+     76.3
+    ],
+    "events": [
+     "environment",
+     "lod-pack 15 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 291,
+    "t": 31226,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     144,
+     400,
+     176,
+     448
+    ],
+    "eye": [
+     39.7,
+     10.6,
+     76.3
+    ],
+    "events": [
+     "environment",
+     "lod-pack 12 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 301,
+    "t": 31860,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     864,
+     448,
+     896,
+     480
+    ],
+    "eye": [
+     39.5,
+     10.5,
+     76.5
+    ],
+    "events": [
+     "quality from=6 to=5 cost=8",
+     "shadow-request jump=false",
+     "shadow-slice slice=1 count=8",
+     "shadow-slice slice=2 count=8",
+     "shadow-slice slice=3 count=8",
+     "shadow-slice slice=4 count=8",
+     "environment",
+     "shadow-slice slice=5 count=8",
+     "shadow-slice slice=6 count=8",
+     "shadow-slice slice=7 count=8",
+     "lod-pack 178 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 302,
+    "t": 31893,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     848,
+     640,
+     896,
+     672
+    ],
+    "all": 13,
+    "eye": [
+     39.5,
+     10.5,
+     76.5
+    ],
+    "events": [
+     "shadow-slice slice=3 count=8",
+     "shadow-slice slice=4 count=8",
+     "environment",
+     "shadow-slice slice=5 count=8",
+     "shadow-slice slice=6 count=8",
+     "shadow-slice slice=7 count=8",
+     "shadow-swap slice=8 count=8",
+     "lod-pack 138 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 393,
+    "t": 37126,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1152,
+     224,
+     1184,
+     272
+    ],
+    "eye": [
+     38.2,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 2 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 421,
+    "t": 38626,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1008,
+     128,
+     1040,
+     176
+    ],
+    "eye": [
+     37.9,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 7 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 426,
+    "t": 38893,
+    "phase": "still",
+    "still": false,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     912,
+     144,
+     960,
+     224
+    ],
+    "eye": [
+     37.9,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 18 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 429,
+    "t": 39093,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     848,
+     144,
+     896,
+     224
+    ],
+    "eye": [
+     37.8,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 23 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 431,
+    "t": 39193,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     816,
+     160,
+     848,
+     208
+    ],
+    "eye": [
+     37.8,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 22 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 434,
+    "t": 39359,
+    "phase": "still",
+    "still": false,
+    "cells": 7,
+    "pixels": 1792,
+    "box": [
+     752,
+     160,
+     800,
+     240
+    ],
+    "eye": [
+     37.8,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 13 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 439,
+    "t": 39659,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     656,
+     160,
+     688,
+     208
+    ],
+    "eye": [
+     37.7,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "resize layer=sea from=1050x656 to=1280x800 boundary=true",
+     "environment",
+     "lod-pack 4 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 441,
+    "t": 39759,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     624,
+     160,
+     656,
+     208
+    ],
+    "eye": [
+     37.7,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 9 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 444,
+    "t": 39926,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     560,
+     160,
+     592,
+     240
+    ],
+    "eye": [
+     37.7,
+     10.4,
+     77
+    ],
+    "events": [
+     "environment",
+     "lod-pack 8 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 445,
+    "t": 39959,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     544,
+     160,
+     576,
+     240
+    ],
+    "eye": [
+     37.7,
+     10.4,
+     77
+    ],
+    "events": [
+     "environment",
+     "lod-pack 4 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 446,
+    "t": 40026,
+    "phase": "still",
+    "still": false,
+    "cells": 8,
+    "pixels": 2048,
+    "box": [
+     512,
+     160,
+     560,
+     240
+    ],
+    "eye": [
+     37.7,
+     10.4,
+     77
+    ],
+    "events": [
+     "lod-pack 4 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 447,
+    "t": 40093,
+    "phase": "still",
+    "still": false,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     496,
+     160,
+     528,
+     256
+    ],
+    "eye": [
+     37.7,
+     10.4,
+     77
+    ],
+    "events": [
+     "environment",
+     "lod-pack 4 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 448,
+    "t": 40126,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     480,
+     160,
+     512,
+     240
+    ],
+    "eye": [
+     37.7,
+     10.4,
+     77
+    ],
+    "events": [
+     "environment",
+     "lod-pack 2 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 449,
+    "t": 40193,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     448,
+     160,
+     480,
+     208
+    ],
+    "eye": [
+     37.7,
+     10.4,
+     77
+    ],
+    "events": [
+     "environment",
+     "lod-pack 3 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 465,
+    "t": 41026,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     0,
+     144,
+     32,
+     176
+    ],
+    "eye": [
+     37.5,
+     10.4,
+     77
+    ],
+    "events": [
+     "environment",
+     "lod-pack 8 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 582,
+    "t": 47292,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     608,
+     464,
+     624,
+     512
+    ],
+    "eye": [
+     36.9,
+     10.3,
+     76.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 2 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 666,
+    "t": 51559,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     784,
+     416,
+     800,
+     464
+    ],
+    "eye": [
+     36.7,
+     10.3,
+     76.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 5 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 667,
+    "t": 51592,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     816,
+     416,
+     832,
+     464
+    ],
+    "eye": [
+     36.7,
+     10.3,
+     76.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 3 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 669,
+    "t": 51692,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     880,
+     400,
+     912,
+     448
+    ],
+    "eye": [
+     36.7,
+     10.3,
+     76.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 3 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 670,
+    "t": 51726,
+    "phase": "still",
+    "still": false,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     912,
+     400,
+     944,
+     448
+    ],
+    "eye": [
+     36.7,
+     10.3,
+     76.9
+    ],
+    "events": [
+     "lod-pack 2 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 671,
+    "t": 51792,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     976,
+     384,
+     1008,
+     432
+    ],
+    "eye": [
+     36.7,
+     10.3,
+     76.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 3 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 671,
+    "t": 51792,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     976,
+     400,
+     1008,
+     432
+    ],
+    "eye": [
+     36.7,
+     10.3,
+     76.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 3 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 672,
+    "t": 51826,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     1008,
+     384,
+     1040,
+     432
+    ],
+    "eye": [
+     36.7,
+     10.3,
+     76.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 3 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 675,
+    "t": 51992,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     1216,
+     352,
+     1248,
+     400
+    ],
+    "eye": [
+     36.7,
+     10.3,
+     76.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 5 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 700,
+    "t": 53226,
+    "phase": "end",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     32,
+     144,
+     48,
+     192
+    ],
+    "eye": [
+     36.6,
+     10.3,
+     76.9
+    ],
+    "events": [
+     "lod-pack 4 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 702,
+    "t": 53292,
+    "phase": "end",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     0,
+     96,
+     16,
+     160
+    ],
+    "all": 4,
+    "eye": [
+     36.6,
+     10.3,
+     76.9
+    ],
+    "events": [
+     "lod-pack 3 chunks"
+    ]
+   }
+  ],
+  "hitches": [
+   {
+    "t": 548,
+    "ms": 213,
+    "phase": "navigate",
+    "events": [
+     "reveal reveal=0.125",
+     "resize layer=land from=80x50 to=160x100 boundary=false",
+     "resize layer=sea from=80x50 to=160x100 boundary=false",
+     "resize layer=sky from=80x50 to=160x100 boundary=false"
+    ]
+   },
+   {
+    "t": 3366,
+    "ms": 123,
+    "phase": "navigate",
+    "events": [
+     "prewarm-start",
+     "magic-pipelines"
+    ]
+   },
+   {
+    "t": 8300,
+    "ms": 113,
+    "phase": "navigate",
+    "events": [
+     "environment",
+     "shadow-request jump=true",
+     "lod-pack chunks=379",
+     "animal-lod herd=herd coarse=true distance=64",
+     "shadow-swap slice=1 count=1"
+    ]
+   }
+  ],
+  "flicker": {
+   "navigate": {
+    "mean": 1.125,
+    "share": 0.0493,
+    "frames": 73,
+    "still": 69
+   },
+   "still": {
+    "mean": 0.844,
+    "share": 0.0524,
+    "frames": 588,
+    "still": 85
+   },
+   "end": {
+    "mean": 0.326,
+    "share": 0.004,
+    "frames": 19,
+    "still": 0
+   }
+  },
+  "lighting": [],
+  "events": [
+   {
+    "t": -3056,
+    "kind": "weather"
+   },
+   {
+    "t": -743,
+    "kind": "weather"
+   },
+   {
+    "t": -632,
+    "kind": "shadow-request",
+    "jump": true
+   },
+   {
+    "t": -627,
+    "kind": "environment"
+   },
+   {
+    "t": -541,
+    "kind": "shadow-swap",
+    "slice": 1,
+    "count": 1
+   },
+   {
+    "t": 0,
+    "kind": "first-frame"
+   },
+   {
+    "t": 4,
+    "kind": "place-lod",
+    "place": "9394fa",
+    "from": 0,
+    "to": 1,
+    "x": 125.16450933054168,
+    "z": 58.58204935842191
+   },
+   {
+    "t": 4,
+    "kind": "place-lod",
+    "place": "12c1ee",
+    "from": 0,
+    "to": 1,
+    "x": 62,
+    "z": 86
+   },
+   {
+    "t": 4,
+    "kind": "place-lod",
+    "place": "95b688",
+    "from": 0,
+    "to": 1,
+    "x": -4.456042089753154,
+    "z": 38.35820823377907
+   },
+   {
+    "t": 4,
+    "kind": "place-lod",
+    "place": "7a155c",
+    "from": 0,
+    "to": 1,
+    "x": 76.69948028861975,
+    "z": 40.58069007002524
+   },
+   {
+    "t": 4,
+    "kind": "place-lod",
+    "place": "3e849f",
+    "from": 0,
+    "to": 2,
+    "x": 63.934342677373984,
+    "z": 126.81560463466371
+   },
+   {
+    "t": 12,
+    "kind": "animal-lod",
+    "herd": "herd",
+    "coarse": true,
+    "distance": 29
+   },
+   {
+    "t": 12,
+    "kind": "animal-lod",
+    "herd": "herd",
+    "coarse": true,
+    "distance": 61
+   },
+   {
+    "t": 29,
+    "kind": "veil-ready"
+   },
+   {
+    "t": 232,
+    "kind": "environment"
+   },
+   {
+    "t": 290,
+    "kind": "reveal",
+    "reveal": 0.0625
+   },
+   {
+    "t": 290,
+    "kind": "resize",
+    "layer": "land",
+    "from": [
+     40,
+     25
+    ],
+    "to": [
+     80,
+     50
+    ],
+    "boundary": false
+   },
+   {
+    "t": 290,
+    "kind": "resize",
+    "layer": "sea",
+    "from": [
+     40,
+     25
+    ],
+    "to": [
+     80,
+     50
+    ],
+    "boundary": false
+   },
+   {
+    "t": 290,
+    "kind": "resize",
+    "layer": "sky",
+    "from": [
+     40,
+     25
+    ],
+    "to": [
+     80,
+     50
+    ],
+    "boundary": false
+   },
+   {
+    "t": 496,
+    "kind": "environment"
+   },
+   {
+    "t": 554,
+    "kind": "reveal",
+    "reveal": 0.125
+   },
+   {
+    "t": 554,
+    "kind": "resize",
+    "layer": "land",
+    "from": [
+     80,
+     50
+    ],
+    "to": [
+     160,
+     100
+    ],
+    "boundary": false
+   },
+   {
+    "t": 554,
+    "kind": "resize",
+    "layer": "sea",
+    "from": [
+     80,
+     50
+    ],
+    "to": [
+     160,
+     100
+    ],
+    "boundary": false
+   },
+   {
+    "t": 554,
+    "kind": "resize",
+    "layer": "sky",
+    "from": [
+     80,
+     50
+    ],
+    "to": [
+     160,
+     100
+    ],
+    "boundary": false
+   },
+   {
+    "t": 819,
+    "kind": "reveal",
+    "reveal": 0.25
+   },
+   {
+    "t": 819,
+    "kind": "resize",
+    "layer": "land",
+    "from": [
+     160,
+     100
+    ],
+    "to": [
+     320,
+     200
+    ],
+    "boundary": false
+   },
+   {
+    "t": 819,
+    "kind": "resize",
+    "layer": "sea",
+    "from": [
+     160,
+     100
+    ],
+    "to": [
+     320,
+     200
+    ],
+    "boundary": false
+   },
+   {
+    "t": 819,
+    "kind": "resize",
+    "layer": "sky",
+    "from": [
+     160,
+     100
+    ],
+    "to": [
+     320,
+     200
+    ],
+    "boundary": false
+   },
+   {
+    "t": 896,
+    "kind": "environment"
+   },
+   {
+    "t": 1083,
+    "kind": "reveal",
+    "reveal": 0.5
+   },
+   {
+    "t": 1083,
+    "kind": "resize",
+    "layer": "land",
+    "from": [
+     320,
+     200
+    ],
+    "to": [
+     640,
+     400
+    ],
+    "boundary": false
+   },
+   {
+    "t": 1083,
+    "kind": "resize",
+    "layer": "sea",
+    "from": [
+     320,
+     200
+    ],
+    "to": [
+     640,
+     400
+    ],
+    "boundary": false
+   },
+   {
+    "t": 1083,
+    "kind": "resize",
+    "layer": "sky",
+    "from": [
+     320,
+     200
+    ],
+    "to": [
+     640,
+     400
+    ],
+    "boundary": false
+   },
+   {
+    "t": 1147,
+    "kind": "environment"
+   },
+   {
+    "t": 1345,
+    "kind": "reveal",
+    "reveal": 1
+   },
+   {
+    "t": 1345,
+    "kind": "resize",
+    "layer": "land",
+    "from": [
+     640,
+     400
+    ],
+    "to": [
+     1280,
+     800
+    ],
+    "boundary": false
+   },
+   {
+    "t": 1345,
+    "kind": "resize",
+    "layer": "sea",
+    "from": [
+     640,
+     400
+    ],
+    "to": [
+     1280,
+     800
+    ],
+    "boundary": false
+   },
+   {
+    "t": 1345,
+    "kind": "resize",
+    "layer": "sky",
+    "from": [
+     640,
+     400
+    ],
+    "to": [
+     849,
+     530
+    ],
+    "boundary": false
+   },
+   {
+    "t": 1414,
+    "kind": "environment"
+   },
+   {
+    "t": 1664,
+    "kind": "environment"
+   },
+   {
+    "t": 1931,
+    "kind": "environment"
+   },
+   {
+    "t": 2195,
+    "kind": "environment"
+   },
+   {
+    "t": 2446,
+    "kind": "environment"
+   },
+   {
+    "t": 2697,
+    "kind": "environment"
+   },
+   {
+    "t": 2966,
+    "kind": "environment"
+   },
+   {
+    "t": 3230,
+    "kind": "environment"
+   },
+   {
+    "t": 3366,
+    "kind": "prewarm-start"
+   },
+   {
+    "t": 3366,
+    "kind": "magic-pipelines"
+   },
+   {
+    "t": 3544,
+    "kind": "environment"
+   },
+   {
+    "t": 3663,
+    "kind": "prewarm-end"
+   },
+   {
+    "t": 3813,
+    "kind": "environment"
+   },
+   {
+    "t": 4064,
+    "kind": "environment"
+   },
+   {
+    "t": 4314,
+    "kind": "environment"
+   },
+   {
+    "t": 4580,
+    "kind": "environment"
+   },
+   {
+    "t": 4845,
+    "kind": "environment"
+   },
+   {
+    "t": 5096,
+    "kind": "environment"
+   },
+   {
+    "t": 5347,
+    "kind": "environment"
+   },
+   {
+    "t": 5614,
+    "kind": "environment"
+   },
+   {
+    "t": 5880,
+    "kind": "environment"
+   },
+   {
+    "t": 6147,
+    "kind": "environment"
+   },
+   {
+    "t": 6430,
+    "kind": "environment"
+   },
+   {
+    "t": 6697,
+    "kind": "environment"
+   },
+   {
+    "t": 6962,
+    "kind": "environment"
+   },
+   {
+    "t": 7199,
+    "kind": "quality",
+    "from": 0,
+    "to": 1,
+    "cost": 10
+   },
+   {
+    "t": 7229,
+    "kind": "environment"
+   },
+   {
+    "t": 7496,
+    "kind": "environment"
+   },
+   {
+    "t": 7762,
+    "kind": "environment"
+   },
+   {
+    "t": 8030,
+    "kind": "environment"
+   },
+   {
+    "t": 8296,
+    "kind": "environment"
+   },
+   {
+    "t": 8329,
+    "kind": "shadow-request",
+    "jump": true
+   },
+   {
+    "t": 8377,
+    "kind": "animal-lod",
+    "herd": "herd",
+    "coarse": true,
+    "distance": 64
+   },
+   {
+    "t": 8396,
+    "kind": "shadow-swap",
+    "slice": 1,
+    "count": 1
+   },
+   {
+    "t": 8414,
+    "kind": "place-lod",
+    "place": "12c1ee",
+    "from": 1,
+    "to": 0,
+    "x": 62,
+    "z": 86
+   },
+   {
+    "t": 8414,
+    "kind": "place-lod",
+    "place": "3e849f",
+    "from": 2,
+    "to": 1,
+    "x": 63.934342677373984,
+    "z": 126.81560463466371
+   },
+   {
+    "t": 8578,
+    "kind": "environment"
+   },
+   {
+    "t": 8748,
+    "kind": "quality",
+    "from": 1,
+    "to": 2,
+    "cost": 11
+   },
+   {
+    "t": 8778,
+    "kind": "resize",
+    "layer": "sky",
+    "from": [
+     849,
+     530
+    ],
+    "to": [
+     636,
+     398
+    ],
+    "boundary": true
+   },
+   {
+    "t": 8845,
+    "kind": "environment"
+   },
+   {
+    "t": 9113,
+    "kind": "environment"
+   },
+   {
+    "t": 9380,
+    "kind": "environment"
+   },
+   {
+    "t": 9647,
+    "kind": "environment"
+   },
+   {
+    "t": 9913,
+    "kind": "environment"
+   },
+   {
+    "t": 10180,
+    "kind": "environment"
+   },
+   {
+    "t": 10446,
+    "kind": "environment"
+   },
+   {
+    "t": 10712,
+    "kind": "environment"
+   },
+   {
+    "t": 10748,
+    "kind": "quality",
+    "from": 2,
+    "to": 3,
+    "cost": 23
+   },
+   {
+    "t": 10778,
+    "kind": "resize",
+    "layer": "sea",
+    "from": [
+     1280,
+     800
+    ],
+    "to": [
+     1050,
+     656
+    ],
+    "boundary": true
+   },
+   {
+    "t": 10980,
+    "kind": "environment"
+   },
+   {
+    "t": 11245,
+    "kind": "environment"
+   },
+   {
+    "t": 11513,
+    "kind": "environment"
+   },
+   {
+    "t": 11779,
+    "kind": "environment"
+   },
+   {
+    "t": 12045,
+    "kind": "environment"
+   },
+   {
+    "t": 12313,
+    "kind": "environment"
+   },
+   {
+    "t": 12580,
+    "kind": "environment"
+   },
+   {
+    "t": 12846,
+    "kind": "environment"
+   },
+   {
+    "t": 13113,
+    "kind": "environment"
+   },
+   {
+    "t": 13379,
+    "kind": "environment"
+   },
+   {
+    "t": 13481,
+    "kind": "quality",
+    "from": 3,
+    "to": 4,
+    "cost": 13
+   },
+   {
+    "t": 13512,
+    "kind": "resize",
+    "layer": "sea",
+    "from": [
+     1050,
+     656
+    ],
+    "to": [
+     870,
+     544
+    ],
+    "boundary": true
+   },
+   {
+    "t": 13646,
+    "kind": "environment"
+   },
+   {
+    "t": 13912,
+    "kind": "environment"
+   },
+   {
+    "t": 14179,
+    "kind": "environment"
+   },
+   {
+    "t": 14446,
+    "kind": "environment"
+   },
+   {
+    "t": 14713,
+    "kind": "environment"
+   },
+   {
+    "t": 14978,
+    "kind": "environment"
+   },
+   {
+    "t": 15246,
+    "kind": "environment"
+   },
+   {
+    "t": 15511,
+    "kind": "environment"
+   },
+   {
+    "t": 15514,
+    "kind": "quality",
+    "from": 4,
+    "to": 5,
+    "cost": 26
+   },
+   {
+    "t": 15550,
+    "kind": "animal-lod",
+    "herd": "herd",
+    "coarse": true,
+    "distance": 164
+   },
+   {
+    "t": 15780,
+    "kind": "environment"
+   },
+   {
+    "t": 16046,
+    "kind": "environment"
+   },
+   {
+    "t": 16313,
+    "kind": "environment"
+   },
+   {
+    "t": 16579,
+    "kind": "environment"
+   },
+   {
+    "t": 16846,
+    "kind": "environment"
+   },
+   {
+    "t": 17113,
+    "kind": "environment"
+   },
+   {
+    "t": 17379,
+    "kind": "environment"
+   },
+   {
+    "t": 17646,
+    "kind": "environment"
+   },
+   {
+    "t": 17913,
+    "kind": "environment"
+   },
+   {
+    "t": 18180,
+    "kind": "environment"
+   },
+   {
+    "t": 18446,
+    "kind": "environment"
+   },
+   {
+    "t": 18713,
+    "kind": "environment"
+   },
+   {
+    "t": 18983,
+    "kind": "environment"
+   },
+   {
+    "t": 19246,
+    "kind": "environment"
+   },
+   {
+    "t": 19513,
+    "kind": "environment"
+   },
+   {
+    "t": 20111,
+    "kind": "environment"
+   },
+   {
+    "t": 20380,
+    "kind": "environment"
+   },
+   {
+    "t": 20645,
+    "kind": "environment"
+   },
+   {
+    "t": 20912,
+    "kind": "environment"
+   },
+   {
+    "t": 21178,
+    "kind": "environment"
+   },
+   {
+    "t": 21446,
+    "kind": "environment"
+   },
+   {
+    "t": 21713,
+    "kind": "environment"
+   },
+   {
+    "t": 21979,
+    "kind": "environment"
+   },
+   {
+    "t": 22244,
+    "kind": "environment"
+   },
+   {
+    "t": 22513,
+    "kind": "environment"
+   },
+   {
+    "t": 22779,
+    "kind": "environment"
+   },
+   {
+    "t": 23045,
+    "kind": "environment"
+   },
+   {
+    "t": 23313,
+    "kind": "environment"
+   },
+   {
+    "t": 23579,
+    "kind": "environment"
+   },
+   {
+    "t": 23845,
+    "kind": "environment"
+   },
+   {
+    "t": 24111,
+    "kind": "environment"
+   },
+   {
+    "t": 24379,
+    "kind": "environment"
+   },
+   {
+    "t": 24645,
+    "kind": "environment"
+   },
+   {
+    "t": 24912,
+    "kind": "environment"
+   },
+   {
+    "t": 25179,
+    "kind": "environment"
+   },
+   {
+    "t": 25445,
+    "kind": "environment"
+   },
+   {
+    "t": 25712,
+    "kind": "environment"
+   },
+   {
+    "t": 25978,
+    "kind": "environment"
+   },
+   {
+    "t": 26245,
+    "kind": "environment"
+   },
+   {
+    "t": 26512,
+    "kind": "environment"
+   },
+   {
+    "t": 26779,
+    "kind": "environment"
+   },
+   {
+    "t": 27046,
+    "kind": "environment"
+   },
+   {
+    "t": 27311,
+    "kind": "environment"
+   },
+   {
+    "t": 27579,
+    "kind": "environment"
+   },
+   {
+    "t": 28180,
+    "kind": "environment"
+   },
+   {
+    "t": 28446,
+    "kind": "environment"
+   },
+   {
+    "t": 28844,
+    "kind": "environment"
+   },
+   {
+    "t": 29112,
+    "kind": "environment"
+   },
+   {
+    "t": 29347,
+    "kind": "quality",
+    "from": 5,
+    "to": 6,
+    "cost": 10
+   },
+   {
+    "t": 29377,
+    "kind": "environment"
+   },
+   {
+    "t": 29644,
+    "kind": "environment"
+   },
+   {
+    "t": 29911,
+    "kind": "environment"
+   },
+   {
+    "t": 30179,
+    "kind": "environment"
+   },
+   {
+    "t": 30445,
+    "kind": "environment"
+   },
+   {
+    "t": 30711,
+    "kind": "environment"
+   },
+   {
+    "t": 30979,
+    "kind": "environment"
+   },
+   {
+    "t": 31245,
+    "kind": "environment"
+   },
+   {
+    "t": 31511,
+    "kind": "environment"
+   },
+   {
+    "t": 31614,
+    "kind": "quality",
+    "from": 6,
+    "to": 5,
+    "cost": 8
+   },
+   {
+    "t": 31645,
+    "kind": "shadow-request",
+    "jump": false
+   },
+   {
+    "t": 31650,
+    "kind": "shadow-slice",
+    "slice": 1,
+    "count": 8
+   },
+   {
+    "t": 31681,
+    "kind": "shadow-slice",
+    "slice": 2,
+    "count": 8
+   },
+   {
+    "t": 31716,
+    "kind": "shadow-slice",
+    "slice": 3,
+    "count": 8
+   },
+   {
+    "t": 31748,
+    "kind": "shadow-slice",
+    "slice": 4,
+    "count": 8
+   },
+   {
+    "t": 31778,
+    "kind": "environment"
+   },
+   {
+    "t": 31781,
+    "kind": "shadow-slice",
+    "slice": 5,
+    "count": 8
+   },
+   {
+    "t": 31814,
+    "kind": "shadow-slice",
+    "slice": 6,
+    "count": 8
+   },
+   {
+    "t": 31848,
+    "kind": "shadow-slice",
+    "slice": 7,
+    "count": 8
+   },
+   {
+    "t": 31880,
+    "kind": "shadow-swap",
+    "slice": 8,
+    "count": 8
+   },
+   {
+    "t": 32045,
+    "kind": "environment"
+   },
+   {
+    "t": 32112,
+    "kind": "shadow-request",
+    "jump": false
+   },
+   {
+    "t": 32114,
+    "kind": "shadow-slice",
+    "slice": 1,
+    "count": 8
+   },
+   {
+    "t": 32147,
+    "kind": "shadow-slice",
+    "slice": 2,
+    "count": 8
+   },
+   {
+    "t": 32180,
+    "kind": "shadow-slice",
+    "slice": 3,
+    "count": 8
+   },
+   {
+    "t": 32214,
+    "kind": "shadow-slice",
+    "slice": 4,
+    "count": 8
+   },
+   {
+    "t": 32246,
+    "kind": "shadow-slice",
+    "slice": 5,
+    "count": 8
+   },
+   {
+    "t": 32279,
+    "kind": "shadow-slice",
+    "slice": 6,
+    "count": 8
+   },
+   {
+    "t": 32312,
+    "kind": "environment"
+   },
+   {
+    "t": 32314,
+    "kind": "shadow-slice",
+    "slice": 7,
+    "count": 8
+   },
+   {
+    "t": 32346,
+    "kind": "shadow-swap",
+    "slice": 8,
+    "count": 8
+   },
+   {
+    "t": 32579,
+    "kind": "environment"
+   },
+   {
+    "t": 32844,
+    "kind": "environment"
+   },
+   {
+    "t": 33112,
+    "kind": "environment"
+   },
+   {
+    "t": 33379,
+    "kind": "environment"
+   },
+   {
+    "t": 33547,
+    "kind": "quality",
+    "from": 5,
+    "to": 4,
+    "cost": 9
+   },
+   {
+    "t": 33645,
+    "kind": "environment"
+   },
+   {
+    "t": 33912,
+    "kind": "environment"
+   },
+   {
+    "t": 34179,
+    "kind": "environment"
+   },
+   {
+    "t": 34446,
+    "kind": "environment"
+   },
+   {
+    "t": 34712,
+    "kind": "environment"
+   },
+   {
+    "t": 34979,
+    "kind": "environment"
+   },
+   {
+    "t": 35246,
+    "kind": "environment"
+   },
+   {
+    "t": 35447,
+    "kind": "quality",
+    "from": 4,
+    "to": 3,
+    "cost": 10
+   },
+   {
+    "t": 35477,
+    "kind": "resize",
+    "layer": "sea",
+    "from": [
+     870,
+     544
+    ],
+    "to": [
+     1050,
+     656
+    ],
+    "boundary": true
+   },
+   {
+    "t": 35510,
+    "kind": "environment"
+   },
+   {
+    "t": 35778,
+    "kind": "environment"
+   },
+   {
+    "t": 36044,
+    "kind": "environment"
+   },
+   {
+    "t": 36312,
+    "kind": "environment"
+   },
+   {
+    "t": 36579,
+    "kind": "environment"
+   },
+   {
+    "t": 36845,
+    "kind": "environment"
+   },
+   {
+    "t": 37110,
+    "kind": "environment"
+   },
+   {
+    "t": 37379,
+    "kind": "environment"
+   },
+   {
+    "t": 37645,
+    "kind": "environment"
+   },
+   {
+    "t": 37911,
+    "kind": "environment"
+   },
+   {
+    "t": 38178,
+    "kind": "environment"
+   },
+   {
+    "t": 38445,
+    "kind": "environment"
+   },
+   {
+    "t": 38712,
+    "kind": "environment"
+   },
+   {
+    "t": 38979,
+    "kind": "environment"
+   },
+   {
+    "t": 39245,
+    "kind": "environment"
+   },
+   {
+    "t": 39414,
+    "kind": "quality",
+    "from": 3,
+    "to": 2,
+    "cost": 10
+   },
+   {
+    "t": 39445,
+    "kind": "resize",
+    "layer": "sea",
+    "from": [
+     1050,
+     656
+    ],
+    "to": [
+     1280,
+     800
+    ],
+    "boundary": true
+   },
+   {
+    "t": 39512,
+    "kind": "environment"
+   },
+   {
+    "t": 39779,
+    "kind": "environment"
+   },
+   {
+    "t": 40045,
+    "kind": "environment"
+   },
+   {
+    "t": 40312,
+    "kind": "environment"
+   },
+   {
+    "t": 40579,
+    "kind": "environment"
+   },
+   {
+    "t": 40845,
+    "kind": "environment"
+   },
+   {
+    "t": 41112,
+    "kind": "environment"
+   },
+   {
+    "t": 41379,
+    "kind": "environment"
+   },
+   {
+    "t": 41645,
+    "kind": "environment"
+   },
+   {
+    "t": 41912,
+    "kind": "environment"
+   },
+   {
+    "t": 42178,
+    "kind": "environment"
+   },
+   {
+    "t": 42445,
+    "kind": "environment"
+   },
+   {
+    "t": 42712,
+    "kind": "environment"
+   },
+   {
+    "t": 42978,
+    "kind": "environment"
+   },
+   {
+    "t": 43245,
+    "kind": "environment"
+   },
+   {
+    "t": 43511,
+    "kind": "environment"
+   },
+   {
+    "t": 43778,
+    "kind": "environment"
+   },
+   {
+    "t": 44043,
+    "kind": "environment"
+   },
+   {
+    "t": 44310,
+    "kind": "environment"
+   },
+   {
+    "t": 44578,
+    "kind": "environment"
+   },
+   {
+    "t": 44845,
+    "kind": "environment"
+   },
+   {
+    "t": 45110,
+    "kind": "environment"
+   },
+   {
+    "t": 45378,
+    "kind": "environment"
+   },
+   {
+    "t": 45645,
+    "kind": "environment"
+   },
+   {
+    "t": 45912,
+    "kind": "environment"
+   },
+   {
+    "t": 46178,
+    "kind": "environment"
+   },
+   {
+    "t": 46445,
+    "kind": "environment"
+   },
+   {
+    "t": 46711,
+    "kind": "environment"
+   },
+   {
+    "t": 46978,
+    "kind": "environment"
+   },
+   {
+    "t": 47245,
+    "kind": "environment"
+   },
+   {
+    "t": 47512,
+    "kind": "environment"
+   },
+   {
+    "t": 47778,
+    "kind": "environment"
+   },
+   {
+    "t": 48044,
+    "kind": "environment"
+   },
+   {
+    "t": 48311,
+    "kind": "environment"
+   },
+   {
+    "t": 48578,
+    "kind": "environment"
+   },
+   {
+    "t": 48845,
+    "kind": "environment"
+   },
+   {
+    "t": 49110,
+    "kind": "environment"
+   },
+   {
+    "t": 49378,
+    "kind": "environment"
+   },
+   {
+    "t": 49645,
+    "kind": "environment"
+   },
+   {
+    "t": 49911,
+    "kind": "environment"
+   },
+   {
+    "t": 50178,
+    "kind": "environment"
+   },
+   {
+    "t": 50444,
+    "kind": "environment"
+   },
+   {
+    "t": 50711,
+    "kind": "environment"
+   },
+   {
+    "t": 50976,
+    "kind": "environment"
+   },
+   {
+    "t": 51245,
+    "kind": "environment"
+   },
+   {
+    "t": 51512,
+    "kind": "environment"
+   },
+   {
+    "t": 51778,
+    "kind": "environment"
+   },
+   {
+    "t": 52043,
+    "kind": "environment"
+   },
+   {
+    "t": 52311,
+    "kind": "environment"
+   },
+   {
+    "t": 52845,
+    "kind": "environment"
+   },
+   {
+    "t": 53378,
+    "kind": "environment"
+   }
+  ]
+ }
+]
