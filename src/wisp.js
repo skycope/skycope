@@ -63,6 +63,9 @@ export function createWisp(group, { light = false } = {}) {
     time: { value: 0 },
     night: { value: 0 },
     viewHeight: { value: 800 },
+    // story: 0…1 while it falls out of the sky (journey.js), its trail a
+    // streak: wider and far brighter.
+    streak: { value: 0 },
   };
   const material = new THREE.ShaderMaterial({
     uniforms,
@@ -90,6 +93,7 @@ export function createWisp(group, { light = false } = {}) {
       uniform float time;
       uniform float night;
       uniform float viewHeight;
+      uniform float streak;
       varying vec2 vUv;
       varying float vKind;
       varying float vBright;
@@ -117,10 +121,10 @@ export function createWisp(group, { light = false } = {}) {
           float f = 1.0 - float( i ) / float( TRAIL - 1 );
           float depth = max( -here.z, 0.05 );
           float px = pxPerMetre( depth );
-          float width = max( 0.034 * pow( f, 1.6 ) * ( 0.6 + 0.4 * min( core.w, 1.5 ) ), ( 0.4 + 2.2 * f * f ) / px );
+          float width = max( 0.034 * pow( f, 1.6 ) * ( 0.6 + 0.4 * min( core.w, 1.5 ) ), ( 0.4 + 2.2 * f * f ) * ( 1.0 + 1.5 * streak ) / px );
           here.xy += n * corner.x * width;
           vAlong = 1.0 - f;
-          vBright = a.w * f * min( core.w, 1.4 ) * lens( depth );
+          vBright = a.w * f * min( core.w, 1.4 ) * lens( depth ) * ( 1.0 + 9.0 * streak );
           gl_Position = projectionMatrix * vec4( here, 1.0 );
           return;
         }
@@ -347,6 +351,7 @@ export function createWisp(group, { light = false } = {}) {
       uniforms.time.value = time;
       uniforms.night.value = night;
       uniforms.viewHeight.value = viewHeight;
+      uniforms.streak.value = w.streak ?? 0;
       if (kindling) {
         uniforms.kindle.value.set(waking.x, waking.y, waking.z, kindled);
         uniforms.kindleColour.value.setRGB(spec.tint[0], spec.tint[1], spec.tint[2]);
@@ -367,7 +372,8 @@ export function createWisp(group, { light = false } = {}) {
       const dt = Math.max(0, time - lastTime);
       lastTime = time;
       const moved = Math.hypot(x - head.x, y - head.y, z - head.z);
-      if (moved > 4) {
+      // (Not when it falls out of the sky: a fall's streak is its trail.)
+      if (moved > 14) {
         for (let i = 0; i < TRAIL; i++) {
           trail[i * 4] = x;
           trail[i * 4 + 1] = y;

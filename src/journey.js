@@ -45,9 +45,12 @@ export const LINES = {
 // moment: the light itself runs on wall time, waking.js.)
 const WAKE = { card: 2.4, cardHold: 3.4, hold: 1.2, slow: 0.6, release: 4, camHome: 5, end: 6.5 };
 // The fall (story shot 1): how long after the arrival title it comes if
-// nobody touches anything, how far off and how high it starts, and how long
-// the view leans after it.
-export const FALL = { wait: 6, distance: 110, elevation: 32, side: 0.22, lean: 0.32, leanAfter: 0.6 };
+// nobody touches anything; where it hangs before it falls (`distance` m
+// from the lens, `above` degrees over the middle of the view, `side`
+// degrees round to the right of it, so negative is left: high in the
+// frame, over the sea side); how
+// bright it hangs; how long the view leans after it.
+export const FALL = { wait: 6, distance: 120, above: 23, side: -30, glow: 2.4, lean: 0.32, leanAfter: 0.6 };
 const STAR_WHITE = [1, 0.97, 0.92];
 // Each ceremony's camera: low behind the cat while the wisp dives (elevation,
 // distance), then easing wider to take in the place (`wide`). Under the
@@ -171,8 +174,11 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
     const home = state.landscape?.home ?? null;
     const land = home ? homeLandingPoint(home) : { x: cat.x + Math.sin(cat.heading) * 9, z: cat.z + Math.cos(cat.heading) * 9 };
     const eye = Number.isFinite(camera?.x) && (camera.x || camera.z) ? camera : { x: cat.x, y: cat.y + 1, z: cat.z };
-    const bearing = Math.atan2(land.x - eye.x, land.z - eye.z) + FALL.side;
-    const up = (FALL.elevation * Math.PI) / 180;
+    // (The view's own bearing and pitch: walker.js keeps the renderer's
+    // azimuth, φ − 45° from the coast frame.)
+    const look = Number.isFinite(camera?.azimuth) && (camera.azimuth || camera.pitch) ? { bearing: camera.azimuth + Math.PI / 4, pitch: camera.pitch } : { bearing: Math.atan2(land.x - eye.x, land.z - eye.z), pitch: -0.2 };
+    const bearing = look.bearing + (FALL.side * Math.PI) / 180;
+    const up = Math.max(0.08, look.pitch + (FALL.above * Math.PI) / 180);
     const from = {
       x: eye.x + Math.sin(bearing) * Math.cos(up) * FALL.distance,
       y: (eye.y ?? cat.y) + Math.sin(up) * FALL.distance,
@@ -185,18 +191,32 @@ export function createJourney({ state, card, findLine, now, onChange = () => {} 
   let hanging = null;
   function hang() {
     hanging = fallPath().from;
-    mind.fly(() => (met || !hanging ? null : { x: hanging.x, y: hanging.y, z: hanging.z, glow: 1.1, calm: 0.1 }), "hidden");
+    mind.fly(() => (met || !hanging ? null : { x: hanging.x, y: hanging.y, z: hanging.z, glow: FALL.glow * (0.4 + 0.6 * ctx.night), calm: 0.1 }), "hidden"); // (by day a small bright point, not a second sun)
   }
   function fall() {
     const { from, land } = fallPath();
     if (hanging) Object.assign(from, hanging);
     hanging = null;
-    mind.fall(from, land);
+    const lens = state.walker.camera;
+    mind.fall(from, land, { eye: Number.isFinite(lens?.x) && (lens.x || lens.z) ? lens : null });
     falling = { leanUntil: now() + 2.5, landed: false, rose: false };
+    // The same fall drawn in the sky as a fireball's streak, from where it
+    // hung to where it comes down, seen from the lens (sky-events.js
+    // storyFall; the sky's bearings are the coast frame's less 45°).
+    const camera = state.walker.camera;
+    const eye = Number.isFinite(camera?.x) ? camera : { x: from.x, y: 0, z: from.z };
+    const dir = (p) => {
+      const dx = p.x - eye.x, dz = p.z - eye.z;
+      const y = (p.y ?? groundHeight(p.x, p.z)) - eye.y;
+      return [((Math.atan2(dx, dz) - Math.PI / 4) * 180) / Math.PI, (Math.atan2(y, Math.hypot(dx, dz)) * 180) / Math.PI];
+    };
+    const to = dir(land);
+    magic.fall = { at: state.time ?? 0, from: dir(from), to };
     sound("starFall");
   }
 
   function stageFall() {
+    magic.wisp.streak = mind.mode === "fall" ? 1 : 0;
     if (!falling) return;
     const p = mind.position;
     if (now() < falling.leanUntil && !falling.landed) state.walker.lookAt?.({ x: p.x, y: p.y, z: p.z }, FALL.lean);

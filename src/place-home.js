@@ -58,11 +58,12 @@ export function homeLanternSite(obstacles = { trunks: [], domes: [] }, { ground 
   return { x: p.x, z: p.z, ground: ground(p.x, p.z), facing: start.heading };
 }
 
-// Where the star lands: a few metres beyond the lantern, seen past it from
-// the start (the lantern stands between the cat and the fallen star).
+// Where the star lands: on the open sand a few metres short of the lantern
+// and to one side, in plain view from the start (beyond it, the slope's
+// scrub hides it), so the light can be seen lifting and then going to it.
 export function homeLandingPoint(site, start = HOME_START) {
-  const a = Math.atan2(site.x - start.x, site.z - start.z) + 0.28;
-  for (const r of [3.2, 2.6, 2]) {
+  const a = Math.atan2(start.x - site.x, start.z - site.z) - 0.6;
+  for (const r of [3.4, 2.8, 2.2]) {
     const x = site.x + Math.sin(a) * r;
     const z = site.z + Math.cos(a) * r;
     if (shoreDistance(x, z) > 0.8) return { x, z };

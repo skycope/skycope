@@ -75,7 +75,7 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
   let nextFidget = 0;
   // The fall (from, to, start clock) and the climb after a light (`reach`):
   // where it climbs from, how high, and what it goes back to after.
-  const fallen = { from: { x: 0, y: 0, z: 0 }, to: { x: 0, y: 0, z: 0 }, seconds: WISP.fall, speed: 1 };
+  const fallen = { from: { x: 0, y: 0, z: 0 }, to: { x: 0, y: 0, z: 0 }, seconds: WISP.fall, speed: 1, eye: null };
   const climb = { x: 0, z: 0, height: 0, stay: false, from: 0 };
   // A scripted flight (the ending's rise, a call down): fn(dt, clock) →
   // { x, y, z, glow } each frame, or null when it is over.
@@ -160,8 +160,12 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
     // sand, tries to climb, gets to `WISP.reach[0]` and sinks back
     // ("rise"), and leads. `speed` < 1 (a call down): gentler, and it goes
     // straight to keeping company.
-    fall(from, to, { seconds = WISP.fall, speed = 1 } = {}) {
+    // `eye` ({ x, y, z }, the lens): it comes down along the line the sky
+    // draws its streak on (the direction from the eye turning evenly, the
+    // distance closing), so the two are one falling star.
+    fall(from, to, { seconds = WISP.fall, speed = 1, eye = null } = {}) {
       const p = keepInside(to.x, to.z);
+      fallen.eye = eye ? { x: eye.x, y: eye.y, z: eye.z } : null;
       fallen.from.x = from.x;
       fallen.from.y = from.y;
       fallen.from.z = from.z;
@@ -522,12 +526,15 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
           // Out of the sky, faster and faster (placed, not steered: a
           // falling star does not wander), bright, and into the sand.
           const f = Math.min(1, since() / fallen.seconds);
-          const e = fallen.speed < 1 ? f * f * (3 - 2 * f) : f * f;
-          body.x = fallen.from.x + (fallen.to.x - fallen.from.x) * e;
-          body.y = fallen.from.y + (fallen.to.y - fallen.from.y) * e;
-          body.z = fallen.from.z + (fallen.to.z - fallen.from.z) * e;
+          const e = fallen.speed < 1 ? f * f * (3 - 2 * f) : fallen.eye ? f : f * f;
+          if (fallen.eye) alongSight(fallen.eye, fallen.from, fallen.to, e, body);
+          else {
+            body.x = fallen.from.x + (fallen.to.x - fallen.from.x) * e;
+            body.y = fallen.from.y + (fallen.to.y - fallen.from.y) * e;
+            body.z = fallen.from.z + (fallen.to.z - fallen.from.z) * e;
+          }
           vel.x = vel.y = vel.z = 0;
-          flare = fallen.speed < 1 ? 0.3 : 0.6 + 0.6 * f;
+          flare = fallen.speed < 1 ? 0.3 : 1.6 + 1.6 * f;
           if (f >= 1) {
             if (fallen.speed < 1) set("company");
             else {
@@ -947,6 +954,27 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
 }
 
 const easeOut = (t) => 1 - (1 - t) * (1 - t) * (1 - t);
+
+// The point at fraction f from a to b as seen from `eye`: its direction
+// turning evenly (a great circle, as a meteor's head moves) and its
+// distance closing evenly. Written into `out`.
+function alongSight(eye, a, b, f, out) {
+  const da = [a.x - eye.x, a.y - eye.y, a.z - eye.z];
+  const db = [b.x - eye.x, b.y - eye.y, b.z - eye.z];
+  const la = Math.hypot(...da) || 1;
+  const lb = Math.hypot(...db) || 1;
+  const ua = da.map((v) => v / la);
+  const ub = db.map((v) => v / lb);
+  const angle = Math.acos(Math.max(-1, Math.min(1, ua[0] * ub[0] + ua[1] * ub[1] + ua[2] * ub[2])));
+  const s = Math.sin(angle);
+  const ka = angle < 1e-6 ? 1 - f : Math.sin((1 - f) * angle) / s;
+  const kb = angle < 1e-6 ? f : Math.sin(f * angle) / s;
+  const r = la + (lb - la) * f;
+  out.x = eye.x + (ua[0] * ka + ub[0] * kb) * r;
+  out.y = eye.y + (ua[1] * ka + ub[1] * kb) * r;
+  out.z = eye.z + (ua[2] * ka + ub[2] * kb) * r;
+  return out;
+}
 const easeInOut = (t) => t * t * (3 - 2 * t);
 
 function isAnimal(kind) {

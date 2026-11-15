@@ -1016,7 +1016,7 @@ function skyEventUniforms(sky, weather, light, view) {
     view,
     frameSeconds: Math.min(0.05, state.frameMs / 1000),
     // sea-sky-magic: the stars gift's meteors and the meow's falling star.
-    magic: { stars: state.magic.levels.stars, finale: state.magic.levels.finale, callAt: state.magic.call?.at },
+    magic: { stars: state.magic.levels.stars, finale: state.magic.levels.finale, callAt: state.magic.call?.at, fall: state.magic.fall }, // story: the fall's streak
   });
   return state.skyFrame.uniforms;
 }
