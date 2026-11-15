@@ -93,7 +93,8 @@ export function groundCover(x, z, inland = shoreDistance(x, z), shade = 0) {
   const clearings = noise2(x * 0.075 + 17, z * 0.083 - 5) * 0.7 + noise2(x * 0.21, z * 0.19 + 9) * 0.3;
   const scrub = smoothstep(3.2, 10, inland + dither) *
     smoothstep(0.26, 0.5, clearings) *
-    (1 - smoothstep(0.22, 0.5, shade) * 0.85);
+    // Under a crown the scrub carries on as lower, sparser thicket.
+    (1 - smoothstep(0.22, 0.6, shade) * 0.4);
   const sourfig = smoothstep(1.8, 3.2, inland + dither * 0.3) *
     (1 - smoothstep(6.5, 10, inland + dither)) *
     smoothstep(0.38, 0.62, noise2(x * 0.09 + 40, z * 0.11 - 12));

@@ -891,6 +891,10 @@ if ( rocky > 0.01 ) {
   diffuseColor.rgb = mix( diffuseColor.rgb, granite, rocky );
 }
 diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.17, 0.12, 0.08 ) * ( 0.7 + grain * 0.6 ), litter * 0.55 );
+// The floor under the crowns is a living one: mats of pennywort, moss and
+// shade herbs a metre or two across through the litter (drawn below, with
+// the other low cover), so it reads as cover with leaves on it, not soil.
+float floorGreen = litter * smoothstep( 0.3, 0.6, dNoise( coast * 0.85 + 5.0 ) * 0.7 + mottled * 0.3 + litter * 0.15 );
 // land-look: soil is never one flat brown. Over the inland ground: patches
 // a metre or two across, darker where humus gathers and paler where it is
 // dry and stony; and up close a speckle of pale pebbles, dark crumbs and
@@ -1047,7 +1051,56 @@ if ( sourfig > 0.02 && coverNear > 0.0 ) {
   sandGlint *= 1.0 - figCover;
   figRelief = smoothstep( figEdge - 0.04, figEdge + 0.12, figN ) * ( 1.0 - bushCover ) * ( 0.012 + fingers * 0.008 ) * coverNear;
 }
-float lowCover = max( bushCover, figCover );
+// The shade floor's mats: round leaves 2–5 cm across (pennywort, wild
+// violet, seedlings) packed edge to edge with dark gaps, each its own tone,
+// over moss. Unlike the scrub it is drawn right up to the eye: it is flat
+// in life too. Past a few metres the leaves average to the mat's mean.
+float herbCover = 0.0;
+float herbRelief = 0.0;
+if ( floorGreen > 0.02 ) {
+  float mat = smoothstep( 0.05, 0.4, floorGreen ) * ( 1.0 - bushCover ) * ( 1.0 - figCover ) * ( 1.0 - rocky );
+  // Leaves stand thickest at a mat's heart and scatter out at its edges,
+  // the litter showing between them.
+  float density = mat * ( 0.35 + 0.5 * smoothstep( 0.2, 0.8, floorGreen + ( dNoise( coast * 3.1 + 2.0 ) - 0.5 ) * 0.6 ) );
+  vec2 hg = coast * 30.0;
+  float hFade = smoothstep( 0.25, 0.6, px * 30.0 );
+  vec3 herb = vec3( 0.062, 0.078, 0.036 );
+  float leafOn = density * 0.55;
+  if ( hFade < 1.0 && density > 0.01 ) {
+    vec2 hcell = floor( hg );
+    vec2 hf = fract( hg );
+    float hd = 9.0;
+    vec2 hid = vec2( 0.0 );
+    for ( int j = -1; j <= 1; j++ ) for ( int i = -1; i <= 1; i++ ) {
+      vec2 o = vec2( float( i ), float( j ) );
+      vec2 id = hcell + o;
+      if ( dHash( id + 0.7 ) > density ) continue;
+      vec2 c = o + 0.15 + 0.7 * vec2( dHash( id + 3.3 ), dHash( id + 8.7 ) ) - hf;
+      // Each leaf its own size, its own turn, round to oval.
+      float a = dHash( id + 5.2 ) * 3.1416;
+      vec2 r = mat2( cos( a ), -sin( a ), sin( a ), cos( a ) ) * c;
+      r.y /= 0.6 + 0.4 * dHash( id + 7.4 );
+      float d = length( r ) / ( 0.3 + 0.55 * dHash( id + 1.9 ) * dHash( id + 4.6 ) + 0.15 );
+      if ( d < hd ) { hd = d; hid = id; }
+    }
+    float leafIn = 1.0 - smoothstep( 0.8, 1.0, hd );
+    float tone = dHash( hid + 6.1 );
+    vec3 leafC = tone < 0.5 ? vec3( 0.05, 0.068, 0.03 ) : tone < 0.82 ? vec3( 0.066, 0.08, 0.034 ) : tone < 0.94 ? vec3( 0.085, 0.082, 0.042 ) : vec3( 0.1, 0.08, 0.045 );
+    leafC *= 0.8 + 0.4 * dHash( hid + 2.4 );
+    // Paler at the leaf's heart, darker at its rim.
+    leafC *= 1.06 - hd * hd * 0.22;
+    herb = mix( herb, leafC, 1.0 - hFade );
+    leafOn = mix( leafOn, leafIn, 1.0 - hFade );
+    // The litter round each leaf lies in its shade.
+    diffuseColor.rgb *= 1.0 - ( 1.0 - smoothstep( 1.0, 1.4, hd ) ) * ( 1.0 - leafIn ) * 0.25 * ( 1.0 - hFade ) * mat;
+    herbRelief = ( 1.0 - hFade ) * leafIn * sqrt( max( 0.0, 1.0 - hd * hd ) ) * 0.005;
+  }
+  herbCover = leafOn * mat;
+  diffuseColor.rgb = mix( diffuseColor.rgb, herb * ( 0.85 + grain * 0.3 ), herbCover );
+  sandGlint *= 1.0 - herbCover;
+  herbRelief *= mat;
+}
+float lowCover = max( max( bushCover, figCover ), herbCover * 0.4 );
 // Cat-scale clutter, one object per cell: pebbles and shells on the sand
 // (thickest along the wrack line, with stranded kelp), fallen leaves and
 // twigs under the trees. It fades out where an object would span less than
@@ -1125,7 +1178,7 @@ if ( nearDetail > 0.01 ) {
   }
 }
 float detailHeight = grain * 0.004 + ( ripple * 0.012 + fine * 0.006 * ripFade ) * dry * ( 1.0 - grassy ) * ( 1.0 - lowCover ) + mottled * 0.03 * ( 1.0 - wet ) + rocky * strata * 0.08 + clutterHeight + sward * 0.02
-  + bushDome + figRelief;
+  + bushDome + figRelief + herbRelief;
 float detailRoughness = mix( mix( mix( mix( 0.95, 0.9, rocky ), 0.8, bushCover ), 0.28, wet ), 0.35, clutterGloss );
 detailRoughness = mix( detailRoughness, 0.55, damp ); // land-look: the damp band's sheen
 detailRoughness = mix( detailRoughness, 0.55, figCover );

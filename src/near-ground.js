@@ -38,6 +38,7 @@ export const NEAR_KIND = { none: -1, grass: 0, sprig: 1, fig: 2, litter: 3 };
 
 const LITTER = [new THREE.Color(MATERIAL_HEX.litter), new THREE.Color(MATERIAL_HEX.dryThatch), new THREE.Color("#5b4a2f"), new THREE.Color("#3f3a24")];
 const SPRIG = [new THREE.Color("#3d4a2c"), new THREE.Color("#4c5338"), new THREE.Color("#33402a"), new THREE.Color("#5a5236")];
+const SHADE_HERB = new THREE.Color("#2e4a26");
 const FIG = [new THREE.Color("#3f5a28"), new THREE.Color("#6a4a2a")];
 const GRASS = new THREE.Color("#556b33");
 const GRASS_FRESH = new THREE.Color("#6f8a3a"); // land-look
@@ -99,13 +100,15 @@ export function nearCell(field, ix, iz, cell, layer, out = {}) {
     // On the dune sand only right round the tufts (where their splat is
     // strong): the beach stays open sand between them.
     Math.min(1, m.grass * 1.8 + m.moss * 1.2) * clumped * (1 - sandy * (1 - smoothstep(0.55, 0.72, patch) * smoothstep(0.3, 0.8, m.tufted))),
-    m.scrub * 0.85 * clumped,
+    // Under the crowns the floor is not bare litter: seedlings and low
+    // shade herbs grow through it in patches, the leaves lying between.
+    m.scrub * 0.85 * clumped + m.litter * 0.7 * Math.max(0.35, clumped),
     // Sour fig only inside its painted mats, and densely there.
     // (Off: as separate little rosettes the fingers read as rows of stamped
     // stars on the sand, worse than the painted mat alone. figMat stays for
     // when they can be grown as one creeping mat.)
     0 * figMat(x, z, m.sourfig),
-    m.litter * (1 - m.grass * 0.5),
+    m.litter * (1 - m.grass * 0.5) * 0.6,
   ];
   const total = weights[0] + weights[1] + weights[2] + weights[3];
   if (hash(ix, iz, 3 + layer * 7) > Math.min(1, total) * (1 - m.rocky)) return out;
@@ -144,7 +147,10 @@ export function nearCell(field, ix, iz, cell, layer, out = {}) {
     out.size = (0.75 + hash(ix, iz, 9) * 0.6) * (0.6 + Math.min(1, m.grass + m.moss * 0.5) * 0.4) * (0.6 + clumped * 0.4) * (0.75 + heart * 0.6);
   } else if (kind === NEAR_KIND.sprig) {
     c.copy(SPRIG[Math.floor(hash(ix, iz, 10) * 4)]).multiplyScalar(v * 0.9);
-    out.size = (0.6 + hash(ix, iz, 9) * 0.6) * (0.6 + clumped * 0.4);
+    // In a crown's shade the herbs are a deeper, softer green, a little lower.
+    const shaded = smoothstep(0.25, 0.7, m.shade) * smoothstep(0.05, 0.4, m.litter);
+    c.lerp(SHADE_HERB, shaded * 0.6);
+    out.size = (0.6 + hash(ix, iz, 9) * 0.6) * (0.6 + clumped * 0.4) * (1 - shaded * 0.2);
   } else if (kind === NEAR_KIND.fig) {
     c.copy(FIG[0]).lerp(FIG[1], hash(Math.floor(ix / 6), Math.floor(iz / 6), 11) ** 2).multiplyScalar(v);
     out.size = 0.7 + hash(ix, iz, 9) * 0.5;

@@ -36,13 +36,18 @@ test("near-ground cells are deterministic, grounded and follow the ground's mask
     assert.ok(a.size > 0 && Number.isFinite(a.yaw));
   }
   assert.ok(grown > 300, "a closed sward fills its cells");
-  // Bare ground and rock grow nothing; litter lies as fallen leaves.
+  // Bare ground and rock grow nothing; litter lies as fallen leaves with
+  // shade herbs (sprigs) growing through it, both.
+  const underCrown = { litter: 0, sprig: 0 };
   for (let i = 0; i < 200; i++) {
     assert.equal(nearCell(field({}), ix + i, iz, 0.15, 0).kind, NEAR_KIND.none);
     assert.equal(nearCell(field({ grass: 1, rocky: 1 }), ix + i, iz, 0.15, 0).kind, NEAR_KIND.none);
-    const leaf = nearCell(field({ litter: 1 }), ix + i, iz, 0.15, 0).kind;
-    assert.ok(leaf === NEAR_KIND.litter || leaf === NEAR_KIND.none);
+    const leaf = nearCell(field({ litter: 1, shade: 0.8 }), ix + i, iz, 0.15, 0).kind;
+    assert.ok(leaf === NEAR_KIND.litter || leaf === NEAR_KIND.sprig || leaf === NEAR_KIND.none);
+    if (leaf === NEAR_KIND.litter) underCrown.litter++;
+    if (leaf === NEAR_KIND.sprig) underCrown.sprig++;
   }
+  assert.ok(underCrown.litter > 30 && underCrown.sprig > 30, `litter and herbs under a crown (${underCrown.litter}, ${underCrown.sprig})`);
   // Nothing grows in the swash.
   const beach = islandPoint(1, 0.5);
   assert.equal(nearCell(grassy, Math.floor(beach.x / 0.15), Math.floor(beach.z / 0.15), 0.15, 0).kind, NEAR_KIND.none);
