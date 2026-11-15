@@ -43,7 +43,7 @@ export const WAKE_LIGHT = {
   finale: { tint: [1.0, 0.9, 0.72], body: 20, core: 3.0, reach: 60, night: 4.5, day: 0.8, front: 0.5, frontDay: 0.3, glint: 0.6, rest: 0, sea: 150 },
   // story: the home lantern on the beach, the first light: the boat's row
   // at 0.4 of its reach, and none of it on the sea (story-and-wow.md 7.1).
-  home: { tint: [1.0, 0.5, 0.16], body: 3.6, core: 1.2, reach: 10.4, night: 3.0, day: 0.6, front: 0.5, frontDay: 0.25, glint: 0.4, rest: 0, sea: 0 },
+  home: { tint: [1.0, 0.5, 0.16], wave: 0.5, body: 3.6, core: 1.2, reach: 10.4, night: 3.0, day: 0.6, front: 0.5, frontDay: 0.25, glint: 0.4, rest: 0, sea: 0 },
 };
 
 // The one colour table: each gift's light (the wisp's ribbon, the field
@@ -55,19 +55,19 @@ const smooth = (x, a, b) => {
   return t * t * (3 - 2 * t);
 };
 
-// How a wick catches: s seconds after lighting, its light (0…1). A spark,
-// two gutters (about 3 Hz: inside photosensitivity guidance, do not raise
-// it), then the light swells and holds.
-// `pace` (k) speeds the catch up for the quicker gifts; the gutter keeps
-// to real seconds, so it never flickers faster than ~3 Hz (at k = 2 it ran
-// at ~6 Hz on the light round the cat at night).
-export function lampCatch(s, pace = 1) {
+// How a wick catches: s wall seconds after lighting, its light (0…1). A
+// spark, two gutters, then the light swells and holds. `speed` runs the
+// catch faster (the gifts at 2, the lamp at its own 1) but never the
+// gutters: they stay at 2.7 dips a second of wall time, under the 3 Hz
+// photosensitivity limit, whatever the speed (at speed 2 the old curve
+// flickered at 6 Hz).
+export function lampCatch(s, speed = 1) {
   if (!(s >= 0)) return s < 0 ? 0 : 1;
-  const t = s * pace;
-  if (t > 4) return 1;
-  const spark = Math.min(1, t / 0.25) * 0.35;
-  const gutter = t < 1.6 ? 0.55 + 0.45 * Math.abs(Math.sin(s * 9.5)) * (1 - t / 1.6) : 1;
-  const swell = smooth(t, 1.0, 3.6);
+  const u = s * speed;
+  if (u > 4) return 1;
+  const spark = Math.min(1, u / 0.25) * 0.35;
+  const gutter = u < 1.6 ? 0.55 + 0.45 * Math.abs(Math.sin(s * 8.5)) * (1 - u / 1.6) : 1;
+  const swell = smooth(u, 1.0, 3.6);
   return Math.min(1, spark * gutter + swell * 0.9 + 0.1 * swell * swell);
 }
 
@@ -135,6 +135,52 @@ export function wakingSea(s, spec, night = 0, reduced = false) {
   const frontPeak = spec.frontDay + (spec.front - spec.frontDay) * night;
   const front = reduced ? 0 : frontPeak * smooth(s, WAKING.start, WAKING.start + 0.3) * (1 - radius / spec.sea) ** 1.5;
   return { radius: Math.max(radius, 1e-3), inside, front };
+}
+
+// The wave: after the catch, one front of the gift's light leaves the source
+// and crosses the whole island and the bay, decelerating (about 33 m/s at
+// first; past the island's far shore in six or seven seconds). It is light
+// catching on things as it passes, brightest at its leading edge, with a
+// tail a second or so long that breaks into glints, and nothing behind it.
+// When it has reached the shore all round, a fainter echo runs back to the
+// source over two seconds and the gift's own light settles (out, answer,
+// home). All over by 7.8 s.
+//   reach/tau  how far it could run (m) and its time constant (s)
+//   lead       its leading edge's half-width (m) at radius 0, growing 2%
+//   tail       how many seconds of travel its tail holds
+//   night/day  its peak, in the land's exposed units (× the gift's `wave`)
+export const WAVE = { start: 0.6, reach: 190, tau: 5.5, lead: 1.6, tail: 0.6, fadeFrom: 5.8, fadeTo: 7.4, echoAt: 5.4, echoFor: 2.4, night: 3.5, day: 6 };
+export const WAVE_ZERO = Object.freeze({ radius: 0, lead: 1, tail: 1, strength: 0, presence: 0, echo: 0, echoStrength: 0, speed: 0 });
+
+// The wave at s wall seconds. presence: its envelope alone (0…1), for the
+// effects that are not light (the plants' lean, the sun-glints by day).
+// Reduced motion: no wave.
+export function waveAt(s, spec, night = 0, reduced = false) {
+  if (!spec || reduced || spec.wave === 0 || !(s >= WAVE.start) || s > WAVE.echoAt + WAVE.echoFor) return WAVE_ZERO;
+  const u = (s - WAVE.start) / WAVE.tau;
+  const radius = WAVE.reach * (1 - Math.exp(-u));
+  const speed = (WAVE.reach / WAVE.tau) * Math.exp(-u);
+  const presence = smooth(s, WAVE.start, WAVE.start + 0.35) * (1 - smooth(s, WAVE.fadeFrom, WAVE.fadeTo));
+  const peak = (WAVE.day + (WAVE.night - WAVE.day) * night) * (spec.wave ?? 1);
+  const echoAt = WAVE.reach * (1 - Math.exp(-(WAVE.echoAt - WAVE.start) / WAVE.tau));
+  const e = smooth(s, WAVE.echoAt, WAVE.echoAt + WAVE.echoFor);
+  const echoPresence = smooth(s, WAVE.echoAt, WAVE.echoAt + 0.5) * (1 - smooth(s, WAVE.echoAt + WAVE.echoFor - 0.7, WAVE.echoAt + WAVE.echoFor));
+  return {
+    radius,
+    lead: WAVE.lead + 0.02 * radius,
+    tail: Math.max(2.5, speed * WAVE.tail),
+    strength: peak * presence,
+    presence,
+    echo: echoAt * (1 - e),
+    echoStrength: peak * 0.3 * echoPresence,
+    speed,
+  };
+}
+
+// When the wave reaches a point d metres from the source (wall seconds).
+export function waveArrival(d, spec = null) {
+  if (spec?.wave === 0 || !(d >= 0) || d >= WAVE.reach) return Infinity;
+  return WAVE.start - WAVE.tau * Math.log(1 - d / WAVE.reach);
 }
 
 // The practical a waking hands over to: its level s seconds after waking

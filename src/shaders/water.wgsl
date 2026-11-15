@@ -44,7 +44,9 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
     // sea-sky-magic: the awakened gifts (view.wgsl).
     atmosphere.magic, atmosphere.waking, atmosphere.wakingLight, atmosphere.lamp, atmosphere.wisp, atmosphere.wispColour,
     // boat: the lantern.
-    atmosphere.lantern);
+    atmosphere.lantern,
+    // waking: the wave.
+    atmosphere.wakingWave, atmosphere.wakingTint);
   var color = ocean_view(ray, light, sky, settings, cloudNoise, filtering, skyTexture,
     waves0, waves1, waves2, waves3, foamLayer, shoreRocks, shoreGrid, skyTable, landField, catWake, islandTable);
   // The direct disc is composited through cloud transmission. Water uses its

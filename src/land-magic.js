@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { PRINT_MAGIC } from "./cat-ground.js";
-import { WAKE_LIGHT, wakingAt, frontArrival, practicalLevel, lampCatch, lampSpin } from "./waking.js";
+import { WAKE_LIGHT, wakingAt, frontArrival, waveAt, WAVE_ZERO, practicalLevel, lampCatch, lampSpin } from "./waking.js";
 import { CAT_SCALE } from "./cat-rig.js";
 
 // The island's gifts as light on the land. magic.js records which gifts are
@@ -44,6 +44,8 @@ uniform vec4 wakeFront;
 uniform vec3 wakeColour;
 uniform vec3 wakeTint;
 uniform vec4 wakeShape;
+uniform vec4 wakeWave;  // the wave: radius (m), lead half-width, tail (m), strength
+uniform vec4 wakeEcho;  // its echo home: radius, half-width, strength; w the wave's presence (0…1)
 #ifndef WAKE_WRAP
   #define WAKE_WRAP 0.85
 #endif
@@ -85,8 +87,11 @@ float wakeCatShade( vec3 world ) {
 // The kindled light's front at a world point (0 away from it), for the
 // sun-glint gates (forest.js FOLIAGE_GLSL, SAND_GLINT_GLSL).
 float wakeBandAt( vec3 world ) {
-  float fb = ( length( wakeSource.xyz - world ) - wakeFront.x ) / wakeFront.y;
-  return exp( -fb * fb ) * wakeFront.z;
+  float dist = length( wakeSource.xyz - world );
+  float fb = ( dist - wakeFront.x ) / wakeFront.y;
+  // (And the wave's crest, by its presence alone: a flash of sun.)
+  float wf = ( length( ( wakeSource.xyz - world ).xz ) - wakeWave.x ) / wakeWave.y;
+  return max( exp( -fb * fb ) * wakeFront.z, exp( -wf * wf ) * wakeEcho.w );
 }
 `;
 
@@ -188,6 +193,80 @@ if ( magicOn > 0.0 ) {
       mWakeSpec = min( mWakeSpec, vec3( 0.6 ) );
     }
   }
+  // The wave (waking.js waveAt): one front of the gift's light crossing the
+  // whole island. It is light on things, not a wash: faces turned to the
+  // source catch it, rims and gloss flash, and behind the bright leading
+  // edge a short tail breaks into glints. Nothing ahead of it, nothing left
+  // behind. Outside its band there is no work.
+  if ( wakeWave.w + wakeEcho.z > 0.0 ) {
+    vec3 vd = wakeSource.xyz - mWorld;
+    // (Across the ground, not through the air: from a source 16 m up the
+    // lighthouse, a 3D distance laid a broad glare round the tower's foot.)
+    float vdist = length( vd.xz );
+    float wf = vdist - wakeWave.x;              // + ahead of the front, − behind it
+    float ef = vdist - wakeEcho.x;
+    bool inWave = wakeWave.w > 0.0 && wf < 3.0 * wakeWave.y && wf > -2.5 * wakeWave.z;
+    bool inEcho = wakeEcho.z > 0.0 && abs( ef ) < 3.0 * wakeEcho.y;
+    if ( inWave || inEcho ) {
+      // From the source's side, a little from above: slopes that face it
+      // catch it most, flat ground some, the lee of hills and the far faces
+      // of rocks and trunks none.
+      vec3 vl = vd / max( vdist, 1e-3 );
+      vec3 vv = normalize( vl + vec3( 0.0, 0.4, 0.0 ) );
+      float face = clamp( dot( mN, vv ) * WAKE_WRAP + ( 1.0 - WAKE_WRAP ) * 0.5, 0.0, 1.0 );
+      float facing = clamp( dot( mN, vl ), 0.0, 1.0 );
+      #ifdef WAKE_FOLIAGE
+        float vEdge = 0.0;
+      #else
+        float vEdge = pow( 1.0 - abs( dot( mN, mView ) ), 3.0 ) * ( 0.3 + 0.7 * facing );
+      #endif
+      #ifdef STANDARD
+        float vRough = material.roughness;
+      #else
+        float vRough = 0.85;
+      #endif
+      float vGloss = pow( clamp( dot( mN, normalize( vv + mView ) ), 0.0, 1.0 ), mix( 160.0, 12.0, vRough ) ) * smoothstep( 0.7, 0.3, vRough );
+      #ifdef WAKE_FOLIAGE
+        vGloss *= 0.3; // (a glossy crown flashed white)
+      #endif
+      vec3 alb = min( diffuseColor.rgb * 2.5, vec3( 1.0 ) );
+      if ( inWave ) {
+        // Brightest at the leading edge (soft ahead), a tail behind it.
+        float crest = exp( -wf * wf / ( wakeWave.y * wakeWave.y ) );
+        float tail = wf < 0.0 ? exp( wf / wakeWave.z ) : 0.0;
+        // A touch of iridescence at the very edge, just ahead of the crest.
+        float ahead = wf > 0.0 ? crest : 0.0;
+        vec3 hue = 0.55 + 0.45 * cos( 6.2832 * ( wf / ( wakeWave.y * 3.0 ) + vec3( 0.0, 0.33, 0.67 ) ) );
+        vec3 tint = mix( wakeTint, hue * max( wakeTint.r, max( wakeTint.g, wakeTint.b ) ), 0.2 * ahead );
+        // The tail shimmers: slow cells of light that thin as it fades.
+        // (Fixed in space and slow in time: a point never flickers, < 0.4 Hz.)
+        vec2 sq = mWorld.xz * 0.6 + vec2( magicBeam.w * 0.15, 0.0 );
+        vec2 si = floor( sq ), sf = fract( sq );
+        sf = sf * sf * ( 3.0 - 2.0 * sf );
+        float sn = mix( mix( magicHash( vec3( si, 1.0 ) ), magicHash( vec3( si + vec2( 1.0, 0.0 ), 1.0 ) ), sf.x ), mix( magicHash( vec3( si + vec2( 0.0, 1.0 ), 1.0 ) ), magicHash( vec3( si + 1.0, 1.0 ) ), sf.x ), sf.y );
+        float shimmer = smoothstep( 0.25, 0.85, sn );
+        // (The crest itself is uneven too: never one even stroke.)
+        float glow = crest * ( 0.7 + 0.5 * sn ) + tail * 0.07 * shimmer;
+        // (Evened over albedo: pale sand glared while dark leaves barely
+        // took it; the light reads as one front over both.)
+        float even = 1.0 / ( 0.4 + 2.0 * dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) );
+        // (Softer in the few metres round the eye: as the front passes the
+        // camera it sweeps by, it does not fill the frame.)
+        float nearEye = mix( 0.35, 1.0, smoothstep( 3.0, 16.0, length( cameraPosition - mWorld ) ) );
+        mWake += tint * wakeWave.w * glow * face * even * nearEye;
+        mWakeSpec += tint * wakeWave.w * (
+          crest * ( vEdge * 0.7 * alb + vGloss * 1.4 + magicSparkle( mWorld, mView, 40.0, 0.95 ) * 2.0 )
+          + tail * ( magicSparkle( mWorld, mView, 40.0, 0.93 ) * 1.6 * tail + vGloss * 0.4 ) );
+      }
+      if ( inEcho ) {
+        // The answer: a fainter shimmer running back home.
+        float back = exp( -ef * ef / ( wakeEcho.y * wakeEcho.y ) );
+        mWake += wakeTint * wakeEcho.z * back * face * 0.5;
+        mWakeSpec += wakeTint * wakeEcho.z * back * ( magicSparkle( mWorld, mView, 40.0, 0.94 ) * 2.0 + vGloss );
+      }
+      mWakeSpec = min( mWakeSpec, vec3( 1.2 ) );
+    }
+  }
   vec3 mSheen = vec3( 0.0 );
   if ( magicSheen.w > 0.0 ) {
     // Starlight: a cool sheen on whatever faces the sky, rim-brightened,
@@ -224,6 +303,8 @@ export function magicUniforms() {
     wakeColour: { value: new THREE.Color(0, 0, 0) },
     wakeTint: { value: new THREE.Color(0, 0, 0) },
     wakeShape: { value: new THREE.Vector4(0, 0, 0, 0) },
+    wakeWave: { value: new THREE.Vector4(0, 1, 1, 0) },
+    wakeEcho: { value: new THREE.Vector4(0, 1, 0, 0) },
     wakeCat: { value: [new THREE.Vector4(0, -1000, 0, 0), new THREE.Vector4(0, -1000, 0, 0)] },
   };
 }
@@ -414,6 +495,19 @@ export function createLandMagic({ shared, lamps = [], practicals = [], beacon = 
       } else {
         u.wakeFront.value.set(0, 1, 0, 0);
         u.wakeColour.value.setRGB(0, 0, 0);
+      }
+      // The wave crossing the island (waking.js waveAt).
+      const v = spec ? waveAt(waking.age, spec, night, reduced) : WAVE_ZERO;
+      state.wave = v;
+      if (v.strength + v.echoStrength > 1e-4) {
+        u.wakeSource.value.set(waking.x, waking.y, -waking.z, spec.core);
+        u.wakeTint.value.setRGB(spec.tint[0], spec.tint[1], spec.tint[2]);
+        u.wakeWave.value.set(v.radius, v.lead, v.tail, v.strength);
+        u.wakeEcho.value.set(v.echo, 2.5 + 0.02 * v.echo, v.echoStrength, v.presence);
+        on = 1;
+      } else {
+        u.wakeWave.value.w = 0;
+        u.wakeEcho.value.set(0, 1, 0, 0);
       }
       // The cat's shadow from it, on the ground, by night and while the
       // light on the cat is enough to cast one (chest and haunch).

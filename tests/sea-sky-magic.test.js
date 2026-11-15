@@ -53,8 +53,15 @@ test("a waking's light reaches the sea with its own reach, and only for gifts th
   // The lit water keeps glinting after the land has gone dark, then ends.
   assert.ok(magicUniforms({ ...record, waking: { ...waking, age: 9 } }, { night: 1 }).waking[2] > 0);
   assert.deepEqual(magicUniforms({ ...record, waking: { ...waking, age: 16.1 } }, { night: 1 }).waking, [0, 0, 0, 0]);
-  // The milkwood's light stays on the land.
-  assert.deepEqual(magicUniforms({ ...record, waking: { ...waking, gift: "fireflies" } }, { night: 1 }).waking, [0, 0, 0, 0]);
+  // The milkwood's own light stays on the land; only its wave crosses the bay.
+  const milkwood = magicUniforms({ ...record, waking: { ...waking, gift: "fireflies" } }, { night: 1 });
+  assert.equal(milkwood.waking[2], 0);
+  assert.ok(milkwood.wakingWave[2] > 0 && milkwood.wakingWave[0] > 0, "the wave");
+  assert.deepEqual(milkwood.waking.slice(0, 2), [4, 9], "from its source");
+  assert.equal(magicPasses(milkwood).water, true);
+  // The wave and its echo are over by eight seconds.
+  const late = magicUniforms({ ...record, waking: { ...waking, gift: "fireflies", age: 8 } }, { night: 1 });
+  assert.deepEqual([late.wakingWave, late.wakingTint, late.waking], [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]);
   const call = magicUniforms({ ...record, call: { at: 11, x: 0, z: 0 } });
   assert.ok(Math.abs(call.magic2[1] - 1) < 0.01);
 });

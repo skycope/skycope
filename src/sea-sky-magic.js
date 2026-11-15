@@ -32,9 +32,13 @@
 //     mirrors coast z). The sea's beam uses the same angle from `lamp.w`.
 //   TIDEGLOW: the tideglow colour and how long the glow lingers on wet sand
 //     where the swash and the cat's paws stirred it (see its comment).
-import { WAKE_LIGHT, wakingSea } from "./waking.js";
+import { WAKE_LIGHT, wakingSea, waveAt } from "./waking.js";
 
-export const MAGIC_FIELDS = ["magic", "magic2", "waking", "wakingLight", "lamp", "wisp", "wispColour", "lantern"];
+// The wave on the sea, relative to its strength on the land (the sea pass's
+// exposed units; calibrated by eye).
+export const WAVE_SEA = 0.8;
+
+export const MAGIC_FIELDS = ["magic", "magic2", "waking", "wakingLight", "lamp", "wisp", "wispColour", "lantern", "wakingWave", "wakingTint"];
 
 export const LAMP_PERIOD = 12;
 export function lampAngle(time) {
@@ -65,7 +69,7 @@ export function magicVariant(source, awake) {
 export function magicPasses(uniforms) {
   const on = (field, i) => (uniforms[field]?.[i] ?? 0) !== 0;
   const sky = on("magic", 1) || on("magic", 3) || on("magic2", 0);
-  const water = [0, 1, 2].some((i) => on("magic", i)) || on("waking", 2) || on("wisp", 3) || on("lantern", 3);
+  const water = [0, 1, 2].some((i) => on("magic", i)) || on("waking", 2) || on("wakingWave", 2) || on("wakingTint", 3) || on("wisp", 3) || on("lantern", 3);
   return { sky, water };
 }
 export function magicActive(uniforms) {
@@ -109,6 +113,19 @@ export function magicUniforms(magic, { time = magic?.clock ?? 0, lamp = null, la
     if (w.inside + w.front > 1e-4) {
       u.waking = [waking.x, waking.z, w.radius, w.front];
       u.wakingLight = [spec.tint[0] * w.inside, spec.tint[1] * w.inside, spec.tint[2] * w.inside, waking.y];
+    }
+  }
+  // The wave across the bay (waking.js waveAt), for every gift with one:
+  // its source in waking.xy / wakingLight.w (set here too when the gift's
+  // own light stays ashore).
+  if (spec) {
+    const v = waveAt(waking.age, spec, night, reduced);
+    if (v.strength + v.echoStrength > 1e-4) {
+      u.waking[0] = waking.x;
+      u.waking[1] = waking.z;
+      u.wakingLight[3] = waking.y;
+      u.wakingWave = [v.radius, v.tail, v.strength * WAVE_SEA, v.echo];
+      u.wakingTint = [spec.tint[0], spec.tint[1], spec.tint[2], v.echoStrength * WAVE_SEA];
     }
   }
   // land-magic: when the land's lamp state is passed (landscape.lamp: its

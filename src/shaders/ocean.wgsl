@@ -3,7 +3,7 @@ import { lut_uv, overcast_sky } from "./skyview.wgsl";
 import { rock_slots, rock_sea, rock_traces, rock_hides, RockSea, RockHit, RockHits } from "./rocks.wgsl";
 import { cat_near, cat_sea, boat_hull, boat_sea, hull_mirror, hull_radiance, hull_sunk, hull_shade, Hull } from "./wake.wgsl";
 import { archipelago_hit, archipelago_sun, archipelago_radiance } from "./archipelago.wgsl";
-import { SeaPoint, tideglow, lamp_on_sea, waking_on_sea, wisp_on_sea, lantern_on_sea } from "./sea-magic.wgsl";
+import { SeaPoint, tideglow, lamp_on_sea, waking_on_sea, wave_on_sea, wisp_on_sea, lantern_on_sea } from "./sea-magic.wgsl";
 
 
 // Camera-relative metres: x right, y up, z toward the coast. Everything here is
@@ -41,6 +41,9 @@ export struct OceanSettings {
   wisp_colour: vec4f,
   // boat: the lantern (Atmosphere.lantern).
   lantern: vec4f,
+  // waking: the wave (Atmosphere.wakingWave, wakingTint).
+  waking_wave: vec4f,
+  waking_tint: vec4f,
 };
 
 // Clear coastal water: pure-water absorption takes red within a metre or two
@@ -525,7 +528,7 @@ fn ocean(
 
   // ---- sea-sky-magic: the awakened gifts on the water (sea-magic.wgsl). ----
   // All zero while every gift sleeps: one uniform test, no work.
-  if (MAGIC_AWAKE && (any(settings.magic.xzw > vec3f(0.0)) || settings.waking.z > 0.0 || settings.wisp.w > 0.0 || settings.lantern.w > 0.0)) {
+  if (MAGIC_AWAKE && (any(settings.magic.xzw > vec3f(0.0)) || settings.waking.z > 0.0 || settings.waking_wave.z + settings.waking_tint.w > 0.0 || settings.wisp.w > 0.0 || settings.lantern.w > 0.0)) {
     let point = SeaPoint(p, metrics, ray, normal, sea.phase, sea.breaking, sea.height, foam, rock.edge, stir,
       pixel, depth, fresnel);
     if (settings.magic.x > 0.0) {
@@ -540,6 +543,11 @@ fn ocean(
     if (settings.waking.z > 0.0) {
       color += waking_on_sea(point, settings.waking, settings.waking_light, settings.time,
         clamp(dot(settings.skylight, vec3f(0.2126, 0.7152, 0.0722)) * 2.5, 0.0, 1.0));
+    }
+    // waking: the wave running out across the bay, and its echo home.
+    if (settings.waking_wave.z + settings.waking_tint.w > 0.0) {
+      color += wave_on_sea(point, vec3f(settings.waking.x, settings.waking_light.w, settings.waking.y), settings.waking_wave,
+        settings.waking_tint, settings.time, clamp(dot(settings.skylight, vec3f(0.2126, 0.7152, 0.0722)) * 2.5, 0.0, 1.0));
     }
     if (settings.wisp.w > 0.0) {
       color += wisp_on_sea(point, settings.wisp, settings.wisp_colour.rgb);
