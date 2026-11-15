@@ -191,6 +191,7 @@ export function createWalker(obstacles, sea = null, wake = null) {
     camera,
     events,
     surface,
+    surfaceAt, // sound: what is under a paw (deck, a place's tile, rock, ground)
     // boat: the surface without the boat's deck (seabed, sand, boulders).
     bed: base,
     solids,
@@ -724,6 +725,22 @@ export function createWalker(obstacles, sea = null, wake = null) {
     const h = base(x, z);
     // boat: its deck, where it floats.
     return ride ? Math.max(h, ride.deck(x, z)) : h;
+  }
+
+  // sound: what is under a paw at (x, z), for footsteps and prints:
+  // { on: "deck" | "tile" (a place's made surface, place-kit heightTile) |
+  // "rock" (a boulder or a crevice bridge) | "seabed" | "ground", height,
+  // tile } — the same winner surface() picks, with its name.
+  function surfaceAt(x, z) {
+    const g = groundHeight(x, z);
+    const d = grid.domeHeight(x, z);
+    const tile = d > -Infinity ? grid.domeAt(x, z)?.tile ?? null : null;
+    const inland = shoreDistance(x, z);
+    const seabed = inland < 0 ? -seabedDepth(-inland, shoreAlong(x, z)) : -Infinity;
+    const deck = ride ? ride.deck(x, z) : -Infinity;
+    const height = Math.max(g, d, seabed, deck);
+    const on = deck > -Infinity && deck >= height ? "deck" : tile && d >= height && d > g + 0.03 ? (tile.gradient ? "tile" : "rock") : seabed > g ? "seabed" : "ground";
+    return { on, height, tile: on === "tile" || on === "rock" ? tile : null };
   }
 
   function base(x, z) {

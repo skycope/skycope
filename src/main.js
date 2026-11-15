@@ -1088,7 +1088,7 @@ function updateCat(dt, realDt = dt) {
           const cos = Math.cos(cat.heading);
           kind = footstep(side < 0 ? "l" : "r", cat.x + cos * across + sin * along, cat.z - sin * across + cos * along, cat.heading, front, { side: -side, speed: 1 }, true);
         }
-      state.sound.land(event.speed, kind, { x: cat.x, z: cat.z }); // sound: the landing by surface
+      state.sound.land(event.speed, kind, { x: cat.x, z: cat.z, under: walker.surfaceAt?.(cat.x, cat.z) }); // sound: the landing by surface
       state.landscape.catLanded(state.time, Math.min(1.5, event.speed / 3), kind, walker.surface);
     }
   }
@@ -1244,7 +1244,7 @@ function footstep(leg, x, z, heading, front, { side = 1, speed = 0, pace = speed
     speed,
     rock: kind === 0,
   });
-  if (!silent) state.sound.step(kind, cat.running, leg.startsWith("l") ? -0.15 : 0.15, { x, z, front }); // sound: refined to grass, timber, … (src/sound/index.js)
+  if (!silent) state.sound.step(kind, cat.running, leg.startsWith("l") ? -0.15 : 0.15, { x, z, front, under: state.walker.surfaceAt?.(x, z) }); // sound: what is really under the paw (src/sound/surface.js)
   return kind;
 }
 
