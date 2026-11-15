@@ -18,13 +18,20 @@ test("awake gifts fill their lanes", () => {
   const magic = createMagic({ force: ["tideglow", "stars", "lamp", "finale"] });
   magic.update(1 / 60, 30);
   const u = magicUniforms(magic, { time: 30, lamp: { x: 5, y: 16, z: -7 } });
-  assert.deepEqual(u.magic.slice(0, 3), [1, 1, 1]);
-  // The finale settles after its first minute (awake at load: from load).
-  assert.ok(u.magic[3] > 0.6 && u.magic[3] < 0.8);
+  // The sky no longer leans close (story-and-wow.md 6): y stays 0.
+  assert.deepEqual(u.magic.slice(0, 3), [1, 0, 1]);
+  // The ending has happened: the south star, steady, for good; no pen.
+  assert.equal(u.magic[3], 1);
   magic.update(1 / 60, 600);
-  assert.ok(Math.abs(magicUniforms(magic, { time: 600 }).magic[3] - 0.3) < 0.01);
-  // Awake at load: the figures draw from load.
-  assert.ok(Math.abs(u.magic2[0] - 30) < 0.01);
+  assert.equal(magicUniforms(magic, { time: 600 }).magic[3], 1);
+  assert.equal(u.magic2[0], 0);
+  // While the ending plays, its record drives the star, the swell, the pen.
+  magic.ending = { star: 0.4, swell: 0.7, pen: 1.5 };
+  const e = magicUniforms(magic, { time: 600 });
+  assert.equal(e.magic[3], 0.4);
+  assert.equal(e.magic2[0], 1.5);
+  assert.equal(e.wispColour[3], 0.7);
+  magic.ending = null;
   assert.deepEqual(u.lamp.slice(0, 3), [5, 16, -7]);
   assert.ok(Math.abs(u.lamp[3] - lampAngle(30)) < 1e-9);
   // The lamp turns once in 12 s, like places.js.
@@ -114,8 +121,9 @@ test("asleep gifts select the plain pipelines, pass by pass", async () => {
   assert.deepEqual(magicPasses({ ...quiet, waking: [1, 2, 3, 0] }), { sky: false, water: true }, "a waking lights the water through its linger (front 0, radius set)");
   // A meow alone draws nothing in either pass.
   assert.deepEqual(magicPasses({ ...quiet, magic2: [0, 4, 0, 0] }), { sky: false, water: false });
-  // The stars and the finale wake both; tideglow and the lamp only the sea.
-  assert.deepEqual(magicPasses({ ...quiet, magic: [0, 1, 0, 0] }), { sky: true, water: true });
-  assert.deepEqual(magicPasses({ ...quiet, magic: [0, 0, 0, 0.3] }), { sky: true, water: true });
+  // The south star and the Cross's pen wake the sky only; tideglow and
+  // the lamp only the sea.
+  assert.deepEqual(magicPasses({ ...quiet, magic: [0, 0, 0, 0.3] }), { sky: true, water: false });
+  assert.deepEqual(magicPasses({ ...quiet, magic2: [1.2, 0, 0, 0] }), { sky: true, water: false });
   assert.deepEqual(magicPasses({ ...quiet, magic: [1, 0, 1, 0] }), { sky: false, water: true });
 });

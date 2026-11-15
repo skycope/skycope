@@ -10,6 +10,7 @@ import {
 } from "./terrain.js";
 import { seededRandom } from "./random.js";
 import { createVegetation } from "./vegetation.js";
+import { graniteAt } from "./habitat.js";
 import { createSurf, SWASH_GLSL } from "./surf.js";
 import { swellUniform } from "./swell.js";
 import { rockLayout, rockGeometry, shoreRockData, ROCK_VARIANTS } from "./rocks.js";
@@ -20,7 +21,7 @@ import { bridgeCrevices } from "./walker.js"; // solid:
 import { MATERIAL_HEX, MATERIAL_LINEAR } from "./material-palette.js";
 import { groundDetailData, groundCover } from "./ground-detail.js";
 import { createNearGround } from "./near-ground.js";
-import { createLodChunk, packChunk, packDue, chunkRange } from "./instance-lod.js"; // lod:
+import { createLodChunk, packChunk, packUrgency, easeBias } from "./instance-lod.js"; // lod:
 import { magicUniforms, MAGIC_LIGHT_DECLARATIONS, MAGIC_LIGHT_GLSL } from "./land-magic.js"; // land-magic:
 import {
   finish,
@@ -32,6 +33,7 @@ import {
   pincushionGeometry,
   proteaGeometry,
   daisyGeometry,
+  shrubMassGeometry,
 } from "./plant-forms.js";
 
 // All assets are built from geometry. No downloaded or generated images/textures.
@@ -85,7 +87,7 @@ export function createForest(scene, seed, { light = false } = {}) {
   const random = seededRandom(seed);
   // (The rocks are laid out first, so nothing is planted through one.)
   const rockList = placeRocks(seed, rockLayout(random)); // places:
-  const { wood: trunks, leaves, clusters, flowers, turf, fronds, succulents, needles, reeds, layout, habitat, producers = [] } = createVegetation(seed, { avoid: rockFootprints(rockList) });
+  const { wood: trunks, leaves, clusters, flowers, turf, fronds, succulents, needles, reeds, masses, layout, habitat, producers = [] } = createVegetation(seed, { avoid: rockFootprints(rockList) });
   const rocks = addRocks(scene, random, shared, rockList); // places:
   const surf = createSurf(scene, rocks, shared, { light });
   const obstacles = obstaclesFor(layout, rocks);
@@ -107,11 +109,13 @@ export function createForest(scene, seed, { light = false } = {}) {
   shadeFrom(clusters, 0.8);
   shadeFrom(turf);
   for (const list of [fronds, succulents, needles, reeds]) shadeFrom(list);
+  shadeFrom(masses, 0.85);
   for (const list of Object.values(flowers)) shadeFrom(list);
   const woodMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     roughness: 1,
   });
+  woodMaterial.name = "wood";
   patchMaterial(woodMaterial, shared, { sway: true, bark: true, taper: true });
   // Unit cylinders; each instance's taper narrows the top to where the next
   // segment starts. Wind bends each short segment as a whole, so one ring of
@@ -149,6 +153,7 @@ export function createForest(scene, seed, { light = false } = {}) {
     vertexColors: true,
     side: THREE.DoubleSide,
   });
+  clusterMaterial.name = "shoots";
   patchMaterial(clusterMaterial, shared, {
     sway: true,
     flutter: 0.05,
@@ -161,15 +166,17 @@ export function createForest(scene, seed, { light = false } = {}) {
   // per-shoot choice), grown so the canopy covers the same area. Near shoots
   // are 10 small folded leaves (60 triangles, 70 vertices; 14 cost 84 and
   // the extra four were hidden by their neighbours), only round the cat: past
-  // ~11 m a leaf is a few pixels and its folds are invisible. Then 7, 3 and 1
-  // larger leaf cards (28, 12, 4 vertices); from 24 m every shoot is three
-  // cards (a shoot is ~10 px there), from 48 m half of them.
+  // ~10 m a leaf is a few pixels and its folds are invisible. Then 7, 3 and 1
+  // larger leaf cards (28, 12, 4 vertices); from ~35 m every shoot is three
+  // cards (a shoot is ~10 px there), from 55 m half of them. (The levels cross-fade: instance-lod.js.)
   addInstances(scene, shootGeometry(10, 1), clusterMaterial, clusters, true, [
-    { geometry: shootGeometry(7, 0), grow: 1.12, distance: 11 },
-    { geometry: shootGeometry(5, 0), grow: 1.2, distance: 22 },
-    { geometry: shootGeometry(3, 0), grow: 1.35, distance: 38 },
-    { geometry: shootGeometry(3, 0), grow: 1.35 * Math.SQRT2, keep: (c) => shootShare(c) < 0.5, distance: 60 },
-    { geometry: shootGeometry(1, 0), grow: 1.9 * Math.sqrt(3), keep: (c) => shootShare(c) < 0.34, distance: 100 },
+    { geometry: shootGeometry(7, 0), grow: 1.12, distance: 10 },
+    // Shoots deep inside a crown (vegetation.js `inner`) are hidden by the
+    // outer ones from anywhere but under the tree: drawn near only.
+    { geometry: shootGeometry(5, 0), grow: 1.2, keep: (c) => !c.inner, distance: 20 },
+    { geometry: shootGeometry(3, 0), grow: 1.35, keep: (c) => !c.inner, distance: 35 },
+    { geometry: shootGeometry(3, 0), grow: 1.35 * Math.SQRT2, keep: (c) => !c.inner && shootShare(c) < 0.5, distance: 55 },
+    { geometry: shootGeometry(1, 0), grow: 1.9 * Math.sqrt(3), keep: (c) => !c.inner && shootShare(c) < 0.34, distance: 100 },
   ], { shadowGrow: SHADOW_GROW });
   const bladeMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff,
@@ -177,6 +184,7 @@ export function createForest(scene, seed, { light = false } = {}) {
     vertexColors: true,
     side: THREE.DoubleSide,
   });
+  bladeMaterial.name = "blades";
   patchMaterial(bladeMaterial, shared, { sway: true, flutter: 0.08, foliage: true, bent: 0.45, pliant: true, rooted: 0.25, sheen: 0.3 });
   addInstances(scene, leafGeometry(1), bladeMaterial, leaves, true, [
     { geometry: leafGeometry(0), keep: (l) => l.scale.y > 0.18 || l.scale.x > 0.05, distance: 28 },
@@ -191,13 +199,14 @@ export function createForest(scene, seed, { light = false } = {}) {
     vertexColors: true,
     side: THREE.DoubleSide,
   });
+  turfMaterial.name = "turf";
   patchMaterial(turfMaterial, shared, { sway: true, flutter: 0.06, foliage: true, bent: 0.55, pliant: true, rooted: 0.12 });
   // Full tufts (5 mm blades, flowering culms) only round the cat; past
   // ~10 m a blade is under a pixel wide. The near-ground carpet thickens
   // the sward between them, so a tuft needs fewer blades of its own.
   addInstances(scene, tuftGeometry(20, 3, 2), turfMaterial, turf, false, [
-    { geometry: tuftGeometry(10, 2), distance: 10 },
-    { geometry: tuftGeometry(5, 2), grow: 1.15, distance: 24 },
+    { geometry: tuftGeometry(10, 2), distance: 9 },
+    { geometry: tuftGeometry(5, 2), grow: 1.15, distance: 22 },
     { geometry: tuftGeometry(5, 2), keep: (t) => t.far, grow: 1.3, distance: 42 },
     { keep: () => false, distance: 75 },
   ]);
@@ -205,20 +214,44 @@ export function createForest(scene, seed, { light = false } = {}) {
   addInstances(scene, reedGeometry(30, 1), turfMaterial, reeds, true, [
     { geometry: reedGeometry(14, 0), distance: 18 },
     { keep: () => false, distance: 90 },
-  ], { chunk: 40 });
+  ], { chunk: 40, label: "reeds" });
   // Fern and palm fronds: one organ per frond. Palms (tall anchors) stay
   // to the horizon; fern fronds drop out where they'd be a few pixels.
   addInstances(scene, frondGeometry(16, 2), bladeMaterial, fronds, true, [
     { geometry: frondGeometry(12, 1), distance: 13 },
     { geometry: frondGeometry(8, 0), keep: (f) => f.scale.y > 1.5 || shootShare(f) < 0.6, distance: 50 },
     { geometry: frondGeometry(6, 0), keep: (f) => f.scale.y > 1.5, distance: 95 },
-  ]);
+  ], { label: "fronds" });
   // Heath shoots: needles, on the same foliage material as leafy shoots.
   addInstances(scene, needleGeometry(26), clusterMaterial, needles, true, [
-    { geometry: needleGeometry(10), grow: 1.15, distance: 16 },
-    { geometry: needleGeometry(4), grow: 1.3, distance: 30 },
+    { geometry: needleGeometry(10), grow: 1.15, distance: 14.5 },
+    { geometry: needleGeometry(4), grow: 1.3, distance: 27 },
     { geometry: needleGeometry(4), grow: 1.5, keep: (c) => shootShare(c) < 0.5, distance: 60 },
-  ], { shadowGrow: SHADOW_GROW });
+  ], { shadowGrow: SHADOW_GROW, label: "needles" });
+  // Fynbos shrubs, one rounded mass each (plant-forms.js shrubMassGeometry):
+  // the understory. Leaves are drawn per pixel on the dome (MASS_LEAF_GLSL),
+  // sprigs break its outline near the cat; normals are baked to the mass,
+  // so the material bends them only a little toward the sky; the foot
+  // darkens into the soil (ROOTED and the baked occlusion). Past ~20 m a
+  // shrub is a lumpy 18-triangle dome, and from 70 m the painted scrub on
+  // the ground carries it alone.
+  const massMaterial = new THREE.MeshStandardMaterial({
+    name: "shrubs",
+    color: 0xffffff,
+    roughness: 0.75,
+    vertexColors: true,
+    side: THREE.DoubleSide,
+  });
+  // (A dome is smooth at leaf scale: its sun sparkle would be one broad
+  // white highlight, so it barely mirrors.)
+  patchMaterial(massMaterial, shared, { sway: true, flutter: 0.04, foliage: true, bent: 0.2, rooted: 0.22, sheen: 0.1, mass: true });
+  addInstances(scene, shrubMassGeometry(3), massMaterial, masses, true, [
+    { geometry: shrubMassGeometry(2), distance: 3.6 },
+    { geometry: shrubMassGeometry(1), distance: 8 },
+    { geometry: shrubMassGeometry(0), distance: 18 },
+    { geometry: shrubMassGeometry(0), keep: (m) => m.scale.x > 0.3 || shootShare(m) < 0.5, distance: 45 },
+    { keep: () => false, distance: 75 },
+  ], { chunk: 40 });
   // Aloe leaves are thick and waxy, not translucent: plain lit, a little
   // glossy, stiff in the wind.
   const succulentMaterial = new THREE.MeshStandardMaterial({
@@ -227,6 +260,7 @@ export function createForest(scene, seed, { light = false } = {}) {
     vertexColors: true,
     side: THREE.DoubleSide,
   });
+  succulentMaterial.name = "succulents";
   patchMaterial(succulentMaterial, shared, { sway: true });
   addInstances(scene, succulentGeometry(1), succulentMaterial, succulents, true, [
     { geometry: succulentGeometry(0), distance: 18 },
@@ -240,6 +274,7 @@ export function createForest(scene, seed, { light = false } = {}) {
     vertexColors: true,
     side: THREE.DoubleSide,
   });
+  petalMaterial.name = "flowers";
   patchMaterial(petalMaterial, shared, { sway: true, flutter: 0.04, foliage: true, bent: 0.35 });
   // Daisy and bell drifts: past ~22 m a head is a pixel or two, so half of
   // them, grown to keep the drift's colour, then none.
@@ -348,6 +383,13 @@ export function createForest(scene, seed, { light = false } = {}) {
     updateLod(eye, bias = 1) {
       shared.sightEye.value.copy(eye);
       packLod(scene, eye, bias);
+    },
+    // lod: through a sliced sun-shadow refresh (landscape.js
+    // renderShadowSlice), from its first slice until the last, the shadow
+    // pass keeps this frame's eye and packing serves it too (packLod).
+    holdShadowLod(on) {
+      const state = scene.userData.lodState;
+      if (state?.eye) state.shadowAt = on ? state.eye.slice() : null;
     },
   };
 }
@@ -540,6 +582,23 @@ gl_Position = projectionMatrix * mvPosition;
 // Sky occlusion (canopyShade: 0 open sky, 1 buried in foliage), per vertex
 // for the ground and per instance for plants. Unset attributes read as 0.
 const OCCLUSION_VERTEX_GLSL = /* glsl */ `
+#ifdef MASS
+varying vec3 vMassP;
+float massVertexHash( vec3 p ) {
+  p = fract( p * 0.3183099 + 0.1 );
+  p *= 17.0;
+  return fract( p.x * p.y * p.z * ( p.x + p.y + p.z ) );
+}
+float massVertexNoise( vec3 p ) {
+  vec3 i = floor( p );
+  vec3 f = fract( p );
+  f = f * f * ( 3.0 - 2.0 * f );
+  return mix(
+    mix( mix( massVertexHash( i ), massVertexHash( i + vec3( 1, 0, 0 ) ), f.x ), mix( massVertexHash( i + vec3( 0, 1, 0 ) ), massVertexHash( i + vec3( 1, 1, 0 ) ), f.x ), f.y ),
+    mix( mix( massVertexHash( i + vec3( 0, 0, 1 ) ), massVertexHash( i + vec3( 1, 0, 1 ) ), f.x ), mix( massVertexHash( i + vec3( 0, 1, 1 ) ), massVertexHash( i + vec3( 1, 1, 1 ) ), f.x ), f.y ),
+    f.z );
+}
+#endif
 attribute float canopyShade;
 uniform vec3 shadowCentre;
 varying float vShade;
@@ -655,6 +714,80 @@ const FOLIAGE_GLSL = /* glsl */ `
     reflectedLight.indirectDiffuse *= rootShade;
     reflectedLight.directDiffuse *= mix( 0.6, 1.0, rootShade );
   #endif
+}
+`;
+
+// A shrub mass is one smooth dome of geometry; its surface is drawn as
+// leaves per pixel: small leaves with dark gaps between them (the shade
+// inside the bush), each leaf a little lighter or yellower than the next.
+// World-space and footprint-filtered: where a leaf would be under a pixel
+// the pattern fades to its mean, so far shrubs do not shimmer.
+const MASS_LEAF_GLSL = /* glsl */ `
+varying vec3 vMassP;
+float massHash( vec3 p ) {
+  p = fract( p * 0.3183099 + 0.1 );
+  p *= 17.0;
+  return fract( p.x * p.y * p.z * ( p.x + p.y + p.z ) );
+}
+float massNoise( vec3 p ) {
+  vec3 i = floor( p );
+  vec3 f = fract( p );
+  f = f * f * ( 3.0 - 2.0 * f );
+  return mix(
+    mix( mix( massHash( i ), massHash( i + vec3( 1, 0, 0 ) ), f.x ), mix( massHash( i + vec3( 0, 1, 0 ) ), massHash( i + vec3( 1, 1, 0 ) ), f.x ), f.y ),
+    mix( mix( massHash( i + vec3( 0, 0, 1 ) ), massHash( i + vec3( 1, 0, 1 ) ), f.x ), mix( massHash( i + vec3( 0, 1, 1 ) ), massHash( i + vec3( 1, 1, 1 ) ), f.x ), f.y ),
+    f.z );
+}
+void massLeaves( inout vec3 albedo ) {
+  // Leaves about 1 cm: lit leaf faces as flecks over the darker gaps.
+  vec3 q = vMassP * 80.0;
+  float fw = length( fwidth( q ) );
+  float near = 1.0 - smoothstep( 0.45, 1.2, fw );
+  // The colour drift across a bush (a few leaves' worth) survives further.
+  float tone = massNoise( vMassP * 6.0 + 11.3 );
+  vec3 drift = vec3( 1.0 + ( tone - 0.5 ) * 0.12, 1.0, 1.0 - ( tone - 0.5 ) * 0.16 ) * ( 0.95 + tone * 0.1 );
+  // Leaf clusters a hand across with dark gaps between them: what makes a
+  // bush read as foliage, not a smooth stone, from tens of metres. Averaged
+  // to its mean where a cluster would be under a couple of pixels.
+  vec3 cq = vMassP * 9.0;
+  float clusterFade = 1.0 - smoothstep( 0.4, 1.0, length( fwidth( cq ) ) );
+  float cluster = massNoise( cq + 4.1 ) * 0.7 + massNoise( cq * 2.1 - 2.3 ) * 0.3;
+  drift *= mix( 0.86, 0.62 + 0.62 * smoothstep( 0.3, 0.7, cluster ), clusterFade );
+  if ( near <= 0.0 ) { albedo *= drift; return; }
+  // Sparse lit leaf tips over the darker body of the bush.
+  float leaf = massNoise( q );
+  float lit = smoothstep( 0.58, 0.78, leaf );
+  albedo *= drift * mix( 1.0, 0.86 + 0.42 * lit, near );
+}
+`;
+
+// A bush's outline is leaf clusters and twigs against the sky, not a dome's
+// edge. Toward the silhouette (the surface turning away from the eye) leaf
+// clusters are bitten out by a world-space noise (a dithered discard: the
+// land canvas's alpha must stay 1, it is composited over the sky; and the
+// foliage shader already discards for the lens, so early-z is not lost
+// here), so the edge frays into clusters with light between them, and the
+// back of the mass shows through as inner foliage. Clusters ~8 cm near,
+// ~20 cm further, each averaged away where it would be under a pixel; far
+// off the outline is the vertex shader's lobes alone (bites the size of a
+// whole bush cut the tops off and left flat plates). Some
+// bushes (a quarter, by the instance's hash) are open and twiggy: the bites
+// reach further in.
+const MASS_FRINGE_GLSL = /* glsl */ `
+{
+  float facing = abs( dot( normal, normalize( vViewPosition ) ) );
+  float twiggy = step( 0.75, vGlint );
+  float rim = 1.0 - smoothstep( 0.0, mix( 0.28, 0.45, twiggy ), facing );
+  vec3 fineQ = vMassP * 12.0;
+  vec3 coarseQ = vMassP * 5.0;
+  float fineFade = 1.0 - smoothstep( 0.35, 0.9, length( fwidth( fineQ ) ) );
+  float coarseFade = 1.0 - smoothstep( 0.35, 0.9, length( fwidth( coarseQ ) ) );
+  float clusters = mix( 0.5, massNoise( coarseQ + 3.7 ), coarseFade ) * 0.55 + mix( 0.5, massNoise( fineQ ), fineFade ) * 0.45;
+  // Bitten where the clusters are thin; never in the middle of the face.
+  float bite = rim * ( 0.9 + 0.25 * twiggy ) - clusters;
+  float cut = smoothstep( -0.06, 0.06, bite ) * max( coarseFade, fineFade );
+  float dither = fract( sin( dot( floor( gl_FragCoord.xy ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
+  if ( cut > 0.5 + ( dither - 0.5 ) * 0.8 ) discard;
 }
 `;
 
@@ -825,6 +958,10 @@ if ( rocky > 0.01 ) {
   diffuseColor.rgb = mix( diffuseColor.rgb, granite, rocky );
 }
 diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.17, 0.12, 0.08 ) * ( 0.7 + grain * 0.6 ), litter * 0.55 );
+// The floor under the crowns is a living one: mats of pennywort, moss and
+// shade herbs a metre or two across through the litter (drawn below, with
+// the other low cover), so it reads as cover with leaves on it, not soil.
+float floorGreen = litter * smoothstep( 0.3, 0.6, dNoise( coast * 0.85 + 5.0 ) * 0.7 + mottled * 0.3 + litter * 0.15 );
 // land-look: soil is never one flat brown. Over the inland ground: patches
 // a metre or two across, darker where humus gathers and paler where it is
 // dry and stony; and up close a speckle of pale pebbles, dark crumbs and
@@ -956,7 +1093,9 @@ if ( scrub > 0.02 && coverNear > 0.0 ) {
 // going red-bronze where they are stressed, starred with magenta flowers.
 float figCover = 0.0;
 float figRelief = 0.0;
-if ( sourfig > 0.02 && coverNear > 0.0 ) {
+// (Drawn right up to the eye, unlike the scrub: a creeping mat is flat
+// in life too.)
+if ( sourfig > 0.02 ) {
   // Rosettes of finger leaves with dark gaps between them.
   float f1Fade = smoothstep( 0.2, 0.5, px * 16.0 );
   float f1 = f1Fade < 1.0 ? mix( smoothstep( 0.35, 0.65, dNoise( coast * 16.0 + 4.0 ) ), 0.5, f1Fade ) : 0.5;
@@ -968,7 +1107,7 @@ if ( sourfig > 0.02 && coverNear > 0.0 ) {
   float figEdge = mix( 0.84, 0.66, sourfig );
   float figN = matN + ( fingers - 0.5 ) * 0.08 + ( lobes - 0.5 ) * 0.06;
   float figAA = fwidth( figN ) * 1.5 + 0.01;
-  figCover = smoothstep( figEdge - figAA, figEdge + 0.06 + figAA, figN ) * ( 1.0 - bushCover ) * smoothstep( 0.02, 0.2, sourfig ) * coverNear;
+  figCover = smoothstep( figEdge - figAA, figEdge + 0.06 + figAA, figN ) * ( 1.0 - bushCover ) * smoothstep( 0.02, 0.2, sourfig );
   vec3 fig = mix( vec3( 0.045, 0.07, 0.024 ), vec3( 0.1, 0.052, 0.03 ), smoothstep( 0.62, 0.85, dNoise( coast * 0.9 + 8.0 ) ) );
   fig *= ( 0.35 + fingers * 1.1 ) * ( 0.6 + lobes * 0.8 ) * 0.85;
   vec2 fg = coast * 6.0;
@@ -976,12 +1115,61 @@ if ( sourfig > 0.02 && coverNear > 0.0 ) {
   float bloom = step( 0.92, dHash( fid + 17.0 ) ) * ( 1.0 - smoothstep( 0.03, 0.05, length( fract( fg ) - 0.3 - 0.4 * vec2( dHash( fid + 2.0 ), dHash( fid + 5.0 ) ) ) ) );
   bloom = mix( bloom, 0.015, smoothstep( 0.006, 0.02, px ) );
   fig = mix( fig, vec3( 0.5, 0.05, 0.28 ), bloom );
-  diffuseColor.rgb *= 1.0 - smoothstep( figEdge - 0.1, figEdge, matN ) * ( 1.0 - figCover ) * 0.15 * sourfig * coverNear;
+  diffuseColor.rgb *= 1.0 - smoothstep( figEdge - 0.1, figEdge, matN ) * ( 1.0 - figCover ) * 0.15 * sourfig;
   diffuseColor.rgb = mix( diffuseColor.rgb, fig, figCover );
   sandGlint *= 1.0 - figCover;
-  figRelief = smoothstep( figEdge - 0.04, figEdge + 0.12, figN ) * ( 1.0 - bushCover ) * ( 0.012 + fingers * 0.008 ) * coverNear;
+  figRelief = smoothstep( figEdge - 0.04, figEdge + 0.12, figN ) * ( 1.0 - bushCover ) * ( 0.012 + fingers * 0.008 );
 }
-float lowCover = max( bushCover, figCover );
+// The shade floor's mats: round leaves 2–5 cm across (pennywort, wild
+// violet, seedlings) packed edge to edge with dark gaps, each its own tone,
+// over moss. Unlike the scrub it is drawn right up to the eye: it is flat
+// in life too. Past a few metres the leaves average to the mat's mean.
+float herbCover = 0.0;
+float herbRelief = 0.0;
+if ( floorGreen > 0.02 ) {
+  float mat = smoothstep( 0.05, 0.4, floorGreen ) * ( 1.0 - bushCover ) * ( 1.0 - figCover ) * ( 1.0 - rocky );
+  // Leaves stand thickest at a mat's heart and scatter out at its edges,
+  // the litter showing between them.
+  float density = mat * ( 0.35 + 0.5 * smoothstep( 0.2, 0.8, floorGreen + ( dNoise( coast * 3.1 + 2.0 ) - 0.5 ) * 0.6 ) );
+  vec2 hg = coast * 30.0;
+  float hFade = smoothstep( 0.25, 0.6, px * 30.0 );
+  vec3 herb = vec3( 0.062, 0.078, 0.036 );
+  float leafOn = density * 0.55;
+  if ( hFade < 1.0 && density > 0.01 ) {
+    vec2 hcell = floor( hg );
+    vec2 hf = fract( hg );
+    float hd = 9.0;
+    vec2 hid = vec2( 0.0 );
+    for ( int j = -1; j <= 1; j++ ) for ( int i = -1; i <= 1; i++ ) {
+      vec2 o = vec2( float( i ), float( j ) );
+      vec2 id = hcell + o;
+      if ( dHash( id + 0.7 ) > density ) continue;
+      vec2 c = o + 0.15 + 0.7 * vec2( dHash( id + 3.3 ), dHash( id + 8.7 ) ) - hf;
+      // Each leaf its own size, its own turn, round to oval.
+      float a = dHash( id + 5.2 ) * 3.1416;
+      vec2 r = mat2( cos( a ), -sin( a ), sin( a ), cos( a ) ) * c;
+      r.y /= 0.6 + 0.4 * dHash( id + 7.4 );
+      float d = length( r ) / ( 0.3 + 0.55 * dHash( id + 1.9 ) * dHash( id + 4.6 ) + 0.15 );
+      if ( d < hd ) { hd = d; hid = id; }
+    }
+    float leafIn = 1.0 - smoothstep( 0.8, 1.0, hd );
+    float tone = dHash( hid + 6.1 );
+    vec3 leafC = tone < 0.5 ? vec3( 0.05, 0.068, 0.03 ) : tone < 0.82 ? vec3( 0.066, 0.08, 0.034 ) : tone < 0.94 ? vec3( 0.085, 0.082, 0.042 ) : vec3( 0.1, 0.08, 0.045 );
+    leafC *= 0.8 + 0.4 * dHash( hid + 2.4 );
+    // Paler at the leaf's heart, darker at its rim.
+    leafC *= 1.06 - hd * hd * 0.22;
+    herb = mix( herb, leafC, 1.0 - hFade );
+    leafOn = mix( leafOn, leafIn, 1.0 - hFade );
+    // The litter round each leaf lies in its shade.
+    diffuseColor.rgb *= 1.0 - ( 1.0 - smoothstep( 1.0, 1.4, hd ) ) * ( 1.0 - leafIn ) * 0.25 * ( 1.0 - hFade ) * mat;
+    herbRelief = ( 1.0 - hFade ) * leafIn * sqrt( max( 0.0, 1.0 - hd * hd ) ) * 0.005;
+  }
+  herbCover = leafOn * mat;
+  diffuseColor.rgb = mix( diffuseColor.rgb, herb * ( 0.85 + grain * 0.3 ), herbCover );
+  sandGlint *= 1.0 - herbCover;
+  herbRelief *= mat;
+}
+float lowCover = max( max( bushCover, figCover ), herbCover * 0.4 );
 // Cat-scale clutter, one object per cell: pebbles and shells on the sand
 // (thickest along the wrack line, with stranded kelp), fallen leaves and
 // twigs under the trees. It fades out where an object would span less than
@@ -1059,7 +1247,7 @@ if ( nearDetail > 0.01 ) {
   }
 }
 float detailHeight = grain * 0.004 + ( ripple * 0.012 + fine * 0.006 * ripFade ) * dry * ( 1.0 - grassy ) * ( 1.0 - lowCover ) + mottled * 0.03 * ( 1.0 - wet ) + rocky * strata * 0.08 + clutterHeight + sward * 0.02
-  + bushDome + figRelief;
+  + bushDome + figRelief + herbRelief;
 float detailRoughness = mix( mix( mix( mix( 0.95, 0.9, rocky ), 0.8, bushCover ), 0.28, wet ), 0.35, clutterGloss );
 detailRoughness = mix( detailRoughness, 0.55, damp ); // land-look: the damp band's sheen
 detailRoughness = mix( detailRoughness, 0.55, figCover );
@@ -1555,16 +1743,16 @@ export function groundAnimals(root, shared) {
 
 // places: exported so the landmarks (place-kit.js) share fog, haze and light.
 // `grounded`: the shared grounding (groundShader), with the sea's reach.
-export function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = false, ground = false, rock = false, bark = false, bent = 0, fade = false, taper = false, pliant = false, rooted = 0, sheen = 0.6, grounded = false } = {}) {
+export function patchMaterial(material, shared, { sway = false, flutter = 0, foliage = false, ground = false, rock = false, bark = false, bent = 0, fade = false, taper = false, pliant = false, rooted = 0, sheen = 0.6, grounded = false, mass = false } = {}) {
   // three caches programs by onBeforeCompile's source text, which is the same
   // for every patched material: key them by their options, or a material
   // silently runs another's shader (blades with the clusters' flutter).
-  const key = JSON.stringify({ sway, flutter, foliage, ground, rock, bark, bent, fade, taper, pliant, rooted, sheen, grounded });
+  const key = JSON.stringify({ sway, flutter, foliage, ground, rock, bark, bent, fade, taper, pliant, rooted, sheen, grounded, mass });
   material.customProgramCacheKey = () => key;
   material.userData.magicLit = true; // land-magic: already carries the light
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, shared);
-    const defines = (pliant ? "#define PLIANT\n" : "") + (rooted ? `#define ROOTED ${rooted.toFixed(3)}\n` : "") + `#define SHEEN ${sheen.toFixed(2)}\n` +
+    const defines = (mass ? "#define MASS\n" : "") + (pliant ? "#define PLIANT\n" : "") + (rooted ? `#define ROOTED ${rooted.toFixed(3)}\n` : "") + `#define SHEEN ${sheen.toFixed(2)}\n` +
       `#define WAKE_WRAP ${foliage ? "0.6\n#define WAKE_FOLIAGE" : "0.85"}\n` + (ground ? "#define WAKE_CAT_SHADOW\n" : ""); // waking: thin leaves let the kindled light round; the cat shades the ground
     shader.vertexShader = defines + OCCLUSION_VERTEX_GLSL + WIND_GLSL +
       shader.vertexShader.replace(
@@ -1578,6 +1766,21 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
           vGlint = 0.0;
         #endif
         ${taper ? "transformed.xz *= mix( 1.0, taper, clamp( position.y + 0.5, 0.0, 1.0 ) );" : ""}
+        #if defined( MASS ) && defined( USE_INSTANCING )
+        {
+          // Every bush its own outline: the shared mass is pushed out and
+          // pulled in radially from its foot by a noise seeded by where the
+          // bush stands, in lobes a few tens of centimetres across, and its
+          // top raised or lowered, so no two bushes (at any level of detail)
+          // are the same smooth dome. Multiplicative, so it shrinks with the
+          // LOD fade; the foot stays on the ground.
+          vec3 seedP = position * 2.6 + vec3( instanceMatrix[3].x, 0.0, instanceMatrix[3].z ) * 0.731;
+          float lobes = massVertexNoise( seedP ) * 0.55 + massVertexNoise( seedP * 2.3 + 5.1 ) * 0.3 + massVertexNoise( seedP * 5.3 - 2.7 ) * 0.15;
+          float up = smoothstep( 0.0, 0.35, position.y );
+          transformed.xz *= 1.0 + ( lobes - 0.5 ) * 0.75 * up;
+          transformed.y *= 1.0 + ( ( massVertexNoise( vec3( instanceMatrix[3].xz * 0.37, 1.7 ) + position * 0.9 ) - 0.5 ) * 0.4 + ( lobes - 0.5 ) * 0.25 ) * up;
+        }
+        #endif
         ${
           flutter
             ? /* glsl */ `
@@ -1623,6 +1826,9 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
         #endif
         shadeWorld = modelMatrix * shadeWorld;
         vShade = canopyShade;
+        #ifdef MASS
+          vMassP = shadeWorld.xyz;
+        #endif
         vShadowFar = smoothstep( 24.0, 30.0, length( shadeWorld.xyz - shadowCentre ) );
       }`,
     );
@@ -1741,6 +1947,11 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
         )
         .replace("#include <lights_fragment_begin>", LEAF_LIGHTS_GLSL)
         .replace("#include <lights_fragment_end>", FOLIAGE_GLSL);
+    if (mass)
+      shader.fragmentShader = shader.fragmentShader
+        .replace("void main() {", `${MASS_LEAF_GLSL}\nvoid main() {`)
+        .replace("#include <color_fragment>", "#include <color_fragment>\n  massLeaves( diffuseColor.rgb );")
+        .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>\n${MASS_FRINGE_GLSL}`);
     if (bent) {
       // Bent normals: blend each leaf's normal toward its foliage mass's
       // outward direction, so a crown shades like a soft volume while each
@@ -1997,6 +2208,9 @@ function occludersFor(layout, rocks) {
     if (p.kind === "tree") {
       list.push({ x: p.x, z: p.z, r: Math.min(4, p.height * 0.32), k: 0.32 });
       list.push({ x: p.x, z: p.z, r: 0.7 + p.height * 0.03, k: 0.5 });
+    } else if (p.spread) {
+      // A fynbos shrub mass: its own contact shade, hugging its foot.
+      list.push({ x: p.x, z: p.z, r: p.spread * 1.15, k: 0.45 });
     } else if (p.kind === "shrub" || p.kind === "protea" || p.kind === "erica") {
       list.push({ x: p.x, z: p.z, r: p.height * 0.75, k: 0.42 });
     } else if (p.kind === "aloe" || p.kind === "restio" || p.kind === "fern") {
@@ -2059,6 +2273,14 @@ function coverFor(layout, turf) {
     if (p.kind === "moss")
       splat(p.x, p.z, 0.7 + p.height * 5, 1.4, grass, moss.setHSL(0.24 + noise2(p.x * 0.3, p.z * 0.3) * 0.1, 0.35, 0.26, THREE.SRGBColorSpace));
   for (const p of layout) {
+    if (p.spread && p.tint) {
+      // A fynbos shrub sheds its own dull leaves round its foot: the ground
+      // there takes the shrub's colour, darkened, so shrub and soil meet
+      // without a line; a little humus right under it.
+      splat(p.x, p.z, p.spread * 1.35, 0.8, grass, p.tint);
+      splat(p.x, p.z, p.spread * 0.8, 0.35, humus);
+      continue;
+    }
     if (p.kind === "tree") {
       splat(p.x, p.z, Math.min(5, 1 + p.height * 0.4), 0.9, humus);
       splat(p.x, p.z, 0.6 + p.height * 0.05, 1.2, humus);
@@ -2191,7 +2413,7 @@ function addGround(scene, shared, occluders, cover, rocks = []) {
     const upness = 1 / Math.sqrt(1 + gx * gx + gz * gz);
     const steep = smoothstep(0.8, 0.55, upness + (noise2(x * 0.4, z * 0.4) - 0.5) * 0.12);
     const { grass, humus } = cover(x, z);
-    const rocky = Math.max(steep, smoothstep(0.62, 0.76, fbm(x * 0.13 + 4, z * 0.13)) * smoothstep(14, 24, inland));
+    const rocky = Math.max(steep, graniteAt(x, z, inland));
     masks[i * 4] = fbm(x * 0.9, z * 0.9);
     masks[i * 4 + 1] = rocky * (1 - humus * 0.6) * (1 - grass * 0.5);
     // Litter where plants shed it, patchy at the metre scale.
@@ -2254,6 +2476,7 @@ function addGround(scene, shared, occluders, cover, rocks = []) {
     transparent: true,
     clippingPlanes: [new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.12)],
   });
+  material.name = "ground";
   patchMaterial(material, shared, { ground: true, fade: true });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.receiveShadow = true;
@@ -2363,6 +2586,8 @@ function addGroundDetails(scene, shared, details, occluders) {
     for (const part of list) part.shade = (1 - visible(part.position.x, part.position.z)) * 0.65;
   const woodMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 });
   const mineralMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.88 });
+  woodMaterial.name = "ground-detail";
+  mineralMaterial.name = "ground-detail";
   for (const material of [woodMaterial, mineralMaterial]) patchMaterial(material, shared);
   const near = [{ keep: () => false, distance: 30 }];
   addInstances(scene, new THREE.CylinderGeometry(0.65, 1, 1, 3, 1, false), woodMaterial, details.twigs, false, near);
@@ -2410,6 +2635,8 @@ function shootGeometry(leafCount = 14, detail = 1) {
       // Mature leaves sit in the shoot's own shade; young ones are yellower.
       shade: (0.82 + random() * 0.3) * (0.82 + t * 0.18),
       hue: (t - 0.55) * 0.14 + (random() - 0.5) * 0.06,
+      // A few leaves on every shoot are going over: a dry, ochre tip.
+      dry: random() < 0.09,
       phase: random(),
       reach: 0.5 + t * 0.5,
     });
@@ -2417,7 +2644,7 @@ function shootGeometry(leafCount = 14, detail = 1) {
   return finish(out.positions, out.indices, out.colours, out.flutter);
 }
 
-function smallLeaf(out, { base, dir, side, lift, length, width, widest, droop, curl, fold, detail, shade, hue, phase, reach }) {
+function smallLeaf(out, { base, dir, side, lift, length, width, widest, droop, curl, fold, detail, shade, hue, dry = false, phase, reach }) {
   const { positions, colours, indices, flutter } = out;
   const first = positions.length / 3;
   const point = (t, across) => {
@@ -2431,35 +2658,41 @@ function smallLeaf(out, { base, dir, side, lift, length, width, widest, droop, c
       .addScaledVector(lift, -droop * length * t * t + fold * width * Math.abs(across))
       .addScaledVector(side, across * width * halfWidth + curl * length * t * t);
   };
-  const push = (p, t) => {
+  // `rib`: the midrib (base, middle and tip) is paler than the blade's
+  // edges, so each leaf reads as a leaf, not a flat card.
+  const push = (p, t, rib = 1) => {
     positions.push(p.x, p.y, p.z);
-    const k = shade * (0.72 + 0.28 * Math.min(1, t * 2.2));
-    colours.push(k * (1 + hue * 0.8), k * (1 + hue * 0.2), k * (1 - hue * 0.9));
+    const k = shade * (0.72 + 0.28 * Math.min(1, t * 2.2)) * rib;
+    const sere = dry ? Math.max(0, t - 0.55) / 0.45 : 0;
+    colours.push(k * (1 + hue * 0.8) * (1 + sere * 0.6), k * (1 + hue * 0.2) * (1 + sere * 0.15), k * (1 - hue * 0.9) * (1 - sere * 0.4));
     // Flutter hinges at the petiole; leaves near the twig's tip swing more.
     flutter.push(phase, t * reach);
   };
   if (detail === 0) {
-    push(point(0, 0), 0);
-    push(point(0.45, -1), 0.45);
-    push(point(0.45, 1), 0.45);
-    push(point(1, 0), 1);
-    indices.push(first, first + 1, first + 2, first + 1, first + 3, first + 2);
+    push(point(0, 0), 0, 1.08);
+    push(point(0.45, -1), 0.45, 0.9);
+    push(point(0.45, 1), 0.45, 0.9);
+    push(point(1, 0), 1, 1.06);
+    // Split along the midrib, base to tip, so it shades as a line.
+    indices.push(first, first + 1, first + 3, first, first + 3, first + 2);
     return;
   }
-  push(point(0, 0), 0);
-  push(point(0.3, -1), 0.3);
-  push(point(0.3, 0), 0.3);
-  push(point(0.3, 1), 0.3);
-  push(point(0.7, -0.85), 0.7);
-  push(point(0.7, 0.85), 0.7);
-  push(point(1, 0), 1);
+  push(point(0, 0), 0, 1.08);
+  push(point(0.3, -1), 0.3, 0.88);
+  push(point(0.3, 0), 0.3, 1.14);
+  push(point(0.3, 1), 0.3, 0.88);
+  push(point(0.7, -0.85), 0.7, 0.9);
+  push(point(0.7, 0.85), 0.7, 0.9);
+  push(point(1, 0), 1, 1.06);
   indices.push(
     first, first + 1, first + 2,
     first, first + 2, first + 3,
+    // (The outer half fans from the midrib's middle to the tip, so the
+    // midrib runs as one edge from base to tip.)
     first + 1, first + 4, first + 2,
-    first + 2, first + 4, first + 5,
+    first + 2, first + 4, first + 6,
+    first + 2, first + 6, first + 5,
     first + 2, first + 5, first + 3,
-    first + 4, first + 6, first + 5,
   );
 }
 
@@ -2669,7 +2902,11 @@ const LOD_PACK_BUDGET = 24000;
 // The eye in world space, for the fades in every pass (the shadow pass's
 // camera is the sun's, but plants fade by distance from the eye).
 const LOD_EYE = { value: new THREE.Vector3() };
-function addInstances(scene, geometry, material, instances, shadows, far = null, { chunk = CHUNK, shadowGrow = 0 } = {}) {
+// The shadow pass's: the camera's, held through a sliced shadow refresh
+// (packLod, holdShadowLod).
+const LOD_SHADOW_EYE = { value: new THREE.Vector3() };
+const byUrgency = (a, b) => b.urgency - a.urgency;
+function addInstances(scene, geometry, material, instances, shadows, far = null, { chunk = CHUNK, shadowGrow = 0, label = material.name } = {}) {
   if (!instances.length) return;
   const steps = far ? (Array.isArray(far) ? far : [far]) : [];
   const levels = [{ geometry, grow: 1, keep: null, start: 0 }, ...steps.map((level) => ({
@@ -2678,8 +2915,9 @@ function addInstances(scene, geometry, material, instances, shadows, far = null,
     keep: level.keep ?? null,
     start: level.distance,
   }))];
-  // Only sets whose levels change an instance's size need the fade.
-  const fades = levels.some((level, i) => i > 0 && (level.grow !== levels[i - 1].grow || level.keep));
+  // Every set with more than one level cross-fades between them (a change
+  // of geometry at one size is still a visible swap).
+  const fades = levels.length > 1;
   const lodMaterial = fades ? withLodFade(material) : material;
   const depthMaterial = shadowGrow || fades ? lodDepthMaterial(shadowGrow || 1) : null;
   const tapered = instances[0].taper !== undefined;
@@ -2754,6 +2992,7 @@ function addInstances(scene, geometry, material, instances, shadows, far = null,
       geo.setIndex(level.geometry.index);
       for (const [name, attribute] of Object.entries(level.geometry.attributes)) geo.setAttribute(name, attribute);
       const mesh = new THREE.InstancedMesh(geo, lodMaterial, capacity);
+      mesh.name = label; // (perf attribution)
       const live = (array, size) => new THREE.InstancedBufferAttribute(array, size).setUsage(THREE.DynamicDrawUsage);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       const out = { matrix: mesh.instanceMatrix.array };
@@ -2789,54 +3028,104 @@ function addInstances(scene, geometry, material, instances, shadows, far = null,
 // Re-packs the chunks whose instances have moved between levels, nearest
 // first, within a per-frame budget. `eye` is the camera in world space;
 // `group` the land group the instances live in.
+//
+// The sun's shadow map is refreshed a slice of its casters per frame
+// (landscape.js renderShadowSlice). Through a refresh the shadow pass keeps
+// the eye it began with (`holdShadowLod`), and packing serves that eye as
+// well as the camera's, so every instance the map needs stays in the same
+// level's mesh, so in the same slice, at the same fade, to the last slice:
+// no holes and no doubles. The bias does not step during a refresh either.
 function packLod(group, eye, bias) {
   const chunks = group.userData.lodChunks;
   if (!chunks) return;
+  const state = (group.userData.lodState ??= {
+    eye: null, at: [0, 0, 0], prev: [0, 0, 0], local: new THREE.Vector3(), shadowAt: null, due: [], pool: [], packed: 0, packMs: 0,
+  });
   LOD_EYE.value.copy(eye);
   group.updateWorldMatrix(true, false);
-  const local = group.worldToLocal(eye.clone());
-  const at = [local.x, local.y, local.z];
-  const state = (group.userData.lodState ??= { eye: null });
+  const local = group.worldToLocal(state.local.copy(eye));
+  // (Two arrays in turn, so last frame's eye survives this frame's.)
+  const at = state.eye === state.at ? state.prev : state.at;
+  at[0] = local.x; at[1] = local.y; at[2] = local.z;
   // A jump (home, a teleport) or the first frame packs everything now.
-  const jump = !state.eye || Math.hypot(at[0] - state.eye[0], at[1] - state.eye[1], at[2] - state.eye[2]) > 15;
+  const last = state.eye;
+  const step = last ? Math.sqrt((at[0] - last[0]) ** 2 + (at[1] - last[1]) ** 2 + (at[2] - last[2]) ** 2) : Infinity;
+  const jump = step > 15;
   state.eye = at;
-  const due = [];
-  for (const chunk of chunks) if (packDue(chunk, at, bias)) due.push(chunk);
-  if (!due.length) return;
-  if (!jump) due.sort((a, b) => chunkRange(a, at)[0] - chunkRange(b, at)[0]);
+  state.packed = 0;
+  state.packMs = 0;
+  const held = state.shadowAt && !jump ? state.shadowAt : null;
+  if (!held) {
+    state.shadowAt = null;
+    LOD_SHADOW_EYE.value.copy(eye);
+  }
+  // The render budget's bias is followed a step at a time, the next step
+  // only once the last has been packed everywhere (instance-lod.js easeBias).
+  if (jump) state.bias = bias;
+  state.bias ??= bias;
+  const due = state.due;
+  let n = 0;
+  for (const chunk of chunks) {
+    const urgency = packUrgency(chunk, at, state.bias, held, jump ? 0 : step);
+    if (urgency <= 0) continue;
+    const entry = (state.pool[n] ??= { urgency: 0, chunk: null });
+    entry.urgency = urgency;
+    entry.chunk = chunk;
+    due[n++] = entry;
+  }
+  due.length = n;
+  if (!n && state.bias !== bias && !held) {
+    state.bias = easeBias(state.bias, bias);
+    return;
+  }
+  bias = state.bias;
+  if (!n) return;
+  // Most urgent first; a chunk about to outrun its margin is packed this
+  // frame whatever the budget (late, an instance would vanish).
+  if (!jump) due.sort(byUrgency);
   let budget = jump ? Infinity : LOD_PACK_BUDGET;
-  for (const chunk of due) {
-    if (budget <= 0) break;
+  // (Under ?perf: instances packed and CPU time, this frame.)
+  const started = performance.now();
+  for (let q = 0; q < n; q++) {
+    const { urgency, chunk } = due[q];
+    if (budget <= 0 && urgency < 0.9) break;
     budget -= chunk.count;
-    const counts = packChunk(chunk, at, bias);
-    chunk.meshes.forEach((mesh, level) => {
-      if (!mesh) return;
+    state.packed += chunk.count;
+    const counts = packChunk(chunk, at, bias, held);
+    for (let level = 0; level < chunk.meshes.length; level++) {
+      const mesh = chunk.meshes[level];
+      if (!mesh) continue;
       const count = counts[level];
       mesh.count = count;
       mesh.visible = count > 0;
-      if (!count) return;
-      const attributes = [mesh.instanceMatrix, mesh.instanceColor, ...["anchorHeight", "bendNormal", "canopyShade", "taper", "lodFade"].map((name) => mesh.geometry.attributes[name])];
-      for (const attribute of attributes) {
-        if (!attribute) continue;
+      if (!count) continue;
+      for (const attribute of (mesh.userData.lodAttributes ??= [mesh.instanceMatrix, mesh.instanceColor, ...["anchorHeight", "bendNormal", "canopyShade", "taper", "lodFade"].map((name) => mesh.geometry.attributes[name])].filter(Boolean))) {
         attribute.clearUpdateRanges();
         attribute.addUpdateRange(0, count * attribute.itemSize);
         attribute.needsUpdate = true;
       }
-    });
+    }
   }
+  state.packMs = performance.now() - started;
 }
 
-// The vertex stage of the fade (instance-lod.js fadeScale): by its centre's
-// distance from the eye, an instance shrinks toward a level that drops it,
-// or grows toward the size a coarser level draws it at. A mesh without the
-// attribute reads (0, 0, 0, 1): scale 1.
+// The vertex stage of the cross-fade (instance-lod.js fadeScale): by its
+// centre's distance from the live eye, an instance grows in over the band
+// before its level (hidden inside the finer level's copy, then to full as
+// that shrinks away; from nothing where no finer level drew it) and shrinks
+// away over the band before the next. A mesh without the attribute reads
+// (0, 0, 0, 1): scale 1.
 const LOD_FADE_GLSL = /* glsl */ `
 #include <begin_vertex>
 #ifdef USE_INSTANCING
 {
   vec3 lodOrigin = ( modelMatrix * vec4( instanceMatrix[3].xyz, 1.0 ) ).xyz;
-  float lodT = clamp( ( distance( lodOrigin, lodEye ) - lodFade.x ) / max( lodFade.y, 1e-3 ), 0.0, 1.0 );
-  transformed *= mix( lodFade.z, lodFade.w, lodT * lodT * ( 3.0 - 2.0 * lodT ) );
+  float lodD = distance( lodOrigin, lodEye );
+  float lodT = ( lodD - lodFade.x ) / max( abs( lodFade.y ), 1e-3 );
+  float lodIn = smoothstep( 0.0, 1.0, lodT );
+  float lodGrown = lodFade.y == 0.0 ? 1.0 : lodFade.y < 0.0 ? lodIn : smoothstep( 0.0, 1.0, lodT * 4.0 ) * ( 0.9 + 0.1 * lodIn );
+  float lodShrunk = lodFade.z > 0.0 ? 1.0 - smoothstep( 0.0, 1.0, ( lodD - ( lodFade.z - lodFade.w * 0.8 ) ) / max( lodFade.w * 0.8, 1e-3 ) ) : 1.0;
+  transformed *= lodGrown * lodShrunk;
 }
 #endif
 `;
@@ -2865,13 +3154,14 @@ function withLodFade(material) {
 // veil instead of shade lit by the blue sky. The shadow pass draws each
 // shoot larger about its base so the crown's shadow closes up; the map only
 // re-renders when the sun or the cat moves on, so this costs no frames.
-// lod: the shadow pass fades instances as the colour pass does (LOD_EYE).
+// lod: the shadow pass fades instances as the colour pass does, from its
+// own eye (LOD_SHADOW_EYE: held through a sliced refresh).
 const grownDepth = new Map();
 function lodDepthMaterial(grow) {
   if (!grownDepth.has(grow)) {
     const material = new THREE.MeshDepthMaterial({ side: THREE.DoubleSide });
     material.onBeforeCompile = (shader) => {
-      shader.uniforms.lodEye = LOD_EYE;
+      shader.uniforms.lodEye = LOD_SHADOW_EYE;
       shader.vertexShader = lodVertex(shader.vertexShader, grow !== 1 ? `transformed *= ${grow.toFixed(3)};\n` : "");
     };
     material.customProgramCacheKey = () => `lod-grown-${grow}`;
@@ -2893,6 +3183,7 @@ function withFlutter(geometry) {
 
 function addRocks(scene, random, shared, rocks = rockLayout(random)) {
   const material = new THREE.MeshStandardMaterial({
+    name: "rock",
     color: 0xffffff,
     roughness: 0.92,
     // Opaque, so stacked boulders get early depth rejection (drawn back to

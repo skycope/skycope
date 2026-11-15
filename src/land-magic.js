@@ -258,17 +258,6 @@ export function lightWithMagic(root, shared) {
 }
 
 
-// The finale's blaze belongs to its ceremony: full for about a minute after
-// it wakes, then settling to a little more than the fireflies alone. A
-// finale restored from an earlier visit (wakeAt −∞) is the settled state.
-export function finaleBlaze(magic) {
-  const level = magic?.levels?.finale ?? 0;
-  if (level <= 0) return 0;
-  const s = (magic.clock ?? 0) - (magic.wakeAt?.finale ?? -Infinity);
-  const ceremony = Number.isFinite(s) ? THREE.MathUtils.smoothstep(s, 0, 4) * (1 - THREE.MathUtils.smoothstep(s, 50, 75)) : 0;
-  return level * (0.12 + 0.88 * ceremony);
-}
-
 const ASLEEP = { fireflies: 0, tideglow: 0, lamp: 0, stars: 0, seafolk: 0, boat: 0, finale: 0 };
 const LAMP_PERIOD = 12;
 
@@ -317,7 +306,6 @@ export function createLandMagic({ shared, lamps = [], practicals = [], beacon = 
       const step = lastClock === null ? 0 : Math.max(0, Math.min(0.25, clock - lastClock));
       lastClock = clock;
       const lampLevel = levels.lamp ?? 0;
-      const finale = finaleBlaze(magic);
       let on = 0;
 
       // The lamp: dark until its gift wakes; then it catches, and the
@@ -331,10 +319,10 @@ export function createLandMagic({ shared, lamps = [], practicals = [], beacon = 
       lamp.lit = caught;
       lamp.angle = beamAngle;
       // Its glass burns by day too once awake; its beams read as the sky darkens.
-      lamp.strength = caught * (0.18 + 0.82 * night) * (1 + finale * 0.35);
+      lamp.strength = caught * (0.18 + 0.82 * night);
       // The island's other lamps come on with it (a necklace of warm points).
       // (Restraint: the necklace is a few small warm points, not floodlights.)
-      state.lampLights = caught * (0.2 + 0.4 * THREE.MathUtils.smoothstep(night, 0.02, 0.3)) * (1 + finale * 0.2);
+      state.lampLights = caught * (0.2 + 0.4 * THREE.MathUtils.smoothstep(night, 0.02, 0.3));
       if (beacon && caught > 0) {
         u.magicLamp.value.set(beacon.x, beacon.y, -beacon.z, lamp.strength * 1.0);
         u.magicBeam.value.set(Math.cos(beamAngle), Math.sin(beamAngle), 70, time);
@@ -452,7 +440,7 @@ export function createLandMagic({ shared, lamps = [], practicals = [], beacon = 
         const tCat = frontArrival(Math.hypot(pose.x - waking.x, pose.z - waking.z), spec);
         if (Number.isFinite(tCat)) printFlash = 0.6 * Math.exp(-((waking.age - tCat) ** 2) / 0.3);
       }
-      PRINT_MAGIC.level.value = 0.4 * (levels.tideglow ?? 0) * (1 + finale * 0.3) + printFlash;
+      PRINT_MAGIC.level.value = 0.4 * (levels.tideglow ?? 0) + printFlash;
       PRINT_MAGIC.night.value = night;
       PRINT_MAGIC.colour.value.setRGB(...WAKE_LIGHT.tideglow.tint);
 

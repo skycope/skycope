@@ -13,9 +13,10 @@ import { createMeshProfiler } from "./mesh-profiler.js";
 import { createArchipelago } from "./archipelago.js";
 import { createLens } from "./lens.js";
 import { createPlaces } from "./places.js"; // places:
+import { buildHomeLantern, homeLanternSite, HOME_LANTERN } from "./place-home.js"; // story: the home lantern
 import { createWisp } from "./wisp.js"; // wisp: the little light that leads the cat
 import { surfaceOf } from "./walker.js"; // solid: boulder tops for the fireflies
-import { createLandMagic, lightWithMagic, finaleBlaze } from "./land-magic.js"; // land-magic:
+import { createLandMagic, lightWithMagic } from "./land-magic.js"; // land-magic:
 import { WAKE_LIGHT, wakingSource } from "./waking.js"; // waking:
 import { createFireflies } from "./fireflies.js"; // land-magic:
 import { groundHeight } from "./terrain.js"; // land-magic:
@@ -108,6 +109,15 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   forest.obstacles.trunks.push(...places.obstacles.trunks);
   forest.obstacles.domes.push(...places.obstacles.domes);
   forest.obstacles.blockers = places.blockers; // solid: camera and body solids (blockers.js)
+  // story: the home lantern on the beach, the first light (place-home.js).
+  const homeSite = homeLanternSite(forest.obstacles);
+  const home = buildHomeLantern(homeSite, { light });
+  home.lod.near.position.set(homeSite.x, 0, homeSite.z);
+  home.lod.near.matrixAutoUpdate = false;
+  home.lod.near.updateMatrix();
+  land.add(home.lod.near, home.extra);
+  forest.obstacles.trunks.push(...home.surfaces.trunks);
+  places.blockers.push(...home.surfaces.solids);
   // land-look: the ground darkens round the landmarks' feet (forest.js).
   forest.groundContact(land, [places.group]);
   // land-magic: the gifts' light on the land (uniforms in forest.js shared).
@@ -122,6 +132,8 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     const at = wakingSource(gift, { pois: places.pois, blockers: places.blockers, anchors: places.wakingAnchors, surface: gift === "seafolk" ? surfaceOf(forest.obstacles) : groundHeight });
     return at && { x: at[0], y: at[1] + (gift === "seafolk" ? 0.25 : 0), z: at[2], colour, reach, power, gift };
   }).filter(Boolean);
+  // story: the home lantern's pool of light on the sand, once it is lit.
+  practicals.push({ ...home.lamp, colour: HOME_LANTERN.colour, reach: HOME_LANTERN.reach, power: HOME_LANTERN.power, gift: "home" });
   const landMagic = createLandMagic({ shared: land.userData.forestShared, lamps: places.lamps, practicals, beacon: places.beacon, light });
   const fauna = createFauna(land, seed);
   const cat = createCat(land, { light });
@@ -137,8 +149,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   scene.add(land);
   const motes = createMotes(scene, seed);
   // land-magic: the milkwood's fireflies (one draw of points, hidden asleep).
-  const summitPoi = places.pois.find((q) => q.id === "beacon");
-  const fireflies = createFireflies(scene, seed, { light, crown: places.crown, summit: summitPoi ? { x: summitPoi.x, y: groundHeight(summitPoi.x, summitPoi.z), z: summitPoi.z } : null, surface: surfaceOf(forest.obstacles) }); // solid: surface
+  const fireflies = createFireflies(scene, seed, { light, crown: places.crown, surface: surfaceOf(forest.obstacles) }); // solid: surface
   let flyPixels = 600, magicScan = 0, starLevel = 0;
   // The distant islands: their own scene and depth range, drawn first.
   const archipelago = createArchipelago(seed, { light });
@@ -284,6 +295,8 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     landMagic: perf ? landMagic : null, // land-magic: `?perf` QA
     // waking: the places a gift's light is kindled from (waking.js wakingSource).
     wakingPlaces: { crown: places.crown, beacon: places.beacon, anchors: places.wakingAnchors },
+    // story: the home lantern (coast metres): its post and its lamp.
+    home: { x: homeSite.x, z: homeSite.z, lamp: home.lamp },
     nightLand: perf ? NIGHT_LAND : null, // land-look: `?perf` tuning
     shadows: perf ? shadows : null, // shadow: `?perf` QA of the sliced refresh
     debug, // stability: `?perf` suspect switches
@@ -345,9 +358,9 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       fauna.update(time, wind, night, boat?.afloatNow ?? null); // boat: the pod rides its bow
       // land-magic: the fireflies fly, then every gift's light is set.
       const levels = magic?.levels;
-      const flies = fireflies.update({ dt, time, pose, night, level: levels?.fireflies ?? 0, finale: finaleBlaze(magic), call: magic?.call ?? null, eye: camera.position, pixelScale: flyPixels, born: magic?.waking?.gift === "fireflies" ? magic.waking : null }); // waking: out of the hollow
+      const flies = fireflies.update({ dt, time, pose, night, level: levels?.fireflies ?? 0, call: magic?.call ?? null, eye: camera.position, pixelScale: flyPixels, born: magic?.waking?.gift === "fireflies" ? magic.waking : null }); // waking: out of the hollow
       const gifts = landMagic.update({ magic, time, dt, night, pose, flies, reduced: reducedMotion, afloat: Boolean(boat?.afloatNow) }); // land-magic: (waking: reduced motion, the boat afloat)
-      starLevel = levels?.stars ?? 0; // land-look: the stars gift lifts the night
+      starLevel = 0; // story: the stars are the ending's, not a gift that lifts the night (story-and-wow.md 5)
       // The cat's coat and the animals take the same light (their
       // materials are built lazily: wrapped at load and once more later).
       if (magicScan < 2400 && magicScan % 300 === 30) {
@@ -356,6 +369,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       }
       magicScan++;
       places.update({ time, night, wind, eye: [flight.x, flight.y, flight.z], pose, lamp: gifts.lamp, lights: gifts.lampLights }); // places:
+      home.update({ time, night, lit: levels?.home ?? 0, since: magic?.waking?.gift === "home" ? magic.waking.age : (magic?.clock ?? 0) - (magic?.wakeAt?.home ?? Infinity) }); // story: the home lantern
       const sinA = Math.sin(flight.azimuth);
       const cosA = Math.cos(flight.azimuth);
       const hx = (sinA + cosA) * Math.SQRT1_2;
@@ -458,13 +472,12 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       const bias = easeBias(lodEase.eased, quality?.lodBias ?? 1, lodEase.at === null ? 1 : Math.min(0.1, (biasAt - lodEase.at) / 1000));
       lodEase.eased = bias.eased;
       lodEase.at = biasAt;
-      // stability: no repacking while a sliced shadow refresh is part-drawn:
-      // every slice must see the same instances, or the finished map has
-      // holes where a plant changed level between slices, and stale shadows
-      // where it had (a few frames' delay; the fades cover it).
-      // (Also published as `shadowRefreshing`.)
+      // While a sliced shadow refresh is part-drawn the shadow pass keeps its
+      // own held LOD (forest.holdShadowLod); the bias holds still too, so no
+      // slice sees a different set of plants (`shadowRefreshing`).
       const midRefresh = shadows.pending && shadows.slice > 0;
-      if (debug?.lod !== false && !midRefresh) forest.updateLod(camera.position, bias.drawn);
+      if (!midRefresh) lodEase.drawn = bias.drawn;
+      if (debug?.lod !== false) forest.updateLod(camera.position, lodEase.drawn ?? bias.drawn);
       if (perf) watchLod();
       boat?.render({ time, night, camera }); // boat: before the cat (its lantern lights it)
       const far = archipelago.camera;
@@ -654,6 +667,9 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       shadows.centre = shadows.anchor;
       shadows.casters.length = 0;
       if (shadows.count > 1) scene.traverse((o) => { if (o.castShadow && (o.isMesh || o.isLine || o.isPoints)) shadows.casters.push(o); });
+      // lod: plants keep their levels and fades for the shadow pass until
+      // the last slice (forest.js packLod), so the map has no holes or doubles.
+      forest.holdShadowLod?.(shadows.count > 1);
     }
     const { count, slice, casters } = shadows;
     // Render with the light where this refresh began.
@@ -695,6 +711,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       return;
     }
     if (count > 1) shadows.back = front;
+    forest.holdShadowLod?.(false);
     forest.updateShadowCentre(shadows.centre[0], shadows.centre[1]);
     shadows.slice = 0;
     shadows.jump = false;

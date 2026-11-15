@@ -1,11 +1,13 @@
-// The wisp's mind: a small living light with its own curiosity that leads
-// the cat to the island's sleeping keepsakes by behaviour, never by arrow.
-// It flits ahead and waits where it can be seen, loops back when the cat
-// dawdles, darts about when it runs, hides in the grass and pops out,
-// circles the cat when it sits (and sits with it at sunset), comes when
-// it is meowed at, peeks at animals, looks up at a falling star, and dives
-// into a keepsake when its gift wakes. Pure (no three.js, no DOM): thread.js
-// drives it each frame and wisp.js draws where it is.
+// The wisp's mind: a small star that has fallen onto the island and cannot
+// climb home alone (story-and-wow.md). It falls in the first seconds, tries
+// to rise and sinks back, and then leads the cat to the island's old
+// lights by behaviour, never by arrow: it flits ahead and waits where it
+// can be seen, loops back when the cat dawdles, circles the cat when it
+// sits (and sits with it at sunset), comes when it is meowed at, peeks at
+// animals, looks up at a falling star, and dives into a light when it is
+// lit. After each light it tries to rise again and gets a little higher
+// (`reach`); after the last it stays up, over the summit. Pure (no
+// three.js, no DOM): thread.js drives it each frame and wisp.js draws it.
 //
 // Coast metres throughout. It keeps out of trunks (walker.js obstacle
 // circles), floats over boulders (via `surface`, walker.surface), and over
@@ -31,10 +33,18 @@ export const WISP = {
   // Clearance from trunks, and how far inside the swim limit it keeps.
   clear: 0.35,
   sea: 3,
+  // How high it climbs after each light, by how many are lit (0: the
+  // first try, out of the sand; 6: every light, and it stays up).
+  reach: [1.5, 3, 5, 6.5, 8, 10, 12],
+  // The fall: how long it takes, and the beats after it lands.
+  fall: 1.4,
+  landed: 1.0,
 };
 
 const TAU = Math.PI * 2;
 const NONE = [];
+// Modes nothing interrupts (a meow, a meteor, an animal).
+const BUSY = new Set(["dive", "fall", "landed", "rise", "reach", "aloft", "script"]);
 
 // obstacles: { trunks: [{ x, z, r }], domes: [{ x, z, r, … }] } (walker.js).
 export function createWispMind({ seed = 1, obstacles = null, surface = groundHeight, swimLimit = 24 } = {}) {
@@ -62,8 +72,17 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
   let bestAt = 0;
   let target = null;
   let lastTug = 0;
-  let nextHide = 14 + random() * 14;
   let nextFidget = 0;
+  // The fall (from, to, start clock) and the climb after a light (`reach`):
+  // where it climbs from, how high, and what it goes back to after.
+  const fallen = { from: { x: 0, y: 0, z: 0 }, to: { x: 0, y: 0, z: 0 }, seconds: WISP.fall, speed: 1, eye: null };
+  const climb = { x: 0, z: 0, height: 0, stay: false, from: 0 };
+  // A scripted flight (the ending's rise, a call down): fn(dt, clock) →
+  // { x, y, z, glow } each frame, or null when it is over.
+  let script = null;
+  let scriptThen = "lead";
+  // Landed: the light it makes on landing (the embers), for the land layer.
+  let landedAt = -Infinity;
   const fidget = { x: 0, y: 0, z: 0 };
   let orbit = random() * TAU;
   let lastPeek = -Infinity;
@@ -135,6 +154,71 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
       flare = 0.35;
       set("greet");
     },
+    // The fall: out of the sky from `from` ({ x, y, z }, far up along a
+    // fireball's track) to the sand at `to` ({ x, z }) in `seconds`, faster
+    // and faster; then a moment gone (`landed`), then it lifts out of the
+    // sand, tries to climb, gets to `WISP.reach[0]` and sinks back
+    // ("rise"), and leads. `speed` < 1 (a call down): gentler, and it goes
+    // straight to keeping company.
+    // `eye` ({ x, y, z }, the lens): it comes down along the line the sky
+    // draws its streak on (the direction from the eye turning evenly, the
+    // distance closing), so the two are one falling star.
+    fall(from, to, { seconds = WISP.fall, speed = 1, eye = null } = {}) {
+      const p = keepInside(to.x, to.z);
+      fallen.eye = eye ? { x: eye.x, y: eye.y, z: eye.z } : null;
+      fallen.from.x = from.x;
+      fallen.from.y = from.y;
+      fallen.from.z = from.z;
+      fallen.to.x = p.x;
+      fallen.to.z = p.z;
+      fallen.to.y = surface(p.x, p.z) + (speed < 1 ? 0.7 : 0.12);
+      fallen.seconds = seconds / Math.max(speed, 0.05);
+      fallen.speed = speed;
+      Object.assign(body, fallen.from);
+      vel.x = vel.y = vel.z = 0;
+      visible = true;
+      script = null;
+      flare = 0;
+      set("fall");
+    },
+    // The time the light landed (clock seconds), for the embers and the
+    // sand puff; -Infinity before it has.
+    get landedAt() {
+      return landedAt;
+    },
+    get clock() {
+      return clock;
+    },
+    // After a light: a climb to WISP.reach[lit] over 2.2 s, a hang, a slow
+    // sink back (`lit`: lights lit, 0…6). With every light lit it does not
+    // sink: it stays up ("aloft"), drifting over the summit.
+    reach(lit) {
+      if (mode === "hidden" || mode === "fall" || mode === "landed") return;
+      const n = Math.max(0, Math.min(WISP.reach.length - 1, Math.round(lit)));
+      climb.x = body.x;
+      climb.z = body.z;
+      climb.from = body.y - surface(body.x, body.z);
+      climb.height = WISP.reach[n];
+      climb.stay = n >= WISP.reach.length - 1;
+      dive.active = false;
+      set("reach");
+    },
+    // Where it hovers once every light is lit: over (x, z), high.
+    summit: null,
+    // A scripted flight (see `script` above); `then`: the mode after it.
+    fly(fn, then = "lead") {
+      script = fn;
+      scriptThen = then;
+      visible = true;
+      set("script");
+    },
+    // Gone from the island (home in the sky): nothing drawn, nothing led.
+    away() {
+      script = null;
+      visible = false;
+      glow = 0;
+      set("hidden");
+    },
     // The ceremony: dive into the keepsake at (x, y, z); `end()` lets it go.
     dive(x, y, z) {
       // Not met yet: it comes down out of the sky to do it.
@@ -147,17 +231,6 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
       visible = true;
       setStage("approach");
       set("dive");
-    },
-    // The finale: rise high over the summit.
-    soar(x, y, z) {
-      if (mode === "hidden") Object.assign(body, { x, y: y + 1, z });
-      dive.x = x;
-      dive.y = y;
-      dive.z = z;
-      dive.at = clock;
-      dive.active = true;
-      visible = true;
-      set("soar");
     },
     end() {
       dive.active = false;
@@ -223,7 +296,7 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
       let stiff = 1;
 
       // Things that interrupt whatever it is doing.
-      const free = mode !== "dive" && mode !== "soar";
+      const free = !BUSY.has(mode);
       if (free && ctx.call) {
         set("answer");
         flare = Math.max(flare, 0.25);
@@ -320,17 +393,9 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
           goal.z = perch.z;
           // Over the scrub and bushes inland it waits higher, where it shows.
           goal.y = surface(perch.x, perch.z) + (hover === WISP.float ? (shoreDistance(perch.x, perch.z) > 7 ? WISP.waitHigh : WISP.wait) : hover);
-          if (running) {
-            // Playful: zigzag across the way and dart.
-            const across = Math.sin(clock * 3.1 + phase[0]) * 1.1;
-            const dx = target.x - cat.x;
-            const dz = target.z - cat.z;
-            const d = Math.hypot(dx, dz) || 1;
-            goal.x += (dz / d) * across;
-            goal.z -= (dx / d) * across;
-            speedCap = 11;
-            stiff = 1.5;
-          } else speedCap = 7;
+          // (It keeps ahead of a running cat, but does not dart about: it
+          // is leading, not playing.)
+          speedCap = running ? 10 : 7;
           if (waiting) {
             fidgetAround(dt, 0.7);
             goal.x += fidget.x;
@@ -351,12 +416,6 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
             }
             // Far off, a slow brightening now and then, so it can be found.
             if (nowToPerch > 6) flare = Math.max(flare, 0.3 * Math.max(0, Math.sin(clock * 1.1 + phase[2])) ** 14);
-            // Hide-and-seek is a game for once it is known (a gift awake).
-            if ((ctx.gifts ?? 0) > 0) nextHide -= dt;
-            if (nextHide <= 0 && shoreDistance(perch.x, perch.z) > 6 && toTarget > 9) {
-              nextHide = 20 + random() * 25;
-              set("hide");
-            }
           }
           break;
         }
@@ -463,18 +522,103 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
           rest *= 0.8;
           break;
         }
-        case "hide": {
-          // Down into the grass, dim… and out again, a little brighter.
+        case "fall": {
+          // Out of the sky, faster and faster (placed, not steered: a
+          // falling star does not wander), bright, and into the sand.
+          const f = Math.min(1, since() / fallen.seconds);
+          const e = fallen.speed < 1 ? f * f * (3 - 2 * f) : fallen.eye ? f : f * f;
+          if (fallen.eye) alongSight(fallen.eye, fallen.from, fallen.to, e, body);
+          else {
+            body.x = fallen.from.x + (fallen.to.x - fallen.from.x) * e;
+            body.y = fallen.from.y + (fallen.to.y - fallen.from.y) * e;
+            body.z = fallen.from.z + (fallen.to.z - fallen.from.z) * e;
+          }
+          vel.x = vel.y = vel.z = 0;
+          flare = fallen.speed < 1 ? 0.3 : 1.6 + 1.6 * f;
+          if (f >= 1) {
+            if (fallen.speed < 1) set("company");
+            else {
+              landedAt = clock;
+              visible = false;
+              glow = 0;
+              flare = 0;
+              set("landed");
+            }
+          }
+          return finish(dt, ctx, rest, true);
+        }
+        case "landed": {
+          // A moment of nothing but the sea; then it lifts out of the sand.
+          if (since() > WISP.landed) {
+            visible = true;
+            body.y = surface(body.x, body.z) + 0.05;
+            climb.x = body.x;
+            climb.z = body.z;
+            climb.from = 0.05;
+            climb.height = WISP.reach[0];
+            climb.stay = false;
+            set("rise");
+          }
+          return finish(dt, ctx, 0, true);
+        }
+        case "rise":
+        case "reach": {
+          // Up, as far as it can (a little wobble, it is trying), a breath
+          // at the top, and a slow sink back to where it waits.
           const t = since();
-          goal.x = perch.x;
-          goal.z = perch.z;
-          goal.y = surface(perch.x, perch.z) + (t < 2.2 ? 0.08 : WISP.wait + 0.3);
-          rest *= t < 0.5 ? 1 : t < 2.2 ? 0.12 : 1;
-          speedCap = t < 2.2 ? 2.5 : 8;
-          stiff = t < 2.2 ? 1 : 2.5;
-          if (t > 2.2 && t - dt <= 2.2) flare = 0.35;
-          if (t > 3 || Math.hypot(perch.x - cat.x, perch.z - cat.z) < WISP.near) set("lead");
+          const up = mode === "rise" ? 1.6 : 2.2;
+          const hang = 0.6;
+          const sink = 2.5;
+          const ground = surface(climb.x, climb.z);
+          const top = climb.height;
+          const low = Math.max(WISP.wait, 0.9);
+          let h;
+          if (t < up) h = climb.from + (top - climb.from) * easeOut(t / up);
+          else if (t < up + hang || climb.stay) h = top;
+          else h = top + (low - top) * easeInOut(Math.min(1, (t - up - hang) / sink));
+          goal.x = climb.x + Math.sin(t * 7.3) * 0.08 * (1 - Math.min(1, t / up));
+          goal.z = climb.z + Math.cos(t * 6.1) * 0.08 * (1 - Math.min(1, t / up));
+          goal.y = ground + h;
+          speedCap = 9;
+          stiff = 3;
+          rest = 0.75 + 0.35 * Math.min(1, h / 12);
+          if (climb.stay && t > up + hang) set("aloft");
+          else if (!climb.stay && t > up + hang + sink) set(target ? "lead" : "company");
           break;
+        }
+        case "aloft": {
+          // Every light lit: it stays up, high over the island, drifting to
+          // the summit where it will go home from. Seen from anywhere.
+          const s = mind.summit ?? target;
+          if (s) {
+            const dx = s.x - body.x;
+            const dz = s.z - body.z;
+            const d = Math.hypot(dx, dz);
+            const step = d > 1 ? 1 / d : 0;
+            goal.x = body.x + dx * step * 1.5;
+            goal.z = body.z + dz * step * 1.5;
+          } else {
+            goal.x = body.x;
+            goal.z = body.z;
+          }
+          goal.y = Math.max(surface(goal.x, goal.z), 0) + WISP.reach[WISP.reach.length - 1];
+          speedCap = 1;
+          rest = 1.15;
+          break;
+        }
+        case "script": {
+          const p = script?.(dt, clock);
+          if (!p) {
+            script = null;
+            set(scriptThen);
+            break;
+          }
+          body.x = p.x;
+          body.y = p.y;
+          body.z = p.z;
+          vel.x = vel.y = vel.z = 0;
+          if (Number.isFinite(p.flare)) flare = p.flare;
+          return finish(dt, ctx, p.glow ?? 1, true, p.calm ?? 0.4);
         }
         case "answer": {
           // Meowed at: comes straight to the cat's face, brightens, loops
@@ -551,16 +695,6 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
           }
           break;
         }
-        case "soar": {
-          // The finale: up and up over the summit, blazing.
-          const t = clock - dive.at;
-          goal.x = dive.x + Math.sin(t * 0.5) * Math.min(4, 1 + t * 0.4);
-          goal.z = dive.z + Math.cos(t * 0.5) * Math.min(4, 1 + t * 0.4);
-          goal.y = dive.y + Math.min(2.6, 0.8 + t * 0.3);
-          speedCap = 6;
-          rest = 1.15;
-          break;
-        }
         default:
           break;
       }
@@ -580,25 +714,8 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
       body.x += vel.x * dt;
       body.y += vel.y * dt;
       body.z += vel.z * dt;
-      if (mode !== "soar") collide();
-
-      // Flutter: small, uneven, alive; calmer when settled, livelier in flight.
-      const speed = Math.hypot(vel.x, vel.z);
-      const settle = mode === "sunset" ? 0.25 : mode === "dive" || mode === "soar" ? 0.4 : 1;
-      const amp = (0.09 + Math.min(0.08, speed * 0.012)) * settle;
-      out.x = body.x + (Math.sin(clock * 1.31 + phase[0]) + 0.5 * Math.sin(clock * 3.7 + phase[2])) * amp;
-      out.y = body.y + (Math.sin(clock * 1.73 + phase[1]) + 0.4 * Math.sin(clock * 5.3 + phase[3])) * amp * 0.8;
-      out.z = body.z + (Math.cos(clock * 1.13 + phase[2]) + 0.5 * Math.sin(clock * 4.1 + phase[0])) * amp;
-      const floor = surface(out.x, out.z) + (mode === "hide" ? 0.05 : 0.12);
-      if (out.y < floor) out.y = floor;
-
-      // Glow: steady by day, more at night, brighter with each gift woken;
-      // flares decay.
-      flare *= Math.exp(-dt * 1.6);
-      const breathe = 1 + 0.06 * Math.sin(clock * 2.1 + phase[3]);
-      const aim = rest * (1 + 0.03 * (ctx.gifts ?? 0)) * breathe + flare;
-      glow += (aim - glow) * Math.min(1, dt * (rest < 0.2 ? 6 : 3));
-      return mind;
+      if (mode !== "aloft") collide();
+      return finish(dt, ctx, rest, false, mode === "sunset" ? 0.25 : mode === "dive" ? 0.4 : 1);
     },
     // Distance from the wisp to (x, z), for tests and the thread.
     distanceTo(x, z) {
@@ -609,6 +726,27 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
       return grid.clearLine(x, z, out.x, out.z);
     },
   };
+
+  // The rendered point and its glow, after the body has moved (steered, or
+  // `placed` by a scripted flight): flutter, small, uneven, alive (`calm`
+  // scales it); glow steady by day, more at night, a little brighter with
+  // each light lit; flares decay.
+  function finish(dt, ctx, rest, placed, calm = 1) {
+    const speed = placed ? 0 : Math.hypot(vel.x, vel.z);
+    const amp = (0.09 + Math.min(0.08, speed * 0.012)) * calm;
+    out.x = body.x + (Math.sin(clock * 1.31 + phase[0]) + 0.5 * Math.sin(clock * 3.7 + phase[2])) * amp;
+    out.y = body.y + (Math.sin(clock * 1.73 + phase[1]) + 0.4 * Math.sin(clock * 5.3 + phase[3])) * amp * 0.8;
+    out.z = body.z + (Math.cos(clock * 1.13 + phase[2]) + 0.5 * Math.sin(clock * 4.1 + phase[0])) * amp;
+    if (!placed) {
+      const floor = surface(out.x, out.z) + 0.12;
+      if (out.y < floor) out.y = floor;
+    }
+    flare *= Math.exp(-dt * 1.6);
+    const breathe = 1 + 0.06 * Math.sin(clock * 2.1 + phase[3]);
+    const aim = visible ? rest * (1 + 0.03 * (ctx.gifts ?? 0)) * breathe + flare : 0;
+    glow += (aim - glow) * Math.min(1, dt * (rest < 0.2 || placed ? 6 : 3));
+    return mind;
+  }
 
   // A spot hopLength further on from the cat toward the target, clear of
   // trunks and boulders, inside the swim limit, and with nothing between it
@@ -814,6 +952,30 @@ export function createWispMind({ seed = 1, obstacles = null, surface = groundHei
 
   return mind;
 }
+
+const easeOut = (t) => 1 - (1 - t) * (1 - t) * (1 - t);
+
+// The point at fraction f from a to b as seen from `eye`: its direction
+// turning evenly (a great circle, as a meteor's head moves) and its
+// distance closing evenly. Written into `out`.
+function alongSight(eye, a, b, f, out) {
+  const da = [a.x - eye.x, a.y - eye.y, a.z - eye.z];
+  const db = [b.x - eye.x, b.y - eye.y, b.z - eye.z];
+  const la = Math.hypot(...da) || 1;
+  const lb = Math.hypot(...db) || 1;
+  const ua = da.map((v) => v / la);
+  const ub = db.map((v) => v / lb);
+  const angle = Math.acos(Math.max(-1, Math.min(1, ua[0] * ub[0] + ua[1] * ub[1] + ua[2] * ub[2])));
+  const s = Math.sin(angle);
+  const ka = angle < 1e-6 ? 1 - f : Math.sin((1 - f) * angle) / s;
+  const kb = angle < 1e-6 ? f : Math.sin(f * angle) / s;
+  const r = la + (lb - la) * f;
+  out.x = eye.x + (ua[0] * ka + ub[0] * kb) * r;
+  out.y = eye.y + (ua[1] * ka + ub[1] * kb) * r;
+  out.z = eye.z + (ua[2] * ka + ub[2] * kb) * r;
+  return out;
+}
+const easeInOut = (t) => t * t * (3 - 2 * t);
 
 function isAnimal(kind) {
   return kind === "penguin" || kind === "seal" || kind === "whale" || kind === "tortoise" || kind === "dassie" || kind === "gull";

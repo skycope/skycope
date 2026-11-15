@@ -34,9 +34,14 @@ const base = { sea: 0, seaPan: 0, wind: 0, rain: 0, night: 0, trees: 0, shore: 6
 const right = (d, extra = {}) => ({ x: d, z: 0, y: 0, ...extra });
 const ahead = (d, extra = {}) => ({ x: 0, z: d, y: 0, ...extra });
 
-const step = (id, surface, name, says, running = false) => ({
-  id, n: 2, name, says, seconds: 0.8,
-  play: (s) => s.step(surface, running, 0, { exact: true, front: true }),
+// Four paws of a walk (lateral sequence, a step every 0.25 s) or four
+// front-paw beats of a run, on one surface, scheduled on the audio clock.
+const gait = (id, surface, name, says, running = false) => ({
+  id, n: 2, name, says, seconds: surface === SURFACE.metal ? 2 : 1.4,
+  play: (s) => {
+    const legs = running ? [[true, -0.15], [true, 0.15], [true, -0.15], [true, 0.15]] : [[false, -0.15], [true, -0.15], [false, 0.15], [true, 0.15]];
+    legs.forEach(([front, pan], i) => s._qa.cues.schedule(0.02 + i * (running ? 0.17 : 0.25), () => s.step(surface, running, pan, { exact: true, front, depth: 0.03 })));
+  },
 });
 
 export const CUES = [
@@ -46,19 +51,21 @@ export const CUES = [
   { id: "gull", n: 1, name: "A kelp gull over the shore", says: "a falling nasal 'kee-ow', one to three, far off", seconds: 2, play: (s) => s._qa.beds.gull(CAT, 0.5) },
 
   // 2 · footsteps
-  step("step-dry-sand", SURFACE.drySand, "Paw on dry sand", "soft and whispery, no click"),
-  step("step-wet-sand", SURFACE.wetSand, "Paw on wet sand", "darker and firmer than dry sand"),
-  step("step-grass", SURFACE.grass, "Paw in grass", "a light brushing"),
-  step("step-scrub", SURFACE.scrub, "Paw in scrub", "brushing, now and then a twig"),
-  step("step-forest", SURFACE.forest, "Paw on leaf litter", "leaf litter under trees, occasional twig"),
-  step("step-rock", SURFACE.rock, "Paw on rock", "nearly silent; a claw tick is what you hear"),
-  step("step-pebbles", SURFACE.pebbles, "Paw on pebbles", "stones shifting"),
-  step("step-timber", SURFACE.timber, "Paw on timber (keel, limb)", "a soft wooden knock with a body"),
-  step("step-deck", SURFACE.deck, "Paw on the boat's deck", "a hollow knock"),
-  step("step-shallows", SURFACE.shallows, "Paw in the shallows", "a plip, then a drop or two"),
-  step("run-dry-sand", SURFACE.drySand, "Running on dry sand", "quicker and a little louder, not harsher", true),
-  step("run-rock", SURFACE.rock, "Running on rock", "claw ticks every step", true),
-  { id: "land-sand", n: 2, name: "Landing a jump on sand", says: "a soft low thud", seconds: 0.6, play: (s) => s.land(4, SURFACE.drySand, { exact: true }) },
+  // Each "paw" entry is four steps of a walk (left hind, left fore, right
+  // hind, right fore), so the variation between steps can be heard.
+  gait("step-dry-sand", SURFACE.drySand, "Walking on dry sand", "a faint soft compression; you should have to listen for it"),
+  gait("step-wet-sand", SURFACE.wetSand, "Walking on wet sand", "a damp pad, a little darker than dry sand"),
+  gait("step-grass", SURFACE.grass, "Walking in grass (or a sour-fig mat)", "a whisper of blades"),
+  gait("step-scrub", SURFACE.scrub, "Walking through low scrub", "a soft brush"),
+  gait("step-forest", SURFACE.forest, "Walking on leaf litter", "a soft dry settle"),
+  gait("step-rock", SURFACE.rock, "Walking on rock or the stoep", "almost nothing"),
+  gait("step-pebbles", SURFACE.pebbles, "Walking on shingle", "a soft grit shifting"),
+  gait("step-timber", SURFACE.timber, "Walking on timber (the keelson, the milkwood's limb)", "a soft low pad"),
+  gait("step-deck", SURFACE.deck, "Walking on the boat's deck", "a soft low pad, a touch hollow"),
+  gait("step-shallows", SURFACE.shallows, "Walking in the swash", "a soft wet pad, no plinks"),
+  gait("run-dry-sand", SURFACE.drySand, "Running on dry sand", "clearly there now, still soft; front paws only, never a machine-gun", true),
+  gait("run-grass", SURFACE.grass, "Running through grass", "a quicker whisper", true),
+  { id: "land-sand", n: 2, name: "Landing a jump on sand", says: "a soft low settle", seconds: 0.6, play: (s) => s.land(4, SURFACE.drySand, { exact: true }) },
   { id: "jump", n: 2, name: "Jump", says: "a short whoosh of fur", seconds: 0.5, play: (s) => s.jump() },
 
   // 3 · foliage
@@ -107,7 +114,7 @@ export const CUES = [
     scene: (t) => ({ ...base, beds: false, boat: { afloat: true, aboard: true, x: 0, z: 0, speed: Math.min(2.4, t * 0.4), roll: 0.09 * Math.sin(t * 1.6), vr: Math.cos(t * 1.6) } }) },
 
   // 9 · boiler
-  { ...step("step-metal", SURFACE.metal, "Paw inside the boiler", "metallic, ringing, each step hangs"), n: 9 },
+  { ...gait("step-metal", SURFACE.metal, "Walking inside the boiler", "soft pads that the iron answers with a faint ring"), n: 9 },
   { id: "boiler-meow", n: 9, name: "Meow inside the boiler", says: "the meow comes back as one deep bell note that hangs for seconds", seconds: 5, setup: (s) => s.setInside("boiler"), play: (s) => s.meow(), teardown: (s) => s.setInside(null) },
   { id: "boiler-hum", n: 9, name: "The boiler's hollow breath (10 m)", says: "wind across the mouth, barely there", seconds: 4, play: (s) => s.boilerHum(right(10)) },
 

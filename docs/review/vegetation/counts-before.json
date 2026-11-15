@@ -1,0 +1,44 @@
+{
+ "750-forest-slope": {
+  "triangles": 2230393,
+  "calls": 294,
+  "parts": {
+   "other": 2206619
+  }
+ },
+ "750-meadow": {
+  "triangles": 2000974,
+  "calls": 324,
+  "parts": {
+   "other": 1977200
+  }
+ },
+ "750-shore-scrub": {
+  "triangles": 897102,
+  "calls": 143,
+  "parts": {
+   "other": 866196
+  }
+ },
+ "750-hilltop": {
+  "triangles": 2199649,
+  "calls": 329,
+  "parts": {
+   "other": 2175875
+  }
+ },
+ "750-milkwood-under": {
+  "triangles": 2057167,
+  "calls": 342,
+  "parts": {
+   "other": 2026263
+  }
+ },
+ "750-cat-plants": {
+  "triangles": 2047137,
+  "calls": 275,
+  "parts": {
+   "other": 2016233
+  }
+ }
+}

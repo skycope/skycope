@@ -6,7 +6,7 @@ import { rainbow, ice_halo, lunar_corona, zodiacal_light } from "./phenomena.wgs
 
 // Pass 3 of the sky (1: sky-table.wgsl, 2: clouds.wgsl): at the full sky
 // resolution, compose the sky behind the clouds (the table, airglow, ice
-// veil, Milky Way, constellation figures) and rebuild the full-resolution
+// veil, Milky Way, the ending's star and Cross) and rebuild the full-resolution
 // cloud layer from the quarter-resolution march plus the previous frames.
 // Output 0 is the sky the water pass reads (exposed linear HDR, cloud
 // transmission in alpha); output 1 is the cloud layer, kept as history.
@@ -247,11 +247,6 @@ fn noise3(p: vec3f) -> f32 {
 fn atmosphere_color(ray: vec3f, sun: vec3f, moon: vec3f, night: f32, exposure: f32) -> vec3f {
   // Sun and scotopic moon scattering, from the sky-view table.
   var color = textureSampleLevel(skyTable, cloudSampler, lut_uv(ray), 0.0).rgb * exposure;
-  // sea-sky-magic: by day the stars gift deepens the zenith a little.
-  if (MAGIC_AWAKE && atmosphere.magic.y > 0.0) {
-    let up = smoothstep(0.15, 0.9, ray.y) * atmosphere.magic.y * (1.0 - night);
-    color *= mix(vec3f(1.0), vec3f(0.9, 0.94, 1.0), up);
-  }
   // Airglow and scattered starlight: the darkest sky is never pure black.
   color += vec3f(0.004, 0.007, 0.014) * night * (1.0 + (1.0 - clamp(ray.y, 0.0, 1.0)) * 1.5);
 
@@ -274,8 +269,8 @@ fn atmosphere_color(ray: vec3f, sun: vec3f, moon: vec3f, night: f32, exposure: f
     let moon_visibility = smoothstep(-0.01, 0.02, moon.y);
     color += vec3f(0.05, 0.08, 0.14) * exp(-moon_distance * 14.0) * night * moon_visibility * (0.5 - 0.5 * cos(phase_angle));
     // Point stars are also drawn in the composite pass. Here: the Milky Way's
-    // diffuse light, dimmed by extinction near the horizon, and the faint
-    // constellation figures.
+    // diffuse light, dimmed by extinction near the horizon (and, after the
+    // ending, the south star).
     if (ray.y > -0.02) {
       let eq = equatorial_from_local(ray, atmosphere.celestial.x, atmosphere.celestial.y);
       // Star clouds are structured at every scale, down to a pixel or two.
@@ -284,31 +279,12 @@ fn atmosphere_color(ray: vec3f, sun: vec3f, moon: vec3f, night: f32, exposure: f
         + noise3(gal * 8.9 + 7.0) * 0.1;
       let fine = noise3(gal * 17.0 + 5.0) * 0.6 + noise3(gal * 37.0 + 1.0) * 0.4;
       let extinction = exp(-0.3 / max(ray.y, 0.02)) * smoothstep(0.0, 0.08, ray.y);
-      var galaxy = milky_way(eq, clump, fine);
-      // sea-sky-magic: the stars gift deepens the Milky Way: brighter star
-      // clouds, darker lanes between them, a warmer core; the finale more.
-      let lean = atmosphere.magic.y + atmosphere.magic.w;
-      if (MAGIC_AWAKE && lean > 0.0) {
-        let lum = dot(galaxy, vec3f(0.2126, 0.7152, 0.0722));
-        let depth = mix(0.7, 1.6, smoothstep(0.35, 0.75, clump * 0.7 + fine * 0.3));
-        // Blue-white arms, a gold core, rust at the edges of the dust lanes.
-        let warm = mix(vec3f(0.75, 0.88, 1.3), vec3f(1.35, 1.0, 0.68), smoothstep(0.004, 0.02, lum));
-        let rust = vec3f(1.15, 0.85, 0.75) * (1.0 - smoothstep(0.0, 0.25, abs(clump - 0.42)));
-        galaxy = mix(galaxy, galaxy * depth * mix(warm, rust, 0.25) * 1.3, min(lean, 1.5) * 0.45);
-      }
+      let galaxy = milky_way(eq, clump, fine);
       color += galaxy * extinction * night;
-      // sea-sky-magic: the sky leans close: the airglow shows, a faint green
-      // band of oxygen light ~100 km up, brightest a few degrees above the
-      // horizon (seen edge-on), rippled by gravity waves, with the red
-      // 630 nm layer above it.
-      if (MAGIC_AWAKE && lean > 0.0) {
-        let waves = 0.65 + 0.35 * noise3(vec3f(ray.xz / max(ray.y + 0.25, 0.1) * 1.3, atmosphere.time * 0.01));
-        let green = exp(-pow((ray.y - 0.09) / 0.07, 2.0)) * waves;
-        let red = exp(-pow((ray.y - 0.2) / 0.12, 2.0)) * (1.2 - waves * 0.5);
-        let haze = smoothstep(-0.01, 0.03, ray.y);
-        color += (vec3f(0.12, 0.42, 0.16) * green + vec3f(0.3, 0.04, 0.06) * red * 0.35) * 0.008 * min(lean, 1.5) * night * haze;
+      // story: the south star and the Cross pointing to it (the ending).
+      if (MAGIC_AWAKE && (atmosphere.magic.w > 0.0 || atmosphere.magic2.x > 0.0)) {
+        color += the_ending(eq) * night * smoothstep(0.0, 0.05, ray.y);
       }
-      color += constellation_lines(ray) * night;
       // sky-events: the zodiacal light, on moonless nights far from twilight.
       if (atmosphere.optics.y > 0.0) {
         color += vec3f(1.0, 0.94, 0.84) * zodiacal_light(ray, eq, sun) * extinction * night * atmosphere.optics.y * 0.2;
@@ -318,55 +294,76 @@ fn atmosphere_color(ray: vec3f, sun: vec3f, moon: vec3f, night: f32, exposure: f
   return overcast_sky(color, atmosphere.weather.w, atmosphere.rain);
 }
 
-// The constellation figures (atlas channels: see constellationAtlas in
-// src/star-catalog.js). Asleep: a faint blue-grey line, as they always were.
-// sea-sky-magic, the stars gift: each figure draws itself, a pen of light
-// running star to star over a few seconds (figures in turn), the lines
-// holding softly after with a shimmer running along them. Only the figure
-// the camera is looking straight at shows: one at a time, never a chart.
-const FIGURE_LINE: vec3f = vec3f(0.0324, 0.047, 0.0559);
-const FIGURE_LIGHT: vec3f = vec3f(0.74, 0.8, 1.0);
+// story: the ending (story-and-wow.md 5). The fallen star, home: a point
+// at the south celestial pole, white and steady, about as bright as the
+// Pointers (magic.w), with one soft swell as it arrives (wispColour.w); and
+// the pen (magic2.x): 0…1 the Southern Cross draws itself from the atlas
+// (its figure only), 1…2 a thin line runs on from its foot along its long
+// axis to the star, 2…3 both fade. Directions are the catalogue's frame
+// (equatorial unit vectors, as catalog_stars reads them): the pole is
+// (0, 0, −1), so its altitude is the latitude's, due south, wherever and
+// whenever the sky is drawn. Only inside MAGIC_AWAKE (compiled out until
+// the ending) and only while either is non-zero: per sky fragment, two
+// dot products and an exp for the star, one atlas sample and a few more
+// for the pen while it draws.
+// Acrux (α Crucis, the foot) and its right ascension, declination (rad,
+// J2000; star-catalog.js CRUX); the Cross's figure id in the atlas (its
+// blue channel, star-catalog.js CRUX.atlas).
+const ACRUX: vec2f = vec2f(3.2576501, -1.1012871);
+const CRUX_FIGURE: f32 = 0.9098039;
+const SOUTH_POLE: vec3f = vec3f(0.0, 0.0, -1.0);
+const HOME_STAR: vec3f = vec3f(1.0, 0.97, 0.92);
 const PEN_LIGHT: vec3f = vec3f(1.0, 0.86, 0.62);
-fn constellation_lines(ray: vec3f) -> vec3f {
-  let latitude = atmosphere.celestial.y;
-  let declination = asin(clamp(ray.z * cos(latitude) + ray.y * sin(latitude), -1.0, 1.0));
-  let hour_angle = atan2(-ray.x, ray.y * cos(latitude) - ray.z * sin(latitude));
-  let ra = atmosphere.celestial.x - hour_angle;
-  let coordinates = vec2f(fract(ra / 6.283185), 0.5 - declination / 3.141593);
-  let atlas = textureSampleLevel(starAtlas, cloudSampler, coordinates, 0.0);
-  let horizon = smoothstep(0.0, 0.10, ray.y);
-  var light = to_linear(atlas.r * FIGURE_LINE) * 0.8;
-  let gift = max(atmosphere.magic.y, atmosphere.magic.w);
-  if (MAGIC_AWAKE && gift > 0.0 && (atlas.r > 0.0 || atlas.a > 0.0)) {
-    // Each figure starts in turn over the first seconds, and takes ~4 s.
-    let start = 0.6 + atlas.b * 8.0;
-    let progress = clamp((atmosphere.magic2.x - start) / 4.0, 0.0, 1.2);
-    let ahead = progress - atlas.g;
-    let drawn = clamp(ahead * 60.0, 0.0, 1.0);
-    // The pen's head: a bright bead with a short glowing wake.
-    let pen = exp(-ahead * ahead * 900.0) * select(0.0, 1.0, progress < 1.01) + exp(-max(ahead, 0.0) * 30.0) * drawn * 0.6 * select(0.0, 1.0, progress < 1.1);
-    let shimmer = 0.75 + 0.25 * sin(atlas.g * 70.0 - atmosphere.time * 2.2 + atlas.b * 40.0);
-    // Few and faint: only the figure the cat would look up at (about 20°
-    // above the middle of the view), drawn once and then barely there.
-    let gaze = atmosphere.pitch + 0.35;
-    let forward = vec3f(sin(atmosphere.flight.w) * cos(gaze), sin(gaze), cos(atmosphere.flight.w) * cos(gaze));
-    let look = smoothstep(0.9, 0.98, dot(ray, forward));
-    let hold = 0.012 * shimmer * look;
-    // A fine luminous thread: the filtered ridge's crest, sharpened, in a
-    // faint wide glow of its own.
-    let thread = smoothstep(0.42, 0.95, atlas.r) + atlas.r * 0.22;
-    // A wide soft glow round each line from the atlas's coarse mip.
-    let glow = textureSampleLevel(starAtlas, cloudSampler, coordinates, 2.0).r * 0.6;
-    let lines = (thread + glow) * drawn * hold;
-    let nodes = atlas.a * drawn * (0.015 + pen * 0.8) * look;
-    // The pen burns warm, the lines it leaves cool.
-    // Each figure in its own pale colour (gold, ice blue, lavender, sea
-    // green), like the stars that make it: the sky is not one grey.
-    let hue = 0.5 + 0.5 * cos(6.283185 * (atlas.b * 3.7 + vec3f(0.0, 0.33, 0.67)));
-    let figure = mix(FIGURE_LIGHT, hue * 1.1, 0.4);
-    light = mix(light, figure * (lines + nodes) + PEN_LIGHT * (thread + glow) * pen * 0.6 * look, gift);
+const FIGURE_LIGHT: vec3f = vec3f(0.74, 0.8, 1.0);
+fn the_ending(eq: vec3f) -> vec3f {
+  let pixel = 1.0 / (0.9 * min(atmosphere.resolution.y, 1300.0));
+  var light = vec3f(0.0);
+  // The star: a point a pixel or so wide carrying a magnitude-0.6 star's
+  // light (as catalog_stars spreads it), a faint scattered halo, a gentle
+  // twinkle; the swell a thumbnail of light (0.6°) round it, once.
+  let d = length(eq - SOUTH_POLE);
+  let star = atmosphere.magic.w;
+  if (star > 0.0 && d < 0.05) {
+    let sigma = pixel * 0.8;
+    let twinkle = 1.0 + 0.08 * sin(atmosphere.time * 11.3) * sin(atmosphere.time * 6.1);
+    let core = exp(-(d * d) / (2.0 * sigma * sigma)) * 3.9;
+    let halo = exp(-d / (pixel * 3.5)) * 0.05;
+    let swell = exp(-d / 0.0105) * atmosphere.wispColour.w * 0.35;
+    // A meow (magic2.y, seconds since it) brightens it for a second.
+    let called = select(0.0, 1.5 * exp(-atmosphere.magic2.y * 1.6), atmosphere.magic2.y > 0.0);
+    light += HOME_STAR * ((core + halo) * twinkle * star * (1.0 + called) + swell);
   }
-  // Never over the Moon's disc (drawn sharp in the water pass, on top).
-  let moon_clear = smoothstep(0.019, 0.026, length(ray - atmosphere.moon));
-  return light * horizon * moon_clear;
+  let pen = atmosphere.magic2.x;
+  if (pen > 0.0) {
+    let fade = 1.0 - smoothstep(2.0, 3.0, pen);
+    // The Cross, from the atlas: its own figure only, drawn star to star.
+    let coordinates = vec2f(fract(atan2(eq.y, eq.x) / 6.283185), 0.5 - asin(clamp(eq.z, -1.0, 1.0)) / 3.141593);
+    let atlas = textureSampleLevel(starAtlas, cloudSampler, coordinates, 0.0);
+    if (abs(atlas.b - CRUX_FIGURE) < 0.5 / 255.0 && (atlas.r > 0.0 || atlas.a > 0.0)) {
+      let ahead = min(pen, 1.0) - atlas.g;
+      let drawn = clamp(ahead * 60.0, 0.0, 1.0);
+      let head = exp(-ahead * ahead * 900.0) * select(0.0, 1.0, pen < 1.01);
+      let thread = smoothstep(0.42, 0.95, atlas.r) + atlas.r * 0.22;
+      light += (FIGURE_LIGHT * thread * drawn * 0.05 + PEN_LIGHT * thread * head * 0.12 + PEN_LIGHT * atlas.a * head * 0.2) * fade;
+    }
+    // The pointer: the great circle from Acrux to the pole, drawn as the
+    // pen runs on from the foot (1…2), ending exactly at the star.
+    if (pen > 1.0) {
+      let a = vec3f(cos(ACRUX.y) * cos(ACRUX.x), cos(ACRUX.y) * sin(ACRUX.x), sin(ACRUX.y));
+      let n = normalize(cross(a, SOUTH_POLE));
+      let perp = abs(dot(eq, n));
+      let width = pixel * 0.9;
+      if (perp < width * 6.0) {
+        let onto = normalize(eq - n * dot(eq, n));
+        let total = acos(clamp(dot(a, SOUTH_POLE), -1.0, 1.0));
+        let t = atan2(dot(onto, cross(n, a)), dot(onto, a)) / total;
+        let reach = min(pen - 1.0, 1.0);
+        let along = smoothstep(-0.01, 0.01, t) * (1.0 - smoothstep(reach - 0.004, reach + 0.004, t));
+        let line = exp(-perp * perp / (width * width)) * along;
+        let tip = exp(-pow((t - reach) * total / (pixel * 2.0), 2.0)) * select(0.0, 1.0, pen < 2.0) * exp(-perp * perp / (width * width * 4.0));
+        light += (PEN_LIGHT * line * 0.035 + PEN_LIGHT * tip * 0.25) * fade;
+      }
+    }
+  }
+  return light;
 }

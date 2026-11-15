@@ -41,6 +41,9 @@ export const WAKE_LIGHT = {
   seafolk: { tint: [0.2, 0.8, 0.6], body: 6, core: 1.4, reach: 14, night: 3.0, day: 0.5, front: 0.4, frontDay: 0.2, glint: 0.4, rest: 0, sea: 90, ripple: 0.4 },
   boat: { tint: [1.0, 0.5, 0.16], body: 9, core: 1.5, reach: 26, night: 4.0, day: 0.7, front: 0.5, frontDay: 0.25, glint: 0.4, rest: 0, sea: 80 },
   finale: { tint: [1.0, 0.9, 0.72], body: 20, core: 3.0, reach: 60, night: 4.5, day: 0.8, front: 0.5, frontDay: 0.3, glint: 0.6, rest: 0, sea: 150 },
+  // story: the home lantern on the beach, the first light: the boat's row
+  // at 0.4 of its reach, and none of it on the sea (story-and-wow.md 7.1).
+  home: { tint: [1.0, 0.5, 0.16], body: 3.6, core: 1.2, reach: 10.4, night: 3.0, day: 0.6, front: 0.5, frontDay: 0.25, glint: 0.4, rest: 0, sea: 0 },
 };
 
 // The one colour table: each gift's light (the wisp's ribbon, the field

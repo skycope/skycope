@@ -461,6 +461,10 @@ export function skyEventFrame({ seed, time, date = null, celestial, weather = nu
   // sea-sky-magic: a meow answered by a falling star (night only).
   const answer = callAnswer(seed, time, c, facing, magic);
   if (answer && (!meteorNow || answer.state.flux + answer.state.train > meteorNow.state.flux + meteorNow.state.train)) meteorNow = answer;
+  // story: the star that falls onto the beach (journey.js), drawn in the
+  // sky along the same line as it comes down; it wins over any other.
+  const fall = storyFall(time, magic);
+  if (fall) meteorNow = fall;
   if (meteorNow) {
     // The glowing line runs from trail.xyz to meteor.xyz: the fresh trail
     // behind the head in flight, then a fireball's whole persistent train.
@@ -493,6 +497,22 @@ export function skyEventFrame({ seed, time, date = null, celestial, weather = nu
     satellite: satelliteNow ? { ...satelliteNow.satellite, ...satelliteNow.state } : null,
     conditions: c,
   };
+}
+
+// story: the fall (story-and-wow.md shot 1). `magic.fall`: { at (event
+// clock seconds), from: [bearing, elevation], to: [bearing, elevation] }
+// in degrees, the sky's frame; a fireball's streak from one to the other
+// over the wisp's own fall time, and its train after.
+export const STORY_FALL = { duration: 1.4, magnitude: -6, train: 2.5, green: 0.65 };
+function storyFall(time, magic) {
+  const f = magic?.fall;
+  if (!f || !Number.isFinite(f.at) || time < f.at || time > f.at + STORY_FALL.duration + STORY_FALL.train * 3) return null;
+  const meteor = {
+    type: "meteor", at: f.at, start: fromBearing(f.from[0], f.from[1]), end: fromBearing(f.to[0], f.to[1]), duration: f.duration ?? STORY_FALL.duration,
+    magnitude: STORY_FALL.magnitude, fireball: true, speed: 50, green: STORY_FALL.green, train: STORY_FALL.train, glow: 0.0004, story: true,
+  };
+  const state = meteorState(meteor, time);
+  return state ? { meteor, state } : null;
 }
 
 function callAnswer(seed, time, c, facing, magic) {

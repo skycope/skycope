@@ -1,68 +1,96 @@
-// The quest: the island keeps six gifts, one in each keepsake place
-// (magic.js KEEPSAKES), and the wisp leads the cat to them, nearest first.
-// Reaching a sleeping keepsake starts its waking (the ceremony thread.js
-// stages); once all six are awake the wisp leads to the summit and the
-// finale wakes. Pure: no DOM, no audio, no three.js. Which gifts this seed
-// has woken persists in storage beside the discoveries, and "begin again"
-// puts them all back to sleep.
-import { GIFTS, KEEPSAKES } from "./magic.js";
+// The quest: a small light has fallen onto a dark island, and it leads the
+// cat to the island's old lights (magic.js KEEPSAKES) so they can light
+// them together, each one lifting it a little higher. First the home
+// lantern on the beach (the lesson), then the five lights, nearest first
+// but weighted by the hour so the first a visitor lights is one whose
+// effect shows now (story-and-wow.md section 2, "order"); then the summit,
+// where the cat sits on the cairn and the ending begins. Pure: no DOM, no
+// audio, no three.js. Which lights this seed has lit, and in what order,
+// persists in storage, and "begin again" puts them all out.
+import { GIFTS, LIGHTS, KEEPSAKES } from "./magic.js";
 
 const PREFIX = "skycope.gifts.";
-// Where the finale wakes: the trig beacon on the summit, or the hilltop.
+// Where the ending starts: the trig beacon on the summit.
 const SUMMIT = "beacon";
-// A keepsake's heart can be hard to reach (a hull, a rock pool): close is enough.
+// A keepsake's heart can be hard to reach (a hull, a rock pool): close is
+// enough. (Until each light wakes on its own act, story step 4.)
 const REACH_SLACK = 1.5;
-// …and a big walled site (the lighthouse yard) more so, in proportion.
 const slack = (r) => Math.max(REACH_SLACK, r * 0.45);
+// The ending: sitting this long on the cairn's top, this near the pillar.
+export const ENDING_SIT = { seconds: 1.5, r: 2.4 };
 
-// places: places.js pois ({ id, title, x, z, r }); summit: { x, z, r } for
-// the finale when there is no beacon. magic: createMagic().
-export function createQuest({ seed, places = [], magic, storage = defaultStorage(), summit = null } = {}) {
+// Distance weights by the hour (story-and-wow.md section 2): by day the
+// boat (a boat to sail in daylight); by night the wreck (a glowing shore).
+export const WEIGHT = {
+  boat: { day: 0.6, night: 1.0 },
+  seafolk: { day: 0.8, night: 1.3 },
+  fireflies: { day: 1.0, night: 0.8 },
+  lamp: { day: 1.0, night: 0.9 },
+  tideglow: { day: 1.6, night: 0.6 },
+};
+
+// places: places.js pois ({ id, title, x, z, r }). home: the home lantern
+// ({ x, z }) or null. magic: createMagic().
+export function createQuest({ seed, places = [], magic, storage = defaultStorage(), home = null } = {}) {
   const key = PREFIX + seed;
   const keepsakes = places.filter((p) => p && KEEPSAKES[p.id] && Number.isFinite(p.x) && Number.isFinite(p.z)).map((p) => ({ ...p, gift: KEEPSAKES[p.id], r: p.r > 0 ? p.r : 4 }));
-  const beacon = keepsakes.find((k) => k.id === SUMMIT);
-  const finaleSite = beacon
-    ? { id: SUMMIT, title: beacon.title, x: beacon.x, z: beacon.z, r: beacon.r, gift: "finale" }
-    : summit
-      ? { id: "summit", title: "the hilltop", x: summit.x, z: summit.z, r: summit.r ?? 5, gift: "finale" }
-      : null;
-  // What this seed woke on earlier visits (not what `?magic=` forced).
-  const woken = new Set(read(storage, key).filter((g) => GIFTS.includes(g) || g === "finale"));
+  const beacon = places.find((p) => p?.id === SUMMIT && Number.isFinite(p.x));
+  const summit = beacon ? { id: SUMMIT, title: beacon.title, x: beacon.x, z: beacon.z, r: ENDING_SIT.r, gift: "finale" } : null;
+  const lantern = home && Number.isFinite(home.x) ? { id: "home", title: "the home lantern", x: home.x, z: home.z, r: 2, gift: "home" } : null;
+  // What this seed lit on earlier visits, in the order it was lit (not
+  // what `?magic=` forced).
+  const valid = (g) => GIFTS.includes(g) || g === "home" || g === "finale";
+  const woken = new Set(read(storage, key).filter(valid));
   for (const gift of woken) magic.wake(gift, { quiet: true });
   // A keepsake reached and waiting for its ceremony to wake it.
   let pending = null;
+  let sat = 0;
 
   const asleep = (k) => !magic.isAwake(k.gift);
   const save = () => write(storage, key, [...woken]);
 
-  function nearestSleeping(x, z) {
+  function nearestUnlit(x, z, night) {
     let best = null;
     let bestD = Infinity;
+    const when = night > 0.5 ? "night" : "day";
     for (const k of keepsakes) {
       if (!asleep(k)) continue;
-      const d = Math.hypot(k.x - x, k.z - z);
+      const d = Math.hypot(k.x - x, k.z - z) * (WEIGHT[k.gift]?.[when] ?? 1);
       if (d < bestD) [best, bestD] = [k, d];
     }
     return best;
   }
 
+  function light(place) {
+    magic.wake(place.gift);
+    woken.add(place.gift);
+    save();
+    return place.gift;
+  }
+
   return {
     keepsakes,
-    finaleSite,
-    // Where the wisp should lead from (x, z): the nearest sleeping
-    // keepsake; the summit once all six are awake; null once the finale is.
-    target(x, z) {
+    summit,
+    home: lantern,
+    // Where the wisp should lead from (x, z): the home lantern first; then
+    // the nearest unlit light, weighted by the hour (`night` 0…1); the
+    // summit once all five are lit; null once the ending has happened.
+    target(x, z, night = 0) {
       if (pending) return pending;
-      const next = nearestSleeping(x, z);
+      if (lantern && !magic.isAwake("home")) return lantern;
+      const next = nearestUnlit(x, z, night);
       if (next) return next;
-      if (finaleSite && magic.allAwake && !magic.isAwake("finale")) return finaleSite;
+      if (summit && magic.allLit && !magic.isAwake("finale")) return summit;
       return null;
     },
-    // A few times a second, with the cat's pose: has it reached somewhere
-    // whose gift sleeps? Returns { type: "wake", place } (a keepsake) or
-    // { type: "finale", place } once, and holds it pending until wake().
-    // `busy`: a ceremony is still playing (nothing new starts).
-    update(pose, { busy = false } = {}) {
+    // A few times a second, with the cat's pose: has it reached a light
+    // that is out? Returns { type: "wake", place } (a keepsake) or, once
+    // all five are lit and the cat has sat on the cairn top for
+    // ENDING_SIT.seconds, { type: "ending", place }; held pending until
+    // wake(). `busy`: a ceremony is still playing. `dt`: seconds since the
+    // last call. (The home lantern is lit by the journey: it needs the
+    // wisp waiting at it.)
+    update(pose, { busy = false, dt = 0.25 } = {}) {
       if (pending || busy || !pose) return null;
       for (const k of keepsakes) {
         if (!asleep(k)) continue;
@@ -71,40 +99,82 @@ export function createQuest({ seed, places = [], magic, storage = defaultStorage
           return { type: "wake", place: k };
         }
       }
-      if (finaleSite && magic.allAwake && !magic.isAwake("finale") && Math.hypot(pose.x - finaleSite.x, pose.z - finaleSite.z) < finaleSite.r) {
-        pending = finaleSite;
-        return { type: "finale", place: finaleSite };
+      if (summit && magic.allLit && !magic.isAwake("finale")) {
+        const on = Math.hypot(pose.x - summit.x, pose.z - summit.z) < summit.r && (pose.sit ?? 0) > 0.85;
+        sat = on ? sat + dt : 0;
+        if (sat >= ENDING_SIT.seconds) {
+          sat = 0;
+          pending = summit;
+          return { type: "ending", place: summit };
+        }
       }
       return null;
+    },
+    // The public way to light something now, whatever the radius: the act
+    // that wakes it ("home", a keepsake's id, or "beacon" for the ending
+    // when all five are lit). Returns the event update() would, or null.
+    act(id) {
+      if (pending) return null;
+      if (id === "home") return lantern && !magic.isAwake("home") ? { type: "home", place: lantern } : null;
+      if (id === SUMMIT) {
+        if (!summit || !magic.allLit || magic.isAwake("finale")) return null;
+        pending = summit;
+        return { type: "ending", place: summit };
+      }
+      const k = keepsakes.find((p) => p.id === id || p.gift === id);
+      if (!k || !asleep(k)) return null;
+      pending = k;
+      return { type: "wake", place: k };
     },
     get pending() {
       return pending;
     },
-    // The ceremony's moment: the pending gift wakes (listeners hear it) and
-    // is remembered.
+    // The ceremony's moment: the pending light is lit (listeners hear it)
+    // and remembered. The ending lights the sky itself (`stars`) and the
+    // ending's own flag (`finale`).
     wake() {
       if (!pending) return null;
       const place = pending;
       pending = null;
-      magic.wake(place.gift);
-      woken.add(place.gift);
-      save();
-      return place.gift;
+      if (place.gift === "finale") {
+        magic.wake("stars");
+        woken.add("stars");
+      }
+      return light(place);
     },
-    // Gifts awake out of six (the finale is not counted).
+    // The home lantern, lit when the cat comes to it with the wisp there.
+    lightHome() {
+      if (!lantern || magic.isAwake("home")) return false;
+      light(lantern);
+      return true;
+    },
+    // How many lights are lit, the home lantern included (0…6).
+    get lit() {
+      return (magic.isAwake("home") ? 1 : 0) + LIGHTS.filter((g) => magic.isAwake(g)).length;
+    },
+    // The five lights below lit (0…5).
     get count() {
-      return GIFTS.filter((g) => magic.isAwake(g)).length;
+      return LIGHTS.filter((g) => magic.isAwake(g)).length;
+    },
+    // In the order the visitor lit them (home first), for the ending's
+    // answer; forced ones (`?magic=`) after, in table order.
+    get order() {
+      const all = ["home", ...LIGHTS];
+      const lit = [...woken].filter((g) => all.includes(g) && magic.isAwake(g));
+      return [...lit, ...all.filter((g) => magic.isAwake(g) && !woken.has(g))];
     },
     get done() {
       return magic.isAwake("finale");
     },
-    // Every gift back to sleep; the wisp starts over.
+    // Every light out, the star out of the sky; the next load opens with
+    // the fall.
     beginAgain() {
       pending = null;
       woken.clear();
       save();
-      for (const gift of [...GIFTS, "finale"]) magic.sleep(gift);
-      magic.pulse = null;
+      for (const gift of [...GIFTS, "home", "finale"]) magic.sleep(gift);
+      magic.waking = null;
+      magic.ending = null;
     },
   };
 }

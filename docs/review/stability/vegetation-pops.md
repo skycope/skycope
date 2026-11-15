@@ -41,8 +41,8 @@ sliced refresh). **Ask:** draw shadow casters from a camera-independent
 level (the level for the distance from the shadow anchor, or a fixed
 caster level), so a plant's shadow never depends on where the camera was.
 `landscape.shadowRefreshing` is true while a sliced refresh is part-drawn;
-landscape.js already skips `forest.updateLod` then, and `packLod` should
-also return early when it is set (for any other caller).
+The vegetation lane has since added `forest.holdShadowLod` (09b49e2), which
+covers this; landscape.js now holds the LOD bias still during a refresh.
 
 ## 3. Level swaps are shape swaps (stage 1 finding, still there)
 

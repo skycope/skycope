@@ -7,8 +7,6 @@
 // moments use the shared "island" scope instead). Nothing here touches the
 // DOM: the field-notes panel only ever sees `list()`, which never carries the
 // title of something not yet found.
-import { ISLAND, shoreDistance, terrainHeight } from "./terrain.js";
-
 const PREFIX = "skycope.found.";
 const CHECK_SECONDS = 0.25;
 
@@ -40,7 +38,7 @@ export function createDiscoveries({ seed, signal, onFind = () => {}, storage = d
     const scope = scopeOf(entry.poi);
     remembered[scope][entry.poi.id] = at;
     write(storage, PREFIX + (scope === "seed" ? seed : "island"), remembered[scope]);
-    onFind({ id: entry.poi.id, title: entry.poi.title, kind: entry.poi.kind ?? "place", at });
+    onFind({ id: entry.poi.id, title: entry.poi.title, kind: entry.poi.kind ?? "place", line: entry.poi.line ?? null, at });
   }
 
   return {
@@ -169,19 +167,18 @@ function write(storage, key, value) {
 
 // ---------------------------------------------------------------------------
 // The island's own discoveries, from things that exist without any landmark
-// module: its high ground, and moments of sky, weather and cat. (Only what
-// answers or can be seen: no names for empty stretches of shore or sea.)
+// module: moments of sky, weather and cat. They go quietly into the notes
+// (no line: the sit-and-watch camera is their acknowledgement). No names
+// for places where nothing happens, and no creature "finds" by proximity
+// (story-and-wow.md 6): an animal is written only when it answers an act.
 export function islandDiscoveries() {
   const pois = [];
-  const hill = highestGround();
-  pois.push({ id: "hilltop", title: "the hilltop", kind: "place", scope: "island", x: hill.x, z: hill.z, r: 5 });
 
   const sitting = (c) => c.pose.sit > 0.9;
   const asleep = (c) => c.pose.sit > 0.95 && c.pose.sleepy > 0.3;
   const sunAlt = (c) => c.celestial?.sunAltitude ?? 90;
   const moonAlt = (c) => (Math.asin(Math.max(-1, Math.min(1, c.celestial?.moon?.[1] ?? -1))) * 180) / Math.PI;
   const night = (c) => (c.celestial?.scene ?? 0) > 1.6;
-  const near = (kind) => (c) => c.interest?.kind === kind && c.interest.near;
   pois.push(
     { id: "sunset", title: "the sun going down", kind: "moment", scope: "island", hold: 12, when: (c) => sunAlt(c) < 2 && sunAlt(c) > -3 && (c.celestial?.sunAzimuth ?? 0) > 180 && sitting(c) },
     { id: "first-light", title: "first light", kind: "moment", scope: "island", hold: 6, when: (c) => sunAlt(c) < 3 && sunAlt(c) > -2 && (c.celestial?.sunAzimuth ?? 360) < 180 && sitting(c) },
@@ -190,9 +187,6 @@ export function islandDiscoveries() {
     { id: "glowing-sea", title: "the sea, glowing", kind: "moment", scope: "island", hold: 1.5, when: (c) => night(c) && c.pose.wade > 0.15 },
     { id: "rain", title: "out in the rain", kind: "moment", scope: "island", hold: 20, when: (c) => (c.weather?.rain ?? 0) > 0.5 },
     { id: "nap", title: "forty winks", kind: "moment", scope: "island", hold: 3, when: asleep },
-    { id: "crab", title: "a ghost crab", kind: "creature", scope: "island", when: near("crab") },
-    { id: "butterfly", title: "a butterfly", kind: "creature", scope: "island", when: near("butterfly") },
-    { id: "gulls", title: "the gulls at the tideline", kind: "creature", scope: "island", when: near("gull") },
   );
   return pois;
 }
@@ -201,15 +195,4 @@ export function islandDiscoveries() {
 // with an id and a 0…1 `visible`): found while one is plainly in view.
 export function spectacleSeen(id, threshold = 0.5) {
   return (c) => (c.spectacles ?? []).some((s) => s?.id === id && (s.visible ?? 1) >= threshold);
-}
-
-function highestGround() {
-  let best = { x: ISLAND.x, z: ISLAND.z, y: -Infinity };
-  for (let x = ISLAND.x - 90; x <= ISLAND.x + 90; x += 1.5)
-    for (let z = ISLAND.z - 90; z <= ISLAND.z + 90; z += 1.5) {
-      if (shoreDistance(x, z) < 6) continue;
-      const y = terrainHeight(x, z);
-      if (y > best.y) best = { x, z, y };
-    }
-  return best;
 }

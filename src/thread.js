@@ -10,7 +10,7 @@
 //   setSpectacles(fn)            fn() → [{ id, title?, visible 0…1, direction? [e,u,n] }]
 import { createDiscoveries, islandDiscoveries } from "./discoveries.js";
 import { createPhotoMode } from "./photo-mode.js";
-import { createArrival, createDawnLapse, createFindLine, createGiftCard, createLessons, createNotesPanel, createWatch } from "./moments.js";
+import { createArrival, createLapse, createFindLine, createGiftCard, createLessons, createNotesPanel, createWatch } from "./moments.js";
 import { createJourney } from "./journey.js";
 import { capeTime, capeMinutes } from "./astronomy.js";
 
@@ -31,6 +31,9 @@ export function createThread({ state, signal, reduced, capture, preview, light =
   let nextGaze = 12;
   let attached = false;
   let walkFrom = null;
+  // How long the cat has been moving about at the pool's rim or the
+  // milkwood's limb (the sit lesson).
+  let perchFor = 0;
 
   const findLine = createFindLine($("#find-line"), { reduced: isReduced });
   const discoveries = createDiscoveries({
@@ -38,12 +41,13 @@ export function createThread({ state, signal, reduced, capture, preview, light =
     signal,
     onFind(found) {
       notes.changed();
-      // A line only when something answered the cat: an animal met face to
-      // face, a sky spectacle in view. Places and moments go quietly into
-      // the notes (a keepsake's waking names it in its own ceremony).
-      if (found.kind !== "creature" && found.kind !== "sky") return;
+      // A line only when the world has just answered something the cat did,
+      // saying what happened (story-and-wow.md 1: `the boiler rings`, `the
+      // seal wins`…): a find that carries its own `line`. Everything else
+      // goes quietly into the notes.
+      if (!found.line) return;
       state.sound.play("discover");
-      findLine.show(`found · ${found.title}`);
+      findLine.show(found.line);
     },
   });
   const notes = createNotesPanel({
@@ -54,11 +58,22 @@ export function createThread({ state, signal, reduced, capture, preview, light =
     // The real clock's time of each find; none while the world shows a
     // previewed hour (they would disagree with it).
     time: (at) => (state.debugMinutes === null ? capeTime(new Date(at)) : ""),
-    gifts: () => journey.gifts(),
+    lit: () => journey.lit,
     onBeginAgain: () => journey.beginAgain(),
   });
-  // The wisp, the six gifts and their ceremonies (journey.js).
-  const journey = createJourney({ state, card: createGiftCard($("#gift-card"), { reduced: isReduced }), findLine, now: () => seconds(), onChange: (quiet) => (quiet ? notes.refresh() : notes.changed()) });
+  // The story: the fallen star, the lights and the ending (journey.js).
+  // (sky: the ending's lapse, through the dawn lapse's machinery.)
+  const sky = {
+    run: (keys, options) => lapse?.run(keys, options),
+    running: () => Boolean(lapse?.scripted),
+    live: () => lapse?.live(),
+    nowMinutes: () => nowMinutes(),
+    liveMinutes: () => {
+      const now = new Date();
+      return capeMinutes(now) + now.getSeconds() / 60;
+    },
+  };
+  const journey = createJourney({ state, card: createGiftCard($("#gift-card"), { reduced: isReduced }), findLine, now: () => seconds(), onChange: (quiet) => (quiet ? notes.refresh() : notes.changed()), sky, reduced: isReduced });
   const lessons = createLessons({ el: $("#hint"), touch, reduced: isReduced });
   const arrival = createArrival($("#arrival"), { reduced: isReduced });
   // No WebGPU, or reduced motion: the header is simply there.
@@ -122,7 +137,7 @@ export function createThread({ state, signal, reduced, capture, preview, light =
       discoveries.add(islandDiscoveries());
       journey.attach();
       watch = createWatch({ walker: state.walker });
-      lapse = createDawnLapse({
+      lapse = createLapse({
         preview,
         onStart: () => {
           watch.stop();
@@ -135,11 +150,11 @@ export function createThread({ state, signal, reduced, capture, preview, light =
       arrival.play(() => {
         findLine.pause(photo.active);
         lessons.begin(seconds());
-        journey.meet(2.5);
+        journey.meet();
       });
       if (body.dataset.arrival === "done") {
         lessons.begin(seconds());
-        journey.meet(4);
+        journey.meet();
       }
     },
     fallback() {
@@ -181,6 +196,7 @@ export function createThread({ state, signal, reduced, capture, preview, light =
     // Any input: hand the view back, wake from the dream.
     input(kind) {
       lastInput = performance.now();
+      journey.nudge(); // the first input brings the fall
       watch?.stop();
       if (lapse?.active) lapse.stop("woke");
       if (kind) lessons.did(kind, seconds());
@@ -205,7 +221,7 @@ export function createThread({ state, signal, reduced, capture, preview, light =
           sunAltitude: state.celestial.sunAltitude,
           nowMinutes: nowMinutes(),
           date: new Date(),
-          blocked: photo.active || isReduced(),
+          blocked: photo.active || isReduced() || Boolean(journey.ceremony),
         },
         realDt,
       );
@@ -218,17 +234,20 @@ export function createThread({ state, signal, reduced, capture, preview, light =
       const context = { celestial: state.celestial, weather: state.weather, interest: state.landscape?.interest, spectacles: visible };
       discoveries.update(cat, clock, context);
       const idleInput = (performance.now() - lastInput) / 1000;
-      watch?.update({ cat, idleInput, celestial: state.celestial, spectacles: visible, blocked: photo.active || lapse?.active || isReduced() });
+      watch?.update({ cat, idleInput, celestial: state.celestial, spectacles: visible, blocked: photo.active || lapse?.active || isReduced() || Boolean(journey.ceremony) });
       updateGaze(cat, step);
       walkFrom ??= { x: cat.x, z: cat.z };
       if (Math.hypot(cat.x - walkFrom.x, cat.z - walkFrom.z) > 1.5) lessons.did("walk", clock);
       if (cat.running) lessons.did("run", clock);
       const scene = state.celestial.scene;
+      perchFor = perchedAt(cat) && Math.abs(cat.speed) > 0.1 ? perchFor + step : perchedAt(cat) ? perchFor : 0;
       lessons.update({
         now: clock,
         moving: Math.abs(cat.speed) > 0.3,
-        sitting: cat.sit > 0.9,
-        found: discoveries.counts.found,
+        landed: journey.landed,
+        answers: answersMeow(cat),
+        perch: perchFor > 8,
+        lights: journey.quest?.count ?? 0,
         golden: scene > 0.4 && scene < 1.4,
         hidden: photo.active || watch?.watching || lapse?.active || body.dataset.arrival !== "done",
       });
@@ -264,6 +283,24 @@ export function createThread({ state, signal, reduced, capture, preview, light =
     if (state.debugMinutes !== null) return state.debugMinutes;
     const now = new Date();
     return capeMinutes(now) + now.getSeconds() / 60;
+  }
+
+  // Somewhere that answers a meow (the meow lesson): the wreck's boiler,
+  // within 40 m of the lighthouse, on the boat's hull.
+  function answersMeow(cat) {
+    const near = (id, r) => {
+      const p = state.landscape?.pois?.find((q) => q.id === id);
+      return p && Math.hypot(cat.x - p.x, cat.z - p.z) < r;
+    };
+    return Boolean(near("wreck", 4) || near("lighthouse", 40) || near("boat", 3));
+  }
+  // At the pool's rim or under the milkwood's low limb (the sit lesson).
+  function perchedAt(cat) {
+    const near = (id, r) => {
+      const p = state.landscape?.pois?.find((q) => q.id === id);
+      return p && Math.hypot(cat.x - p.x, cat.z - p.z) < r;
+    };
+    return Boolean(near("pool", 4) || near("milkwood", 5));
   }
 
   // Photo mode: arrow keys orbit and tilt.

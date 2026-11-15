@@ -140,17 +140,25 @@ test("invalid entries and duplicates are ignored; find() marks directly", () => 
 test("the island seeds its own discoveries, and none for empty places", () => {
   const pois = islandDiscoveries();
   const ids = pois.map((p) => p.id);
-  for (const id of ["hilltop", "sunset", "moonrise", "rain", "nap", "crab", "butterfly"]) assert.ok(ids.includes(id), id);
-  // Nothing that names an empty stretch of shore or sea, or an effect.
-  for (const id of ["far-shore", "long-point", "deep-cove", "big-rock", "kelp", "fireflies"]) assert.ok(!ids.includes(id), id);
+  for (const id of ["sunset", "moonrise", "rain", "nap"]) assert.ok(ids.includes(id), id);
+  // Nothing that names a place where nothing happens, an effect, or an
+  // animal merely passed (story-and-wow.md 6).
+  for (const id of ["hilltop", "far-shore", "long-point", "deep-cove", "big-rock", "kelp", "fireflies", "crab", "butterfly", "gulls"]) assert.ok(!ids.includes(id), id);
+  // None of them writes a line.
+  assert.ok(pois.every((p) => !p.line));
   // A nap, as the cat curls up.
   const d = createDiscoveries({ seed: 1, storage: fakeStorage() });
   d.add(pois);
   for (let t = 0; t < 4; t += 0.25) d.update(pose(1000, 1000, { sit: 1, sleepy: 0.5 }), t, {});
   assert.equal(d.isFound("nap"), true);
-  // A crab, close.
-  d.update(pose(1000, 1000), 5, { interest: { kind: "crab", near: true } });
-  assert.equal(d.isFound("crab"), true);
+});
+
+test("a find carries its line to onFind (the world answered)", () => {
+  const found = [];
+  const d = createDiscoveries({ seed: 1, storage: fakeStorage(), onFind: (f) => found.push(f) });
+  d.add([{ id: "boiler", title: "the boiler", kind: "answer", line: "the boiler rings", when: (c) => c.rang }]);
+  d.update(pose(0, 0), 0, { rang: true });
+  assert.equal(found[0]?.line, "the boiler rings");
 });
 
 test("a sky spectacle in view can be a discovery", () => {

@@ -41,7 +41,7 @@ test('generated plants have finite bounded geometry and stable organ identities'
   const plants = createVegetation(1847);
   assert.ok(plants.clusters.length < 216129);
   const ids = new Set();
-  for (const list of [plants.wood, plants.clusters, plants.turf, plants.fronds, plants.succulents, plants.needles, plants.reeds]) {
+  for (const list of [plants.wood, plants.clusters, plants.turf, plants.fronds, plants.succulents, plants.needles, plants.reeds, plants.masses]) {
     for (const organ of list) {
       assert.ok(organ.id && !ids.has(organ.id));
       ids.add(organ.id);
@@ -50,8 +50,9 @@ test('generated plants have finite bounded geometry and stable organ identities'
     }
   }
   assert.equal(plants.producers.length, groundProducers(plants.layout).length);
-  // Turf keeps its full sward: no candidates are thinned out of open ground.
-  assert.ok(plants.turf.length > 15000);
+  // Turf keeps its sward between the fynbos shrubs (none under them).
+  assert.ok(plants.turf.length > 10000);
+  assert.ok(plants.masses.length > 3000);
 });
 
 test('reed LOD preserves culm identity and positions when spikelets disappear', async () => {

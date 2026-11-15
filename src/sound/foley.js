@@ -4,6 +4,10 @@
 // is positioned: they pan a little by leg (±0.15).
 import { STEPS, SURFACE, playLayers } from "./patches.js";
 
+// Footsteps' overall level (patches.js gains are relative), and a run's lift.
+export const STEP_LEVEL = 1;
+export const RUN_BOOST = 2.8;
+
 export function createFoley(core) {
   const { ctx } = core;
   let lastStep = -Infinity;
@@ -29,10 +33,13 @@ export function createFoley(core) {
     lastStep = now;
     if (surface === SURFACE.shallows && (info.depth ?? 0) > 0.06) return wade(info.depth, info.speed ?? 1, pan);
     const patch = STEPS[surface] ?? STEPS[SURFACE.drySand];
-    const scale = (patch.trim ?? 1) * (running ? 1.8 : 1) * (info.front === false ? 1 / 1.2 : 1) * (info.scale ?? 1);
+    // Running is clearly audible (about +9 dB), still soft; hind paws a
+    // little softer and darker than front.
+    const hind = info.front === false;
+    const scale = STEP_LEVEL * (patch.trim ?? 1) * (running ? RUN_BOOST : 1) * (hind ? 0.84 : 1) * (info.scale ?? 1);
     const v = core.voice({ bus: "foley", pan, gain: 1, sendB: patch.sendB ?? 0 });
     if (v && boilerSend && surface === SURFACE.metal) v.input.connect(boilerSend);
-    playLayers(core, v, patch.layers, { scale, shorten: running ? 0.8 : 1, running });
+    playLayers(core, v, patch.layers, { scale, shorten: running ? 0.85 : 1, running, fscale: hind ? 0.85 : 1, jitter: 0.008 });
     if (surface === SURFACE.shallows || surface === SURFACE.wetSand) wet = 1;
     return v?.done();
   }
@@ -113,9 +120,9 @@ export function createFoley(core) {
   function land(speed, surface = SURFACE.drySand) {
     const g = Math.min(0.12, 0.03 + speed * 0.025);
     const v = core.voice({ bus: "foley", sendB: surface === SURFACE.deck ? 0.2 : 0 });
-    core.noise(v, { colour: "brown", type: "lowpass", f: 260, q: 0, attack: 0.004, tail: 0.12, gain: g });
-    if (surface === SURFACE.rock || surface === SURFACE.pebbles) playLayers(core, v, STEPS[SURFACE.rock].layers, { scale: 2 * STEPS[SURFACE.rock].trim });
-    else if (surface === SURFACE.timber || surface === SURFACE.deck || surface === SURFACE.metal) playLayers(core, v, STEPS[surface].layers, { scale: 1.6 * STEPS[surface].trim });
+    core.noise(v, { colour: "brown", type: "lowpass", f: 260, q: 0, attack: 0.01, tail: 0.1, gain: g * 0.5 });
+    const patch = STEPS[surface];
+    if (patch && surface !== SURFACE.drySand && surface !== SURFACE.wetSand) playLayers(core, v, patch.layers, { scale: 2 * STEP_LEVEL * patch.trim });
     return v?.done();
   }
 

@@ -49,7 +49,7 @@ import { createSea } from "./sea-surface.js";
 import { createWake } from "./wake.js";
 import { createSound } from "./sound.js";
 import { CAT_SCALE } from "./cat-rig.js";
-import { reviewFixture, applyReviewFixture } from "./review-fixtures.js";
+import { reviewFixture, applyReviewFixture, storyFixture, applyStoryFixture } from "./review-fixtures.js";
 // The loading veil (index.html starts it before this module loads).
 import { loading } from "./loading-screen.js";
 // thread: discoveries, score inputs, photo mode, small moments (thread.js).
@@ -106,7 +106,7 @@ const events = new AbortController();
 const state = {
   seed: sceneSeed(window.location.search),
   date: new Date(),
-  debugMinutes: review?.minutes ?? null,
+  debugMinutes: review?.minutes ?? storyFixture(window.location.search)?.minutes ?? null,
   celestial: null,
   pointer: [0.5, 0.5],
   // magic: which of the island's gifts are awake (magic.js); every layer reads
@@ -731,6 +731,7 @@ async function startAtmosphere() {
   // boat: the fisherman's boat joins the walker (it carries the cat afloat).
   state.boat = state.landscape.boat?.attach({ walker: state.walker, sea: state.sea, magic: state.magic, wake: state.wake }) ?? null;
   applyReviewFixture(state.walker, review, state.landscape.obstacles);
+  applyStoryFixture(state.walker, storyFixture(window.location.search), state.landscape.pois); // story: `?perf&at=beacon`
   state.flight = state.walker.camera;
   loading.progress("world");
   loading.scene({ view: state.flight });
@@ -1060,7 +1061,7 @@ function skyEventUniforms(sky, weather, light, view) {
     view,
     frameSeconds: Math.min(0.05, state.frameMs / 1000),
     // sea-sky-magic: the stars gift's meteors and the meow's falling star.
-    magic: { stars: state.magic.levels.stars, finale: state.magic.levels.finale, callAt: state.magic.call?.at },
+    magic: { stars: state.magic.levels.stars, finale: state.magic.levels.finale, callAt: state.magic.call?.at, fall: state.magic.fall }, // story: the fall's streak
   });
   return state.skyFrame.uniforms;
 }
@@ -1132,7 +1133,7 @@ function updateCat(dt, realDt = dt) {
           const cos = Math.cos(cat.heading);
           kind = footstep(side < 0 ? "l" : "r", cat.x + cos * across + sin * along, cat.z - sin * across + cos * along, cat.heading, front, { side: -side, speed: 1 }, true);
         }
-      state.sound.land(event.speed, kind, { x: cat.x, z: cat.z }); // sound: the landing by surface
+      state.sound.land(event.speed, kind, { x: cat.x, z: cat.z, under: walker.surfaceAt?.(cat.x, cat.z) }); // sound: the landing by surface
       state.landscape.catLanded(state.time, Math.min(1.5, event.speed / 3), kind, walker.surface);
     }
   }
@@ -1206,7 +1207,8 @@ function joinWorld() {
   state.thread.discoveries.add([
     ...(state.landscape.pois ?? []).map((p) => lower(p, "place")),
     ...(state.boat?.pois ?? []).map((p) => lower(p, "place")), // boat: places only the boat reaches
-    ...(state.landscape.wildlife?.pois ?? []).map((p) => lower(p, "creature")),
+    // (No creature finds by proximity: an animal is written when it answers
+    // an act, with its own line; story-and-wow.md 6.)
     ...SKY_FINDS.map(([id, title]) => ({ id, title, kind: "sky", scope: "island", hold: 1.5, when: spectacleSeen(id) })),
   ]);
   // What the sky is staging, refreshed once a second.
@@ -1288,7 +1290,7 @@ function footstep(leg, x, z, heading, front, { side = 1, speed = 0, pace = speed
     speed,
     rock: kind === 0,
   });
-  if (!silent) state.sound.step(kind, cat.running, leg.startsWith("l") ? -0.15 : 0.15, { x, z, front }); // sound: refined to grass, timber, … (src/sound/index.js)
+  if (!silent) state.sound.step(kind, cat.running, leg.startsWith("l") ? -0.15 : 0.15, { x, z, front, under: state.walker.surfaceAt?.(x, z) }); // sound: what is really under the paw (src/sound/surface.js)
   return kind;
 }
 
