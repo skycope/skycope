@@ -196,6 +196,15 @@ test("the hand-over: out of focus under the veil first, no blank frame, everythi
   veil.progress("world");
   const walker = createWalker({ trunks: [], domes: [] });
   veil.ready({ view: walker.camera, cat: walker.cat });
+  // Until the world's first frame is drawn (a fence on the land canvas;
+  // none here) and two more frames, the veil holds.
+  assert.equal(page.body.dataset.focus, undefined);
+  assert.equal(page.root.dataset.state, undefined);
+  veil.scene({ celestial: at(1320) });
+  page.flush();
+  assert.equal(page.root.dataset.state, undefined);
+  page.flush();
+  assert.ok(page.marks.includes("loading:shown"));
   // The world goes soft before the veil starts to fade, in the same task.
   assert.equal(page.body.dataset.focus, "soft");
   assert.equal(page.root.dataset.state, "leaving");
@@ -214,15 +223,19 @@ test("the hand-over: out of focus under the veil first, no blank frame, everythi
   // and the pull ends before the veil is put away (1.6 s).
   const css = readFileSync(new URL("../index.html", import.meta.url), "utf8");
   const fade = Number(css.match(/\.loading-screen::after \{ transition: opacity ([\d.]+)s/)[1]);
-  const [pull, delay] = css.match(/backdrop-filter ([\d.]+)s cubic-bezier\([^)]+\) ([\d.]+)s;/).slice(1).map(Number);
+  const [pull, delay] = css.match(/transition: filter ([\d.]+)s cubic-bezier\([^)]+\) ([\d.]+)s;/).slice(1).map(Number);
   assert.ok(fade < pull + delay && pull + delay < 1.6, `${fade} ${pull} ${delay}`);
-  assert.match(css, /body\[data-focus="soft"\] \.focus \{[^}]*backdrop-filter: blur\(\d+px\)/);
+  assert.match(css, /body\[data-focus="soft"\] #landscape \{ filter: blur\(\d+px\)/);
+  // Behind the blurred canvases, the veil's sky, not the fallback picture.
+  assert.match(css, /body\[data-focus\] \.fallback \{ visibility: hidden; \}/);
 });
 
 test("reduced motion: a plain cross-fade, no focus pull", async () => {
   const page = fakePage({ reduced: true });
   const veil = createLoadingScreen({ document: page.document, storage: null });
   veil.ready();
+  page.flush();
+  page.flush();
   assert.equal(page.body.dataset.focus, undefined);
   assert.equal(page.root.dataset.state, "leaving");
   veil.dispose();

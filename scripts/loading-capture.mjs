@@ -81,6 +81,8 @@ async function launch() {
     "--headless=new", "--enable-unsafe-webgpu", `--remote-debugging-port=${CDP}`, "--no-first-run",
     `--user-data-dir=${profile}`, "--window-size=1440,900", "--hide-scrollbars", "--mute-audio",
     "--disable-background-timer-throttling", "--disable-renderer-backgrounding",
+    // The sheets are composed from frame files beside a file:// page.
+    "--allow-file-access-from-files",
   ], { stdio: "ignore" });
   console.log(`chrome pid ${chrome.pid} on cdp ${CDP}`);
   let version = null;
@@ -161,6 +163,7 @@ const TIMELINE = `(() => {
     mainRequested: main ? Math.round(main.startTime) : null,
     mainFetched: main ? Math.round(main.responseEnd) : null,
     marks,
+    details: Object.fromEntries(performance.getEntriesByType("mark").filter((m) => m.name.startsWith("loading:") && m.detail).map((m) => [m.name.slice(8), m.detail])),
     states: window.__veilStates ?? {},
     ready: marks.ready ?? window.__veilStates?.leaving ?? null,
     timeOrigin: performance.timeOrigin,

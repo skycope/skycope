@@ -215,17 +215,55 @@ export function createLoadingScreen({ document: doc = globalThis.document, stora
     return [Math.round(w * scale), Math.round(h * scale)];
   };
   const draw = (blend = 1) => painter?.draw(scene.view, ...size(), blend);
-  // A new sky cross-fades in over a second.
+  // Motion, one frame loop: a new sky cross-fades in over a second, and a
+  // new camera (the real one, known once the walker exists) eases the
+  // horizon to it rather than jumping.
+  let fadeFrom = -1;
+  let tween = null;
+  const ease = (t) => t * t * (3 - 2 * t);
+  const animate = () => {
+    fadeFrame = 0;
+    const now = performance.now();
+    let blend = 1;
+    let more = false;
+    if (fadeFrom >= 0) {
+      const t = Math.min(1, (now - fadeFrom) / 1000);
+      blend = ease(t);
+      if (t < 1) more = true;
+      else {
+        fadeFrom = -1;
+        painter?.settle();
+      }
+    }
+    if (tween) {
+      const t = Math.min(1, (now - tween.start) / (tween.seconds * 1000));
+      const k = ease(t);
+      scene.view = { azimuth: tween.from.azimuth + (tween.to.azimuth - tween.from.azimuth) * k, pitch: tween.from.pitch + (tween.to.pitch - tween.from.pitch) * k };
+      if (t < 1) more = true;
+      else tween = null;
+    }
+    draw(blend);
+    if (more && state !== "gone" && state !== "failed") fadeFrame = view.requestAnimationFrame(animate);
+  };
+  const kick = () => {
+    if (!fadeFrame) fadeFrame = view.requestAnimationFrame(animate);
+  };
   const fadeIn = () => {
-    view.cancelAnimationFrame(fadeFrame);
-    const from = performance.now();
-    const step = () => {
-      const t = Math.min(1, (performance.now() - from) / 1000);
-      draw(t * t * (3 - 2 * t));
-      if (t < 1 && state === "loading") fadeFrame = view.requestAnimationFrame(step);
-      else painter?.settle();
-    };
-    step();
+    fadeFrom = performance.now();
+    kick();
+  };
+  const setView = (next, seconds) => {
+    const to = { azimuth: next.azimuth, pitch: next.pitch };
+    const near = Math.abs(to.pitch - scene.view.pitch) < 1e-4 && Math.abs(to.azimuth - scene.view.azimuth) < 1e-4;
+    if (near) return;
+    if (reduced || !painter || seconds <= 0) {
+      scene.view = to;
+      tween = null;
+      draw();
+      return;
+    }
+    tween = { from: { ...scene.view }, to, start: performance.now(), seconds };
+    kick();
   };
   const moveWisp = ([x, y], seconds) => {
     if (!wisp) return;
@@ -235,7 +273,7 @@ export function createLoadingScreen({ document: doc = globalThis.document, stora
   };
   // Up from low over the sea toward the horizon as the world builds.
   const placeWisp = () => {
-    const h = horizonAt(scene.view);
+    const h = horizonAt(tween?.to ?? scene.view);
     moveWisp([0.5, h + (1 - h) * (0.62 - 0.5 * progress)], 2.4);
   };
   const paint = () => {
@@ -263,7 +301,7 @@ export function createLoadingScreen({ document: doc = globalThis.document, stora
     } else draw();
     // The same sky as a gradient: under the canvas, and the whole picture
     // where WebGL2 is missing.
-    root.style.backgroundImage = cssSky(table, scene.view, view.innerWidth / Math.max(1, view.innerHeight));
+    root.style.backgroundImage = cssSky(table, tween?.to ?? scene.view, view.innerWidth / Math.max(1, view.innerHeight));
     if (first) {
       if (painter) root.dataset.painted = "";
       view.performance?.mark?.("loading:painted");
@@ -311,7 +349,6 @@ export function createLoadingScreen({ document: doc = globalThis.document, stora
   };
   const finish = (seconds) => {
     events.abort();
-    view.cancelAnimationFrame?.(fadeFrame);
     timers.push(setTimeout(() => {
       state = "gone";
       stop();
@@ -360,38 +397,61 @@ export function createLoadingScreen({ document: doc = globalThis.document, stora
         scene.weather = next.weather;
         if (next.weather.observedAt) remember(storage, next.weather);
       }
-      if (next.view) scene.view = { azimuth: next.view.azimuth, pitch: next.view.pitch };
       safePaint();
+      if (next.view) {
+        setView(next.view, 1.2);
+        root.style.backgroundImage = cssSky(table, next.view, view.innerWidth / Math.max(1, view.innerHeight));
+        placeWisp();
+        view.performance?.mark?.("loading:view", { detail: { pitch: next.view.pitch } });
+      }
     },
     // The first frame is up. The world under the veil goes out of focus
     // (body[data-focus], index.html), the veil fades off it, and the focus
     // pulls in; the light sinks toward where the real wisp will rise.
+    //
+    // "The first frame is up" means drawn, not just asked for: the land
+    // layer's first frame can sit behind seconds of shader compiles on a
+    // slow machine, and fading the veil then showed the sea where the land
+    // was about to appear. So the veil waits for a fence on the land
+    // canvas's context to pass (polled, never blocking), and two frames.
     ready({ view: camera = null, cat = null } = {}) {
       if (state !== "loading") return;
-      state = "leaving";
-      view.performance?.mark?.("loading:ready");
+      state = "arriving";
+      view.performance?.mark?.("loading:ready", { detail: { pitch: camera?.pitch ?? null, veilPitch: (tween?.to ?? scene.view).pitch } });
       setProgress(1);
-      if (reduced) {
-        root.dataset.state = "leaving";
-        return finish(0.9);
+      // The real first camera, if it has moved since: the horizon follows it.
+      if (camera) setView(camera, 0.3);
+      const land = doc.querySelector?.("#landscape")?.getContext?.("webgl2") ?? null;
+      let fence = null;
+      try {
+        fence = land?.fenceSync(land.SYNC_GPU_COMMANDS_COMPLETE, 0) ?? null;
+        land?.flush();
+      } catch {
+        fence = null;
       }
-      if (body) {
-        body.dataset.focus = "soft";
-        // Style the soft state before the pull, so the pull transitions.
-        void body.offsetWidth;
-      }
-      root.dataset.state = "leaving";
-      pullFrame = view.requestAnimationFrame(() => {
-        if (body && state === "leaving") body.dataset.focus = "pull";
-      });
-      const aspect = view.innerWidth / Math.max(1, view.innerHeight);
-      const rise = camera && cat ? project(camera, wispRise(cat), aspect) : null;
-      if (rise && rise[0] > 0.04 && rise[0] < 0.96 && rise[1] > 0.04 && rise[1] < 0.96) moveWisp(rise, 1.3);
-      finish(1.6);
+      const started = performance.now();
+      let after = 2;
+      const wait = () => {
+        pullFrame = 0;
+        if (state !== "arriving") return;
+        let done = !fence;
+        if (fence) {
+          const status = land.clientWaitSync(fence, 0, 0);
+          done = status === land.ALREADY_SIGNALED || status === land.CONDITION_SATISFIED || status === land.WAIT_FAILED;
+        }
+        // At most 8 s: a lost context must not hold the veil for ever.
+        if ((done && after-- <= 0) || performance.now() - started > 8000) {
+          if (fence) land.deleteSync(fence);
+          view.performance?.mark?.("loading:shown");
+          return leave(camera, cat);
+        }
+        pullFrame = view.requestAnimationFrame(wait);
+      };
+      wait();
     },
     // No world after all: fade to the static fallback sky.
     fail() {
-      if (state !== "loading") return;
+      if (state !== "loading" && state !== "arriving") return;
       state = "failed";
       root.dataset.state = "failed";
       delete body?.dataset.focus;
@@ -403,6 +463,33 @@ export function createLoadingScreen({ document: doc = globalThis.document, stora
       root.hidden = true;
     },
   };
+
+  // The hand-over itself, once the world's first frame is on screen.
+  function leave(camera, cat) {
+    state = "leaving";
+    if (reduced) {
+      root.dataset.state = "leaving";
+      return finish(0.9);
+    }
+    const under = doc.querySelector?.(".focus");
+    if (under) under.style.backgroundImage = root.style.backgroundImage;
+    // The drawn sky fades off the world; the gradient under it must not
+    // stay behind (without WebGL2 the whole veil fades instead).
+    if (root.dataset.painted !== undefined) root.style.backgroundImage = "none";
+    if (body) {
+      body.dataset.focus = "soft";
+      // Style the soft state before the pull, so the pull transitions.
+      void body.offsetWidth;
+    }
+    root.dataset.state = "leaving";
+    pullFrame = view.requestAnimationFrame(() => {
+      if (body && state === "leaving") body.dataset.focus = "pull";
+    });
+    const aspect = view.innerWidth / Math.max(1, view.innerHeight);
+    const rise = camera && cat ? project(camera, wispRise(cat), aspect) : null;
+    if (rise && rise[0] > 0.04 && rise[0] < 0.96 && rise[1] > 0.04 && rise[1] < 0.96) moveWisp(rise, 1.3);
+    finish(1.6);
+  }
 }
 
 function recentWeather(storage) {

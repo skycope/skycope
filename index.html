@@ -949,18 +949,23 @@
       .loading-screen[hidden] { display: none; }
       /* The focus pull: at the first real frame the world is out of focus
          and a little dim under the veil (soft), then the blur eases to
-         nothing in one move (pull). A backdrop filter over both canvases,
-         so their edges blur against themselves, not the page. */
-      .focus { position: fixed; inset: 0; z-index: 1; pointer-events: none; display: none; }
+         nothing in one move (pull): a filter on both canvases. Behind them
+         (.focus, in place of the fallback picture) the veil's own sky, so
+         their blurred edges soften into the same colours, not the page.
+         (A backdrop filter kept Chrome from showing the land layer's
+         frames until it was removed.) */
+      .focus { position: fixed; inset: 0; z-index: 0; pointer-events: none; display: none; background: #3a5566 no-repeat; background-size: 100% 100%; }
       body[data-focus] .focus { display: block; }
-      body[data-focus="soft"] .focus {
-        -webkit-backdrop-filter: blur(14px) brightness(0.94);
-        backdrop-filter: blur(14px) brightness(0.94);
-      }
-      body[data-focus="pull"] .focus {
-        -webkit-backdrop-filter: blur(0px) brightness(1);
-        backdrop-filter: blur(0px) brightness(1);
-        transition: -webkit-backdrop-filter 1.2s cubic-bezier(0.25, 0.55, 0.35, 1) 0.15s, backdrop-filter 1.2s cubic-bezier(0.25, 0.55, 0.35, 1) 0.15s;
+      body[data-focus] .fallback { visibility: hidden; }
+      /* The sky canvas is whole under the veil before it fades (its own
+         fade-in is for the page without one). */
+      body[data-focus] #sky { opacity: 1; transition: none; }
+      body[data-focus="soft"] #sky,
+      body[data-focus="soft"] #landscape { filter: blur(14px) brightness(0.94); }
+      body[data-focus="pull"] #sky,
+      body[data-focus="pull"] #landscape {
+        filter: blur(0px) brightness(1);
+        transition: filter 1.2s cubic-bezier(0.25, 0.55, 0.35, 1) 0.15s;
       }
       /* Reduced motion: no drifting, no blur, only a plain cross-fade. */
       @media (prefers-reduced-motion: reduce) {
