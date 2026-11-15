@@ -221,6 +221,10 @@ function pageHelper({ island }) {
     hilltop: () => toward(63, 89, 52, 70, 0.32, 6),
     "milkwood-under": () => { const p = poi("milkwood"); if (!p) return { home: true }; const a = Math.atan2(island.x - p.x, island.z - p.z); return toward(p.x + Math.sin(a) * 2.2, p.z + Math.cos(a) * 2.2, p.x + Math.sin(a) * 12, p.z + Math.cos(a) * 12, 0.02, 2.4); },
     "cat-plants": () => toward(44, 80, 52, 86, 0.0, 1.3),
+    // Close-ups: a renosterbos about 2 m from the lens, and the ground
+    // between plants on the forest slope seen from above.
+    "shrub-close": () => toward(44.3, 82.1, 45.5, 82.29, 0.12, 1.0),
+    "slope-ground": () => uphill(73, 49, 0.62, 2.6),
     // grade: the colour-grading sheets' views (docs/review/grade): the
     // forest slope under trees, looking uphill into them, and the summit
     // looking back over the island to the home beach.
