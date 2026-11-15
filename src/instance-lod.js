@@ -21,16 +21,18 @@
 // packed into every level it could be in before the next re-pack (a margin
 // as large as the eye may move meanwhile), so a late re-pack is never seen.
 
-// The fade band before a level's start: an eighth of the distance, 1.2–5 m.
+// The fade band before a level's start: a tenth of the distance, 1–4 m.
 // (Both levels are drawn across it: wider costs triangles.)
 export function fadeWidth(start) {
-  return Math.min(5, Math.max(1.2, start * 0.12));
+  return Math.min(4, Math.max(1, start * 0.1));
 }
 
 // The margin every level's window is packed with: more than the eye may
-// move before a per-instance chunk is re-packed (packDue, 60% of it).
+// move before a per-instance chunk is re-packed (packUrgency, 60% of it).
+// Instances in the margins are drawn at nothing: a wider one costs vertices,
+// a narrower one re-packs more often.
 export function packMargin(near) {
-  return 0.5 + 0.025 * near;
+  return 0.35 + 0.02 * near;
 }
 
 // The level an instance this far away draws at (the finest one it is
@@ -123,7 +125,7 @@ function wholeLevel(chunk, eye, bias, eye2) {
 // `eye2`: a second eye the packing must also serve (see packChunk). A
 // chunk not re-packed while it is held already serves it: it was packed
 // within its margin of where the eye was when the hold began.
-export function packUrgency(chunk, eye, bias, eye2 = null) {
+export function packUrgency(chunk, eye, bias, eye2 = null, lead = 0) {
   if (chunk.state === -2) return 1;
   if (chunk.bias !== bias) return 0.7;
   const level = wholeLevel(chunk, eye, bias, eye2);
@@ -133,7 +135,9 @@ export function packUrgency(chunk, eye, bias, eye2 = null) {
   // windows were packed with.
   const m = packMargin(chunkRange(chunk, chunk.eye)[0]);
   const dx = eye[0] - chunk.eye[0], dy = eye[1] - chunk.eye[1], dz = eye[2] - chunk.eye[2];
-  const used = Math.sqrt(dx * dx + dy * dy + dz * dz) / m;
+  // (`lead`: how far the eye moved last frame, so a fast eye is packed a
+  // frame before it would outrun the margin, not a frame after.)
+  const used = (Math.sqrt(dx * dx + dy * dy + dz * dz) + lead) / m;
   return used > 0.6 ? used : 0;
 }
 

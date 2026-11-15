@@ -166,16 +166,16 @@ export function createForest(scene, seed, { light = false } = {}) {
   // per-shoot choice), grown so the canopy covers the same area. Near shoots
   // are 10 small folded leaves (60 triangles, 70 vertices; 14 cost 84 and
   // the extra four were hidden by their neighbours), only round the cat: past
-  // ~11 m a leaf is a few pixels and its folds are invisible. Then 7, 3 and 1
-  // larger leaf cards (28, 12, 4 vertices); from 24 m every shoot is three
-  // cards (a shoot is ~10 px there), from 48 m half of them.
+  // ~10 m a leaf is a few pixels and its folds are invisible. Then 7, 3 and 1
+  // larger leaf cards (28, 12, 4 vertices); from ~35 m every shoot is three
+  // cards (a shoot is ~10 px there), from 55 m half of them. (The levels cross-fade: instance-lod.js.)
   addInstances(scene, shootGeometry(10, 1), clusterMaterial, clusters, true, [
-    { geometry: shootGeometry(7, 0), grow: 1.12, distance: 11 },
+    { geometry: shootGeometry(7, 0), grow: 1.12, distance: 10 },
     // Shoots deep inside a crown (vegetation.js `inner`) are hidden by the
     // outer ones from anywhere but under the tree: drawn near only.
-    { geometry: shootGeometry(5, 0), grow: 1.2, keep: (c) => !c.inner, distance: 22 },
-    { geometry: shootGeometry(3, 0), grow: 1.35, keep: (c) => !c.inner, distance: 38 },
-    { geometry: shootGeometry(3, 0), grow: 1.35 * Math.SQRT2, keep: (c) => !c.inner && shootShare(c) < 0.5, distance: 60 },
+    { geometry: shootGeometry(5, 0), grow: 1.2, keep: (c) => !c.inner, distance: 20 },
+    { geometry: shootGeometry(3, 0), grow: 1.35, keep: (c) => !c.inner, distance: 35 },
+    { geometry: shootGeometry(3, 0), grow: 1.35 * Math.SQRT2, keep: (c) => !c.inner && shootShare(c) < 0.5, distance: 55 },
     { geometry: shootGeometry(1, 0), grow: 1.9 * Math.sqrt(3), keep: (c) => !c.inner && shootShare(c) < 0.34, distance: 100 },
   ], { shadowGrow: SHADOW_GROW });
   const bladeMaterial = new THREE.MeshStandardMaterial({
@@ -205,8 +205,8 @@ export function createForest(scene, seed, { light = false } = {}) {
   // ~10 m a blade is under a pixel wide. The near-ground carpet thickens
   // the sward between them, so a tuft needs fewer blades of its own.
   addInstances(scene, tuftGeometry(20, 3, 2), turfMaterial, turf, false, [
-    { geometry: tuftGeometry(10, 2), distance: 10 },
-    { geometry: tuftGeometry(5, 2), grow: 1.15, distance: 24 },
+    { geometry: tuftGeometry(10, 2), distance: 9 },
+    { geometry: tuftGeometry(5, 2), grow: 1.15, distance: 22 },
     { geometry: tuftGeometry(5, 2), keep: (t) => t.far, grow: 1.3, distance: 42 },
     { keep: () => false, distance: 75 },
   ]);
@@ -224,8 +224,8 @@ export function createForest(scene, seed, { light = false } = {}) {
   ], { label: "fronds" });
   // Heath shoots: needles, on the same foliage material as leafy shoots.
   addInstances(scene, needleGeometry(26), clusterMaterial, needles, true, [
-    { geometry: needleGeometry(10), grow: 1.15, distance: 16 },
-    { geometry: needleGeometry(4), grow: 1.3, distance: 30 },
+    { geometry: needleGeometry(10), grow: 1.15, distance: 14.5 },
+    { geometry: needleGeometry(4), grow: 1.3, distance: 27 },
     { geometry: needleGeometry(4), grow: 1.5, keep: (c) => shootShare(c) < 0.5, distance: 60 },
   ], { shadowGrow: SHADOW_GROW, label: "needles" });
   // Fynbos shrubs, one rounded mass each (plant-forms.js shrubMassGeometry):
@@ -246,9 +246,9 @@ export function createForest(scene, seed, { light = false } = {}) {
   // white highlight, so it barely mirrors.)
   patchMaterial(massMaterial, shared, { sway: true, flutter: 0.04, foliage: true, bent: 0.2, rooted: 0.22, sheen: 0.1, mass: true });
   addInstances(scene, shrubMassGeometry(3), massMaterial, masses, true, [
-    { geometry: shrubMassGeometry(2), distance: 4 },
-    { geometry: shrubMassGeometry(1), distance: 9 },
-    { geometry: shrubMassGeometry(0), distance: 20 },
+    { geometry: shrubMassGeometry(2), distance: 3.6 },
+    { geometry: shrubMassGeometry(1), distance: 8 },
+    { geometry: shrubMassGeometry(0), distance: 18 },
     { geometry: shrubMassGeometry(0), keep: (m) => m.scale.x > 0.3 || shootShare(m) < 0.5, distance: 45 },
     { keep: () => false, distance: 75 },
   ], { chunk: 40 });
@@ -2977,7 +2977,8 @@ function packLod(group, eye, bias) {
   at[0] = local.x; at[1] = local.y; at[2] = local.z;
   // A jump (home, a teleport) or the first frame packs everything now.
   const last = state.eye;
-  const jump = !last || Math.sqrt((at[0] - last[0]) ** 2 + (at[1] - last[1]) ** 2 + (at[2] - last[2]) ** 2) > 15;
+  const step = last ? Math.sqrt((at[0] - last[0]) ** 2 + (at[1] - last[1]) ** 2 + (at[2] - last[2]) ** 2) : Infinity;
+  const jump = step > 15;
   state.eye = at;
   state.packed = 0;
   state.packMs = 0;
@@ -2993,7 +2994,7 @@ function packLod(group, eye, bias) {
   const due = state.due;
   let n = 0;
   for (const chunk of chunks) {
-    const urgency = packUrgency(chunk, at, state.bias, held);
+    const urgency = packUrgency(chunk, at, state.bias, held, jump ? 0 : step);
     if (urgency <= 0) continue;
     const entry = (state.pool[n] ??= { urgency: 0, chunk: null });
     entry.urgency = urgency;
