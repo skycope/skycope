@@ -610,7 +610,8 @@ function analyse(run) {
     return label;
   };
   const flags = [];
-  const flag = (kind, k, detail) => flags.push({ kind, frame: k, t: Math.round(frames[k].t - first), phase: phase(frames[k].t), still: detail.still ?? null, ...detail, events: eventsFor(k) });
+  const camAt = (k) => { const i = at(frames[k].t); return i < 0 ? null : rendered[i].slice(1, 4).map((v) => +v.toFixed(1)); };
+  const flag = (kind, k, detail) => flags.push({ kind, frame: k, t: Math.round(frames[k].t - first), phase: phase(frames[k].t), still: detail.still ?? null, ...detail, eye: camAt(k), events: eventsFor(k) });
   const loaded = (k) => frames[k].t > first; // after the first rendered frame
   for (let k = 1; k < frames.length; k++) {
     const f = frames[k];
