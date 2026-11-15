@@ -13,7 +13,7 @@ const out = process.argv[2] ?? "docs/review/waking";
 const port = Number(process.argv[3] ?? 5351);
 const cdp = Number(process.argv[4] ?? 9421);
 // (No stars: the beacon has no waking of its own, story-and-wow.md 9.)
-const ALL = ["fireflies", "tideglow", "lamp", "seafolk", "boat"];
+const ALL = (process.env.GIFTS ?? "fireflies,tideglow,lamp,seafolk,boat").split(",");
 const gifts = process.argv[5] && process.argv[5] !== "all" ? process.argv[5].split(",") : ALL;
 const label = process.argv[6] ?? process.env.MODE ?? "after";
 const before = process.env.MODE === "before";
@@ -106,6 +106,9 @@ const BEFORE_SHIM = `(() => {
   return true;
 })()`;
 if (before) await evaluate(BEFORE_SHIM);
+// NOWAVE=1: the same build with the island-wide wave switched off (the
+// "before" of the wave strips).
+if (process.env.NOWAVE) await evaluate("(() => { for (const g in skycope.waking.table) skycope.waking.table[g].wave = 0; return true; })()");
 
 const KEEP = { fireflies: "milkwood", tideglow: "wreck", lamp: "lighthouse", stars: "beacon", seafolk: "pool", boat: "boat" };
 const OLD_COLOURS = { fireflies: [0.86, 1.0, 0.42], tideglow: [0.42, 0.86, 1.0], lamp: [1.0, 0.8, 0.46], stars: [0.78, 0.76, 1.0], seafolk: [0.46, 1.0, 0.78], boat: [1.0, 0.6, 0.5] };

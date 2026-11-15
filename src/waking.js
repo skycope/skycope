@@ -156,7 +156,7 @@ export const WAVE_ZERO = Object.freeze({ radius: 0, lead: 1, tail: 1, strength: 
 // effects that are not light (the plants' lean, the sun-glints by day).
 // Reduced motion: no wave.
 export function waveAt(s, spec, night = 0, reduced = false) {
-  if (!spec || reduced || !(s >= WAVE.start) || s > WAVE.echoAt + WAVE.echoFor) return WAVE_ZERO;
+  if (!spec || reduced || spec.wave === 0 || !(s >= WAVE.start) || s > WAVE.echoAt + WAVE.echoFor) return WAVE_ZERO;
   const u = (s - WAVE.start) / WAVE.tau;
   const radius = WAVE.reach * (1 - Math.exp(-u));
   const speed = (WAVE.reach / WAVE.tau) * Math.exp(-u);
