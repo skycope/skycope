@@ -256,19 +256,34 @@ function makePlan(chunk) {
   };
 }
 
-// The scale the vertex shader gives an instance at centre distance `d`
-// (mirrors LOD_FADE_GLSL in forest.js; used by tests).
-// Coming in beside a finer level, an instance swells from nothing to 90%
-// over the first quarter of the band, hidden inside the finer one (which
-// holds its size until a fifth of the way in), then to full as the finer
-// one shrinks away over the rest.
-export function fadeScale(fade, d) {
-  const smooth = (t) => { t = Math.min(1, Math.max(0, t)); return t * t * (3 - 2 * t); };
-  const t = (d - fade[0]) / Math.max(Math.abs(fade[1]), 1e-3);
-  const grown = fade[1] === 0 ? 1 : fade[1] < 0 ? smooth(t) : smooth(t * 4) * (0.9 + 0.1 * smooth(t));
-  const shrunk = fade[2] > 0 ? 1 - smooth((d - (fade[2] - fade[3] * 0.8)) / Math.max(fade[3] * 0.8, 1e-3)) : 1;
-  return grown * shrunk;
+// The cover window an instance is drawn with at centre distance `d`
+// (mirrors LOD_FADE_GLSL in forest.js): [in, out]. A pixel is drawn where
+// its screen-door threshold (LOD_BAYER_GLSL) is below `in` and at or above
+// `out`. Nothing ever changes size or shape: the owner saw plants and grass
+// visibly morph as the camera came closer when levels cross-faded by scale.
+// Over a band the finer level's `out` and the coarser level's `in` ramp
+// together, so at every pixel exactly one of the two is drawn.
+export function fadeWindow(fade, d) {
+  const ramp = (t) => Math.min(1, Math.max(0, t));
+  const tin = fade[1] === 0 ? 1 : ramp((d - fade[0]) / Math.max(Math.abs(fade[1]), 1e-3));
+  const tout = fade[2] > 0 ? ramp((d - (fade[2] - fade[3])) / Math.max(fade[3], 1e-3)) : 0;
+  return [tin, tout];
 }
+
+// The share of an instance's pixels drawn at `d` (used by tests).
+export function fadeScale(fade, d) {
+  const [tin, tout] = fadeWindow(fade, d);
+  return Math.max(0, tin - tout);
+}
+
+// A 4×4 ordered (Bayer) threshold per screen pixel, 0–1, stable on screen.
+export const LOD_BAYER_GLSL = /* glsl */ `
+float lodBayer( vec2 frag ) {
+  ivec2 q = ivec2( mod( frag, 4.0 ) );
+  const float m[16] = float[16]( 0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0 );
+  return ( m[ q.x + q.y * 4 ] + 0.5 ) / 16.0;
+}
+`;
 
 // The bias the packer follows toward the render budget's: in small steps a
 // few frames apart, so a budget change moves every boundary by a few

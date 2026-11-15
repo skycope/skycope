@@ -95,12 +95,13 @@ test("no swaps: across a band both levels are drawn, the coarse one emerging as 
   // Full size at its level before the band; the coarse level packed (the
   // margin) but drawn at nothing, so packing it is never seen.
   assert.deepEqual(drawn(chunk, 0, before).map((s) => +s.toFixed(3)), [0, 1, 0]);
-  // Through the band the fine one shrinks smoothly to nothing while the
-  // coarse one grows from 90% to full: the outline never falls below 90%.
+  // Through the band the fine one dissolves as the coarse one appears, at
+  // full size, on complementary pixels: together they always cover the
+  // whole instance, and the cover moves smoothly.
   let last = drawn(chunk, 0, before);
   for (let d = before; d <= boundary + 1; d += 0.02) {
     const s = drawn(chunk, 0, d);
-    assert.ok(Math.max(s[1], s[2]) >= 0.9 - 1e-9, `outline held at ${d.toFixed(2)} m`);
+    assert.ok(Math.abs(s[1] + s[2] - 1) < 1e-6, `cover held at ${d.toFixed(2)} m`);
     assert.ok(Math.abs(s[1] - last[1]) < 0.05 && Math.abs(s[2] - last[2]) < 0.05, `no jump at ${d.toFixed(2)} m`);
     last = s;
   }
@@ -128,7 +129,7 @@ test("a late re-pack is never seen: the eye may move up to the margin and every 
   for (const shift of [-margin, margin])
     distances.forEach((d, i) => {
       const s = drawn(chunk, i, d - shift);
-      assert.ok(Math.max(...s) >= 0.9 - 1e-9, `instance at ${d} m drawn with the eye moved ${shift.toFixed(2)} m`);
+      assert.ok(s.reduce((a, b) => a + b, 0) >= 1 - 1e-6, `instance at ${d} m drawn with the eye moved ${shift.toFixed(2)} m`);
     });
 });
 
@@ -146,5 +147,5 @@ test("through a sliced shadow refresh, packing serves the held shadow eye as wel
     now.forEach((s, level) => assert.ok(Math.abs(s - before[i][level]) < 1e-6, `instance at ${d} m, level ${level}: ${before[i][level]} -> ${s}`));
   });
   // And for the camera too.
-  distances.forEach((d, i) => assert.ok(Math.max(...drawn(chunk, i, Math.abs(d - 6))) >= 0.9 - 1e-9, `camera sees ${d} m`));
+  distances.forEach((d, i) => assert.ok(drawn(chunk, i, Math.abs(d - 6)).reduce((a, b) => a + b, 0) >= 1 - 1e-6, `camera sees ${d} m`));
 });

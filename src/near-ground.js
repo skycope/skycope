@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { groundHeight, shoreDistance, noise2, smoothstep } from "./terrain.js";
 import { MATERIAL_HEX } from "./material-palette.js";
 import { shoreClear } from "./ground-detail.js";
+import { LOD_BAYER_GLSL } from "./instance-lod.js";
 
 // The ground you could kneel on. Between the tufts and shrubs the ground
 // mesh is paint; close to the cat that reads as a smooth slope. A carpet of
@@ -176,6 +177,7 @@ attribute vec2 blade2;  // length scale, root radius
 uniform vec3 ringInner; // the dense window's centre (x, z) and radius
 uniform vec3 ringOuter; // the coarse window's
 uniform vec3 ringEye;   // the camera, coast metres
+varying float vRingCover;
 vec3 ringPosition;
 vec3 ringNormal;
 float ringWind;
@@ -194,7 +196,11 @@ void ringSetup() {
   float eyeD = distance( base, ringEye.xz );
   grow *= 1.0 - smoothstep( 6.5, 9.5, eyeD );
   if ( kind < 0.0 ) grow = 0.0;
-  float size = ringB.y * grow;
+  // A clump is never scaled by distance (the owner saw grass visibly grow
+  // in as the camera neared): it dissolves by a screen-door dither at full
+  // size (vRingCover, LOD_BAYER_GLSL), and only an unseen one collapses.
+  vRingCover = grow;
+  float size = grow > 0.0 ? ringB.y : 0.0;
   float seed = ringB.z;
   float t = blade.x;
   float across = blade.y;
@@ -294,7 +300,7 @@ export function createNearGround(scene, field, patch, { light = false } = {}) {
     patch(material);
     const baseCompile = material.onBeforeCompile;
     const baseKey = material.customProgramCacheKey();
-    material.customProgramCacheKey = () => `${baseKey}-near-ground`;
+    material.customProgramCacheKey = () => `${baseKey}-near-ground-dither`;
     material.onBeforeCompile = (shader) => {
       baseCompile(shader);
       shader.vertexShader = shader.vertexShader
@@ -306,6 +312,10 @@ export function createNearGround(scene, field, patch, { light = false } = {}) {
         .replace("#include <beginnormal_vertex>", "vec3 objectNormal = ringNormal;")
         .replace("#include <begin_vertex>", "vec3 transformed = ringPosition;")
         .replace("mvPosition.xyz += windOffset( mvPosition.xyz );", "mvPosition.xyz += windOffset( mvPosition.xyz ) * ringWind;");
+      shader.fragmentShader = `varying float vRingCover;\n${LOD_BAYER_GLSL}\n` + shader.fragmentShader.replace(
+        "#include <clipping_planes_fragment>",
+        "#include <clipping_planes_fragment>\nif ( vRingCover < 1.0 && lodBayer( gl_FragCoord.xy ) >= vRingCover ) discard;",
+      );
       shader.uniforms.ringInner = material.userData.ringInner;
       shader.uniforms.ringOuter = material.userData.ringOuter;
       shader.uniforms.ringEye = material.userData.ringEye;

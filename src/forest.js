@@ -21,7 +21,7 @@ import { bridgeCrevices } from "./walker.js"; // solid:
 import { MATERIAL_HEX, MATERIAL_LINEAR } from "./material-palette.js";
 import { groundDetailData, groundCover } from "./ground-detail.js";
 import { createNearGround } from "./near-ground.js";
-import { createLodChunk, packChunk, packUrgency, easeBias } from "./instance-lod.js"; // lod:
+import { createLodChunk, packChunk, packUrgency, easeBias, LOD_BAYER_GLSL } from "./instance-lod.js"; // lod:
 import { magicUniforms, MAGIC_LIGHT_DECLARATIONS, MAGIC_LIGHT_GLSL } from "./land-magic.js"; // land-magic:
 import {
   finish,
@@ -3123,22 +3123,33 @@ function packLod(group, eye, bias) {
 // that shrinks away; from nothing where no finer level drew it) and shrinks
 // away over the band before the next. A mesh without the attribute reads
 // (0, 0, 0, 1): scale 1.
+// (Now a screen-door dissolve at full size, never a scale: instance-lod.js
+// fadeWindow. An instance wholly outside its window collapses to a point.)
 const LOD_FADE_GLSL = /* glsl */ `
 #include <begin_vertex>
+vLodWindow = vec2( 1.0, 0.0 );
 #ifdef USE_INSTANCING
 {
   vec3 lodOrigin = ( modelMatrix * vec4( instanceMatrix[3].xyz, 1.0 ) ).xyz;
   float lodD = distance( lodOrigin, lodEye );
-  float lodT = ( lodD - lodFade.x ) / max( abs( lodFade.y ), 1e-3 );
-  float lodIn = smoothstep( 0.0, 1.0, lodT );
-  float lodGrown = lodFade.y == 0.0 ? 1.0 : lodFade.y < 0.0 ? lodIn : smoothstep( 0.0, 1.0, lodT * 4.0 ) * ( 0.9 + 0.1 * lodIn );
-  float lodShrunk = lodFade.z > 0.0 ? 1.0 - smoothstep( 0.0, 1.0, ( lodD - ( lodFade.z - lodFade.w * 0.8 ) ) / max( lodFade.w * 0.8, 1e-3 ) ) : 1.0;
-  transformed *= lodGrown * lodShrunk;
+  float lodIn = lodFade.y == 0.0 ? 1.0 : clamp( ( lodD - lodFade.x ) / max( abs( lodFade.y ), 1e-3 ), 0.0, 1.0 );
+  float lodOut = lodFade.z > 0.0 ? clamp( ( lodD - ( lodFade.z - lodFade.w ) ) / max( lodFade.w, 1e-3 ), 0.0, 1.0 ) : 0.0;
+  vLodWindow = vec2( lodIn, lodOut );
+  if ( lodIn <= lodOut ) transformed *= 0.0;
 }
 #endif
 `;
+const LOD_DITHER_GLSL = /* glsl */ `#include <clipping_planes_fragment>
+if ( vLodWindow.x < 1.0 || vLodWindow.y > 0.0 ) {
+  float lodB = lodBayer( gl_FragCoord.xy );
+  if ( lodB >= vLodWindow.x || lodB < vLodWindow.y ) discard;
+}
+`;
 function lodVertex(source, after = "") {
-  return "attribute vec4 lodFade;\nuniform vec3 lodEye;\n" + source.replace("#include <begin_vertex>", LOD_FADE_GLSL + after);
+  return "attribute vec4 lodFade;\nuniform vec3 lodEye;\nvarying vec2 vLodWindow;\n" + source.replace("#include <begin_vertex>", LOD_FADE_GLSL + after);
+}
+function lodFragment(source) {
+  return `varying vec2 vLodWindow;\n${LOD_BAYER_GLSL}\n` + source.replace("#include <clipping_planes_fragment>", LOD_DITHER_GLSL);
 }
 
 // Chains the fade onto a material's own patch (patchMaterial), once.
@@ -3151,8 +3162,9 @@ function withLodFade(material) {
     compile.call(material, shader, renderer);
     shader.uniforms.lodEye = LOD_EYE;
     shader.vertexShader = lodVertex(shader.vertexShader);
+    shader.fragmentShader = lodFragment(shader.fragmentShader);
   };
-  material.customProgramCacheKey = () => `${key.call(material)}|lod`;
+  material.customProgramCacheKey = () => `${key.call(material)}|lod-dither`;
   return material;
 }
 
@@ -3171,8 +3183,9 @@ function lodDepthMaterial(grow) {
     material.onBeforeCompile = (shader) => {
       shader.uniforms.lodEye = LOD_SHADOW_EYE;
       shader.vertexShader = lodVertex(shader.vertexShader, grow !== 1 ? `transformed *= ${grow.toFixed(3)};\n` : "");
+      shader.fragmentShader = lodFragment(shader.fragmentShader);
     };
-    material.customProgramCacheKey = () => `lod-grown-${grow}`;
+    material.customProgramCacheKey = () => `lod-grown-dither-${grow}`;
     grownDepth.set(grow, material);
   }
   return grownDepth.get(grow);
