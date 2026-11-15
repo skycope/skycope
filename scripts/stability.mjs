@@ -42,7 +42,7 @@ import { tmpdir } from "node:os";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { writeFileSync, readFileSync } from "node:fs";
-import { ISLAND } from "../src/terrain.js";
+import { ISLAND, islandPoint } from "../src/terrain.js";
 import { PNG } from "pngjs";
 
 const argv = process.argv.slice(2);
@@ -351,7 +351,7 @@ async function runSession(browser, name) {
         const r = abrupt(f);
         frames[k - 1].abrupt = r;
         frames[k - 1].flicker = flicker(f[1], f[2], f[3]);
-        if (r.pop.cells >= T.popCells || r.flash.cells >= T.popCells) { keepRaw(k - 2); keepRaw(k - 1); keepRaw(k); }
+        if (r.pop.cells >= T.popCells || r.flash.cells >= T.popCells || r.vanish.cells >= T.popCells) { keepRaw(k - 2); keepRaw(k - 1); keepRaw(k); }
       }
       // Drop the grids the pop test no longer needs (memory).
       if (k >= 6) frames[k - 6].grid = frames[k - 6].act = frames[k - 6].leafy = null;
@@ -379,7 +379,7 @@ async function runSession(browser, name) {
   };
   const drainer = (async () => { while (draining) { await drain(); await sleep(1000); } })();
   const key = async (type, k) => {
-    const codes = { w: ["KeyW", 87], a: ["KeyA", 65], d: ["KeyD", 68], s: ["KeyS", 83] };
+    const codes = { w: ["KeyW", 87], a: ["KeyA", 65], d: ["KeyD", 68], s: ["KeyS", 83], shift: ["ShiftLeft", 16] };
     await tab.send("Input.dispatchKeyEvent", { type, key: k, code: codes[k][0], windowsVirtualKeyCode: codes[k][1] });
   };
   const script = SCRIPTS[name];
@@ -419,7 +419,56 @@ const toMilkwood = (tab, pin) => tab.evaluate(`(() => {
   return 1;
 })()`);
 
+// The movement lane's cases (scripts/walk-qa.mjs): the cat through grass,
+// a forest run, up the slope, under the milkwood, the camera orbiting
+// through crowns. [keys, ms, orbit rad/s].
+const HOME = Math.atan2(0 - ISLAND.z, 6 - ISLAND.x);
+const inward = (t) => Math.atan2(Math.cos(t), Math.sin(t)) + Math.PI;
+const MILKWOOD = { x: 27.1, z: 73.9, facing: 3.18 };
+const underMilkwood = { x: MILKWOOD.x + Math.sin(MILKWOOD.facing) * 7, z: MILKWOOD.z + Math.cos(MILKWOOD.facing) * 7 };
+const ROUTES = {
+  "foliage-walk": { pos: islandPoint(HOME, 9), heading: inward(HOME), prog: [[["w"], 1500], [["w", "a"], 900], [["w", "d"], 1200], [["w"], 1400]] },
+  "forest-run": { pos: islandPoint(HOME + 0.25, 16), heading: inward(HOME + 0.25), prog: [[["w", "shift"], 2600], [["w"], 1400]] },
+  "slope-up": { pos: islandPoint(HOME + 0.8, 26), heading: inward(HOME + 0.8), prog: [[["w"], 2500], [["w", "shift"], 2000]] },
+  "milkwood-under": { pos: underMilkwood, heading: Math.atan2(MILKWOOD.x - underMilkwood.x, MILKWOOD.z - underMilkwood.z), prog: [[["w"], 2500], [["w", "d"], 2000], [["w"], 1500]] },
+  "orbit-forest": { pos: islandPoint(HOME + 0.25, 20), heading: inward(HOME + 0.25), prog: [[[], 4000, Math.PI / 2], [[], 1500, 0]] },
+};
+
 const SCRIPTS = {
+  async routes({ tab, mark, key }) {
+    await settleAfterLoad(tab, 6);
+    for (const [name, r] of Object.entries(ROUTES)) {
+      await tab.evaluate(`(() => {
+        const s = skycope, c = s.walker.cat, cam = s.walker.camera, p = ${JSON.stringify(r.pos)};
+        c.x = p.x; c.z = p.z; c.y = s.walker.surface(p.x, p.z); c.speed = 0; c.vy = 0; c.air = 0; c.heading = ${r.heading};
+        cam.yaw = ${r.heading}; cam.elevation = 0.38; cam.distance = 3.4; cam.targetY = c.y;
+        return 1;
+      })()`);
+      await sleep(2500);
+      mark(name);
+      // A strip of the route for the eye: a small still every 0.6 s.
+      const shots = [];
+      let shooting = true;
+      const shooter = (async () => {
+        while (shooting && shots.length < 10) {
+          const r = await tab.send("Page.captureScreenshot", { format: "png", clip: { x: 0, y: 0, width: W, height: H, scale: 0.3 } });
+          if (r.result?.data) shots.push(PNG.sync.read(Buffer.from(r.result.data, "base64")));
+          await sleep(600);
+        }
+      })();
+      for (const [keys, ms, orbit] of r.prog) {
+        for (const k of keys) await key("keyDown", k);
+        if (orbit) await tab.evaluate(`(() => { window.__turn = setInterval(() => skycope.walker.orbit(${orbit / 60}, 0), 16); return 1; })()`);
+        await sleep(ms);
+        if (orbit) await tab.evaluate("clearInterval(window.__turn), 1");
+        for (const k of keys) await key("keyUp", k);
+      }
+      shooting = false;
+      await shooter;
+      if (shots.length) await writeFile(join(OUT, `route-${name}.png`), PNG.sync.write(strip(shots)));
+      await sleep(1000);
+    }
+  },
   async still({ tab, mark }) {
     await settleAfterLoad(tab, 0);
     mark("revealed");
@@ -584,6 +633,7 @@ function analyse(run) {
       const still = stillOver(k - 2, k + 1);
       if (r.pop.cells >= T.popCells) flag("pop", k, { still, cells: r.pop.cells, pixels: r.pop.cells * BLOCK * BLOCK, box: r.pop.box, all: r.pop.total });
       if (r.flash.cells >= T.popCells) flag("flash", k, { still, cells: r.flash.cells, pixels: r.flash.cells * BLOCK * BLOCK, box: r.flash.box });
+      if (r.vanish.cells >= T.popCells) flag("vanish", k, { still, cells: r.vanish.cells, pixels: r.vanish.cells * BLOCK * BLOCK, box: r.vanish.box });
     }
   }
   // Hitches: gaps between rendered frames (after the first), beyond the pacing.
@@ -620,6 +670,8 @@ function analyse(run) {
     popMoving: count("pop", false),
     flashStill: count("flash", true),
     flashMoving: count("flash", false),
+    vanishStill: count("vanish", true),
+    vanishMoving: count("vanish", false),
     worstPopPixels: Math.max(0, ...flags.filter((f) => f.kind === "pop" && f.still).map((f) => f.pixels)),
     hitches: hitches.length,
     worstHitchMs: Math.max(0, ...hitches.map((h) => h.ms)),
@@ -729,8 +781,20 @@ function pairImage(a, b, box) {
   return out;
 }
 
+// Stills side by side, two rows.
+function strip(shots) {
+  const w = shots[0].width, h = shots[0].height, per = Math.ceil(shots.length / 2);
+  const out = new PNG({ width: per * (w + 4), height: 2 * (h + 4) });
+  out.data.fill(255);
+  shots.forEach((img, n) => {
+    const ox = (n % per) * (w + 4), oy = Math.floor(n / per) * (h + 4);
+    for (let y = 0; y < Math.min(h, img.height); y++) img.data.copy(out.data, ((oy + y) * out.width + ox) * 4, y * img.width * 4, (y * img.width + Math.min(w, img.width)) * 4);
+  });
+  return out;
+}
+
 function markdown(results) {
-  const cols = ["session", "captured", "seconds", "blank", "lum", "sharp", "popStill", "popMoving", "worstPopPixels", "flashStill", "flashMoving", "flicker", "hitches", "worstHitchMs", "resizes", "unsynced", "quality", "reveal", "shadowSwaps", "placeLod", "animalLod", "errors"];
+  const cols = ["session", "captured", "seconds", "blank", "lum", "sharp", "popStill", "popMoving", "worstPopPixels", "flashStill", "flashMoving", "vanishStill", "vanishMoving", "flicker", "hitches", "worstHitchMs", "resizes", "unsynced", "quality", "reveal", "shadowSwaps", "placeLod", "animalLod", "errors"];
   const lines = [
     `# Stability, ${new Date().toISOString().slice(0, 16)} (${W}x${H} @${DPR}, seed ${SEED})`,
     "",

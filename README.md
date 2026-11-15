@@ -48,6 +48,28 @@ GC'd heap, GL/WebGPU objects and listeners each minute) and `probe --script`.
 Add `--headed` for the idle-machine protocol; under contention trust counts and
 same-tab ratios only.
 
+`node scripts/stability.mjs [--sessions …] [--base <ref>] [--weather cloudy] --port <dev server> --cdp <port> --out <dir>`
+is the visual-stability regression check: each session loads a fresh tab,
+records every presented frame (CDP screencast) and the page's `?perf` event
+log, and counts blank frames, persistent luminance and sharpness steps with
+the camera still, pops and one-frame flashes (abrupt local changes against
+the region's own motion), leaves vanishing, foliage flicker (the frame-rate
+component of leafy cells' brightness), render hitches of 100 ms+, canvas
+resizes (and those outside the frame boundary) and budget changes, each
+with the events logged in the frames it shows. Sessions: `still` (load and
+stand 60 s), `walk`, `orbit`, `time` (slider jumps), `gift`, `throttle`
+(CPU 4× for 25 s, then released), `routes` (the movement lane's foliage
+cases, with strips), `leaves` (the milkwood slope, 40 s still; run with
+`--weather cloudy`) and `foliage` (one flicker suspect switched off per
+phase, `skycope.landscape.debug`). `--base <ref>` measures a commit served
+from a snapshot. What it should produce on this build (1280×800 @1, under
+contention): 0 blank frames; 0 unsynced resizes; no sharpness steps after
+the reveal; no budget change while the camera is still unless it sheds;
+budget changes at least 8 s apart; a time jump settled in one frame with
+0 steps after it and shadows swapped in that frame; `leaves --weather
+cloudy` with the environment rebuilt a handful of times a minute, not 4×/s.
+The before/after tables are in `docs/review/stability/`.
+
 `ONLY=surf,rocks` renders just those fixtures; `BENCH=1` adds per-pass throughput,
 and `BASE_WATER=<other checkout>/src/shaders/water.wgsl` benches that water shader
 against this one, interleaved in the same process (robust to a busy GPU).
@@ -497,8 +519,8 @@ compressed (`LINGER`) so a visitor who stays a few minutes sees one.
   into its own multisampled framebuffer, resolved onto the (single-sampled)
   canvas by one blit, so the render budget chooses the sample count: MSAA 2
   on high-DPI screens at 1.94 MP (about the cost of the old 1.6 MP at MSAA 4,
-  measured whole-frame), up to 0.75 of native linear (2160 × 1350 on a
-  1440 × 900 Retina laptop) while the GPU has headroom; MSAA 4 at native size
+  measured whole-frame; 1762 × 1101, 0.61 of native linear, on a 1440 × 900
+  Retina laptop, fixed for the session); MSAA 4 at native size
   on 1x screens; 0.8 MP without MSAA on phones. Rendering
   is capped at 60 fps, 30 once the cat has settled, on the low-power GPU. The
   cat is ~8 draws (the old one ~63): its skinned passes are vertex-bound, so the
@@ -518,7 +540,8 @@ compressed (`LINGER`) so a visitor who stays a few minutes sees one.
   The constellation atlas is uploaded once (2048 × 1024 RGBA, 8 MiB), and the
   star catalog grid once (1024 × 512 RGBA16F, 4 MiB).
 - Rendering follows `requestAnimationFrame`, paced to 60 fps (30 once the cat has settled) with a small tolerance so vsync jitter never skips a frame. No full-resolution bloom; the only history buffer is the cloud layer.
-- **The render budget** (`src/quality.js`, pure and tested) decides every layer's render size in one place and what to give up under load. It is driven by GPU time where the platform reports it (the mesh layer's timer query plus WebGPU pass timestamps), else by frame intervals. Sustained cost over 88% of the frame period sheds one step about every second, in this order: the sun shadow map's refresh spread over more frames and fewer cloud march steps; sky and cloud scale; sea scale (0.82, 0.68); vegetation LOD distances (×0.85, ×0.72); MSAA 4 → 2 where it starts at 4; a steady 40 fps (only on displays that pace it evenly) then 30; and only last the land's resolution, never below 0.85. Headroom under 62% restores a step after 1.5 s; a restore that cannot hold waits twice as long before it is tried again, so it never saw-tooths. Only a sky-size change rebuilds the cloud history. `?perf`: `skycope.budget.pin(level)` holds a level (`null` releases), and `data-quality` on the sky canvas shows it.
+- **The render budget** (`src/quality.js`, pure and tested) decides every layer's render size in one place and what to give up under load. Adaptation is allowed; seeing it happen is not. The land's resolution and MSAA are fixed for the session (MSAA 4 at dpr ≤ 1.25, 2 on high-DPI, none on the light budget; the land at its pixel budget) and never change at run time. The ladder sheds only what does not visibly change: the sun shadow map's refresh spread over more frames and fewer cloud march steps; sky and cloud scale; sea scale (0.82, 0.68); vegetation LOD distances (×0.85, ×0.72, eased in over ~2.5 s in 1% steps, never stepped); a steady 40 fps (only on displays that pace it evenly) then 30. It is driven by GPU time where the platform reports it (the mesh layer's timer query plus WebGPU pass timestamps), else by frame intervals. Cost over 90% of the frame for 3 s sheds one level (8 s with the camera at rest; 1 s over a 1.6× stutter); no two changes within 8 s. A restore needs 10 s of headroom under 60%, 30 s since the last change and the camera moving; a restore that cannot hold waits 60 s, then twice as long each time. Changes apply at the frame boundary, in the task that draws both canvases. `?perf`: `skycope.budget.pin(level)` holds a level (`null` releases), and `data-quality` on the sky canvas shows it.
+- **Visual stability** (`scripts/stability.mjs`, `src/stability-log.js`): nothing may visibly re-render, step, pop, flash or blank. The reveal is one eased focus pull (a compositor blur on both canvases, removed after 1.4 s) at final resolution, not resolution steps. Programs are prewarmed one at a time in idle time, each linked before the next (`src/prewarm.js`). A time jump relights dome, skylight, shadows and the sun through the clouds in one frame; the sun through the clouds is sampled where the cat stands and eased (τ 0.6 s), and the environment rebuilds only on a ~2.5% change of a slow average, not four times a second. The sun's shadow camera is snapped to whole texels with a hysteretic anchor, and vegetation does not repack while a sliced refresh is part-drawn (`landscape.shadowRefreshing`). Foliage near the lens thins by an ordered dither measured from where the leaf rests; nothing folds away between the lens and the cat.
 - Hidden tabs stop rendering and skip weather fetches. Resuming refreshes stale
   weather. Reduced motion stops the animation loop and redraws only for clock,
   control, weather or size updates; pointer movement is disabled.
