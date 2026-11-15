@@ -52,7 +52,7 @@ export struct SeaPoint {
 // twinkling as the swell lifts them. By day: a turquoise inner glow in the
 // shallows and a little extra sparkle. `ambient` is the light the water
 // column already receives (for the day glow's scale).
-export fn tideglow(s: SeaPoint, level: f32, finale: f32, night: f32, time: f32, rain: f32, ambient: f32) -> vec3f {
+export fn tideglow(s: SeaPoint, level: f32, night: f32, time: f32, rain: f32, ambient: f32) -> vec3f {
   var light = vec3f(0.0);
   let offshore = max(s.metrics.x, 0.0);
   let cover = s.foam.x;
@@ -99,10 +99,6 @@ export fn tideglow(s: SeaPoint, level: f32, finale: f32, night: f32, time: f32, 
     fire *= 0.15 + 0.85 * bloom;
     // The cat is always in a bloom: what it stirs always answers.
     fire += s.stir * 2.6 * (0.85 - 0.85 * bloom);
-    // The finale: slow spirals of light turning round the island.
-    if (finale > 0.0) {
-      fire += spirals(s.p.xz, time) * finale * 0.5;
-    }
     // Light from under the surface leaves less at grazing angles.
     let f = fire * level * night * (1.0 - s.fresnel * 0.5);
     // Soft saturation under the tonemap's shoulder, so the brightest water
@@ -204,16 +200,6 @@ fn fish_sparks(q: vec2f, time: f32, pixel: f32) -> f32 {
   let head = exp(-dot(rel, rel) / (blur * blur * 4.0 + 0.004));
   let tail = exp(-across * across / (blur * blur * 2.0 + 0.002)) * smoothstep(-0.9 * moving - 0.01, 0.0, along) * (1.0 - smoothstep(-0.02, 0.0, along)) * step(along, 0.0);
   return (head * (0.6 + 1.6 * moving) + tail * 0.8 * moving) * 1.4;
-}
-
-// Slow spiral arms of light turning round the island (the finale).
-fn spirals(q: vec2f, time: f32) -> f32 {
-  let d = q - ISLAND_CENTRE;
-  let r = max(length(d), 1.0);
-  let theta = atan2(d.y, d.x);
-  let arm = 0.5 + 0.5 * sin(theta * 3.0 - log(r) * 9.0 + time * 0.22);
-  let ripple = 0.5 + 0.5 * sin(theta * 7.0 - log(r) * 17.0 + time * 0.5);
-  return pow(arm, 6.0) * (0.4 + 0.6 * ripple) * smoothstep(64.0, 80.0, r) * 0.45;
 }
 
 // ---- The lamp (the lighthouse's gift). --------------------------------------

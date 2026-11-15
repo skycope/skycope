@@ -91,12 +91,28 @@ export function toHalf(value) {
 // sky.wgsl after rotating the local sky into right ascension/declination):
 //   r  line coverage, about a pixel and a half wide
 //   g  where along its figure the line lies, 0…1, in drawing order: the
-//      figure is drawn stroke by stroke from its first star (the stars gift
-//      draws each figure by sweeping a pen through g)
-//   b  which figure (a scrambled id in 0.08…0.98), so each draws in turn
+//      figure is drawn stroke by stroke from its first star (the ending
+//      draws the Cross by sweeping a pen through g)
+//   b  which figure (figureId: a scrambled id in 0.08…0.98)
 //   a  a soft node at every star the lines join
 // g and b reach a pixel or two past the line so filtering never mixes them
 // with the empty sky. Pure (no DOM): the site and render-sky.mjs share it.
+export function figureId(index) {
+  return 0.08 + ((index * 0.6180339887) % 1) * 0.9;
+}
+
+// story: the Southern Cross (story-and-wow.md 5): its figure's index in
+// stars.json's constellations, its id as the atlas stores it (one byte;
+// sky.wgsl CRUX_FIGURE), and its foot and head (Acrux and Gacrux, RA and
+// Dec in degrees, J2000), whose long axis points to the south celestial
+// pole about 4.5 lengths on (sky.wgsl draws the pointer from the foot).
+export const CRUX = {
+  index: 29,
+  atlas: Math.round(figureId(29) * 255) / 255,
+  foot: [186.6496, -63.0991],
+  head: [187.7915, -57.1132],
+};
+
 export function constellationAtlas(constellations, width = 2048, height = 1024) {
   const data = new Uint8Array(width * height * 4);
   const own = new Float32Array(width * height);
@@ -107,7 +123,7 @@ export function constellationAtlas(constellations, width = 2048, height = 1024) 
     return Math.acos(Math.min(1, Math.max(-1, c)));
   };
   constellations.forEach((figure, index) => {
-    const id = 0.08 + ((index * 0.6180339887) % 1) * 0.9;
+    const id = figureId(index);
     let total = 0;
     for (const line of figure) for (let i = 1; i < line.length; i++) total += angle(line[i - 1], line[i]);
     let done = 0;

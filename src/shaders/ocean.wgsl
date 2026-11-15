@@ -487,8 +487,7 @@ fn ocean(
     if (pixel < 1.2) {
       glitter += glints(p.xz, ray, light, normal, sea.variance, footprint, settings.time) * fresnel_glint(nv_lobe) / 0.9;
     }
-    // sea-sky-magic: the finale doubles the moon's path.
-    color += sun_disc * glitter * 0.9 * (1.0 - cover) * (1.0 + select(0.0, settings.magic.w * night, MAGIC_AWAKE));
+    color += sun_disc * glitter * 0.9 * (1.0 - cover);
   }
 
   // ---- Foam and whitewater. -------------------------------------------------
@@ -530,7 +529,7 @@ fn ocean(
     let point = SeaPoint(p, metrics, ray, normal, sea.phase, sea.breaking, sea.height, foam, rock.edge, stir,
       pixel, depth, fresnel);
     if (settings.magic.x > 0.0) {
-      color += tideglow(point, settings.magic.x, settings.magic.w, night, settings.time, settings.rain,
+      color += tideglow(point, settings.magic.x, night, settings.time, settings.rain,
         dot(ambient_light, vec3f(0.2126, 0.7152, 0.0722)));
     }
     if (settings.magic.z > 0.0 && settings.lamp.y > 0.0) {

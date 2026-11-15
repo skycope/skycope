@@ -16,7 +16,7 @@ import { createPlaces } from "./places.js"; // places:
 import { buildHomeLantern, homeLanternSite, HOME_LANTERN } from "./place-home.js"; // story: the home lantern
 import { createWisp } from "./wisp.js"; // wisp: the little light that leads the cat
 import { surfaceOf } from "./walker.js"; // solid: boulder tops for the fireflies
-import { createLandMagic, lightWithMagic, finaleBlaze } from "./land-magic.js"; // land-magic:
+import { createLandMagic, lightWithMagic } from "./land-magic.js"; // land-magic:
 import { WAKE_LIGHT, wakingSource } from "./waking.js"; // waking:
 import { createFireflies } from "./fireflies.js"; // land-magic:
 import { groundHeight } from "./terrain.js"; // land-magic:
@@ -141,8 +141,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   scene.add(land);
   const motes = createMotes(scene, seed);
   // land-magic: the milkwood's fireflies (one draw of points, hidden asleep).
-  const summitPoi = places.pois.find((q) => q.id === "beacon");
-  const fireflies = createFireflies(scene, seed, { light, crown: places.crown, summit: summitPoi ? { x: summitPoi.x, y: groundHeight(summitPoi.x, summitPoi.z), z: summitPoi.z } : null, surface: surfaceOf(forest.obstacles) }); // solid: surface
+  const fireflies = createFireflies(scene, seed, { light, crown: places.crown, surface: surfaceOf(forest.obstacles) }); // solid: surface
   let flyPixels = 600, magicScan = 0, starLevel = 0;
   // The distant islands: their own scene and depth range, drawn first.
   const archipelago = createArchipelago(seed, { light });
@@ -327,9 +326,9 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       fauna.update(time, wind, night, boat?.afloatNow ?? null); // boat: the pod rides its bow
       // land-magic: the fireflies fly, then every gift's light is set.
       const levels = magic?.levels;
-      const flies = fireflies.update({ dt, time, pose, night, level: levels?.fireflies ?? 0, finale: finaleBlaze(magic), call: magic?.call ?? null, eye: camera.position, pixelScale: flyPixels, born: magic?.waking?.gift === "fireflies" ? magic.waking : null }); // waking: out of the hollow
+      const flies = fireflies.update({ dt, time, pose, night, level: levels?.fireflies ?? 0, call: magic?.call ?? null, eye: camera.position, pixelScale: flyPixels, born: magic?.waking?.gift === "fireflies" ? magic.waking : null }); // waking: out of the hollow
       const gifts = landMagic.update({ magic, time, dt, night, pose, flies, reduced: reducedMotion, afloat: Boolean(boat?.afloatNow) }); // land-magic: (waking: reduced motion, the boat afloat)
-      starLevel = levels?.stars ?? 0; // land-look: the stars gift lifts the night
+      starLevel = 0; // story: the stars are the ending's, not a gift that lifts the night (story-and-wow.md 5)
       // The cat's coat and the animals take the same light (their
       // materials are built lazily: wrapped at load and once more later).
       if (magicScan < 2400 && magicScan % 300 === 30) {

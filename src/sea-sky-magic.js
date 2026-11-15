@@ -4,11 +4,15 @@
 // scripts/render-sky.mjs. ALL ZERO = every gift asleep, no waking, no wisp:
 // every shader branch gates on these before doing any work.
 //
-//   magic       x tideglow, y stars, z lamp, w finale: eased levels 0…1.
-//   magic2      x seconds since the stars woke (the constellation figures
-//               draw themselves over FIGURE_DRAW_SECONDS from then; a gift
-//               awake at load draws from load), y seconds since the latest
-//               meow (0 = none yet), z seafolk, w boat (levels).
+//   magic       x tideglow, y 0 (the sky no longer leans close: it is the
+//               real sky), z lamp: eased levels 0…1; w the south star's
+//               brightness 0…1 (story-and-wow.md 5: the ending's star at
+//               the south celestial pole; 1 for good once the ending has
+//               happened).
+//   magic2      x the ending's pen (0…1 the Southern Cross draws itself,
+//               1…2 its pointer runs on to the star, 2…3 both fade; 0 when
+//               not drawing), y seconds since the latest meow (0 = none
+//               yet), z seafolk, w boat (levels).
 //   waking      a waking's kindled light on the water (waking.js): x, z
 //               the source (coast metres), how far its light has reached
 //               on the water (m; 0 = none), w the front's glints.
@@ -17,7 +21,7 @@
 //   lamp        the lighthouse lamp: x, y, z (coast metres) and its beam
 //               bearing in w (radians, see lampAngle). Zero while asleep.
 //   wisp        the guiding light: x, y, z (coast metres), w glow (0 hidden).
-//   wispColour  rgb, w unused.
+//   wispColour  rgb; w the south star's arrival swell 0…1 (the ending).
 //   lantern     boat: the boat's hurricane lantern afloat: flame x, y, z
 //               (coast metres), w strength (0 = no boat on the water).
 //
@@ -37,19 +41,11 @@ export function lampAngle(time) {
   return (((time % LAMP_PERIOD) + LAMP_PERIOD) % LAMP_PERIOD) / LAMP_PERIOD * Math.PI * 2;
 }
 
-// The constellation figures draw themselves over this many seconds after
-// the stars wake (each figure its own few seconds within it, staggered).
-export const FIGURE_DRAW_SECONDS = 14;
-
 // Tideglow, for the land's ground shader to match on the sand: the cold
 // blue-green the sea glows (linear RGB, before exposure; the sea adds it
 // at night scaled by its agitation), and the e-folding seconds a stirred
 // patch of wet sand keeps glowing after the swash or a paw leaves it.
 export const TIDEGLOW = { colour: [0.08, 0.62, 1.0], sandSeconds: 2.5 };
-
-// The finale is a ceremony: full for its first minute, then it settles to
-// a quiet share of itself (magic.w carries the settled strength).
-export const FINALE_SETTLE = { seconds: 60, rest: 0.3 };
 
 // The sky and water shaders carry `@id(7301) override MAGIC_AWAKE` (view.wgsl).
 // magicVariant(source, false) compiles every gift's code out; main.js runs
@@ -64,14 +60,12 @@ export function magicVariant(source, awake) {
   return typeof source === "string" ? out : { ...source, wgsl: out };
 }
 // Which passes need their awake pipeline, gift by gift: the sky only for
-// the stars and the finale (figures, Milky Way, airglow); the water for any
-// gift's level, a waking's ring, the wisp's or the lantern's light on the
-// sea. The wisp glows through most of play, and it used to wake both.
-// (magic2 is read only with the stars; nothing reads the meow's clock yet.)
+// the south star and the Cross (the ending); the water for the tideglow,
+// the lamp, a waking's ring, the wisp's or the lantern's light on the sea.
 export function magicPasses(uniforms) {
   const on = (field, i) => (uniforms[field]?.[i] ?? 0) !== 0;
-  const sky = on("magic", 1) || on("magic", 3);
-  const water = [0, 1, 2, 3].some((i) => on("magic", i)) || on("waking", 2) || on("wisp", 3) || on("lantern", 3);
+  const sky = on("magic", 1) || on("magic", 3) || on("magic2", 0);
+  const water = [0, 1, 2].some((i) => on("magic", i)) || on("waking", 2) || on("wisp", 3) || on("lantern", 3);
   return { sky, water };
 }
 export function magicActive(uniforms) {
@@ -93,15 +87,13 @@ export function magicUniforms(magic, { time = magic?.clock ?? 0, lamp = null, la
     return v > 0.001 ? Math.min(1, v) : 0;
   };
   const clock = magic.clock ?? time;
-  u.magic = [level("tideglow"), level("stars"), level("lamp"), level("finale")];
-  if (u.magic[3] > 0) {
-    const woke = magic.wakeAt?.finale;
-    const age = Math.max(0, Number.isFinite(woke) ? clock - woke : clock);
-    u.magic[3] *= FINALE_SETTLE.rest + (1 - FINALE_SETTLE.rest) * Math.exp(-age / FINALE_SETTLE.seconds);
-  }
-  if (u.magic[1] > 0) {
-    const woke = magic.wakeAt?.stars;
-    u.magic2[0] = Math.max(0, Number.isFinite(woke) ? clock - woke : clock) + 1e-3;
+  // story: the south star, from the ending as it plays (journey.js writes
+  // magic.ending), else steady once the ending has happened.
+  const ending = magic.ending;
+  u.magic = [level("tideglow"), 0, level("lamp"), ending ? clamp01(ending.star) : level("finale")];
+  if (ending) {
+    u.magic2[0] = Math.max(0, Math.min(3, ending.pen ?? 0));
+    u.wispColour[3] = clamp01(ending.swell);
   }
   const call = magic.call;
   if (call && Number.isFinite(call.at) && clock >= call.at) u.magic2[1] = clock - call.at + 1e-3;
@@ -127,13 +119,17 @@ export function magicUniforms(magic, { time = magic?.clock ?? 0, lamp = null, la
   const wisp = magic.wisp;
   if (wisp?.visible && wisp.glow > 0.001) {
     u.wisp = [wisp.position[0], wisp.position[1], wisp.position[2], wisp.glow];
-    u.wispColour = [...wisp.colour.slice(0, 3), 0];
+    u.wispColour = [...wisp.colour.slice(0, 3), u.wispColour[3]];
   }
   // boat: [x, y, z, strength] from boat.js while it floats.
   if (lantern && lantern[3] > 0.001) u.lantern = [lantern[0], lantern[1], lantern[2], lantern[3]];
   // Never NaN into a uniform: a bad record silences the field.
   for (const k of MAGIC_FIELDS) if (!u[k].every(Number.isFinite)) u[k] = [0, 0, 0, 0];
   return u;
+}
+
+function clamp01(v) {
+  return Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0;
 }
 
 // `?perf&magic=…` etc. are QA only; fixtures build a record with

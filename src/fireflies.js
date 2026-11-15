@@ -13,8 +13,7 @@ import { terrainHeight, ISLAND } from "./terrain.js";
 //   roam    drifting over the grass and through the woods wherever you are
 //
 // By day the same lights are sun-motes and floating seed-down: warm, pale
-// and fewer, glinting in the cat's wake. At the finale every one of them
-// rises in a slow turning column over the summit and spreads into the sky.
+// and fewer, glinting in the cat's wake.
 // Asleep (level 0) the mesh is hidden: no draw, no update.
 
 export const FLY_KIND = { escort: 0, home: 1, roam: 2 };
@@ -107,7 +106,6 @@ uniform float level;
 uniform float night;
 uniform float call;
 uniform float sleep;
-uniform float finale;
 uniform float pixelScale;
 uniform vec4 escort;   // centre (Three world), spread
 uniform vec4 trail;    // lag (world x, z, metres), scatter, unused
@@ -121,7 +119,6 @@ float groundAt( vec3 w ) {
   vec2 uv = ( vec2( w.x, -w.z ) - groundBox.xy ) / groundBox.z;
   return texture2D( ground, clamp( uv, 0.0, 1.0 ) ).r;
 }
-uniform vec4 column;   // summit (Three world), height
 uniform vec4 born;     // waking: the hollow (Three world), w seconds since it woke (99 none)
 varying vec3 vColour;
 varying float vGlow;
@@ -189,23 +186,8 @@ void main() {
   }
   // A meow: every light on the island answers at once.
   glow = mix( glow, 1.4, call * ( kind.x < 0.5 ? 1.0 : 0.6 ) );
-  // The finale: they rise from wherever they are into a slow turning
-  // column over the summit, and spread out into the sky at its top.
-  float rise = 0.0;
-  if ( finale > 0.0 ) {
-    // (The cat keeps a few of its own: the escort stays with it.)
-    float k = smoothstep( 0.0, 1.0, clamp( finale * 1.8 - a * 0.8, 0.0, 1.0 ) ) * ( kind.x < 0.5 ? 0.0 : 1.0 );
-    rise = k;
-    float u = fract( a * 7.31 + r * 0.37 + t * 0.011 );
-    float ang = u * 26.0 + t * 0.22 + r * 6.2832;
-    float rad = 0.8 + r * 2.2 + u * 3.0 + pow( u, 4.0 ) * 30.0;
-    vec3 col = column.xyz + vec3( cos( ang ) * rad, u * column.w + sin( t * 0.5 + a * 30.0 ) * 0.6, sin( ang ) * rad );
-    p = mix( p, col, k );
-    glow = mix( glow, 0.6 + 0.4 * sin( t * 1.3 + kind.y * 6.2832 ), k );
-    present = mix( present, 1.0, k );
-  }
   // Never in the ground: lifted to at least a hand above the terrain.
-  if ( rise < 0.5 ) {
+  {
     float g = groundAt( p );
     if ( kind.x > 1.5 ) p.y += g;
     p.y = max( p.y, g + 0.12 );
@@ -215,8 +197,7 @@ void main() {
   float depth = max( -mv.z, 0.05 );
   // A small light (a few cm) with a soft halo several times its size.
   float lantern = kind.x > 0.5 && kind.x < 1.5 ? step( 0.55, trait.w ) : 0.0;
-  // The column's lights are seen from across the island: larger than life.
-  float px = trait.w * mix( 0.1, 0.13, lantern ) * ( 1.0 + rise * 3.0 ) * pixelScale / depth;
+  float px = trait.w * mix( 0.1, 0.13, lantern ) * pixelScale / depth;
   // Never a large soft disc: a firefly is a point with a small halo.
   // (The crown's lanterns may be a little larger: they hang in the leaves.)
   gl_PointSize = clamp( px, 2.0, 12.0 );
@@ -255,10 +236,10 @@ void main() {
 }`;
 
 // `scene`: Three world (not the mirrored land group). `crown`: the
-// milkwood's ({ x, z, radius, top }, coast metres). `summit`: { x, y, z }.
+// milkwood's ({ x, z, radius, top }, coast metres).
 // `surface(x, z)`: the ground with the boulders and landmarks on it
 // (walker.js surfaceOf), so no firefly sits inside a rock.
-export function createFireflies(scene, seed, { light = false, crown = null, summit = null, surface = null } = {}) {
+export function createFireflies(scene, seed, { light = false, crown = null, surface = null } = {}) {
   // Restraint: a real night has a few hundred, not a wall of them.
   const count = light ? 216 : 500;
   const { traits, kinds } = fireflyTraits(seed, count);
@@ -295,14 +276,12 @@ export function createFireflies(scene, seed, { light = false, crown = null, summ
     night: { value: 0 },
     call: { value: 0 },
     sleep: { value: 0 },
-    finale: { value: 0 },
     pixelScale: { value: 600 },
     escort: { value: new THREE.Vector4(0, -100, 0, 1.3) },
     trail: { value: new THREE.Vector4() },
     home: { value: homeAt },
     homeSpan: { value: crown ? crown.top - crown.ground : 8 },
     roam: { value: new THREE.Vector4() },
-    column: { value: summit ? new THREE.Vector4(summit.x, summit.y + 2, -summit.z, 34) : new THREE.Vector4(58, 30, -70, 75) },
     // waking: the hollow they come out of (Three world), w its age (99 none).
     born: { value: new THREE.Vector4(0, -100, 0, 99) },
   };
@@ -327,8 +306,6 @@ export function createFireflies(scene, seed, { light = false, crown = null, summ
   points.matrixAutoUpdate = false;
   scene.add(points);
   const steer = createFlySteer();
-  const homeFoot = crown ? [crown.x, crown.ground + 2.2, crown.z] : [0, -500, 0];
-  const homeRadius = crown ? Math.min(7, crown.radius * 0.55) : 1;
   // What the land reads to be lit by them (land-magic.js glow slots 0, 1).
   const glow = {
     light: 0, centre: [0, -100, 0], radius: 2.6,
@@ -338,14 +315,14 @@ export function createFireflies(scene, seed, { light = false, crown = null, summ
     points,
     steer,
     glow,
-    // `level`: magic.levels.fireflies; `finale`: magic.levels.finale.
+    // `level`: magic.levels.fireflies.
     // `born`: the fireflies' waking ({ x, y, z coast, age }) while it plays.
-    update({ dt, time, pose, night, level = 0, finale = 0, call = null, eye, pixelScale, born = null }) {
+    update({ dt, time, pose, night, level = 0, call = null, eye, pixelScale, born = null }) {
       // (The first out of the hollow are not dim while the level eases up.)
       if (born) level = Math.max(level, THREE.MathUtils.smoothstep(born.age, 1.2, 2.0));
       if (born) uniforms.born.value.set(born.x, born.y, -born.z, born.age);
       else uniforms.born.value.w = 99;
-      const on = Math.max(level, finale);
+      const on = level;
       points.visible = on > 0.002;
       if (!points.visible) {
         glow.light = 0;
@@ -359,7 +336,6 @@ export function createFireflies(scene, seed, { light = false, crown = null, summ
       uniforms.night.value = night;
       uniforms.call.value = s.call;
       uniforms.sleep.value = s.sleep;
-      uniforms.finale.value = finale;
       uniforms.pixelScale.value = pixelScale;
       uniforms.escort.value.set(s.x, s.y, -s.z, s.spread);
       uniforms.gather.value = s.gather;
@@ -373,16 +349,6 @@ export function createFireflies(scene, seed, { light = false, crown = null, summ
       glow.radius = 1.0 + s.spread * 0.35;
       // The colony's pool on the grass under the dome: local, breathing.
       glow.homeLight = Math.min(0.4, on * dark * (0.3 + 0.06 * Math.sin(time * 0.55)));
-      // The finale: the crown's light moves to the column over the summit
-      // and grows to light the whole hilltop under it.
-      if (finale > 0 && summit) {
-        const f = finale;
-        glow.home[0] = homeFoot[0] + (summit.x - homeFoot[0]) * f;
-        glow.home[1] = homeFoot[1] + (summit.y + 9 - homeFoot[1]) * f;
-        glow.home[2] = homeFoot[2] + (summit.z - homeFoot[2]) * f;
-        glow.homeRadius = homeRadius + (9 - homeRadius) * f;
-        glow.homeLight = glow.homeLight * (1 - f) + f * Math.min(0.6, dark * (0.5 + 0.1 * Math.sin(time * 0.4)));
-      }
       return glow;
     },
     dispose() {

@@ -134,11 +134,15 @@ test("lamp helpers: nearest lights; prints answer the tideglow alone", () => {
   assert.ok(PRINT_MAGIC.colour.value.b > PRINT_MAGIC.colour.value.r, "blue");
 });
 
-test("the finale blazes for its ceremony, then settles", async () => {
-  const { finaleBlaze } = await import("../src/land-magic.js");
-  const at = (clock, wakeAt, level = 1) => finaleBlaze({ clock, levels: { finale: level }, wakeAt: { finale: wakeAt } });
-  assert.equal(at(10, Infinity, 0), 0);
-  assert.ok(at(30, 10) > 0.95, "full during the ceremony");
-  assert.ok(at(200, 10) < 0.15, "settled after it");
-  assert.ok(at(5, -Infinity) < 0.15, "restored from an earlier visit: settled");
+test("the old finale's blaze is gone (story-and-wow.md 4: nothing settles at 30%)", async () => {
+  const landMagic = await import("../src/land-magic.js");
+  assert.equal(landMagic.finaleBlaze, undefined);
+  const seaSky = await import("../src/sea-sky-magic.js");
+  assert.equal(seaSky.FINALE_SETTLE, undefined);
+  const { readFileSync } = await import("node:fs");
+  const read = (f) => readFileSync(new URL(`../src/shaders/${f}`, import.meta.url), "utf8");
+  assert.doesNotMatch(read("water.wgsl"), /meteor_storm/);
+  assert.doesNotMatch(read("sea-magic.wgsl"), /spirals/);
+  assert.doesNotMatch(read("sky.wgsl"), /constellation_lines|FIGURE_LINE/);
+  assert.doesNotMatch(readFileSync(new URL("../src/fireflies.js", import.meta.url), "utf8"), /finale/);
 });
