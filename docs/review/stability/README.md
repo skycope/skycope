@@ -86,4 +86,19 @@ smoothly for a few seconds (cloud history rebuilding), with no steps.
 `perf/ab.md`: this branch against b00fa07 (its merge base), two tabs, one
 headless Chrome, 1440×900 @2, budget pinned to level 0 (which now renders
 the land at its fixed budget size, 1762×1101, where level 0 used to render
-2160×1350 with headroom): see the table there and the final report.
+2160×1350 with headroom), interleaved K=5 × 9, load average 15–19:
+
+| view (noon, gifts asleep) | whole frame head/base (IQR) | CPU head/base (IQR) | triangles | calls |
+|---|---|---|---|---|
+| home | 0.834 (0.048) | 1.13 (0.16) | 1,060,434 → 1,060,434 | 258 → 258 |
+| milkwood | 0.850 (0.044) | 0.99 (0.11) | 1,412,662 → 1,405,372 | 190 → 187 |
+| beacon | 0.828 (0.014) | 0.87 (0.19) | 1,864,139 → 1,871,221 | 228 → 227 |
+| sea | 0.817 (0.020) | 1.09 (0.26) | 463,227 → 463,043 | 60 → 59 |
+
+Faster at full quality because the land no longer renders above its budget
+at level 0 (2160×1350 → 1762×1101: the fixed-resolution policy); triangles
+and calls unchanged; CPU within noise. Allocation per frame read +22–43%
+under `?perf` in that run: the `?perf`-only LOD watch built a string per
+vegetation chunk per frame; it allocates nothing now (not re-measured).
+Against the current magic-round2 (which has moved on with other lanes'
+work), whole frame 0.80–0.90.
