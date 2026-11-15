@@ -23,6 +23,7 @@ import { createBoat } from "./boat.js"; // boat: the fisherman's boat afloat
 import { horizonRadiance, skyDomeRatio, skyDomeMean, skyEnvironmentKey } from "./sunlight.js";
 import toneSource from "./shaders/tone.wgsl?raw";
 import { customToneMapping, toneAdapt } from "./tone-glsl.js";
+import { note } from "./stability-log.js"; // stability: `?perf` event log
 
 // The mesh layer tonemaps with the WebGPU sky and sea's own curve, so land,
 // sea and sky share one exposure, one highlight shoulder and one grade:
@@ -397,6 +398,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       camera.updateMatrixWorld();
       // lod: vegetation detail by each instance's distance (quality: bias).
       forest.updateLod(camera.position, quality?.lodBias ?? 1);
+      if (perf) watchLod();
       boat?.render({ time, night, camera }); // boat: before the cat (its lantern lights it)
       const far = archipelago.camera;
       far.position.copy(camera.position);
@@ -539,6 +541,27 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     },
   };
 
+  // stability (`?perf` only): note the vegetation chunks repacked and the
+  // landmark LOD levels switched this frame, for scripts/stability.mjs.
+  function watchLod() {
+    const chunks = (watchLod.chunks ??= (() => { const c = []; land.traverse((o) => { if (o.userData.lodChunks) c.push(...o.userData.lodChunks); }); return c; })());
+    const seen = (watchLod.seen ??= new Map());
+    let packed = 0;
+    for (const c of chunks) {
+      const sig = `${c.state}:${c.eye?.[0]}:${c.bias}`;
+      if (seen.has(c) && seen.get(c) !== sig) packed++;
+      seen.set(c, sig);
+    }
+    if (packed) note("lod-pack", { chunks: packed });
+    const lods = (watchLod.lods ??= (() => { const l = []; places.group?.traverse((o) => { if (o.isLOD) l.push(o); }); return l; })());
+    const levels = (watchLod.levels ??= new Map());
+    for (const lod of lods) {
+      const level = lod.getCurrentLevel();
+      if (levels.has(lod) && levels.get(lod) !== level) note("place-lod", { place: lod.children[0]?.name || lod.uuid.slice(0, 6), from: levels.get(lod), to: level, x: lod.position.x, z: lod.position.z });
+      levels.set(lod, level);
+    }
+  }
+
   function requestShadow(jump) {
     if (shadows.pending && shadows.slice > 0 && !jump) {
       shadows.again = true;
@@ -547,6 +570,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     shadows.pending = true;
     shadows.jump = shadows.jump || jump;
     shadows.slice = 0;
+    note("shadow-request", { jump });
   }
 
   // Called by three inside renderer.render(scene), where its shadow pass
@@ -593,6 +617,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       sun.target.updateMatrixWorld();
     }
     shadows.slice++;
+    note(shadows.slice < count ? "shadow-slice" : "shadow-swap", { slice: shadows.slice, count });
     if (shadows.slice < count) {
       // Not whole yet: draw this frame with the front map.
       shadow.map = front;
@@ -704,6 +729,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     if (key !== environmentKey && domeRatio && now - environmentTime >= 250) {
       environmentKey = key;
       environmentTime = now;
+      note("environment");
       buildEnvironment(skyUnit, bounceUnit, uniform, celestial.sun, night, cover);
     }
     forest.updateSkySH(skySH.coefficients, exposure * nightFill);

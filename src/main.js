@@ -56,6 +56,8 @@ import { loading } from "./loading-screen.js";
 import { createThread } from "./thread.js";
 // quality: render sizes and what to shed under load (src/quality.js).
 import { baseSettings, qualityLadder, renderSizes, createQualityState, stepQuality, pinQuality, qualitySettings } from "./quality.js";
+// stability: the `?perf` event log scripts/stability.mjs reads.
+import { note, noteFrame, stabilityLog } from "./stability-log.js";
 import { previewDate } from "./moments.js";
 import { BOAT } from "./boat-dynamics.js"; // sound: the stem, for the painter coming taut
 const BOAT_HALF = BOAT.length / 2;
@@ -188,6 +190,7 @@ state.sound = createSound({ seed: state.seed, perf: PERF });
 
 // `?perf` QA exposes live state, e.g. to aim the camera at the sun.
 if (PERF) window.skycope = state;
+if (PERF) state.stability = stabilityLog;
 // waking: `?perf` QA, skycope.waking.freeze(gift, age) / play(gift) / clear().
 if (PERF) state.waking = createWakingQA(state);
 // `?perf` QA: hold a quality level (0 = full; null releases), or read it.
@@ -240,6 +243,7 @@ function connectControls() {
     "input",
     () => {
       state.debugMinutes = Number(slider.value);
+      note("time", { minutes: state.debugMinutes });
       resetSkyHistory();
       updateTime();
     },
@@ -540,6 +544,7 @@ async function refreshWeather() {
 
 // One place decides what the renderer sees and what the label says.
 function applyWeather() {
+  note("weather");
   resetSkyHistory();
   const override = state.weatherOverride;
   const live = state.liveWeather;
@@ -752,6 +757,7 @@ async function startAtmosphere() {
   const wakeMagicPasses = () => {
     if (magicPipelines.started) return;
     magicPipelines.started = true;
+    note("magic-pipelines");
     // The render targets may have been resized since start: bind today's.
     let sky, sea;
     try {
@@ -780,8 +786,9 @@ async function startAtmosphere() {
   setTimeout(() => {
     const warm = () => {
       if (state.gpu !== gpu || state.disposed) return;
+      note("prewarm-start");
       wakeMagicPasses();
-      state.landscape?.prewarm?.()?.catch?.(() => {});
+      state.landscape?.prewarm?.()?.then?.(() => note("prewarm-end"), () => note("prewarm-end", { failed: true }));
     };
     if (globalThis.requestIdleCallback) requestIdleCallback(warm, { timeout: 3000 });
     else warm();
@@ -909,9 +916,12 @@ async function startAtmosphere() {
       canvas.dataset.cpuFrameMs = cpuMs.toFixed(2);
     }
     state.inFrame = false;
+    noteFrame(state.flight, state.quality.level);
     if (!state.firstFrame) {
       state.firstFrame = true;
+      note("first-frame");
       state.loadingRaf = requestAnimationFrame(() => {
+        note("veil-ready");
         loading.ready({ view: state.flight, cat: state.walker.cat });
         state.thread.arrive(); // thread: the name, as the world sharpens
         sharpen();
@@ -929,6 +939,7 @@ function sharpen() {
   if (state.reveal >= 1 || state.disposed) return;
   state.revealTimer = setTimeout(() => {
     state.reveal = REVEAL[REVEAL.indexOf(state.reveal) + 1] ?? 1;
+    note("reveal", { reveal: state.reveal });
     applySizes();
     sharpen();
   }, REVEAL_STEP_MS);
@@ -1280,7 +1291,10 @@ function adaptQuality(deltaTime, cpuMs) {
   // Applied before the next frame (tick), never inside this one: resizing
   // the sea's swap chain after its texture was acquired destroys it before
   // the submit.
-  if (state.quality.level !== level) state.qualityChanged = true;
+  if (state.quality.level !== level) {
+    state.qualityChanged = true;
+    note("quality", { from: level, to: state.quality.level, cost: Math.round(sample.cost) });
+  }
 }
 
 function applyQuality() {
@@ -1311,6 +1325,7 @@ function applySizes() {
   const old = state.sizes;
   state.sizes = sizes;
   const changed = (key) => !old || old[key][0] !== sizes[key][0] || old[key][1] !== sizes[key][1];
+  for (const key of ["land", "sea", "sky"]) if (old && changed(key)) note("resize", { layer: key, from: old[key], to: sizes[key], boundary: !!state.atBoundary });
   if (changed("sea")) state.output?.resize(sizes.sea);
   if (changed("sky") || changed("cloud")) {
     state.skyTarget?.read.resize(sizes.sky);
@@ -1410,7 +1425,9 @@ function tick(timestamp) {
   // quality: a new level's sizes, at the frame boundary.
   if (state.qualityChanged) {
     state.qualityChanged = false;
+    state.atBoundary = true;
     applyQuality();
+    state.atBoundary = false;
   }
   state.lastFrame = timestamp;
   frame(state.gpu, state.renderFrame);

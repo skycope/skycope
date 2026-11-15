@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { tileHeight } from "./walker.js";
 import { SimplifyModifier } from "three/addons/modifiers/SimplifyModifier.js";
+import { note } from "./stability-log.js"; // stability: `?perf` event log
 import { groundHeight, shoreDistance, ISLAND } from "./terrain.js";
 
 // Shared making and lighting for the island's animals (penguins.js,
@@ -510,7 +511,9 @@ export function herdBounds(mesh, { coarse = null, far = 20 } = {}) {
       const dx = eye.x - s.center.x, dy = eye.y - s.center.y, dz = eye.z - s.center.z;
       const d = Math.sqrt(dx * dx + dy * dy + dz * dz) - s.radius;
       distant = d > (distant ? far - 3 : far);
-      mesh.geometry = distant && coarse.userData.ready ? coarse : fine;
+      const next = distant && coarse.userData.ready ? coarse : fine;
+      if (next !== mesh.geometry) note("animal-lod", { herd: mesh.name || "herd", coarse: next === coarse, distance: Math.round(d) });
+      mesh.geometry = next;
     },
   };
 }
