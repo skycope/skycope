@@ -176,6 +176,9 @@ test("the first paint: index.html's inline sky is the table the model writes, an
   const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
   const script = inlined(html);
   assert.equal(script, block().trim(), "run `node scripts/veil-palette.mjs` after changing the sky model");
+  // In <head>: it runs before anything is drawn.
+  assert.ok(html.indexOf("veil palette: begin") < html.indexOf("</head>"));
+  assert.match(html, /\.loading-screen \{[^}]*background: var\(--veil-sky,/);
   const body = script.replace(/^<script>/, "").replace(/<\/script>$/, "");
   const deltaE = (a, b) => Math.hypot(...a.map((v, i) => v - b[i]));
   const cases = [350, 420, 750, 1050, 1145, 1188, 1320].flatMap((minutes) => [[minutes, "clear"], [minutes, "overcast"]]);
@@ -186,8 +189,8 @@ test("the first paint: index.html's inline sky is the table the model writes, an
         super(...(a.length ? a : [when]));
       }
     }
-    const element = { style: {} };
-    new Function("document", "Date", "location", "localStorage", body)({ getElementById: () => element }, Then, { search: `?weather=${weather}` }, null);
+    const element = { style: { setProperty(name, value) { if (name === "--veil-sky") this.backgroundImage = value; } } };
+    new Function("document", "Date", "location", "localStorage", body)({ documentElement: element }, Then, { search: `?weather=${weather}` }, null);
     const painted = [...element.style.backgroundImage.matchAll(/rgb\((\d+),(\d+),(\d+)\) ([\d.]+)%/g)].map((m) => ({ c: m.slice(1, 4).map(Number), at: Number(m[4]) / 100 }));
     assert.ok(painted.length >= 6, `${minutes}: ${element.style.backgroundImage}`);
     // Against the exact sky for that moment (no moon), stop by stop: within

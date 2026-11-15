@@ -895,7 +895,8 @@
          compositor while the island builds. */
       .loading-screen {
         position: fixed; inset: 0; z-index: 100; overflow: hidden;
-        background: linear-gradient(#5d87a6, #a9c3d2 26%, #8aa3ad 27%, #3f6474);
+        /* --veil-sky: this moment's sky, set by the script in <head>. */
+        background: var(--veil-sky, linear-gradient(#5d87a6, #a9c3d2 26%, #8aa3ad 27%, #3f6474));
         color: #f4f7f8; font-size: 0.68rem; letter-spacing: 0.08em;
         touch-action: none;
         transition: opacity 0.7s cubic-bezier(0.4, 0, 0.6, 1);
@@ -995,13 +996,6 @@
         }
       }
     </style>
-  </head>
-  <body data-scene="0" data-arrival="pending">
-    <div id="loading-screen" class="loading-screen" role="status" aria-live="polite">
-      <canvas aria-hidden="true"></canvas>
-      <div class="wisp" aria-hidden="true"><div class="wisp-bob"><div class="wisp-light"></div></div></div>
-      <p class="quiet">loading</p>
-    </div>
     <!-- veil palette: begin -->
     <script>
       // The veil's first paint: this moment's sky from a table (scripts/veil-palette.mjs).
@@ -1043,11 +1037,19 @@
             });
             stops.push("rgb(" + c.join(",") + ") " + (P.at[k] * 100).toFixed(2) + "%");
           }
-          document.getElementById("loading-screen").style.backgroundImage = "linear-gradient(" + stops.join(",") + ")";
+          // In <head>, before anything is drawn: the veil's CSS reads it.
+          document.documentElement.style.setProperty("--veil-sky", "linear-gradient(" + stops.join(",") + ")");
         } catch (e) {}
       })();
     </script>
     <!-- veil palette: end -->
+  </head>
+  <body data-scene="0" data-arrival="pending">
+    <div id="loading-screen" class="loading-screen" role="status" aria-live="polite">
+      <canvas aria-hidden="true"></canvas>
+      <div class="wisp" aria-hidden="true"><div class="wisp-bob"><div class="wisp-light"></div></div></div>
+      <p class="quiet">loading</p>
+    </div>
     <div class="focus" aria-hidden="true"></div>
 
     <div class="fallback" aria-hidden="true"></div>

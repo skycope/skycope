@@ -94,7 +94,8 @@ export function block() {
             });
             stops.push("rgb(" + c.join(",") + ") " + (P.at[k] * 100).toFixed(2) + "%");
           }
-          document.getElementById("loading-screen").style.backgroundImage = "linear-gradient(" + stops.join(",") + ")";
+          // In <head>, before anything is drawn: the veil's CSS reads it.
+          document.documentElement.style.setProperty("--veil-sky", "linear-gradient(" + stops.join(",") + ")");
         } catch (e) {}
       })();
     </script>`;
