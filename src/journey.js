@@ -361,8 +361,7 @@ export function createJourney({ state, card, findLine, now, onChange = () => {},
       // from the moment the light is kindled (src/sound/cues.js `waking`);
       // tCat is when the wave reaches the cat (waking.js waveArrival).
       const cat = state.walker?.cat;
-      const dCat = cat ? Math.hypot(cat.x - c.source[0], (cat.y ?? c.source[1]) - c.source[1], cat.z - c.source[2]) : Infinity;
-      const tCat = waveArrival(dCat, WAKE_LIGHT[gift]);
+      const tCat = waveArrival(cat ? Math.hypot(cat.x - c.source[0], cat.z - c.source[2]) : Infinity, WAKE_LIGHT[gift]); // (across the ground, as the wave runs)
       state.sound?.waking?.(gift, { x: c.source[0], y: c.source[1], z: c.source[2] }, Number.isFinite(tCat) ? { tCat } : {});
     }
   }

@@ -36,7 +36,7 @@ import { WAKE_LIGHT, wakingSea, waveAt } from "./waking.js";
 
 // The wave on the sea, relative to its strength on the land (the sea pass's
 // exposed units; calibrated by eye).
-export const WAVE_SEA = 1.0;
+export const WAVE_SEA = 0.8;
 
 export const MAGIC_FIELDS = ["magic", "magic2", "waking", "wakingLight", "lamp", "wisp", "wispColour", "lantern", "wakingWave", "wakingTint"];
 

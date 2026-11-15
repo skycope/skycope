@@ -90,7 +90,7 @@ float wakeBandAt( vec3 world ) {
   float dist = length( wakeSource.xyz - world );
   float fb = ( dist - wakeFront.x ) / wakeFront.y;
   // (And the wave's crest, by its presence alone: a flash of sun.)
-  float wf = ( dist - wakeWave.x ) / wakeWave.y;
+  float wf = ( length( ( wakeSource.xyz - world ).xz ) - wakeWave.x ) / wakeWave.y;
   return max( exp( -fb * fb ) * wakeFront.z, exp( -wf * wf ) * wakeEcho.w );
 }
 `;
@@ -200,10 +200,12 @@ if ( magicOn > 0.0 ) {
   // behind. Outside its band there is no work.
   if ( wakeWave.w + wakeEcho.z > 0.0 ) {
     vec3 vd = wakeSource.xyz - mWorld;
-    float vdist = length( vd );
+    // (Across the ground, not through the air: from a source 16 m up the
+    // lighthouse, a 3D distance laid a broad glare round the tower's foot.)
+    float vdist = length( vd.xz );
     float wf = vdist - wakeWave.x;              // + ahead of the front, − behind it
     float ef = vdist - wakeEcho.x;
-    bool inWave = wakeWave.w > 0.0 && wf < 3.0 * wakeWave.y && wf > -4.0 * wakeWave.z;
+    bool inWave = wakeWave.w > 0.0 && wf < 3.0 * wakeWave.y && wf > -2.5 * wakeWave.z;
     bool inEcho = wakeEcho.z > 0.0 && abs( ef ) < 3.0 * wakeEcho.y;
     if ( inWave || inEcho ) {
       // From the source's side, a little from above: slopes that face it
@@ -224,6 +226,9 @@ if ( magicOn > 0.0 ) {
         float vRough = 0.85;
       #endif
       float vGloss = pow( clamp( dot( mN, normalize( vv + mView ) ), 0.0, 1.0 ), mix( 160.0, 12.0, vRough ) ) * smoothstep( 0.7, 0.3, vRough );
+      #ifdef WAKE_FOLIAGE
+        vGloss *= 0.3; // (a glossy crown flashed white)
+      #endif
       vec3 alb = min( diffuseColor.rgb * 2.5, vec3( 1.0 ) );
       if ( inWave ) {
         // Brightest at the leading edge (soft ahead), a tail behind it.
@@ -242,7 +247,10 @@ if ( magicOn > 0.0 ) {
         float shimmer = smoothstep( 0.25, 0.85, sn );
         // (The crest itself is uneven too: never one even stroke.)
         float glow = crest * ( 0.7 + 0.5 * sn ) + tail * 0.22 * shimmer;
-        mWake += tint * wakeWave.w * glow * face;
+        // (Evened over albedo: pale sand glared while dark leaves barely
+        // took it; the light reads as one front over both.)
+        float even = 1.0 / ( 0.4 + 2.0 * dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) );
+        mWake += tint * wakeWave.w * glow * face * even;
         mWakeSpec += tint * wakeWave.w * (
           crest * ( vEdge * 0.7 * alb + vGloss * 1.4 + magicSparkle( mWorld, mView, 40.0, 0.95 ) * 2.0 )
           + tail * ( magicSparkle( mWorld, mView, 40.0, 0.93 ) * 1.6 * tail + vGloss * 0.4 ) );

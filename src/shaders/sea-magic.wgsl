@@ -310,7 +310,7 @@ export fn wave_on_sea(s: SeaPoint, at: vec3f, wave: vec4f, tint: vec4f, time: f3
   let wf = d - wave.x;
   let width = 2.5 + 0.02 * wave.w;                       // the echo's half-width
   let ef = d - wave.w;
-  let inWave = wave.z > 0.0 && wf < 3.0 * lead && wf > -4.0 * wave.y;
+  let inWave = wave.z > 0.0 && wf < 3.0 * lead && wf > -2.5 * wave.y;
   let inEcho = tint.w > 0.0 && abs(ef) < 3.0 * width;
   if (!(inWave || inEcho)) { return vec3f(0.0); }
   let to = normalize(at - s.p);
@@ -334,7 +334,7 @@ export fn wave_on_sea(s: SeaPoint, at: vec3f, wave: vec4f, tint: vec4f, time: f3
     let hue = 0.55 + 0.45 * cos(6.2832 * (wf / (lead * 3.0) + vec3f(0.0, 0.33, 0.67)));
     let peak = max(tint.r, max(tint.g, tint.b));
     let col = mix(mix(tint.rgb, hue * peak, 0.35 * ahead), vec3f(peak), 0.5 * daylight);
-    out += col * wave.z * (crest * (face * 0.5 + s.foam.x * 0.6 + spec + sparks * 1.5) + tail * (sparks * 1.2 * tail + face * 0.08));
+    out += col * wave.z * (crest * (face * 0.5 + s.foam.x * 0.6 + spec + sparks * 1.5) + tail * tail * (sparks * 1.2 * tail + face * 0.08));
   }
   if (inEcho) {
     let back = exp(-ef * ef / (width * width));
