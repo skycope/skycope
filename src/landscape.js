@@ -140,7 +140,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   const lens = createLens();
   renderer.info.autoReset = false;
   const precipitation = createPrecipitation(scene, seed, { light, habitat: forest.habitat, obstacles: forest.obstacles });
-  let cloudBeam = 1, cloudTime = -Infinity, cloudKey = "";
+  let cloudBeam = null, cloudTarget = 1, beamAt = 0, cloudTime = -Infinity, cloudKey = "";
   let rainRate = 0;
   const moteLight = new THREE.Color();
 
@@ -167,6 +167,12 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   let domeRatio = null;
   let domeKey = "";
   let domeTime = 0;
+  // stability: the shadow anchor (with hysteresis), the sun of the last
+  // discontinuity, and whether this frame's dome follows one.
+  let shadowAnchor = null;
+  const snapX = new THREE.Vector3(), snapY = new THREE.Vector3(), snapZ = new THREE.Vector3();
+  let lastSun = null;
+  let domeFresh = false;
   const sun = new THREE.DirectionalLight(0xffe9c2, 2.5);
   sun.castShadow = true;
   // The camera stays near the cat, so the shadow map only has to cover the
@@ -284,7 +290,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     archipelago,
     lens: perf ? lens : null,
     get weatherSurface() { return precipitation.surface; },
-    get cloudTransmission() { return cloudBeam; },
+    get cloudTransmission() { return cloudBeam ?? 1; },
     // A screen point (−1…1) to a ray in coast metres, for tap-to-walk.
     pick(x, y) {
       ndc.set(x, y);
@@ -367,8 +373,19 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       const hz = (cosA - sinA) * Math.SQRT1_2;
       // The shadow frustum follows the camera in coarse steps, so flying only
       // occasionally re-renders the map rather than every frame.
-      const anchorX = Math.round((pose.x + hx * 8) / 10) * 10;
-      const anchorZ = Math.round((pose.z + hz * 8) / 10) * 10;
+      // stability: with hysteresis, so a camera turning on the spot or a cat
+      // pacing on a boundary does not flip it (each flip redrew the map,
+      // and the leaves' self-shadowing changed).
+      const wantX = pose.x + hx * 8, wantZ = pose.z + hz * 8;
+      if (!shadowAnchor || Math.abs(wantX - shadowAnchor[0]) > 8 || Math.abs(wantZ - shadowAnchor[1]) > 8) {
+        shadowAnchor = [Math.round(wantX / 10) * 10, Math.round(wantZ / 10) * 10];
+      }
+      const [anchorX, anchorZ] = shadowAnchor;
+      // stability: a big change of sun (a time jump) is a discontinuity:
+      // dome, skylight, shadows and the light through the clouds all follow
+      // in this same frame, not over the next half second.
+      const sunMoved = !lastSun || celestial.sun[0] * lastSun[0] + celestial.sun[1] * lastSun[1] + celestial.sun[2] * lastSun[2] < 0.9994; // ~2°
+      if (sunMoved) lastSun = celestial.sun.slice();
       const key = `${celestial.sunAltitude.toFixed(1)}:${celestial.scene.toFixed(2)}:${cover.toFixed(2)}:${anchorX}:${anchorZ}`;
       if (key !== previousLighting) {
         previousLighting = key;
@@ -385,7 +402,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
         // the twilight scene or cloud cover.
         const shadowKey = `${Math.round(sunWorld.x * 200)}:${Math.round(sunWorld.y * 200)}:${Math.round(sunWorld.z * 200)}:${anchorX}:${anchorZ}`;
         if (shadowKey !== shadows.key) {
-          const jump = !shadows.anchor || Math.hypot(anchorX - shadows.anchor[0], anchorZ - shadows.anchor[1]) > 20;
+          const jump = !shadows.anchor || sunMoved || Math.hypot(anchorX - shadows.anchor[0], anchorZ - shadows.anchor[1]) > 20;
           shadows.key = shadowKey;
           shadows.anchor = [anchorX, anchorZ];
           requestShadow(jump);
@@ -396,10 +413,11 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       // most four times a second, and catches up once the sun settles.
       const sunKey = celestial.sun.map((v) => v.toFixed(3)).join();
       const now = performance.now();
-      if (sunKey !== domeKey && (!domeRatio || now - domeTime > 250)) {
+      if (sunKey !== domeKey && (!domeRatio || sunMoved || now - domeTime > 250)) {
         domeKey = sunKey;
         domeTime = now;
         domeRatio = skyDomeRatio(celestial.sun, envWidth);
+        domeFresh = sunMoved;
       }
       const cloudLight = celestial.sun.map((v, i) => v * (1 - night) + celestial.moon[i] * night);
       const cloudNorm = Math.hypot(...cloudLight) || 1;
@@ -407,8 +425,16 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       const beamKey = `${Math.round(flight.x / 3)}:${Math.round(flight.z / 3)}:${cloudDirection.map(v => v.toFixed(2))}:${weather?.low}:${weather?.mid}:${weather?.high}:${cover.toFixed(2)}`;
       if (beamKey !== cloudKey || time - cloudTime >= .25 || time < cloudTime) {
         cloudKey = beamKey; cloudTime = time;
-        cloudBeam = weather ? .07 + .93 * cloudTransmission(seed, { ...weather, x: flight.x, y: flight.y, z: flight.z, sun: cloudDirection, wind, time }) : 1 - Math.pow(cover, 1.5) * .93;
+        cloudTarget = weather ? .07 + .93 * cloudTransmission(seed, { ...weather, x: flight.x, y: flight.y, z: flight.z, sun: cloudDirection, wind, time }) : 1 - Math.pow(cover, 1.5) * .93;
       }
+      // stability: the sun through the clouds is sampled four times a second
+      // (and on a 3 m move); the light follows that sample smoothly, or
+      // every sunlit leaf stepped in brightness four times a second under a
+      // broken sky. A discontinuity (first frame, a weather or time jump)
+      // takes it at once.
+      const beamDt = Math.min(0.1, Math.max(0, (now - beamAt) / 1000));
+      beamAt = now;
+      cloudBeam = cloudBeam === null || sunMoved ? cloudTarget : cloudBeam + (cloudTarget - cloudBeam) * (1 - Math.exp(-beamDt / 0.35));
       rainRate = rain;
       updateLighting(celestial, cover, lighting, cloudBeam);
       // sky-events: a lightning flash is a brief, bright sky over the land
@@ -438,7 +464,12 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       const bias = easeBias(lodEase.eased, quality?.lodBias ?? 1, lodEase.at === null ? 1 : Math.min(0.1, (biasAt - lodEase.at) / 1000));
       lodEase.eased = bias.eased;
       lodEase.at = biasAt;
-      if (debug?.lod !== false) forest.updateLod(camera.position, bias.drawn);
+      // stability: no repacking while a sliced shadow refresh is part-drawn:
+      // every slice must see the same instances, or the finished map has
+      // holes where a plant changed level between slices, and stale shadows
+      // where it had (a few frames' delay; the fades cover it).
+      const midRefresh = shadows.pending && shadows.slice > 0;
+      if (debug?.lod !== false && !midRefresh) forest.updateLod(camera.position, bias.drawn);
       if (perf) watchLod();
       boat?.render({ time, night, camera }); // boat: before the cat (its lantern lights it)
       const far = archipelago.camera;
@@ -705,6 +736,22 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     sun.position
       .copy(sun.target.position)
       .add(sunWorld.clone().multiplyScalar(85));
+    // stability: the shadow camera snapped to whole texels across the light,
+    // so moving the anchor shifts the map by whole texels: every caster
+    // rasterises into the same texels as before, and a refresh after a walk
+    // leaves the leaves' self-shadowing exactly as it was.
+    const texel = (sun.shadow.camera.right - sun.shadow.camera.left) / sun.shadow.mapSize.x;
+    snapZ.copy(sunWorld);
+    snapX.set(0, 1, 0).cross(snapZ);
+    if (snapX.lengthSq() < 1e-8) snapX.set(1, 0, 0);
+    snapX.normalize();
+    snapY.crossVectors(snapZ, snapX);
+    const target = sun.target.position;
+    const du = Math.round(target.dot(snapX) / texel) * texel - target.dot(snapX);
+    const dv = Math.round(target.dot(snapY) / texel) * texel - target.dot(snapY);
+    snapX.multiplyScalar(du).addScaledVector(snapY, dv);
+    target.add(snapX);
+    sun.position.add(snapX);
   }
 
   // Light comes from src/sunlight.js in exposed linear units: the same sun
@@ -769,7 +816,9 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     const bounceUnit = bounce.map((v) => v / exposure);
     const key = skyEnvironmentKey(domeKey, uniform, skyUnit, bounceUnit);
     const now = performance.now();
-    if (key !== environmentKey && domeRatio && now - environmentTime >= 250) {
+    // (A fresh dome after a jump rebuilds now, with the sun it belongs to.)
+    if (key !== environmentKey && domeRatio && (domeFresh || now - environmentTime >= 250)) {
+      domeFresh = false;
       environmentKey = key;
       environmentTime = now;
       note("environment");

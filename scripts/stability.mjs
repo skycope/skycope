@@ -61,6 +61,7 @@ const STILL = Number(opt.still ?? 60);
 const KEEP = Number(opt.keep ?? 3);
 const SESSIONS = String(opt.sessions ?? "still,walk,orbit,time,gift,throttle").split(",");
 const OUT = resolve(opt.out ?? join(tmpdir(), "skycope-stability"));
+const WEATHER = opt.weather ?? "clear";
 const QUERY = opt.query ? `&${opt.query}` : "";
 // --base <git ref>: measure that commit instead of the working tree, served
 // by the same dev server from a snapshot in ./stab-base (so editing src/
@@ -347,7 +348,7 @@ async function runSession(browser, name) {
   const rendered = [];
   await tab.send("Page.startScreencast", { format: "png", maxWidth: W, maxHeight: H, everyNthFrame: 1 });
   mark("navigate");
-  await tab.send("Page.navigate", { url: `http://127.0.0.1:${PORT}${PATH}?perf&seed=${SEED}&weather=clear${QUERY}` });
+  await tab.send("Page.navigate", { url: `http://127.0.0.1:${PORT}${PATH}?perf&seed=${SEED}&weather=${WEATHER}${QUERY}` });
   for (let i = 0; i < 300; i++) {
     if (await tab.evaluate("!!(window.skycope && skycope.stability && skycope.renderFrame && skycope.walker)").catch(() => false)) break;
     await sleep(200);
@@ -388,6 +389,19 @@ const settleAfterLoad = async (tab, seconds) => {
   }
   await sleep(seconds * 1000);
 };
+
+// The cat 11 m from the milkwood on the island's side, looking at it.
+const toMilkwood = (tab, pin) => tab.evaluate(`(() => {
+  const s = skycope, I = ${JSON.stringify({ x: ISLAND.x, z: ISLAND.z })};
+  const p = s.landscape.pois.find((q) => q.id === "milkwood");
+  const a = Math.atan2(I.x - p.x, I.z - p.z);
+  const x = p.x + Math.sin(a) * 11, z = p.z + Math.cos(a) * 11;
+  const c = s.walker.cat, cam = s.walker.camera;
+  c.x = x; c.z = z; c.y = s.walker.surface(x, z); c.speed = 0; c.vy = 0; c.air = 0; c.heading = Math.atan2(p.x - x, p.z - z);
+  cam.yaw = c.heading; cam.elevation = 0.22; cam.distance = 3.6; cam.targetY = c.y;
+  if (${pin}) s.budget?.pin(0);
+  return 1;
+})()`);
 
 const SCRIPTS = {
   async still({ tab, mark }) {
@@ -436,19 +450,18 @@ const SCRIPTS = {
   // Plant lighting flicker: the camera on the milkwood's slope, one suspect
   // switched off per phase (src/landscape.js `debug`), still and then slowly
   // turning, then walking. The budget is pinned so its steps do not confound.
+  // The milkwood's slope, the camera still, 40 s: plant lighting flicker
+  // as the visitor would see it standing (try --weather cloudy).
+  async leaves({ tab, mark }) {
+    await settleAfterLoad(tab, 6);
+    await toMilkwood(tab, false);
+    await sleep(4000);
+    mark("still");
+    await sleep(40000);
+  },
   async foliage({ tab, mark, key }) {
     await settleAfterLoad(tab, 6);
-    await tab.evaluate(`(() => {
-      const s = skycope, I = ${JSON.stringify({ x: ISLAND.x, z: ISLAND.z })};
-      const p = s.landscape.pois.find((q) => q.id === "milkwood");
-      const a = Math.atan2(I.x - p.x, I.z - p.z);
-      const x = p.x + Math.sin(a) * 11, z = p.z + Math.cos(a) * 11;
-      const c = s.walker.cat, cam = s.walker.camera;
-      c.x = x; c.z = z; c.y = s.walker.surface(x, z); c.speed = 0; c.vy = 0; c.air = 0; c.heading = Math.atan2(p.x - x, p.z - z);
-      cam.yaw = c.heading; cam.elevation = 0.22; cam.distance = 3.6; cam.targetY = c.y;
-      s.budget?.pin(0);
-      return 1;
-    })()`);
+    await toMilkwood(tab, true);
     await sleep(5000);
     const reset = `Object.assign(skycope.landscape.debug, { shadows: "live", canopy: true, fold: true, lod: true, wind: true }); skycope.landscape.setQuality(skycope.settings);`;
     const phases = [
