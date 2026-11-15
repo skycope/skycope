@@ -28,9 +28,15 @@ export function reviewFixture(search) {
 // quest (with `&magic=home,fireflies,tideglow,lamp,seafolk,boat` all five
 // are lit; skycope.thread.journey.endNow() starts it; `&magic=all` is the
 // island afterwards).
+// `&minutes=1320` sets the previewed clock from the first frame (so the
+// ending, which starts by itself once the cat sits there with five lit,
+// plays at that hour).
 export function storyFixture(search) {
   const params = new URLSearchParams(search);
-  return params.has("perf") && params.get("at") === "beacon" ? { at: "beacon" } : null;
+  if (!params.has("perf")) return null;
+  const minutes = Number(params.get("minutes"));
+  const fixture = { at: params.get("at"), minutes: params.has("minutes") && Number.isFinite(minutes) ? minutes : null };
+  return fixture.at || fixture.minutes !== null ? fixture : null;
 }
 export function applyStoryFixture(walker, fixture, pois = []) {
   const beacon = fixture?.at === "beacon" ? pois.find((p) => p.id === "beacon") : null;

@@ -21,7 +21,7 @@ const name = (m) => (m === 750 ? "noon" : m >= 1200 || m < 300 ? "night" : m >= 
 // done; frames go straight to disk and the sheet links them, so this
 // process holds no images. The last run's page renders the sheet.)
 async function run(minutes, last) {
-  const extra = what === "ending" ? `&magic=${process.env.MAGIC ?? "home,fireflies,tideglow,lamp,seafolk,boat"}&at=beacon` : "";
+  const extra = what === "ending" ? `&magic=${process.env.MAGIC ?? "home,fireflies,tideglow,lamp,seafolk,boat"}&at=beacon&minutes=${minutes}` : "";
   const page = await openPage({ port, cdp, query: `seed=1847&weather=clear${extra}`, width: W, height: H });
   const { evaluate, send, sleep } = page;
   const shots = [];
@@ -57,12 +57,13 @@ async function run(minutes, last) {
   } else if (what === "ending") {
     for (let i = 0; i < 60 && !(await evaluate("document.body.dataset.arrival === 'done'")); i++) await sleep(250);
     await sleep(1500);
-    await evaluate("skycope.thread.journey.endNow()");
-    const plan = (process.env.AT ?? (minutes === 750 ? "1,4,9,18,24,30,34,45,60,68" : "1,4,9,13.5,15,17,25,35,47,52")).split(",").map(Number);
-    let t0 = Date.now();
+    // The cat sits on the cairn top with five lit: the ending starts by
+    // itself (endNow() only if it has not). Frames by the ending's clock.
+    await evaluate("skycope.thread.journey.ceremony || skycope.thread.journey.endNow()");
+    const plan = (process.env.AT ?? (minutes === 750 ? "1,4,12,22,28,32,34,45,58,68" : "1,4,9,13.5,15,17,25,35,47,52")).split(",").map(Number);
+    const clock = "(() => { const c = skycope.thread.journey.ceremony; return c ? performance.now() / 1000 - c.at : 999; })()";
     for (const at of plan) {
-      const wait = at * 1000 - (Date.now() - t0);
-      if (wait > 0) await sleep(wait);
+      for (let i = 0; i < 400 && (await evaluate(clock)) < at; i++) await sleep(100);
       await snap(`t = ${at} s`);
     }
   }

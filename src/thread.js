@@ -221,7 +221,7 @@ export function createThread({ state, signal, reduced, capture, preview, light =
           sunAltitude: state.celestial.sunAltitude,
           nowMinutes: nowMinutes(),
           date: new Date(),
-          blocked: photo.active || isReduced(),
+          blocked: photo.active || isReduced() || Boolean(journey.ceremony),
         },
         realDt,
       );

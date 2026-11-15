@@ -101,7 +101,7 @@ const events = new AbortController();
 const state = {
   seed: sceneSeed(window.location.search),
   date: new Date(),
-  debugMinutes: review?.minutes ?? null,
+  debugMinutes: review?.minutes ?? storyFixture(window.location.search)?.minutes ?? null,
   celestial: null,
   pointer: [0.5, 0.5],
   // magic: which of the island's gifts are awake (magic.js); every layer reads

@@ -166,6 +166,8 @@ export function createJourney({ state, card, findLine, now, onChange = () => {},
   // (it is in the sky; a meow calls it down).
   function begin() {
     met = true;
+    // (The ending already under way, from `?perf` QA: it has the light.)
+    if (ceremony) return;
     const cat = state.walker.cat;
     const home = state.landscape?.home ?? null;
     if (quest.done) {
@@ -541,7 +543,7 @@ export function createJourney({ state, card, findLine, now, onChange = () => {},
     if (!c.reduced && cam.free) {
       if (t < p.free + 0.5) {
         camAim(c.yaw, 0.04, 6.5, 0.8, dt);
-        const lean = smooth(p.rise - 1, p.rise + 3, t) * 0.75;
+        const lean = smooth(p.rise - 1, p.rise + 3, t) * 0.92;
         if (lean > 0) state.walker.lookAt?.({ x: cat.x + c.pole.x * 60, y: cat.y + c.pole.y * 60, z: cat.z + c.pole.z * 60 }, lean);
       } else if (!c.beat.has("camFree")) {
         // (The camera stays on the sky unless the visitor moves it.)
@@ -689,8 +691,14 @@ export function createJourney({ state, card, findLine, now, onChange = () => {},
     // `?perf` QA: start the ending now (five lit, the cat anywhere).
     endNow() {
       const event = quest?.act("beacon");
-      if (event) start(event);
-      return Boolean(event);
+      if (!event) return false;
+      // (As if it had been led here: met, and hanging high over the cairn.)
+      const cat = state.walker.cat;
+      met = true;
+      hanging = null;
+      mind.fly(() => ({ x: cat.x, y: cat.y + 12, z: cat.z, glow: 1.1, calm: 0.4 }), "script");
+      start(event);
+      return true;
     },
     get timeScale() {
       return scale;
