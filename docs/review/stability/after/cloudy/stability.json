@@ -1,0 +1,9336 @@
+[
+ {
+  "summary": {
+   "session": "leaves",
+   "captured": 334,
+   "rendered": 1696,
+   "seconds": 51,
+   "blank": 0,
+   "lum": 18,
+   "sharp": 16,
+   "popStill": 16,
+   "popMoving": 79,
+   "flashStill": 26,
+   "flashMoving": 67,
+   "vanishStill": 3,
+   "vanishMoving": 59,
+   "worstPopPixels": 2304,
+   "hitches": 3,
+   "worstHitchMs": 185,
+   "resizes": 0,
+   "unsynced": 0,
+   "quality": 0,
+   "reveal": 1,
+   "shadowSwaps": 4,
+   "placeLod": 7,
+   "animalLod": 4,
+   "flicker": 0.363,
+   "leafLight": 0.204,
+   "leafSteps": 8,
+   "errors": 0
+  },
+  "flags": [
+   {
+    "kind": "lum",
+    "frame": 76,
+    "t": 515,
+    "phase": "navigate",
+    "still": true,
+    "step": -0.85,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "lum",
+    "frame": 77,
+    "t": 581,
+    "phase": "navigate",
+    "still": true,
+    "step": -1.27,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "sharp",
+    "frame": 77,
+    "t": 581,
+    "phase": "navigate",
+    "still": true,
+    "step": 4.3,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "lum",
+    "frame": 78,
+    "t": 631,
+    "phase": "navigate",
+    "still": true,
+    "step": -1.35,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "sharp",
+    "frame": 78,
+    "t": 631,
+    "phase": "navigate",
+    "still": true,
+    "step": 5.9,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "lum",
+    "frame": 79,
+    "t": 665,
+    "phase": "navigate",
+    "still": true,
+    "step": -1.14,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "sharp",
+    "frame": 79,
+    "t": 665,
+    "phase": "navigate",
+    "still": true,
+    "step": 4.1,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "lum",
+    "frame": 80,
+    "t": 715,
+    "phase": "navigate",
+    "still": true,
+    "step": -2.08,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "sharp",
+    "frame": 80,
+    "t": 715,
+    "phase": "navigate",
+    "still": true,
+    "step": 6.6,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "lum",
+    "frame": 81,
+    "t": 765,
+    "phase": "navigate",
+    "still": true,
+    "step": -2.58,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "sharp",
+    "frame": 81,
+    "t": 765,
+    "phase": "navigate",
+    "still": true,
+    "step": 6,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "lum",
+    "frame": 82,
+    "t": 831,
+    "phase": "navigate",
+    "still": true,
+    "step": -4.29,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "sharp",
+    "frame": 82,
+    "t": 831,
+    "phase": "navigate",
+    "still": true,
+    "step": 25,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "lum",
+    "frame": 83,
+    "t": 915,
+    "phase": "navigate",
+    "still": true,
+    "step": -6.12,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": [],
+    "image": "leaves-lum-1.png"
+   },
+   {
+    "kind": "sharp",
+    "frame": 83,
+    "t": 915,
+    "phase": "navigate",
+    "still": true,
+    "step": 35.4,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "lum",
+    "frame": 84,
+    "t": 931,
+    "phase": "navigate",
+    "still": true,
+    "step": -1.23,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "sharp",
+    "frame": 84,
+    "t": 931,
+    "phase": "navigate",
+    "still": true,
+    "step": 7.2,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "lum",
+    "frame": 85,
+    "t": 981,
+    "phase": "navigate",
+    "still": true,
+    "step": -3.63,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "sharp",
+    "frame": 85,
+    "t": 981,
+    "phase": "navigate",
+    "still": true,
+    "step": 30.2,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "lum",
+    "frame": 86,
+    "t": 1065,
+    "phase": "navigate",
+    "still": true,
+    "step": -5.43,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "sharp",
+    "frame": 86,
+    "t": 1065,
+    "phase": "navigate",
+    "still": true,
+    "step": 77.3,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": [],
+    "image": "leaves-sharp-1.png"
+   },
+   {
+    "kind": "lum",
+    "frame": 87,
+    "t": 1081,
+    "phase": "navigate",
+    "still": true,
+    "step": -0.98,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "sharp",
+    "frame": 87,
+    "t": 1081,
+    "phase": "navigate",
+    "still": true,
+    "step": 9.6,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "lum",
+    "frame": 88,
+    "t": 1165,
+    "phase": "navigate",
+    "still": true,
+    "step": -4.3,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "sharp",
+    "frame": 88,
+    "t": 1165,
+    "phase": "navigate",
+    "still": true,
+    "step": 19.8,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "lum",
+    "frame": 89,
+    "t": 1215,
+    "phase": "navigate",
+    "still": true,
+    "step": -2.17,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "sharp",
+    "frame": 89,
+    "t": 1215,
+    "phase": "navigate",
+    "still": true,
+    "step": 5.8,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "lum",
+    "frame": 90,
+    "t": 1315,
+    "phase": "navigate",
+    "still": true,
+    "step": -3.59,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "sharp",
+    "frame": 90,
+    "t": 1315,
+    "phase": "navigate",
+    "still": true,
+    "step": 8.7,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "lum",
+    "frame": 92,
+    "t": 1398,
+    "phase": "navigate",
+    "still": true,
+    "step": -1.84,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "sharp",
+    "frame": 92,
+    "t": 1398,
+    "phase": "navigate",
+    "still": true,
+    "step": 4.2,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "lum",
+    "frame": 93,
+    "t": 1498,
+    "phase": "navigate",
+    "still": true,
+    "step": -2.18,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "sharp",
+    "frame": 93,
+    "t": 1498,
+    "phase": "navigate",
+    "still": true,
+    "step": 5.4,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "lum",
+    "frame": 95,
+    "t": 1581,
+    "phase": "navigate",
+    "still": true,
+    "step": -1.1,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "pop",
+    "frame": 106,
+    "t": 2065,
+    "phase": "navigate",
+    "still": true,
+    "cells": 9,
+    "pixels": 2304,
+    "box": [
+     16,
+     752,
+     80,
+     800
+    ],
+    "all": 11,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 106,
+    "t": 2065,
+    "phase": "navigate",
+    "still": true,
+    "cells": 7,
+    "pixels": 1792,
+    "box": [
+     0,
+     704,
+     32,
+     768
+    ],
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "pop",
+    "frame": 107,
+    "t": 2115,
+    "phase": "navigate",
+    "still": true,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     80,
+     752,
+     128,
+     768
+    ],
+    "all": 7,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 107,
+    "t": 2115,
+    "phase": "navigate",
+    "still": true,
+    "cells": 34,
+    "pixels": 8704,
+    "box": [
+     0,
+     640,
+     208,
+     800
+    ],
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": [],
+    "image": "leaves-flash-1.png"
+   },
+   {
+    "kind": "pop",
+    "frame": 108,
+    "t": 2165,
+    "phase": "navigate",
+    "still": true,
+    "cells": 8,
+    "pixels": 2048,
+    "box": [
+     176,
+     720,
+     256,
+     768
+    ],
+    "all": 14,
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 108,
+    "t": 2165,
+    "phase": "navigate",
+    "still": true,
+    "cells": 12,
+    "pixels": 3072,
+    "box": [
+     0,
+     592,
+     128,
+     688
+    ],
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 109,
+    "t": 2198,
+    "phase": "navigate",
+    "still": true,
+    "cells": 8,
+    "pixels": 2048,
+    "box": [
+     272,
+     752,
+     368,
+     800
+    ],
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 110,
+    "t": 2248,
+    "phase": "navigate",
+    "still": true,
+    "cells": 34,
+    "pixels": 8704,
+    "box": [
+     160,
+     624,
+     480,
+     800
+    ],
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 111,
+    "t": 2298,
+    "phase": "navigate",
+    "still": true,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     320,
+     688,
+     400,
+     736
+    ],
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 112,
+    "t": 2331,
+    "phase": "navigate",
+    "still": true,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     464,
+     720,
+     528,
+     752
+    ],
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 113,
+    "t": 2381,
+    "phase": "navigate",
+    "still": true,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     368,
+     656,
+     464,
+     704
+    ],
+    "eye": [
+     13.8,
+     2,
+     6.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "pop",
+    "frame": 175,
+    "t": 6681,
+    "phase": "navigate",
+    "still": false,
+    "cells": 3355,
+    "pixels": 858880,
+    "box": [
+     0,
+     0,
+     1280,
+     800
+    ],
+    "all": 3371,
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": [
+     "shadow-request jump=true",
+     "animal-lod herd=herd coarse=true distance=64",
+     "shadow-swap slice=1 count=1",
+     "place-lod place=a19156 from=1 to=0 x=62 z=86",
+     "place-lod place=57ed3b from=2 to=1 x=63.934342677373984 z=126.81560463466371",
+     "lod-pack 379 chunks"
+    ],
+    "image": "leaves-pop-1.png"
+   },
+   {
+    "kind": "vanish",
+    "frame": 175,
+    "t": 6681,
+    "phase": "navigate",
+    "still": false,
+    "cells": 12,
+    "pixels": 3072,
+    "box": [
+     1088,
+     208,
+     1184,
+     256
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": [
+     "shadow-request jump=true",
+     "animal-lod herd=herd coarse=true distance=64",
+     "shadow-swap slice=1 count=1",
+     "place-lod place=a19156 from=1 to=0 x=62 z=86",
+     "place-lod place=57ed3b from=2 to=1 x=63.934342677373984 z=126.81560463466371",
+     "lod-pack 379 chunks"
+    ],
+    "image": "leaves-vanish-1.png"
+   },
+   {
+    "kind": "pop",
+    "frame": 176,
+    "t": 6715,
+    "phase": "navigate",
+    "still": false,
+    "cells": 10,
+    "pixels": 2560,
+    "box": [
+     560,
+     608,
+     656,
+     640
+    ],
+    "all": 14,
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": [
+     "animal-lod herd=herd coarse=true distance=64",
+     "shadow-swap slice=1 count=1",
+     "place-lod place=a19156 from=1 to=0 x=62 z=86",
+     "place-lod place=57ed3b from=2 to=1 x=63.934342677373984 z=126.81560463466371",
+     "lod-pack 379 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 177,
+    "t": 6748,
+    "phase": "navigate",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     576,
+     496,
+     624,
+     512
+    ],
+    "all": 8,
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": [
+     "shadow-swap slice=1 count=1",
+     "place-lod place=a19156 from=1 to=0 x=62 z=86",
+     "place-lod place=57ed3b from=2 to=1 x=63.934342677373984 z=126.81560463466371"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 191,
+    "t": 9498,
+    "phase": "navigate",
+    "still": true,
+    "cells": 8,
+    "pixels": 2048,
+    "box": [
+     704,
+     400,
+     768,
+     448
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": [
+     "environment"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 192,
+    "t": 9831,
+    "phase": "navigate",
+    "still": true,
+    "cells": 8,
+    "pixels": 2048,
+    "box": [
+     800,
+     400,
+     864,
+     464
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 193,
+    "t": 10031,
+    "phase": "navigate",
+    "still": true,
+    "cells": 7,
+    "pixels": 1792,
+    "box": [
+     848,
+     432,
+     896,
+     480
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 194,
+    "t": 10365,
+    "phase": "navigate",
+    "still": true,
+    "cells": 8,
+    "pixels": 2048,
+    "box": [
+     768,
+     464,
+     832,
+     512
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 195,
+    "t": 10731,
+    "phase": "still",
+    "still": true,
+    "cells": 12,
+    "pixels": 3072,
+    "box": [
+     512,
+     432,
+     624,
+     480
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "pop",
+    "frame": 196,
+    "t": 11065,
+    "phase": "still",
+    "still": true,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     16,
+     208,
+     64,
+     256
+    ],
+    "all": 21,
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 196,
+    "t": 11065,
+    "phase": "still",
+    "still": true,
+    "cells": 9,
+    "pixels": 2304,
+    "box": [
+     544,
+     336,
+     608,
+     400
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 197,
+    "t": 11398,
+    "phase": "still",
+    "still": true,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     656,
+     304,
+     704,
+     336
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "pop",
+    "frame": 198,
+    "t": 11631,
+    "phase": "still",
+    "still": true,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     976,
+     0,
+     1024,
+     32
+    ],
+    "all": 22,
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 198,
+    "t": 11631,
+    "phase": "still",
+    "still": true,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     720,
+     288,
+     752,
+     320
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "pop",
+    "frame": 199,
+    "t": 11998,
+    "phase": "still",
+    "still": true,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1120,
+     288,
+     1168,
+     320
+    ],
+    "all": 22,
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 199,
+    "t": 11998,
+    "phase": "still",
+    "still": true,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     768,
+     272,
+     800,
+     304
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "vanish",
+    "frame": 199,
+    "t": 11998,
+    "phase": "still",
+    "still": true,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     768,
+     272,
+     800,
+     304
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 200,
+    "t": 12331,
+    "phase": "still",
+    "still": true,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     800,
+     256,
+     816,
+     304
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "vanish",
+    "frame": 200,
+    "t": 12331,
+    "phase": "still",
+    "still": true,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     800,
+     272,
+     832,
+     304
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "pop",
+    "frame": 201,
+    "t": 12665,
+    "phase": "still",
+    "still": true,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     640,
+     144,
+     672,
+     192
+    ],
+    "all": 23,
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "pop",
+    "frame": 203,
+    "t": 13198,
+    "phase": "still",
+    "still": true,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     96,
+     48,
+     144,
+     80
+    ],
+    "all": 18,
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "pop",
+    "frame": 205,
+    "t": 13731,
+    "phase": "still",
+    "still": true,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1184,
+     352,
+     1200,
+     400
+    ],
+    "all": 22,
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 206,
+    "t": 14031,
+    "phase": "still",
+    "still": true,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     784,
+     288,
+     816,
+     320
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "pop",
+    "frame": 207,
+    "t": 14231,
+    "phase": "still",
+    "still": true,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1184,
+     368,
+     1200,
+     416
+    ],
+    "all": 15,
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "pop",
+    "frame": 213,
+    "t": 15831,
+    "phase": "still",
+    "still": true,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     624,
+     112,
+     656,
+     144
+    ],
+    "all": 14,
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": [
+     "animal-lod herd=herd coarse=true distance=164"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 222,
+    "t": 18398,
+    "phase": "still",
+    "still": true,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     752,
+     256,
+     784,
+     288
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": [
+     "environment"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 222,
+    "t": 18398,
+    "phase": "still",
+    "still": true,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     752,
+     256,
+     784,
+     288
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": [
+     "environment"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 226,
+    "t": 19565,
+    "phase": "still",
+    "still": true,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     672,
+     320,
+     704,
+     352
+    ],
+    "all": 3,
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 227,
+    "t": 19932,
+    "phase": "still",
+    "still": true,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     624,
+     368,
+     656,
+     416
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "pop",
+    "frame": 228,
+    "t": 20265,
+    "phase": "still",
+    "still": true,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     480,
+     48,
+     544,
+     96
+    ],
+    "all": 28,
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 228,
+    "t": 20265,
+    "phase": "still",
+    "still": true,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     592,
+     400,
+     624,
+     448
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 229,
+    "t": 20832,
+    "phase": "still",
+    "still": true,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     608,
+     432,
+     656,
+     480
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "pop",
+    "frame": 230,
+    "t": 21132,
+    "phase": "still",
+    "still": true,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     1136,
+     80,
+     1200,
+     128
+    ],
+    "all": 40,
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 230,
+    "t": 21132,
+    "phase": "still",
+    "still": true,
+    "cells": 7,
+    "pixels": 1792,
+    "box": [
+     656,
+     432,
+     704,
+     496
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "pop",
+    "frame": 231,
+    "t": 21465,
+    "phase": "still",
+    "still": true,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1056,
+     208,
+     1104,
+     240
+    ],
+    "all": 22,
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 231,
+    "t": 21465,
+    "phase": "still",
+    "still": true,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     704,
+     432,
+     736,
+     480
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 232,
+    "t": 21798,
+    "phase": "still",
+    "still": true,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     736,
+     416,
+     752,
+     480
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "pop",
+    "frame": 233,
+    "t": 22098,
+    "phase": "still",
+    "still": true,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1104,
+     224,
+     1136,
+     272
+    ],
+    "all": 14,
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 234,
+    "t": 22365,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     608,
+     464,
+     656,
+     496
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "pop",
+    "frame": 235,
+    "t": 22632,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     80,
+     32,
+     112,
+     96
+    ],
+    "all": 117,
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 235,
+    "t": 22632,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     304,
+     128,
+     352,
+     160
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "vanish",
+    "frame": 235,
+    "t": 22632,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     192,
+     160,
+     224,
+     224
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.1
+    ],
+    "events": []
+   },
+   {
+    "kind": "pop",
+    "frame": 236,
+    "t": 22865,
+    "phase": "still",
+    "still": false,
+    "cells": 14,
+    "pixels": 3584,
+    "box": [
+     112,
+     80,
+     176,
+     272
+    ],
+    "all": 287,
+    "eye": [
+     41.5,
+     10.9,
+     72.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "flash",
+    "frame": 236,
+    "t": 22865,
+    "phase": "still",
+    "still": false,
+    "cells": 7,
+    "pixels": 1792,
+    "box": [
+     704,
+     240,
+     768,
+     336
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "vanish",
+    "frame": 236,
+    "t": 22865,
+    "phase": "still",
+    "still": false,
+    "cells": 7,
+    "pixels": 1792,
+    "box": [
+     208,
+     192,
+     256,
+     272
+    ],
+    "eye": [
+     41.5,
+     10.9,
+     72.3
+    ],
+    "events": []
+   },
+   {
+    "kind": "pop",
+    "frame": 237,
+    "t": 23165,
+    "phase": "still",
+    "still": false,
+    "cells": 10,
+    "pixels": 2560,
+    "box": [
+     992,
+     256,
+     1072,
+     352
+    ],
+    "all": 171,
+    "eye": [
+     41.6,
+     10.9,
+     72.5
+    ],
+    "events": [
+     "lod-pack 2 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 237,
+    "t": 23165,
+    "phase": "still",
+    "still": false,
+    "cells": 9,
+    "pixels": 2304,
+    "box": [
+     752,
+     240,
+     816,
+     320
+    ],
+    "eye": [
+     41.6,
+     10.9,
+     72.5
+    ],
+    "events": [
+     "lod-pack 2 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 237,
+    "t": 23165,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     48,
+     400,
+     112,
+     432
+    ],
+    "eye": [
+     41.6,
+     10.9,
+     72.5
+    ],
+    "events": [
+     "lod-pack 2 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 238,
+    "t": 23465,
+    "phase": "still",
+    "still": false,
+    "cells": 11,
+    "pixels": 2816,
+    "box": [
+     768,
+     304,
+     896,
+     400
+    ],
+    "all": 150,
+    "eye": [
+     41.6,
+     10.9,
+     72.8
+    ],
+    "events": [
+     "lod-pack 25 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 238,
+    "t": 23465,
+    "phase": "still",
+    "still": false,
+    "cells": 8,
+    "pixels": 2048,
+    "box": [
+     800,
+     64,
+     880,
+     160
+    ],
+    "eye": [
+     41.6,
+     10.9,
+     72.8
+    ],
+    "events": [
+     "lod-pack 25 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 238,
+    "t": 23465,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     1040,
+     192,
+     1088,
+     224
+    ],
+    "eye": [
+     41.6,
+     10.9,
+     72.8
+    ],
+    "events": [
+     "lod-pack 25 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 239,
+    "t": 23732,
+    "phase": "still",
+    "still": false,
+    "cells": 11,
+    "pixels": 2816,
+    "box": [
+     800,
+     336,
+     896,
+     448
+    ],
+    "all": 165,
+    "eye": [
+     41.6,
+     10.8,
+     73
+    ],
+    "events": [
+     "lod-pack 51 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 239,
+    "t": 23732,
+    "phase": "still",
+    "still": false,
+    "cells": 9,
+    "pixels": 2304,
+    "box": [
+     832,
+     64,
+     912,
+     160
+    ],
+    "eye": [
+     41.6,
+     10.8,
+     73
+    ],
+    "events": [
+     "lod-pack 51 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 239,
+    "t": 23732,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     640,
+     160,
+     672,
+     208
+    ],
+    "eye": [
+     41.6,
+     10.8,
+     73
+    ],
+    "events": [
+     "lod-pack 51 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 240,
+    "t": 24032,
+    "phase": "still",
+    "still": false,
+    "cells": 10,
+    "pixels": 2560,
+    "box": [
+     832,
+     352,
+     912,
+     432
+    ],
+    "all": 142,
+    "eye": [
+     41.6,
+     10.8,
+     73.2
+    ],
+    "events": [
+     "lod-pack 57 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 240,
+    "t": 24032,
+    "phase": "still",
+    "still": false,
+    "cells": 7,
+    "pixels": 1792,
+    "box": [
+     864,
+     64,
+     944,
+     160
+    ],
+    "eye": [
+     41.6,
+     10.8,
+     73.2
+    ],
+    "events": [
+     "lod-pack 57 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 240,
+    "t": 24032,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     368,
+     224,
+     416,
+     272
+    ],
+    "eye": [
+     41.6,
+     10.8,
+     73.2
+    ],
+    "events": [
+     "lod-pack 57 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 241,
+    "t": 24365,
+    "phase": "still",
+    "still": false,
+    "cells": 10,
+    "pixels": 2560,
+    "box": [
+     864,
+     336,
+     976,
+     432
+    ],
+    "all": 108,
+    "eye": [
+     41.6,
+     10.8,
+     73.4
+    ],
+    "events": [
+     "lod-pack 87 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 241,
+    "t": 24365,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     560,
+     0,
+     608,
+     64
+    ],
+    "eye": [
+     41.6,
+     10.8,
+     73.4
+    ],
+    "events": [
+     "lod-pack 87 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 241,
+    "t": 24365,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     720,
+     112,
+     752,
+     144
+    ],
+    "eye": [
+     41.6,
+     10.8,
+     73.4
+    ],
+    "events": [
+     "lod-pack 87 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 242,
+    "t": 24565,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     432,
+     144,
+     464,
+     224
+    ],
+    "all": 122,
+    "eye": [
+     41.6,
+     10.8,
+     73.6
+    ],
+    "events": [
+     "lod-pack 66 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 242,
+    "t": 24565,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     528,
+     512,
+     560,
+     560
+    ],
+    "eye": [
+     41.6,
+     10.8,
+     73.6
+    ],
+    "events": [
+     "lod-pack 66 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 242,
+    "t": 24565,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     432,
+     176,
+     464,
+     224
+    ],
+    "eye": [
+     41.6,
+     10.8,
+     73.6
+    ],
+    "events": [
+     "lod-pack 66 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 243,
+    "t": 24832,
+    "phase": "still",
+    "still": false,
+    "cells": 9,
+    "pixels": 2304,
+    "box": [
+     928,
+     352,
+     1040,
+     448
+    ],
+    "all": 138,
+    "eye": [
+     41.5,
+     10.8,
+     73.8
+    ],
+    "events": [
+     "lod-pack 93 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 243,
+    "t": 24832,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     432,
+     336,
+     464,
+     384
+    ],
+    "eye": [
+     41.5,
+     10.8,
+     73.8
+    ],
+    "events": [
+     "lod-pack 93 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 243,
+    "t": 24832,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     208,
+     448,
+     240,
+     480
+    ],
+    "eye": [
+     41.5,
+     10.8,
+     73.8
+    ],
+    "events": [
+     "lod-pack 93 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 244,
+    "t": 25082,
+    "phase": "still",
+    "still": false,
+    "cells": 17,
+    "pixels": 4352,
+    "box": [
+     432,
+     160,
+     560,
+     288
+    ],
+    "all": 293,
+    "eye": [
+     41.5,
+     10.8,
+     73.9
+    ],
+    "events": [
+     "lod-pack 76 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 244,
+    "t": 25082,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     496,
+     160,
+     512,
+     208
+    ],
+    "eye": [
+     41.5,
+     10.8,
+     73.9
+    ],
+    "events": [
+     "lod-pack 76 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 246,
+    "t": 25532,
+    "phase": "still",
+    "still": false,
+    "cells": 28,
+    "pixels": 7168,
+    "box": [
+     1136,
+     496,
+     1184,
+     736
+    ],
+    "all": 301,
+    "eye": [
+     41.4,
+     10.8,
+     74.2
+    ],
+    "events": [
+     "lod-pack 109 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 246,
+    "t": 25532,
+    "phase": "still",
+    "still": false,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     864,
+     224,
+     928,
+     288
+    ],
+    "eye": [
+     41.4,
+     10.8,
+     74.2
+    ],
+    "events": [
+     "lod-pack 109 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 246,
+    "t": 25532,
+    "phase": "still",
+    "still": false,
+    "cells": 20,
+    "pixels": 5120,
+    "box": [
+     32,
+     256,
+     208,
+     320
+    ],
+    "eye": [
+     41.4,
+     10.8,
+     74.2
+    ],
+    "events": [
+     "lod-pack 109 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 247,
+    "t": 25815,
+    "phase": "still",
+    "still": false,
+    "cells": 25,
+    "pixels": 6400,
+    "box": [
+     1040,
+     368,
+     1152,
+     480
+    ],
+    "all": 369,
+    "eye": [
+     41.4,
+     10.8,
+     74.4
+    ],
+    "events": [
+     "lod-pack 81 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 249,
+    "t": 26015,
+    "phase": "still",
+    "still": false,
+    "cells": 28,
+    "pixels": 7168,
+    "box": [
+     1056,
+     400,
+     1136,
+     624
+    ],
+    "all": 258,
+    "eye": [
+     41.3,
+     10.7,
+     74.5
+    ],
+    "events": [
+     "lod-pack 56 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 249,
+    "t": 26015,
+    "phase": "still",
+    "still": false,
+    "cells": 7,
+    "pixels": 1792,
+    "box": [
+     1232,
+     352,
+     1248,
+     464
+    ],
+    "eye": [
+     41.3,
+     10.7,
+     74.5
+    ],
+    "events": [
+     "lod-pack 56 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 249,
+    "t": 26015,
+    "phase": "still",
+    "still": false,
+    "cells": 12,
+    "pixels": 3072,
+    "box": [
+     576,
+     160,
+     640,
+     320
+    ],
+    "eye": [
+     41.3,
+     10.7,
+     74.5
+    ],
+    "events": [
+     "lod-pack 56 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 250,
+    "t": 26498,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     1024,
+     512,
+     1072,
+     560
+    ],
+    "all": 60,
+    "eye": [
+     41.2,
+     10.7,
+     74.8
+    ],
+    "events": [
+     "lod-pack 85 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 250,
+    "t": 26498,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1184,
+     208,
+     1216,
+     240
+    ],
+    "eye": [
+     41.2,
+     10.7,
+     74.8
+    ],
+    "events": [
+     "lod-pack 85 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 250,
+    "t": 26498,
+    "phase": "still",
+    "still": false,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     624,
+     256,
+     688,
+     320
+    ],
+    "eye": [
+     41.2,
+     10.7,
+     74.8
+    ],
+    "events": [
+     "lod-pack 85 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 251,
+    "t": 26532,
+    "phase": "still",
+    "still": false,
+    "cells": 19,
+    "pixels": 4864,
+    "box": [
+     1184,
+     640,
+     1248,
+     800
+    ],
+    "all": 129,
+    "eye": [
+     41.2,
+     10.7,
+     74.8
+    ],
+    "events": [
+     "lod-pack 22 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 251,
+    "t": 26532,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1216,
+     400,
+     1232,
+     448
+    ],
+    "eye": [
+     41.2,
+     10.7,
+     74.8
+    ],
+    "events": [
+     "lod-pack 22 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 252,
+    "t": 26765,
+    "phase": "still",
+    "still": false,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     1120,
+     528,
+     1152,
+     608
+    ],
+    "all": 62,
+    "eye": [
+     41.1,
+     10.7,
+     74.9
+    ],
+    "events": [
+     "lod-pack 48 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 252,
+    "t": 26765,
+    "phase": "still",
+    "still": false,
+    "cells": 10,
+    "pixels": 2560,
+    "box": [
+     896,
+     336,
+     960,
+     416
+    ],
+    "eye": [
+     41.1,
+     10.7,
+     74.9
+    ],
+    "events": [
+     "lod-pack 48 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 252,
+    "t": 26765,
+    "phase": "still",
+    "still": false,
+    "cells": 39,
+    "pixels": 9984,
+    "box": [
+     864,
+     240,
+     992,
+     416
+    ],
+    "eye": [
+     41.1,
+     10.7,
+     74.9
+    ],
+    "events": [
+     "lod-pack 48 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 253,
+    "t": 26998,
+    "phase": "still",
+    "still": false,
+    "cells": 21,
+    "pixels": 5376,
+    "box": [
+     1040,
+     480,
+     1120,
+     640
+    ],
+    "all": 151,
+    "eye": [
+     41,
+     10.7,
+     75
+    ],
+    "events": [
+     "lod-pack 54 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 253,
+    "t": 26998,
+    "phase": "still",
+    "still": false,
+    "cells": 15,
+    "pixels": 3840,
+    "box": [
+     592,
+     16,
+     640,
+     144
+    ],
+    "eye": [
+     41,
+     10.7,
+     75
+    ],
+    "events": [
+     "lod-pack 54 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 253,
+    "t": 26998,
+    "phase": "still",
+    "still": false,
+    "cells": 11,
+    "pixels": 2816,
+    "box": [
+     816,
+     256,
+     880,
+     352
+    ],
+    "eye": [
+     41,
+     10.7,
+     75
+    ],
+    "events": [
+     "lod-pack 54 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 254,
+    "t": 27365,
+    "phase": "still",
+    "still": false,
+    "cells": 22,
+    "pixels": 5632,
+    "box": [
+     64,
+     192,
+     192,
+     304
+    ],
+    "all": 157,
+    "eye": [
+     40.9,
+     10.7,
+     75.2
+    ],
+    "events": [
+     "lod-pack 75 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 254,
+    "t": 27365,
+    "phase": "still",
+    "still": false,
+    "cells": 24,
+    "pixels": 6144,
+    "box": [
+     160,
+     144,
+     256,
+     304
+    ],
+    "eye": [
+     40.9,
+     10.7,
+     75.2
+    ],
+    "events": [
+     "lod-pack 75 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 254,
+    "t": 27365,
+    "phase": "still",
+    "still": false,
+    "cells": 10,
+    "pixels": 2560,
+    "box": [
+     160,
+     336,
+     256,
+     400
+    ],
+    "eye": [
+     40.9,
+     10.7,
+     75.2
+    ],
+    "events": [
+     "lod-pack 75 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 255,
+    "t": 27632,
+    "phase": "still",
+    "still": false,
+    "cells": 35,
+    "pixels": 8960,
+    "box": [
+     864,
+     448,
+     944,
+     656
+    ],
+    "all": 167,
+    "eye": [
+     40.8,
+     10.7,
+     75.3
+    ],
+    "events": [
+     "lod-pack 53 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 255,
+    "t": 27632,
+    "phase": "still",
+    "still": false,
+    "cells": 44,
+    "pixels": 11264,
+    "box": [
+     528,
+     560,
+     608,
+     800
+    ],
+    "eye": [
+     40.8,
+     10.7,
+     75.3
+    ],
+    "events": [
+     "lod-pack 53 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 255,
+    "t": 27632,
+    "phase": "still",
+    "still": false,
+    "cells": 23,
+    "pixels": 5888,
+    "box": [
+     496,
+     432,
+     576,
+     608
+    ],
+    "eye": [
+     40.8,
+     10.7,
+     75.3
+    ],
+    "events": [
+     "lod-pack 53 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 256,
+    "t": 27898,
+    "phase": "still",
+    "still": false,
+    "cells": 20,
+    "pixels": 5120,
+    "box": [
+     592,
+     672,
+     656,
+     800
+    ],
+    "all": 189,
+    "eye": [
+     40.7,
+     10.7,
+     75.4
+    ],
+    "events": [
+     "lod-pack 68 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 256,
+    "t": 27898,
+    "phase": "still",
+    "still": false,
+    "cells": 45,
+    "pixels": 11520,
+    "box": [
+     320,
+     0,
+     416,
+     288
+    ],
+    "eye": [
+     40.7,
+     10.7,
+     75.4
+    ],
+    "events": [
+     "lod-pack 68 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 256,
+    "t": 27898,
+    "phase": "still",
+    "still": false,
+    "cells": 42,
+    "pixels": 10752,
+    "box": [
+     0,
+     576,
+     96,
+     736
+    ],
+    "eye": [
+     40.7,
+     10.7,
+     75.4
+    ],
+    "events": [
+     "lod-pack 68 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 257,
+    "t": 28115,
+    "phase": "still",
+    "still": false,
+    "cells": 12,
+    "pixels": 3072,
+    "box": [
+     912,
+     464,
+     944,
+     640
+    ],
+    "all": 139,
+    "eye": [
+     40.7,
+     10.7,
+     75.5
+    ],
+    "events": [
+     "lod-pack 66 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 257,
+    "t": 28115,
+    "phase": "still",
+    "still": false,
+    "cells": 12,
+    "pixels": 3072,
+    "box": [
+     240,
+     144,
+     304,
+     224
+    ],
+    "eye": [
+     40.7,
+     10.7,
+     75.5
+    ],
+    "events": [
+     "lod-pack 66 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 257,
+    "t": 28115,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     336,
+     368,
+     368,
+     432
+    ],
+    "eye": [
+     40.7,
+     10.7,
+     75.5
+    ],
+    "events": [
+     "lod-pack 66 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 258,
+    "t": 28398,
+    "phase": "still",
+    "still": false,
+    "cells": 19,
+    "pixels": 4864,
+    "box": [
+     880,
+     464,
+     912,
+     640
+    ],
+    "all": 135,
+    "eye": [
+     40.6,
+     10.7,
+     75.6
+    ],
+    "events": [
+     "lod-pack 64 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 258,
+    "t": 28398,
+    "phase": "still",
+    "still": false,
+    "cells": 7,
+    "pixels": 1792,
+    "box": [
+     96,
+     608,
+     128,
+     688
+    ],
+    "eye": [
+     40.6,
+     10.7,
+     75.6
+    ],
+    "events": [
+     "lod-pack 64 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 258,
+    "t": 28398,
+    "phase": "still",
+    "still": false,
+    "cells": 13,
+    "pixels": 3328,
+    "box": [
+     752,
+     560,
+     800,
+     640
+    ],
+    "eye": [
+     40.6,
+     10.7,
+     75.6
+    ],
+    "events": [
+     "lod-pack 64 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 259,
+    "t": 28632,
+    "phase": "still",
+    "still": false,
+    "cells": 14,
+    "pixels": 3584,
+    "box": [
+     848,
+     480,
+     880,
+     624
+    ],
+    "all": 127,
+    "eye": [
+     40.5,
+     10.6,
+     75.7
+    ],
+    "events": [
+     "lod-pack 39 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 259,
+    "t": 28632,
+    "phase": "still",
+    "still": false,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     592,
+     0,
+     640,
+     48
+    ],
+    "eye": [
+     40.5,
+     10.6,
+     75.7
+    ],
+    "events": [
+     "lod-pack 39 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 259,
+    "t": 28632,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     64,
+     240,
+     96,
+     272
+    ],
+    "eye": [
+     40.5,
+     10.6,
+     75.7
+    ],
+    "events": [
+     "lod-pack 39 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 260,
+    "t": 28932,
+    "phase": "still",
+    "still": false,
+    "cells": 17,
+    "pixels": 4352,
+    "box": [
+     688,
+     464,
+     736,
+     640
+    ],
+    "all": 110,
+    "eye": [
+     40.4,
+     10.6,
+     75.8
+    ],
+    "events": [
+     "lod-pack 36 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 260,
+    "t": 28932,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     512,
+     0,
+     560,
+     32
+    ],
+    "eye": [
+     40.4,
+     10.6,
+     75.8
+    ],
+    "events": [
+     "lod-pack 36 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 260,
+    "t": 28932,
+    "phase": "still",
+    "still": false,
+    "cells": 12,
+    "pixels": 3072,
+    "box": [
+     688,
+     544,
+     720,
+     672
+    ],
+    "eye": [
+     40.4,
+     10.6,
+     75.8
+    ],
+    "events": [
+     "lod-pack 36 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 261,
+    "t": 29165,
+    "phase": "still",
+    "still": false,
+    "cells": 9,
+    "pixels": 2304,
+    "box": [
+     512,
+     80,
+     640,
+     160
+    ],
+    "all": 116,
+    "eye": [
+     40.3,
+     10.6,
+     75.9
+    ],
+    "events": [
+     "lod-pack 46 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 261,
+    "t": 29165,
+    "phase": "still",
+    "still": false,
+    "cells": 12,
+    "pixels": 3072,
+    "box": [
+     448,
+     0,
+     560,
+     64
+    ],
+    "eye": [
+     40.3,
+     10.6,
+     75.9
+    ],
+    "events": [
+     "lod-pack 46 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 261,
+    "t": 29165,
+    "phase": "still",
+    "still": false,
+    "cells": 10,
+    "pixels": 2560,
+    "box": [
+     656,
+     560,
+     688,
+     656
+    ],
+    "eye": [
+     40.3,
+     10.6,
+     75.9
+    ],
+    "events": [
+     "lod-pack 46 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 262,
+    "t": 29465,
+    "phase": "still",
+    "still": false,
+    "cells": 12,
+    "pixels": 3072,
+    "box": [
+     624,
+     512,
+     656,
+     624
+    ],
+    "all": 109,
+    "eye": [
+     40.2,
+     10.6,
+     76
+    ],
+    "events": [
+     "environment",
+     "lod-pack 41 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 262,
+    "t": 29465,
+    "phase": "still",
+    "still": false,
+    "cells": 14,
+    "pixels": 3584,
+    "box": [
+     368,
+     0,
+     528,
+     80
+    ],
+    "eye": [
+     40.2,
+     10.6,
+     76
+    ],
+    "events": [
+     "environment",
+     "lod-pack 41 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 262,
+    "t": 29465,
+    "phase": "still",
+    "still": false,
+    "cells": 9,
+    "pixels": 2304,
+    "box": [
+     624,
+     560,
+     656,
+     640
+    ],
+    "eye": [
+     40.2,
+     10.6,
+     76
+    ],
+    "events": [
+     "environment",
+     "lod-pack 41 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 263,
+    "t": 29732,
+    "phase": "still",
+    "still": false,
+    "cells": 20,
+    "pixels": 5120,
+    "box": [
+     592,
+     448,
+     624,
+     704
+    ],
+    "all": 106,
+    "eye": [
+     40.1,
+     10.6,
+     76.1
+    ],
+    "events": [
+     "lod-pack 37 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 263,
+    "t": 29732,
+    "phase": "still",
+    "still": false,
+    "cells": 14,
+    "pixels": 3584,
+    "box": [
+     304,
+     0,
+     480,
+     80
+    ],
+    "eye": [
+     40.1,
+     10.6,
+     76.1
+    ],
+    "events": [
+     "lod-pack 37 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 263,
+    "t": 29732,
+    "phase": "still",
+    "still": false,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     576,
+     480,
+     624,
+     560
+    ],
+    "eye": [
+     40.1,
+     10.6,
+     76.1
+    ],
+    "events": [
+     "lod-pack 37 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 264,
+    "t": 30065,
+    "phase": "still",
+    "still": false,
+    "cells": 12,
+    "pixels": 3072,
+    "box": [
+     544,
+     480,
+     592,
+     576
+    ],
+    "all": 116,
+    "eye": [
+     40,
+     10.6,
+     76.1
+    ],
+    "events": [
+     "lod-pack 57 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 264,
+    "t": 30065,
+    "phase": "still",
+    "still": false,
+    "cells": 12,
+    "pixels": 3072,
+    "box": [
+     240,
+     0,
+     384,
+     80
+    ],
+    "eye": [
+     40,
+     10.6,
+     76.1
+    ],
+    "events": [
+     "lod-pack 57 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 264,
+    "t": 30065,
+    "phase": "still",
+    "still": false,
+    "cells": 12,
+    "pixels": 3072,
+    "box": [
+     544,
+     496,
+     592,
+     576
+    ],
+    "eye": [
+     40,
+     10.6,
+     76.1
+    ],
+    "events": [
+     "lod-pack 57 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 265,
+    "t": 30365,
+    "phase": "still",
+    "still": false,
+    "cells": 9,
+    "pixels": 2304,
+    "box": [
+     368,
+     96,
+     512,
+     176
+    ],
+    "all": 99,
+    "eye": [
+     39.9,
+     10.6,
+     76.2
+    ],
+    "events": [
+     "lod-pack 72 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 265,
+    "t": 30365,
+    "phase": "still",
+    "still": false,
+    "cells": 7,
+    "pixels": 1792,
+    "box": [
+     208,
+     16,
+     320,
+     64
+    ],
+    "eye": [
+     39.9,
+     10.6,
+     76.2
+    ],
+    "events": [
+     "lod-pack 72 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 265,
+    "t": 30365,
+    "phase": "still",
+    "still": false,
+    "cells": 8,
+    "pixels": 2048,
+    "box": [
+     512,
+     496,
+     544,
+     560
+    ],
+    "eye": [
+     39.9,
+     10.6,
+     76.2
+    ],
+    "events": [
+     "lod-pack 72 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 266,
+    "t": 30598,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     480,
+     432,
+     528,
+     480
+    ],
+    "all": 96,
+    "eye": [
+     39.8,
+     10.6,
+     76.3
+    ],
+    "events": [
+     "lod-pack 43 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 266,
+    "t": 30598,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     1168,
+     384,
+     1216,
+     416
+    ],
+    "eye": [
+     39.8,
+     10.6,
+     76.3
+    ],
+    "events": [
+     "lod-pack 43 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 266,
+    "t": 30598,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     656,
+     128,
+     720,
+     176
+    ],
+    "eye": [
+     39.8,
+     10.6,
+     76.3
+    ],
+    "events": [
+     "lod-pack 43 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 267,
+    "t": 30832,
+    "phase": "still",
+    "still": false,
+    "cells": 7,
+    "pixels": 1792,
+    "box": [
+     576,
+     480,
+     608,
+     560
+    ],
+    "all": 99,
+    "eye": [
+     39.7,
+     10.6,
+     76.3
+    ],
+    "events": [
+     "lod-pack 29 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 267,
+    "t": 30832,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     464,
+     496,
+     496,
+     576
+    ],
+    "eye": [
+     39.7,
+     10.6,
+     76.3
+    ],
+    "events": [
+     "lod-pack 29 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 268,
+    "t": 31132,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     448,
+     432,
+     480,
+     480
+    ],
+    "all": 72,
+    "eye": [
+     39.6,
+     10.6,
+     76.4
+    ],
+    "events": [
+     "lod-pack 43 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 268,
+    "t": 31132,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     272,
+     416,
+     304,
+     464
+    ],
+    "eye": [
+     39.6,
+     10.6,
+     76.4
+    ],
+    "events": [
+     "lod-pack 43 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 268,
+    "t": 31132,
+    "phase": "still",
+    "still": false,
+    "cells": 13,
+    "pixels": 3328,
+    "box": [
+     432,
+     384,
+     480,
+     544
+    ],
+    "eye": [
+     39.6,
+     10.6,
+     76.4
+    ],
+    "events": [
+     "lod-pack 43 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 269,
+    "t": 31365,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     1120,
+     256,
+     1168,
+     320
+    ],
+    "all": 93,
+    "eye": [
+     39.5,
+     10.6,
+     76.4
+    ],
+    "events": [
+     "shadow-request jump=false",
+     "shadow-slice slice=1 count=4",
+     "shadow-slice slice=2 count=4",
+     "shadow-slice slice=3 count=4",
+     "shadow-swap slice=4 count=4",
+     "lod-pack 42 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 269,
+    "t": 31365,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     304,
+     0,
+     352,
+     48
+    ],
+    "eye": [
+     39.5,
+     10.6,
+     76.4
+    ],
+    "events": [
+     "shadow-request jump=false",
+     "shadow-slice slice=1 count=4",
+     "shadow-slice slice=2 count=4",
+     "shadow-slice slice=3 count=4",
+     "shadow-swap slice=4 count=4",
+     "lod-pack 42 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 269,
+    "t": 31365,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     1120,
+     288,
+     1152,
+     352
+    ],
+    "eye": [
+     39.5,
+     10.6,
+     76.4
+    ],
+    "events": [
+     "shadow-request jump=false",
+     "shadow-slice slice=1 count=4",
+     "shadow-slice slice=2 count=4",
+     "shadow-slice slice=3 count=4",
+     "shadow-swap slice=4 count=4",
+     "lod-pack 42 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 270,
+    "t": 31698,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     384,
+     496,
+     416,
+     560
+    ],
+    "all": 74,
+    "eye": [
+     39.4,
+     10.6,
+     76.5
+    ],
+    "events": [
+     "shadow-slice slice=2 count=4",
+     "shadow-slice slice=3 count=4",
+     "shadow-swap slice=4 count=4",
+     "lod-pack 42 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 270,
+    "t": 31698,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     256,
+     0,
+     304,
+     32
+    ],
+    "eye": [
+     39.4,
+     10.6,
+     76.5
+    ],
+    "events": [
+     "shadow-slice slice=2 count=4",
+     "shadow-slice slice=3 count=4",
+     "shadow-swap slice=4 count=4",
+     "lod-pack 42 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 270,
+    "t": 31698,
+    "phase": "still",
+    "still": false,
+    "cells": 8,
+    "pixels": 2048,
+    "box": [
+     384,
+     464,
+     416,
+     592
+    ],
+    "eye": [
+     39.4,
+     10.6,
+     76.5
+    ],
+    "events": [
+     "shadow-slice slice=2 count=4",
+     "shadow-slice slice=3 count=4",
+     "shadow-swap slice=4 count=4",
+     "lod-pack 42 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 271,
+    "t": 32032,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     192,
+     112,
+     224,
+     160
+    ],
+    "all": 71,
+    "eye": [
+     39.3,
+     10.5,
+     76.5
+    ],
+    "events": [
+     "lod-pack 45 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 271,
+    "t": 32032,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     848,
+     432,
+     896,
+     480
+    ],
+    "eye": [
+     39.3,
+     10.5,
+     76.5
+    ],
+    "events": [
+     "lod-pack 45 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 271,
+    "t": 32032,
+    "phase": "still",
+    "still": false,
+    "cells": 7,
+    "pixels": 1792,
+    "box": [
+     368,
+     512,
+     400,
+     576
+    ],
+    "eye": [
+     39.3,
+     10.5,
+     76.5
+    ],
+    "events": [
+     "lod-pack 45 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 272,
+    "t": 32532,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     1152,
+     64,
+     1200,
+     112
+    ],
+    "all": 74,
+    "eye": [
+     39.2,
+     10.5,
+     76.6
+    ],
+    "events": [
+     "environment",
+     "lod-pack 50 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 272,
+    "t": 32532,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     448,
+     432,
+     464,
+     496
+    ],
+    "eye": [
+     39.2,
+     10.5,
+     76.6
+    ],
+    "events": [
+     "environment",
+     "lod-pack 50 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 272,
+    "t": 32532,
+    "phase": "still",
+    "still": false,
+    "cells": 10,
+    "pixels": 2560,
+    "box": [
+     336,
+     480,
+     368,
+     576
+    ],
+    "eye": [
+     39.2,
+     10.5,
+     76.6
+    ],
+    "events": [
+     "environment",
+     "lod-pack 50 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 273,
+    "t": 32765,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1168,
+     16,
+     1200,
+     64
+    ],
+    "all": 82,
+    "eye": [
+     39.1,
+     10.5,
+     76.6
+    ],
+    "events": [
+     "lod-pack 27 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 273,
+    "t": 32765,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     320,
+     512,
+     336,
+     560
+    ],
+    "eye": [
+     39.1,
+     10.5,
+     76.6
+    ],
+    "events": [
+     "lod-pack 27 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 274,
+    "t": 33065,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1024,
+     256,
+     1056,
+     304
+    ],
+    "all": 64,
+    "eye": [
+     39,
+     10.5,
+     76.7
+    ],
+    "events": [
+     "lod-pack 30 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 274,
+    "t": 33065,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     192,
+     0,
+     240,
+     32
+    ],
+    "eye": [
+     39,
+     10.5,
+     76.7
+    ],
+    "events": [
+     "lod-pack 30 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 274,
+    "t": 33065,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     512,
+     432,
+     528,
+     480
+    ],
+    "eye": [
+     39,
+     10.5,
+     76.7
+    ],
+    "events": [
+     "lod-pack 30 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 275,
+    "t": 33298,
+    "phase": "still",
+    "still": false,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     704,
+     448,
+     736,
+     496
+    ],
+    "eye": [
+     38.9,
+     10.5,
+     76.7
+    ],
+    "events": [
+     "environment",
+     "lod-pack 32 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 275,
+    "t": 33298,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     144,
+     400,
+     160,
+     448
+    ],
+    "eye": [
+     38.9,
+     10.5,
+     76.7
+    ],
+    "events": [
+     "environment",
+     "lod-pack 32 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 276,
+    "t": 33598,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     384,
+     496,
+     400,
+     576
+    ],
+    "all": 51,
+    "eye": [
+     38.8,
+     10.5,
+     76.7
+    ],
+    "events": [
+     "lod-pack 34 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 276,
+    "t": 33598,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     672,
+     448,
+     688,
+     496
+    ],
+    "eye": [
+     38.8,
+     10.5,
+     76.7
+    ],
+    "events": [
+     "lod-pack 34 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 276,
+    "t": 33598,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     160,
+     400,
+     176,
+     448
+    ],
+    "eye": [
+     38.8,
+     10.5,
+     76.7
+    ],
+    "events": [
+     "lod-pack 34 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 277,
+    "t": 33832,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     368,
+     512,
+     384,
+     560
+    ],
+    "all": 61,
+    "eye": [
+     38.8,
+     10.5,
+     76.7
+    ],
+    "events": [
+     "lod-pack 30 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 277,
+    "t": 33832,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     288,
+     752,
+     320,
+     800
+    ],
+    "eye": [
+     38.8,
+     10.5,
+     76.7
+    ],
+    "events": [
+     "lod-pack 30 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 277,
+    "t": 33832,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     176,
+     400,
+     192,
+     448
+    ],
+    "eye": [
+     38.8,
+     10.5,
+     76.7
+    ],
+    "events": [
+     "lod-pack 30 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 278,
+    "t": 34232,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     352,
+     512,
+     368,
+     560
+    ],
+    "all": 56,
+    "eye": [
+     38.7,
+     10.5,
+     76.8
+    ],
+    "events": [
+     "lod-pack 35 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 278,
+    "t": 34232,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     592,
+     448,
+     624,
+     496
+    ],
+    "eye": [
+     38.7,
+     10.5,
+     76.8
+    ],
+    "events": [
+     "lod-pack 35 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 278,
+    "t": 34232,
+    "phase": "still",
+    "still": false,
+    "cells": 7,
+    "pixels": 1792,
+    "box": [
+     560,
+     448,
+     624,
+     496
+    ],
+    "eye": [
+     38.7,
+     10.5,
+     76.8
+    ],
+    "events": [
+     "lod-pack 35 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 279,
+    "t": 34565,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1168,
+     464,
+     1216,
+     496
+    ],
+    "eye": [
+     38.6,
+     10.5,
+     76.8
+    ],
+    "events": [
+     "lod-pack 39 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 280,
+    "t": 34765,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1152,
+     480,
+     1184,
+     512
+    ],
+    "eye": [
+     38.5,
+     10.5,
+     76.8
+    ],
+    "events": [
+     "lod-pack 31 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 281,
+    "t": 35132,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     96,
+     432,
+     112,
+     480
+    ],
+    "all": 54,
+    "eye": [
+     38.4,
+     10.5,
+     76.8
+    ],
+    "events": [
+     "lod-pack 40 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 281,
+    "t": 35132,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     176,
+     720,
+     208,
+     768
+    ],
+    "eye": [
+     38.4,
+     10.5,
+     76.8
+    ],
+    "events": [
+     "lod-pack 40 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 281,
+    "t": 35132,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     448,
+     304,
+     496,
+     352
+    ],
+    "eye": [
+     38.4,
+     10.5,
+     76.8
+    ],
+    "events": [
+     "lod-pack 40 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 282,
+    "t": 35498,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1072,
+     352,
+     1120,
+     400
+    ],
+    "all": 62,
+    "eye": [
+     38.3,
+     10.5,
+     76.8
+    ],
+    "events": [
+     "lod-pack 33 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 282,
+    "t": 35498,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     160,
+     704,
+     176,
+     752
+    ],
+    "eye": [
+     38.3,
+     10.5,
+     76.8
+    ],
+    "events": [
+     "lod-pack 33 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 283,
+    "t": 35898,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     592,
+     704,
+     640,
+     768
+    ],
+    "all": 74,
+    "eye": [
+     38.2,
+     10.5,
+     76.9
+    ],
+    "events": [
+     "lod-pack 28 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 283,
+    "t": 35898,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     128,
+     688,
+     160,
+     752
+    ],
+    "eye": [
+     38.2,
+     10.5,
+     76.9
+    ],
+    "events": [
+     "lod-pack 28 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 283,
+    "t": 35898,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     368,
+     432,
+     384,
+     480
+    ],
+    "eye": [
+     38.2,
+     10.5,
+     76.9
+    ],
+    "events": [
+     "lod-pack 28 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 285,
+    "t": 36532,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     592,
+     384,
+     608,
+     432
+    ],
+    "all": 55,
+    "eye": [
+     38.1,
+     10.5,
+     76.9
+    ],
+    "events": [
+     "lod-pack 29 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 286,
+    "t": 36965,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     576,
+     256,
+     592,
+     304
+    ],
+    "all": 79,
+    "eye": [
+     38,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 31 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 286,
+    "t": 36965,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     928,
+     368,
+     944,
+     416
+    ],
+    "eye": [
+     38,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 31 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 287,
+    "t": 37465,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     976,
+     320,
+     1040,
+     368
+    ],
+    "all": 79,
+    "eye": [
+     37.9,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 31 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 287,
+    "t": 37465,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     624,
+     448,
+     656,
+     480
+    ],
+    "eye": [
+     37.9,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 31 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 287,
+    "t": 37465,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     704,
+     688,
+     752,
+     752
+    ],
+    "eye": [
+     37.9,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 31 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 288,
+    "t": 37832,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     64,
+     384,
+     80,
+     432
+    ],
+    "all": 69,
+    "eye": [
+     37.8,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 30 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 288,
+    "t": 37832,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     672,
+     448,
+     704,
+     480
+    ],
+    "eye": [
+     37.8,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 30 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 288,
+    "t": 37832,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     0,
+     320,
+     16,
+     368
+    ],
+    "eye": [
+     37.8,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 30 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 289,
+    "t": 38265,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     80,
+     384,
+     96,
+     448
+    ],
+    "all": 88,
+    "eye": [
+     37.7,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 23 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 289,
+    "t": 38265,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     704,
+     432,
+     752,
+     480
+    ],
+    "eye": [
+     37.7,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 23 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 289,
+    "t": 38265,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     16,
+     320,
+     32,
+     368
+    ],
+    "eye": [
+     37.7,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 23 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 290,
+    "t": 38698,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     96,
+     384,
+     112,
+     432
+    ],
+    "all": 49,
+    "eye": [
+     37.7,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 11 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 290,
+    "t": 38698,
+    "phase": "still",
+    "still": false,
+    "cells": 7,
+    "pixels": 1792,
+    "box": [
+     1008,
+     128,
+     1056,
+     208
+    ],
+    "eye": [
+     37.7,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 11 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 290,
+    "t": 38698,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     640,
+     672,
+     672,
+     736
+    ],
+    "eye": [
+     37.7,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 11 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 291,
+    "t": 39032,
+    "phase": "still",
+    "still": false,
+    "cells": 7,
+    "pixels": 1792,
+    "box": [
+     896,
+     144,
+     944,
+     208
+    ],
+    "eye": [
+     37.6,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 25 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 292,
+    "t": 39365,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     640,
+     224,
+     688,
+     256
+    ],
+    "all": 49,
+    "eye": [
+     37.5,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 29 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 292,
+    "t": 39365,
+    "phase": "still",
+    "still": false,
+    "cells": 8,
+    "pixels": 2048,
+    "box": [
+     784,
+     144,
+     832,
+     224
+    ],
+    "eye": [
+     37.5,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 29 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 292,
+    "t": 39365,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     608,
+     688,
+     624,
+     736
+    ],
+    "eye": [
+     37.5,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 29 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 293,
+    "t": 39765,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     640,
+     160,
+     688,
+     208
+    ],
+    "eye": [
+     37.5,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 26 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 293,
+    "t": 39765,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     592,
+     688,
+     608,
+     736
+    ],
+    "eye": [
+     37.5,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 26 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 294,
+    "t": 40065,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     16,
+     384,
+     32,
+     448
+    ],
+    "all": 65,
+    "eye": [
+     37.4,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "shadow-request jump=false",
+     "shadow-slice slice=1 count=4",
+     "shadow-slice slice=2 count=4",
+     "shadow-slice slice=3 count=4",
+     "shadow-swap slice=4 count=4",
+     "lod-pack 11 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 294,
+    "t": 40065,
+    "phase": "still",
+    "still": false,
+    "cells": 9,
+    "pixels": 2304,
+    "box": [
+     528,
+     160,
+     576,
+     240
+    ],
+    "eye": [
+     37.4,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "shadow-request jump=false",
+     "shadow-slice slice=1 count=4",
+     "shadow-slice slice=2 count=4",
+     "shadow-slice slice=3 count=4",
+     "shadow-swap slice=4 count=4",
+     "lod-pack 11 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 295,
+    "t": 40431,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     560,
+     672,
+     576,
+     720
+    ],
+    "all": 52,
+    "eye": [
+     37.4,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "shadow-slice slice=2 count=4",
+     "shadow-slice slice=3 count=4",
+     "shadow-swap slice=4 count=4",
+     "lod-pack 20 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 296,
+    "t": 40931,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     576,
+     464,
+     624,
+     480
+    ],
+    "eye": [
+     37.3,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 23 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 296,
+    "t": 40931,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     560,
+     464,
+     608,
+     480
+    ],
+    "eye": [
+     37.3,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 23 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 297,
+    "t": 41198,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     432,
+     720,
+     448,
+     768
+    ],
+    "eye": [
+     37.3,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "environment",
+     "lod-pack 18 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 298,
+    "t": 41465,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1232,
+     288,
+     1264,
+     320
+    ],
+    "all": 23,
+    "eye": [
+     37.2,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 17 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 298,
+    "t": 41465,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     512,
+     448,
+     544,
+     480
+    ],
+    "eye": [
+     37.2,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 17 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 298,
+    "t": 41465,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     496,
+     448,
+     528,
+     480
+    ],
+    "eye": [
+     37.2,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 17 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 299,
+    "t": 41831,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     304,
+     288,
+     336,
+     320
+    ],
+    "all": 39,
+    "eye": [
+     37.2,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 8 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 299,
+    "t": 41831,
+    "phase": "still",
+    "still": false,
+    "cells": 5,
+    "pixels": 1280,
+    "box": [
+     768,
+     672,
+     784,
+     752
+    ],
+    "eye": [
+     37.2,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 8 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 300,
+    "t": 42098,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     752,
+     672,
+     768,
+     720
+    ],
+    "all": 35,
+    "eye": [
+     37.2,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 14 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 300,
+    "t": 42098,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     448,
+     480,
+     496,
+     496
+    ],
+    "eye": [
+     37.2,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 14 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 301,
+    "t": 42331,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     464,
+     400,
+     496,
+     432
+    ],
+    "all": 20,
+    "eye": [
+     37.1,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 16 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 302,
+    "t": 42698,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     736,
+     672,
+     768,
+     720
+    ],
+    "all": 54,
+    "eye": [
+     37.1,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 11 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 302,
+    "t": 42698,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     496,
+     464,
+     512,
+     512
+    ],
+    "eye": [
+     37.1,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 11 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 302,
+    "t": 42698,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     1184,
+     272,
+     1232,
+     304
+    ],
+    "eye": [
+     37.1,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 11 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 303,
+    "t": 43031,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     1104,
+     512,
+     1136,
+     544
+    ],
+    "all": 41,
+    "eye": [
+     37,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 16 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 303,
+    "t": 43031,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     512,
+     464,
+     544,
+     512
+    ],
+    "eye": [
+     37,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 16 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 303,
+    "t": 43031,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     512,
+     464,
+     544,
+     496
+    ],
+    "eye": [
+     37,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 16 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 304,
+    "t": 43365,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     304,
+     352,
+     336,
+     384
+    ],
+    "all": 36,
+    "eye": [
+     37,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 11 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 305,
+    "t": 43665,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     96,
+     32,
+     128,
+     64
+    ],
+    "all": 32,
+    "eye": [
+     37,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 8 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 305,
+    "t": 43665,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     576,
+     448,
+     624,
+     496
+    ],
+    "eye": [
+     37,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 8 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 307,
+    "t": 44131,
+    "phase": "still",
+    "still": false,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     304,
+     704,
+     336,
+     752
+    ],
+    "all": 20,
+    "eye": [
+     36.9,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 13 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 308,
+    "t": 44365,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     672,
+     448,
+     704,
+     480
+    ],
+    "eye": [
+     36.9,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 7 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 309,
+    "t": 44698,
+    "phase": "still",
+    "still": false,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     288,
+     704,
+     320,
+     752
+    ],
+    "all": 19,
+    "eye": [
+     36.9,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 10 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 309,
+    "t": 44698,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     0,
+     64,
+     16,
+     128
+    ],
+    "eye": [
+     36.9,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 10 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 310,
+    "t": 44731,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     0,
+     64,
+     16,
+     128
+    ],
+    "all": 9,
+    "eye": [
+     36.9,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 8 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 311,
+    "t": 45165,
+    "phase": "still",
+    "still": false,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     272,
+     704,
+     304,
+     752
+    ],
+    "all": 27,
+    "eye": [
+     36.8,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 21 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 311,
+    "t": 45165,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     320,
+     144,
+     352,
+     192
+    ],
+    "eye": [
+     36.8,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 21 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 312,
+    "t": 45431,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     448,
+     656,
+     480,
+     688
+    ],
+    "all": 18,
+    "eye": [
+     36.8,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 8 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 313,
+    "t": 45698,
+    "phase": "still",
+    "still": false,
+    "cells": 7,
+    "pixels": 1792,
+    "box": [
+     256,
+     688,
+     288,
+     752
+    ],
+    "all": 20,
+    "eye": [
+     36.8,
+     10.4,
+     76.9
+    ],
+    "events": [
+     "lod-pack 4 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 315,
+    "t": 46431,
+    "phase": "still",
+    "still": false,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     624,
+     672,
+     656,
+     720
+    ],
+    "all": 26,
+    "eye": [
+     36.7,
+     10.3,
+     76.9
+    ],
+    "events": [
+     "lod-pack 7 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 317,
+    "t": 46731,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     704,
+     480,
+     736,
+     528
+    ],
+    "eye": [
+     36.7,
+     10.3,
+     76.9
+    ],
+    "events": [
+     "lod-pack 3 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 317,
+    "t": 46731,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     704,
+     480,
+     736,
+     512
+    ],
+    "eye": [
+     36.7,
+     10.3,
+     76.9
+    ],
+    "events": [
+     "lod-pack 3 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 318,
+    "t": 47065,
+    "phase": "still",
+    "still": false,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     224,
+     688,
+     256,
+     752
+    ],
+    "all": 32,
+    "eye": [
+     36.7,
+     10.3,
+     76.8
+    ],
+    "events": [
+     "lod-pack 6 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 318,
+    "t": 47065,
+    "phase": "still",
+    "still": false,
+    "cells": 7,
+    "pixels": 1792,
+    "box": [
+     640,
+     480,
+     704,
+     528
+    ],
+    "eye": [
+     36.7,
+     10.3,
+     76.8
+    ],
+    "events": [
+     "lod-pack 6 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 318,
+    "t": 47065,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     656,
+     480,
+     688,
+     512
+    ],
+    "eye": [
+     36.7,
+     10.3,
+     76.8
+    ],
+    "events": [
+     "lod-pack 6 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 319,
+    "t": 47431,
+    "phase": "still",
+    "still": false,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     576,
+     448,
+     624,
+     496
+    ],
+    "eye": [
+     36.7,
+     10.3,
+     76.8
+    ],
+    "events": [
+     "lod-pack 6 chunks"
+    ]
+   },
+   {
+    "kind": "vanish",
+    "frame": 319,
+    "t": 47431,
+    "phase": "still",
+    "still": false,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     576,
+     464,
+     624,
+     496
+    ],
+    "eye": [
+     36.7,
+     10.3,
+     76.8
+    ],
+    "events": [
+     "lod-pack 6 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 320,
+    "t": 47998,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     592,
+     672,
+     624,
+     704
+    ],
+    "all": 18,
+    "eye": [
+     36.6,
+     10.3,
+     76.8
+    ],
+    "events": [
+     "lod-pack 9 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 322,
+    "t": 48331,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     496,
+     208,
+     544,
+     256
+    ],
+    "all": 15,
+    "eye": [
+     36.6,
+     10.3,
+     76.8
+    ],
+    "events": [
+     "lod-pack 5 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 324,
+    "t": 48898,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     112,
+     96,
+     128,
+     144
+    ],
+    "all": 12,
+    "eye": [
+     36.6,
+     10.3,
+     76.8
+    ],
+    "events": [
+     "lod-pack 3 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 325,
+    "t": 49131,
+    "phase": "still",
+    "still": false,
+    "cells": 6,
+    "pixels": 1536,
+    "box": [
+     96,
+     16,
+     128,
+     64
+    ],
+    "all": 11,
+    "eye": [
+     36.5,
+     10.3,
+     76.8
+    ],
+    "events": [
+     "lod-pack 1 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 326,
+    "t": 49465,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     384,
+     624,
+     416,
+     656
+    ],
+    "all": 9,
+    "eye": [
+     36.5,
+     10.3,
+     76.8
+    ],
+    "events": [
+     "lod-pack 6 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 326,
+    "t": 49465,
+    "phase": "still",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     512,
+     480,
+     544,
+     512
+    ],
+    "eye": [
+     36.5,
+     10.3,
+     76.8
+    ],
+    "events": [
+     "lod-pack 6 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 327,
+    "t": 49731,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     560,
+     672,
+     592,
+     704
+    ],
+    "all": 11,
+    "eye": [
+     36.5,
+     10.3,
+     76.8
+    ],
+    "events": [
+     "environment",
+     "lod-pack 6 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 327,
+    "t": 49731,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     544,
+     464,
+     560,
+     512
+    ],
+    "eye": [
+     36.5,
+     10.3,
+     76.8
+    ],
+    "events": [
+     "environment",
+     "lod-pack 6 chunks"
+    ]
+   },
+   {
+    "kind": "pop",
+    "frame": 328,
+    "t": 49998,
+    "phase": "still",
+    "still": false,
+    "cells": 3,
+    "pixels": 768,
+    "box": [
+     96,
+     48,
+     128,
+     80
+    ],
+    "all": 11,
+    "eye": [
+     36.5,
+     10.3,
+     76.8
+    ],
+    "events": [
+     "environment",
+     "lod-pack 2 chunks"
+    ]
+   },
+   {
+    "kind": "flash",
+    "frame": 332,
+    "t": 51031,
+    "phase": "end",
+    "still": false,
+    "cells": 4,
+    "pixels": 1024,
+    "box": [
+     640,
+     448,
+     672,
+     496
+    ],
+    "eye": [
+     36.5,
+     10.3,
+     76.8
+    ],
+    "events": [
+     "lod-pack 7 chunks"
+    ]
+   }
+  ],
+  "hitches": [
+   {
+    "t": 603,
+    "ms": 185,
+    "phase": "navigate",
+    "events": []
+   },
+   {
+    "t": 4737,
+    "ms": 109,
+    "phase": "navigate",
+    "events": [
+     "prewarm-done slices=35 compiled=71 programs=93",
+     "prewarm-end",
+     "magic-pipelines"
+    ]
+   },
+   {
+    "t": 6468,
+    "ms": 120,
+    "phase": "navigate",
+    "events": [
+     "shadow-request jump=true",
+     "lod-pack chunks=379",
+     "animal-lod herd=herd coarse=true distance=64",
+     "shadow-swap slice=1 count=1"
+    ]
+   }
+  ],
+  "flicker": {
+   "navigate": {
+    "mean": 0.301,
+    "share": 0.0173,
+    "frames": 120,
+    "still": 116
+   },
+   "still": {
+    "mean": 4.471,
+    "share": 0.2802,
+    "frames": 137,
+    "still": 39
+   },
+   "end": {
+    "mean": 1.317,
+    "share": 0.0991,
+    "frames": 1,
+    "still": 0
+   }
+  },
+  "series": [
+   [
+    -4110,
+    255,
+    0,
+    null,
+    null,
+    0
+   ],
+   [
+    -4018,
+    88.84,
+    1.41,
+    null,
+    88.75,
+    0
+   ],
+   [
+    -3985,
+    88.84,
+    1.41,
+    0,
+    88.75,
+    0
+   ],
+   [
+    -3918,
+    88.88,
+    1.41,
+    0,
+    88.75,
+    0
+   ],
+   [
+    -3902,
+    89.02,
+    1.41,
+    0.48,
+    88.75,
+    0
+   ],
+   [
+    -3885,
+    89.63,
+    1.37,
+    0.47,
+    89.71,
+    0
+   ],
+   [
+    -3835,
+    90.79,
+    1.41,
+    null,
+    null,
+    0
+   ],
+   [
+    -3785,
+    92.25,
+    1.41,
+    0.53,
+    92.81,
+    0
+   ],
+   [
+    -3735,
+    94.81,
+    1.46,
+    0.52,
+    96.05,
+    0
+   ],
+   [
+    -3668,
+    99.16,
+    1.24,
+    0.47,
+    101.37,
+    0
+   ],
+   [
+    -3602,
+    104.12,
+    1.05,
+    0.16,
+    103.95,
+    0
+   ],
+   [
+    -3535,
+    109.01,
+    1.03,
+    0.11,
+    95.38,
+    0
+   ],
+   [
+    -3502,
+    111.34,
+    0.99,
+    0.11,
+    89.78,
+    0
+   ],
+   [
+    -3435,
+    115.56,
+    1.07,
+    0.2,
+    82.15,
+    0
+   ],
+   [
+    -3368,
+    119.21,
+    0.78,
+    0.19,
+    74.21,
+    0
+   ],
+   [
+    -3302,
+    122.3,
+    0.75,
+    0.17,
+    68.76,
+    0
+   ],
+   [
+    -3235,
+    124.96,
+    0.94,
+    0.14,
+    65.66,
+    0
+   ],
+   [
+    -3168,
+    127.16,
+    0.79,
+    0.15,
+    63.51,
+    0
+   ],
+   [
+    -3085,
+    129.44,
+    0.74,
+    0.15,
+    62.2,
+    0
+   ],
+   [
+    -2985,
+    131.46,
+    0.83,
+    0.19,
+    61.14,
+    0
+   ],
+   [
+    -2885,
+    132.93,
+    0.77,
+    0.07,
+    61.02,
+    0
+   ],
+   [
+    -2835,
+    133.53,
+    0.77,
+    0.03,
+    61.14,
+    0
+   ],
+   [
+    -2785,
+    134.07,
+    0.72,
+    0.01,
+    61.93,
+    0
+   ],
+   [
+    -2768,
+    134.18,
+    0.75,
+    0.02,
+    62,
+    0
+   ],
+   [
+    -2718,
+    134.47,
+    0.78,
+    0.01,
+    62,
+    0
+   ],
+   [
+    -2702,
+    134.55,
+    0.78,
+    0.01,
+    62.1,
+    0
+   ],
+   [
+    -2652,
+    134.91,
+    0.74,
+    0.02,
+    60.77,
+    0
+   ],
+   [
+    -2618,
+    134.99,
+    0.76,
+    0.02,
+    60.49,
+    0
+   ],
+   [
+    -2568,
+    135.09,
+    0.77,
+    0.01,
+    60.81,
+    0
+   ],
+   [
+    -2552,
+    135.11,
+    0.78,
+    0,
+    60.81,
+    0
+   ],
+   [
+    -2502,
+    135.12,
+    0.78,
+    0,
+    60.81,
+    0
+   ],
+   [
+    -2218,
+    135.13,
+    0.78,
+    0,
+    60.81,
+    0
+   ],
+   [
+    -2202,
+    135.13,
+    0.78,
+    0,
+    60.81,
+    0
+   ],
+   [
+    -2185,
+    135.13,
+    0.78,
+    0,
+    60.81,
+    0
+   ],
+   [
+    -2152,
+    135.13,
+    0.78,
+    0,
+    60.81,
+    0
+   ],
+   [
+    -2085,
+    135.13,
+    0.78,
+    0,
+    60.81,
+    0
+   ],
+   [
+    -2068,
+    135.13,
+    0.78,
+    0,
+    60.81,
+    0
+   ],
+   [
+    -2002,
+    135.13,
+    0.78,
+    0,
+    60.81,
+    0
+   ],
+   [
+    -1935,
+    135.13,
+    0.78,
+    0,
+    60.81,
+    0
+   ],
+   [
+    -1885,
+    135.13,
+    0.78,
+    0,
+    60.81,
+    0
+   ],
+   [
+    -1785,
+    135.13,
+    0.78,
+    0.01,
+    60.81,
+    0
+   ],
+   [
+    -1635,
+    135.18,
+    0.79,
+    0.11,
+    61.14,
+    0
+   ],
+   [
+    -1535,
+    135.11,
+    0.79,
+    0.06,
+    60.97,
+    0
+   ],
+   [
+    -1468,
+    135.07,
+    0.78,
+    0.06,
+    61.43,
+    0
+   ],
+   [
+    -1202,
+    134.83,
+    0.74,
+    0.56,
+    70.47,
+    0
+   ],
+   [
+    -1035,
+    134.73,
+    0.74,
+    0.02,
+    64.78,
+    0
+   ],
+   [
+    -1018,
+    134.72,
+    0.74,
+    0.01,
+    64.74,
+    0
+   ],
+   [
+    -1002,
+    134.71,
+    0.74,
+    0.02,
+    64.71,
+    0
+   ],
+   [
+    -852,
+    134.66,
+    0.75,
+    0.02,
+    63.96,
+    0
+   ],
+   [
+    -835,
+    134.66,
+    0.75,
+    0.03,
+    64.11,
+    0
+   ],
+   [
+    -735,
+    134.65,
+    0.76,
+    0.15,
+    63.9,
+    0
+   ],
+   [
+    -685,
+    134.62,
+    0.77,
+    null,
+    null,
+    0
+   ],
+   [
+    -668,
+    134.62,
+    0.77,
+    null,
+    null,
+    0
+   ],
+   [
+    -652,
+    134.62,
+    0.77,
+    null,
+    null,
+    0
+   ],
+   [
+    -518,
+    134.6,
+    0.77,
+    null,
+    null,
+    0
+   ],
+   [
+    -502,
+    134.6,
+    0.77,
+    null,
+    null,
+    0
+   ],
+   [
+    -485,
+    134.6,
+    0.77,
+    null,
+    null,
+    0
+   ],
+   [
+    -368,
+    134.6,
+    0.77,
+    null,
+    null,
+    0
+   ],
+   [
+    -352,
+    134.6,
+    0.77,
+    null,
+    null,
+    0
+   ],
+   [
+    -335,
+    134.6,
+    0.77,
+    null,
+    null,
+    0
+   ],
+   [
+    -185,
+    134.61,
+    0.77,
+    null,
+    null,
+    0
+   ],
+   [
+    -135,
+    134.61,
+    0.77,
+    null,
+    null,
+    0
+   ],
+   [
+    -119,
+    134.61,
+    0.77,
+    null,
+    null,
+    0
+   ],
+   [
+    -52,
+    134.62,
+    0.77,
+    null,
+    null,
+    0
+   ],
+   [
+    -19,
+    134.62,
+    0.77,
+    null,
+    null,
+    0
+   ],
+   [
+    48,
+    134.67,
+    0.77,
+    null,
+    null,
+    0
+   ],
+   [
+    65,
+    134.67,
+    0.77,
+    null,
+    null,
+    0
+   ],
+   [
+    81,
+    134.67,
+    0.77,
+    null,
+    null,
+    0
+   ],
+   [
+    131,
+    134.67,
+    0.77,
+    null,
+    null,
+    0
+   ],
+   [
+    181,
+    134.66,
+    0.77,
+    null,
+    null,
+    0
+   ],
+   [
+    231,
+    134.66,
+    0.77,
+    null,
+    null,
+    1
+   ],
+   [
+    265,
+    134.66,
+    0.77,
+    null,
+    null,
+    1
+   ],
+   [
+    315,
+    134.66,
+    0.76,
+    null,
+    null,
+    1
+   ],
+   [
+    331,
+    134.66,
+    0.76,
+    null,
+    null,
+    1
+   ],
+   [
+    398,
+    134.65,
+    0.75,
+    null,
+    null,
+    1
+   ],
+   [
+    448,
+    134.25,
+    0.76,
+    0.34,
+    62.15,
+    1
+   ],
+   [
+    515,
+    133.39,
+    0.78,
+    0.1,
+    60.68,
+    1
+   ],
+   [
+    581,
+    132.12,
+    0.81,
+    0.17,
+    61.65,
+    1
+   ],
+   [
+    631,
+    130.77,
+    0.86,
+    0.1,
+    60.4,
+    1
+   ],
+   [
+    665,
+    129.63,
+    0.89,
+    0.09,
+    59.34,
+    1
+   ],
+   [
+    715,
+    127.55,
+    0.95,
+    0.15,
+    61.19,
+    1
+   ],
+   [
+    765,
+    124.97,
+    1.01,
+    0.27,
+    59.08,
+    1
+   ],
+   [
+    831,
+    120.68,
+    1.26,
+    0.33,
+    67.18,
+    1
+   ],
+   [
+    915,
+    114.56,
+    1.71,
+    0.05,
+    62.98,
+    1
+   ],
+   [
+    931,
+    113.33,
+    1.83,
+    0.05,
+    61.59,
+    1
+   ],
+   [
+    981,
+    109.69,
+    2.38,
+    0.24,
+    59.11,
+    1
+   ],
+   [
+    1065,
+    104.27,
+    4.23,
+    0.13,
+    56.5,
+    1
+   ],
+   [
+    1081,
+    103.29,
+    4.63,
+    0.12,
+    56.22,
+    1
+   ],
+   [
+    1165,
+    98.99,
+    5.55,
+    0.3,
+    52.39,
+    1
+   ],
+   [
+    1215,
+    96.82,
+    5.87,
+    0.3,
+    49.85,
+    1
+   ],
+   [
+    1315,
+    93.23,
+    6.39,
+    0.11,
+    46.28,
+    1
+   ],
+   [
+    1331,
+    92.71,
+    6.47,
+    0.09,
+    46.16,
+    1
+   ],
+   [
+    1398,
+    90.87,
+    6.75,
+    0.27,
+    44.66,
+    1
+   ],
+   [
+    1498,
+    88.69,
+    7.11,
+    0.09,
+    41.85,
+    1
+   ],
+   [
+    1515,
+    88.37,
+    7.15,
+    0.09,
+    41.56,
+    1
+   ],
+   [
+    1581,
+    87.27,
+    7.35,
+    0.13,
+    40.37,
+    1
+   ],
+   [
+    1631,
+    86.56,
+    7.46,
+    0.11,
+    39.42,
+    1
+   ],
+   [
+    1665,
+    86.15,
+    7.53,
+    0.11,
+    38.93,
+    1
+   ],
+   [
+    1715,
+    85.6,
+    7.62,
+    0.14,
+    38.22,
+    1
+   ],
+   [
+    1765,
+    85.14,
+    7.72,
+    0.12,
+    37.57,
+    1
+   ],
+   [
+    1798,
+    84.84,
+    7.77,
+    0.12,
+    37.19,
+    1
+   ],
+   [
+    1848,
+    84.44,
+    7.84,
+    0.16,
+    36.79,
+    1
+   ],
+   [
+    1898,
+    84.11,
+    7.87,
+    0.14,
+    36.64,
+    1
+   ],
+   [
+    1931,
+    83.95,
+    7.91,
+    0.16,
+    36.44,
+    1
+   ],
+   [
+    1981,
+    83.63,
+    7.95,
+    0.2,
+    36.11,
+    1
+   ],
+   [
+    2031,
+    83.36,
+    7.98,
+    0.18,
+    35.69,
+    1
+   ],
+   [
+    2065,
+    83.58,
+    8.06,
+    0.16,
+    35.61,
+    1
+   ],
+   [
+    2115,
+    84,
+    8.12,
+    0.16,
+    35.75,
+    1
+   ],
+   [
+    2165,
+    84.16,
+    8.15,
+    0.1,
+    35.7,
+    1
+   ],
+   [
+    2198,
+    84.34,
+    8.16,
+    0.11,
+    35.79,
+    1
+   ],
+   [
+    2248,
+    84.3,
+    8.21,
+    0.11,
+    35.73,
+    1
+   ],
+   [
+    2298,
+    84.15,
+    8.23,
+    0.09,
+    35.76,
+    1
+   ],
+   [
+    2331,
+    83.98,
+    8.25,
+    0.09,
+    36.12,
+    1
+   ],
+   [
+    2381,
+    83.77,
+    8.27,
+    0.09,
+    36.14,
+    1
+   ],
+   [
+    2431,
+    83.6,
+    8.3,
+    0.09,
+    36.31,
+    1
+   ],
+   [
+    2465,
+    83.5,
+    8.3,
+    0.09,
+    36.12,
+    1
+   ],
+   [
+    2515,
+    83.43,
+    8.31,
+    0.09,
+    36.23,
+    1
+   ],
+   [
+    2548,
+    83.39,
+    8.32,
+    0.1,
+    36.2,
+    1
+   ],
+   [
+    2598,
+    83.34,
+    8.35,
+    0.12,
+    36.31,
+    1
+   ],
+   [
+    2648,
+    83.29,
+    8.36,
+    0.12,
+    36.24,
+    1
+   ],
+   [
+    2698,
+    83.25,
+    8.39,
+    0.12,
+    36.39,
+    1
+   ],
+   [
+    2731,
+    83.24,
+    8.4,
+    0.12,
+    36.52,
+    1
+   ],
+   [
+    2781,
+    83.21,
+    8.42,
+    0.13,
+    36.48,
+    1
+   ],
+   [
+    2831,
+    83.18,
+    8.43,
+    0.12,
+    36.55,
+    1
+   ],
+   [
+    2865,
+    83.15,
+    8.43,
+    0.13,
+    36.77,
+    1
+   ],
+   [
+    2915,
+    83.1,
+    8.43,
+    0.15,
+    36.68,
+    1
+   ],
+   [
+    2965,
+    83.06,
+    8.42,
+    0.13,
+    36.72,
+    1
+   ],
+   [
+    2998,
+    83.03,
+    8.39,
+    0.13,
+    36.89,
+    1
+   ],
+   [
+    3048,
+    82.98,
+    8.39,
+    0.12,
+    37.01,
+    1
+   ],
+   [
+    3098,
+    82.94,
+    8.38,
+    0.11,
+    37.06,
+    1
+   ],
+   [
+    3131,
+    82.92,
+    8.38,
+    0.11,
+    37.06,
+    1
+   ],
+   [
+    3181,
+    82.86,
+    8.36,
+    0.13,
+    37.15,
+    1
+   ],
+   [
+    3231,
+    82.81,
+    8.34,
+    0.1,
+    37.17,
+    1
+   ],
+   [
+    3265,
+    82.78,
+    8.36,
+    0.1,
+    37.16,
+    1
+   ],
+   [
+    3315,
+    82.72,
+    8.35,
+    0.11,
+    36.97,
+    1
+   ],
+   [
+    3365,
+    82.67,
+    8.33,
+    0.09,
+    36.89,
+    1
+   ],
+   [
+    3398,
+    82.63,
+    8.32,
+    0.1,
+    37.23,
+    1
+   ],
+   [
+    3448,
+    82.57,
+    8.3,
+    0.1,
+    37.01,
+    1
+   ],
+   [
+    3498,
+    82.51,
+    8.29,
+    0.08,
+    37.22,
+    1
+   ],
+   [
+    3531,
+    82.47,
+    8.28,
+    0.09,
+    37.28,
+    1
+   ],
+   [
+    3581,
+    82.4,
+    8.25,
+    0.1,
+    37.21,
+    1
+   ],
+   [
+    3631,
+    82.35,
+    8.23,
+    0.11,
+    37.37,
+    1
+   ],
+   [
+    3681,
+    82.29,
+    8.21,
+    0.13,
+    37.47,
+    1
+   ],
+   [
+    3781,
+    82.18,
+    8.18,
+    0.16,
+    37.26,
+    1
+   ],
+   [
+    3881,
+    82.09,
+    8.15,
+    0.23,
+    37.1,
+    1
+   ],
+   [
+    4065,
+    81.99,
+    8.09,
+    0.16,
+    36.91,
+    1
+   ],
+   [
+    4115,
+    81.97,
+    8.08,
+    0.16,
+    36.74,
+    1
+   ],
+   [
+    4348,
+    81.98,
+    8.02,
+    0.38,
+    36.38,
+    1
+   ],
+   [
+    4548,
+    82.12,
+    8.08,
+    0.16,
+    36.24,
+    1
+   ],
+   [
+    4598,
+    82.16,
+    8.07,
+    0.15,
+    36.27,
+    1
+   ],
+   [
+    4715,
+    82.29,
+    8.1,
+    0.21,
+    36.17,
+    1
+   ],
+   [
+    4865,
+    82.42,
+    8.11,
+    0.05,
+    36.13,
+    1
+   ],
+   [
+    4881,
+    82.42,
+    8.11,
+    0.05,
+    36.14,
+    1
+   ],
+   [
+    5031,
+    82.59,
+    8.16,
+    0.17,
+    36.08,
+    1
+   ],
+   [
+    5115,
+    82.68,
+    8.17,
+    0.16,
+    36.12,
+    1
+   ],
+   [
+    5198,
+    82.77,
+    8.18,
+    0.19,
+    36.16,
+    1
+   ],
+   [
+    5281,
+    82.84,
+    8.19,
+    0.22,
+    36.3,
+    1
+   ],
+   [
+    5365,
+    82.9,
+    8.21,
+    0.22,
+    36.4,
+    1
+   ],
+   [
+    5448,
+    82.94,
+    8.21,
+    0.25,
+    36.48,
+    1
+   ],
+   [
+    5548,
+    82.96,
+    8.23,
+    0.2,
+    36.66,
+    1
+   ],
+   [
+    5598,
+    82.96,
+    8.21,
+    0.18,
+    36.64,
+    1
+   ],
+   [
+    5681,
+    82.94,
+    8.21,
+    0.2,
+    36.85,
+    1
+   ],
+   [
+    5765,
+    82.91,
+    8.23,
+    0.19,
+    36.98,
+    1
+   ],
+   [
+    5831,
+    82.86,
+    8.21,
+    0.14,
+    37.03,
+    1
+   ],
+   [
+    5881,
+    82.83,
+    8.22,
+    0.12,
+    37.06,
+    1
+   ],
+   [
+    5948,
+    82.77,
+    8.21,
+    0.13,
+    37.17,
+    1
+   ],
+   [
+    6015,
+    82.71,
+    8.24,
+    0.13,
+    37.3,
+    1
+   ],
+   [
+    6081,
+    82.63,
+    8.24,
+    0.12,
+    37.2,
+    1
+   ],
+   [
+    6148,
+    82.55,
+    8.25,
+    0.12,
+    37.25,
+    1
+   ],
+   [
+    6198,
+    82.49,
+    8.27,
+    0.13,
+    37.1,
+    1
+   ],
+   [
+    6265,
+    82.37,
+    8.26,
+    0.14,
+    37.16,
+    1
+   ],
+   [
+    6331,
+    82.28,
+    8.24,
+    0.13,
+    37.16,
+    1
+   ],
+   [
+    6398,
+    82.18,
+    8.23,
+    0.1,
+    37.23,
+    1
+   ],
+   [
+    6431,
+    82.13,
+    8.22,
+    0.1,
+    37.26,
+    1
+   ],
+   [
+    6465,
+    82.09,
+    8.23,
+    4.39,
+    37.22,
+    1
+   ],
+   [
+    6681,
+    57.47,
+    19.31,
+    7.2,
+    37.97,
+    0
+   ],
+   [
+    6715,
+    57.74,
+    19.37,
+    0.27,
+    38.1,
+    0
+   ],
+   [
+    6748,
+    58.06,
+    19.47,
+    0.23,
+    38.28,
+    0
+   ],
+   [
+    6848,
+    58.89,
+    19.78,
+    0.28,
+    39.1,
+    1
+   ],
+   [
+    6915,
+    59.35,
+    19.95,
+    0.29,
+    39.42,
+    1
+   ],
+   [
+    7048,
+    60.08,
+    20.2,
+    0.41,
+    40.1,
+    1
+   ],
+   [
+    7181,
+    60.65,
+    20.37,
+    0.41,
+    40.65,
+    1
+   ],
+   [
+    7298,
+    61.13,
+    20.51,
+    0.52,
+    40.99,
+    1
+   ],
+   [
+    7498,
+    61.48,
+    20.57,
+    0.54,
+    41.45,
+    1
+   ],
+   [
+    7631,
+    61.81,
+    20.59,
+    0.53,
+    41.89,
+    1
+   ],
+   [
+    7831,
+    61.98,
+    20.61,
+    0.61,
+    42.06,
+    1
+   ],
+   [
+    8031,
+    61.95,
+    20.65,
+    0.53,
+    42.15,
+    1
+   ],
+   [
+    8198,
+    61.94,
+    20.75,
+    0.65,
+    42.09,
+    1
+   ],
+   [
+    8564,
+    62.12,
+    20.8,
+    0.8,
+    42.63,
+    1
+   ],
+   [
+    8798,
+    62.15,
+    20.75,
+    0.21,
+    42.52,
+    1
+   ],
+   [
+    8831,
+    62.15,
+    20.72,
+    0.22,
+    42.5,
+    1
+   ],
+   [
+    9498,
+    62.04,
+    20.65,
+    1.17,
+    42.69,
+    1
+   ],
+   [
+    9831,
+    61.9,
+    20.53,
+    0.77,
+    42.51,
+    1
+   ],
+   [
+    10031,
+    61.79,
+    20.38,
+    0.82,
+    42.49,
+    1
+   ],
+   [
+    10365,
+    61.53,
+    20.22,
+    1.12,
+    42.09,
+    1
+   ],
+   [
+    10731,
+    60.93,
+    20.15,
+    1.12,
+    41.5,
+    1
+   ],
+   [
+    11065,
+    60.35,
+    19.86,
+    1.06,
+    40.97,
+    1
+   ],
+   [
+    11398,
+    59.83,
+    19.79,
+    1.01,
+    40.42,
+    1
+   ],
+   [
+    11631,
+    59.69,
+    19.79,
+    1.01,
+    40.26,
+    1
+   ],
+   [
+    11998,
+    59.42,
+    19.73,
+    1.13,
+    39.98,
+    1
+   ],
+   [
+    12331,
+    58.95,
+    19.57,
+    1.06,
+    39.73,
+    1
+   ],
+   [
+    12665,
+    58.6,
+    19.36,
+    0.9,
+    39.35,
+    1
+   ],
+   [
+    12965,
+    58.34,
+    19.31,
+    0.86,
+    39.04,
+    1
+   ],
+   [
+    13198,
+    58.18,
+    19.33,
+    0.63,
+    38.79,
+    1
+   ],
+   [
+    13365,
+    58.11,
+    19.37,
+    0.68,
+    38.8,
+    1
+   ],
+   [
+    13731,
+    57.98,
+    19.32,
+    0.93,
+    38.98,
+    1
+   ],
+   [
+    14031,
+    57.87,
+    19.23,
+    0.8,
+    38.59,
+    1
+   ],
+   [
+    14231,
+    57.88,
+    19.25,
+    0.71,
+    38.71,
+    1
+   ],
+   [
+    14498,
+    57.96,
+    19.26,
+    0.92,
+    38.56,
+    1
+   ],
+   [
+    14831,
+    57.97,
+    19.22,
+    0.81,
+    38.69,
+    1
+   ],
+   [
+    15065,
+    57.94,
+    19.15,
+    0.73,
+    38.94,
+    1
+   ],
+   [
+    15365,
+    57.93,
+    19.14,
+    0.71,
+    38.75,
+    1
+   ],
+   [
+    15598,
+    57.97,
+    19.19,
+    0.63,
+    38.68,
+    1
+   ],
+   [
+    15831,
+    57.99,
+    19.21,
+    0.71,
+    38.82,
+    1
+   ],
+   [
+    16098,
+    58.05,
+    19.29,
+    0.71,
+    38.7,
+    1
+   ],
+   [
+    16365,
+    58.04,
+    19.33,
+    0.65,
+    38.89,
+    1
+   ],
+   [
+    16565,
+    58.02,
+    19.33,
+    0.65,
+    38.83,
+    1
+   ],
+   [
+    16832,
+    58,
+    19.25,
+    0.8,
+    38.95,
+    1
+   ],
+   [
+    17198,
+    57.95,
+    19.18,
+    0.94,
+    38.93,
+    1
+   ],
+   [
+    17532,
+    57.85,
+    19.33,
+    0.83,
+    38.56,
+    1
+   ],
+   [
+    17765,
+    57.87,
+    19.36,
+    0.76,
+    38.58,
+    1
+   ],
+   [
+    18098,
+    57.83,
+    19.35,
+    0.89,
+    38.57,
+    1
+   ],
+   [
+    18398,
+    57.73,
+    19.23,
+    0.84,
+    38.61,
+    1
+   ],
+   [
+    18665,
+    57.71,
+    19.27,
+    0.77,
+    38.37,
+    1
+   ],
+   [
+    18932,
+    57.73,
+    19.31,
+    0.99,
+    38.46,
+    1
+   ],
+   [
+    19532,
+    57.78,
+    19.28,
+    0.26,
+    38.57,
+    1
+   ],
+   [
+    19565,
+    57.79,
+    19.31,
+    0.24,
+    38.54,
+    1
+   ],
+   [
+    19932,
+    57.85,
+    19.36,
+    1,
+    38.46,
+    1
+   ],
+   [
+    20265,
+    57.92,
+    19.34,
+    1.13,
+    38.68,
+    1
+   ],
+   [
+    20832,
+    57.99,
+    19.41,
+    1.03,
+    38.78,
+    1
+   ],
+   [
+    21132,
+    57.95,
+    19.3,
+    0.85,
+    38.73,
+    1
+   ],
+   [
+    21465,
+    58.05,
+    19.36,
+    0.91,
+    38.77,
+    1
+   ],
+   [
+    21798,
+    58.16,
+    19.47,
+    0.83,
+    38.99,
+    1
+   ],
+   [
+    22098,
+    58.23,
+    19.49,
+    0.82,
+    39.1,
+    1
+   ],
+   [
+    22365,
+    58.28,
+    19.31,
+    2.82,
+    39.2,
+    1
+   ],
+   [
+    22632,
+    58.49,
+    19.39,
+    6.7,
+    38.8,
+    0
+   ],
+   [
+    22865,
+    59.49,
+    19.41,
+    10.25,
+    39.44,
+    0
+   ],
+   [
+    23165,
+    60.17,
+    19.59,
+    11.51,
+    41.07,
+    0
+   ],
+   [
+    23465,
+    60.82,
+    19.4,
+    11.28,
+    40.21,
+    0
+   ],
+   [
+    23732,
+    61.01,
+    19.1,
+    11.42,
+    38.85,
+    0
+   ],
+   [
+    24032,
+    61.19,
+    18.84,
+    11.59,
+    38.31,
+    0
+   ],
+   [
+    24365,
+    61.42,
+    18.04,
+    10,
+    37.66,
+    0
+   ],
+   [
+    24565,
+    61.92,
+    17.51,
+    9.02,
+    37.34,
+    0
+   ],
+   [
+    24832,
+    62.41,
+    16.87,
+    9.29,
+    36.44,
+    0
+   ],
+   [
+    25082,
+    62.71,
+    16.56,
+    0.78,
+    35.72,
+    0
+   ],
+   [
+    25065,
+    62.71,
+    16.56,
+    0.53,
+    35.72,
+    0
+   ],
+   [
+    25532,
+    63.6,
+    15.91,
+    10.01,
+    34.99,
+    0
+   ],
+   [
+    25815,
+    64.83,
+    15.59,
+    0.66,
+    34.92,
+    0
+   ],
+   [
+    25798,
+    64.83,
+    15.59,
+    0.81,
+    34.93,
+    0
+   ],
+   [
+    26015,
+    65.51,
+    15.31,
+    8.38,
+    34.77,
+    0
+   ],
+   [
+    26498,
+    67.04,
+    14.66,
+    2.94,
+    34.07,
+    0
+   ],
+   [
+    26532,
+    67.55,
+    14.74,
+    3.06,
+    34.54,
+    0
+   ],
+   [
+    26765,
+    67.52,
+    14.27,
+    9,
+    34.86,
+    0
+   ],
+   [
+    26998,
+    67.75,
+    13.68,
+    11.06,
+    36.45,
+    0
+   ],
+   [
+    27365,
+    63.04,
+    14.98,
+    16.07,
+    39.44,
+    0
+   ],
+   [
+    27632,
+    63.13,
+    14.15,
+    18.03,
+    41.42,
+    0
+   ],
+   [
+    27898,
+    63.21,
+    15.06,
+    14.51,
+    39.09,
+    0
+   ],
+   [
+    28115,
+    62.66,
+    15.7,
+    12.5,
+    36.76,
+    0
+   ],
+   [
+    28398,
+    60.92,
+    15.62,
+    10.85,
+    33.43,
+    0
+   ],
+   [
+    28632,
+    59.96,
+    16.15,
+    10.28,
+    33.21,
+    0
+   ],
+   [
+    28932,
+    60.17,
+    16.72,
+    10.15,
+    33.25,
+    0
+   ],
+   [
+    29165,
+    60.52,
+    17.21,
+    10.27,
+    34.39,
+    0
+   ],
+   [
+    29465,
+    60.98,
+    17.75,
+    10.86,
+    34.34,
+    0
+   ],
+   [
+    29732,
+    61.17,
+    18.02,
+    10.75,
+    34.66,
+    0
+   ],
+   [
+    30065,
+    61.36,
+    18.2,
+    11.17,
+    35.7,
+    0
+   ],
+   [
+    30365,
+    62.19,
+    18.51,
+    9.7,
+    36.01,
+    0
+   ],
+   [
+    30598,
+    63.14,
+    18.54,
+    8.78,
+    36.44,
+    0
+   ],
+   [
+    30832,
+    64.56,
+    18.57,
+    9.71,
+    36,
+    0
+   ],
+   [
+    31132,
+    66.57,
+    18.67,
+    9.66,
+    36.76,
+    0
+   ],
+   [
+    31365,
+    67.92,
+    18.39,
+    10.18,
+    36.69,
+    0
+   ],
+   [
+    31698,
+    69.97,
+    18.31,
+    11.57,
+    37.41,
+    0
+   ],
+   [
+    32032,
+    71.88,
+    18.29,
+    12.59,
+    37.2,
+    0
+   ],
+   [
+    32532,
+    72.72,
+    17.68,
+    9.4,
+    36.19,
+    0
+   ],
+   [
+    32765,
+    73.24,
+    17.79,
+    8.05,
+    36.39,
+    0
+   ],
+   [
+    33065,
+    73.77,
+    17.98,
+    8.14,
+    36.79,
+    0
+   ],
+   [
+    33298,
+    74.49,
+    17.85,
+    7.46,
+    37.05,
+    0
+   ],
+   [
+    33598,
+    75.22,
+    17.51,
+    7.1,
+    37.47,
+    0
+   ],
+   [
+    33832,
+    76.05,
+    17.34,
+    7.87,
+    37.61,
+    0
+   ],
+   [
+    34232,
+    77.24,
+    17.28,
+    8.91,
+    37.31,
+    0
+   ],
+   [
+    34565,
+    78.17,
+    17.35,
+    6.05,
+    37.51,
+    0
+   ],
+   [
+    34765,
+    78.87,
+    17.38,
+    5.74,
+    37.45,
+    0
+   ],
+   [
+    35132,
+    79.74,
+    17.3,
+    8.12,
+    38.2,
+    0
+   ],
+   [
+    35498,
+    80.62,
+    17.05,
+    8.31,
+    37.05,
+    0
+   ],
+   [
+    35898,
+    81.69,
+    17.06,
+    7.62,
+    37.18,
+    0
+   ],
+   [
+    36265,
+    82.74,
+    17.22,
+    5.89,
+    38,
+    0
+   ],
+   [
+    36532,
+    83.43,
+    17.17,
+    6.42,
+    37.83,
+    0
+   ],
+   [
+    36965,
+    84.31,
+    17.31,
+    8.27,
+    38.43,
+    0
+   ],
+   [
+    37465,
+    85.51,
+    17.62,
+    7.43,
+    38.83,
+    0
+   ],
+   [
+    37832,
+    86.36,
+    17.73,
+    7.04,
+    39.36,
+    0
+   ],
+   [
+    38265,
+    87.38,
+    17.89,
+    7.46,
+    39.71,
+    0
+   ],
+   [
+    38698,
+    87.91,
+    18.21,
+    6.05,
+    40.02,
+    0
+   ],
+   [
+    39032,
+    88.49,
+    18.18,
+    4.85,
+    39.87,
+    0
+   ],
+   [
+    39365,
+    89.14,
+    18.24,
+    5.23,
+    39.9,
+    0
+   ],
+   [
+    39765,
+    89.67,
+    18.33,
+    4.88,
+    40.42,
+    0
+   ],
+   [
+    40065,
+    89.55,
+    18.31,
+    4.47,
+    39.93,
+    0
+   ],
+   [
+    40431,
+    90.02,
+    18.01,
+    5.14,
+    39.65,
+    0
+   ],
+   [
+    40931,
+    90.45,
+    18.01,
+    3.9,
+    40.1,
+    0
+   ],
+   [
+    41198,
+    90.71,
+    18.01,
+    2.86,
+    40.23,
+    0
+   ],
+   [
+    41465,
+    90.9,
+    18.17,
+    3.18,
+    40.03,
+    0
+   ],
+   [
+    41831,
+    91.37,
+    18.32,
+    3.38,
+    40.12,
+    0
+   ],
+   [
+    42098,
+    91.46,
+    18.34,
+    2.32,
+    40.17,
+    0
+   ],
+   [
+    42331,
+    91.69,
+    18.24,
+    2.8,
+    40.15,
+    0
+   ],
+   [
+    42698,
+    91.85,
+    18.17,
+    3.45,
+    40.2,
+    0
+   ],
+   [
+    43031,
+    92.21,
+    18.31,
+    3.01,
+    39.69,
+    0
+   ],
+   [
+    43365,
+    92.7,
+    18.33,
+    2.79,
+    40.07,
+    0
+   ],
+   [
+    43665,
+    93.21,
+    18.36,
+    2.21,
+    40.19,
+    0
+   ],
+   [
+    43898,
+    93.85,
+    18.35,
+    1.74,
+    40.24,
+    0
+   ],
+   [
+    44131,
+    94.09,
+    18.47,
+    1.91,
+    40.7,
+    0
+   ],
+   [
+    44365,
+    94.52,
+    18.51,
+    2.19,
+    41.15,
+    0
+   ],
+   [
+    44698,
+    94.51,
+    18.66,
+    0.59,
+    40.62,
+    0
+   ],
+   [
+    44731,
+    94.58,
+    18.64,
+    0.61,
+    40.5,
+    0
+   ],
+   [
+    45165,
+    95,
+    18.51,
+    2.31,
+    41.42,
+    0
+   ],
+   [
+    45431,
+    95.08,
+    18.46,
+    1.63,
+    41.07,
+    0
+   ],
+   [
+    45698,
+    95.21,
+    18.42,
+    1.92,
+    41.36,
+    0
+   ],
+   [
+    46065,
+    95.43,
+    18.26,
+    2.27,
+    40.98,
+    0
+   ],
+   [
+    46431,
+    95.57,
+    18.11,
+    0.78,
+    40.84,
+    0
+   ],
+   [
+    46498,
+    95.5,
+    18.16,
+    0.66,
+    40.98,
+    0
+   ],
+   [
+    46731,
+    95.41,
+    18.11,
+    1.9,
+    40.88,
+    0
+   ],
+   [
+    47065,
+    95.56,
+    18.02,
+    2.18,
+    40.94,
+    0
+   ],
+   [
+    47431,
+    95.46,
+    17.82,
+    2.58,
+    40.18,
+    0
+   ],
+   [
+    47998,
+    95.35,
+    17.67,
+    0.49,
+    39.81,
+    0
+   ],
+   [
+    48031,
+    95.43,
+    17.68,
+    0.43,
+    39.77,
+    0
+   ],
+   [
+    48331,
+    95.29,
+    17.56,
+    1.26,
+    39.6,
+    0
+   ],
+   [
+    48631,
+    95.19,
+    17.45,
+    1.11,
+    39.32,
+    0
+   ],
+   [
+    48898,
+    95.06,
+    17.4,
+    0.97,
+    39.54,
+    0
+   ],
+   [
+    49131,
+    94.87,
+    17.36,
+    1.23,
+    39.78,
+    0
+   ],
+   [
+    49465,
+    94.82,
+    17.31,
+    1.44,
+    38.61,
+    0
+   ],
+   [
+    49731,
+    94.58,
+    17.33,
+    1.26,
+    38.55,
+    0
+   ],
+   [
+    49998,
+    94.42,
+    17.33,
+    1.08,
+    38.59,
+    0
+   ],
+   [
+    50231,
+    94.37,
+    17.28,
+    1.05,
+    38.78,
+    0
+   ],
+   [
+    50498,
+    94.31,
+    17.21,
+    0.97,
+    38.86,
+    0
+   ],
+   [
+    50698,
+    94.33,
+    17.3,
+    1.14,
+    38.8,
+    0
+   ],
+   [
+    51031,
+    94.12,
+    17.22,
+    1.32,
+    39.04,
+    0
+   ],
+   [
+    51298,
+    93.78,
+    17.17,
+    null,
+    38.74,
+    0
+   ]
+  ],
+  "lighting": [],
+  "events": [
+   {
+    "t": -3851,
+    "kind": "weather"
+   },
+   {
+    "t": -1721,
+    "kind": "weather"
+   },
+   {
+    "t": -1626,
+    "kind": "shadow-request",
+    "jump": true
+   },
+   {
+    "t": -1618,
+    "kind": "environment"
+   },
+   {
+    "t": -1518,
+    "kind": "shadow-swap",
+    "slice": 1,
+    "count": 1
+   },
+   {
+    "t": 0,
+    "kind": "first-frame"
+   },
+   {
+    "t": 6,
+    "kind": "place-lod",
+    "place": "b4cd8b",
+    "from": 0,
+    "to": 1,
+    "x": 125.16450933054168,
+    "z": 58.58204935842191
+   },
+   {
+    "t": 6,
+    "kind": "place-lod",
+    "place": "a19156",
+    "from": 0,
+    "to": 1,
+    "x": 62,
+    "z": 86
+   },
+   {
+    "t": 6,
+    "kind": "place-lod",
+    "place": "50100d",
+    "from": 0,
+    "to": 1,
+    "x": -4.456042089753154,
+    "z": 38.35820823377907
+   },
+   {
+    "t": 6,
+    "kind": "place-lod",
+    "place": "1a4a66",
+    "from": 0,
+    "to": 1,
+    "x": 76.69948028861975,
+    "z": 40.58069007002524
+   },
+   {
+    "t": 6,
+    "kind": "place-lod",
+    "place": "57ed3b",
+    "from": 0,
+    "to": 2,
+    "x": 63.934342677373984,
+    "z": 126.81560463466371
+   },
+   {
+    "t": 14,
+    "kind": "animal-lod",
+    "herd": "herd",
+    "coarse": true,
+    "distance": 29
+   },
+   {
+    "t": 14,
+    "kind": "animal-lod",
+    "herd": "herd",
+    "coarse": true,
+    "distance": 61
+   },
+   {
+    "t": 151,
+    "kind": "veil-ready"
+   },
+   {
+    "t": 152,
+    "kind": "reveal",
+    "ms": 1400
+   },
+   {
+    "t": 3359,
+    "kind": "prewarm-start"
+   },
+   {
+    "t": 4738,
+    "kind": "prewarm-done",
+    "slices": 35,
+    "compiled": 71,
+    "programs": 93
+   },
+   {
+    "t": 4738,
+    "kind": "prewarm-end"
+   },
+   {
+    "t": 4738,
+    "kind": "magic-pipelines"
+   },
+   {
+    "t": 6501,
+    "kind": "shadow-request",
+    "jump": true
+   },
+   {
+    "t": 6541,
+    "kind": "animal-lod",
+    "herd": "herd",
+    "coarse": true,
+    "distance": 64
+   },
+   {
+    "t": 6565,
+    "kind": "shadow-swap",
+    "slice": 1,
+    "count": 1
+   },
+   {
+    "t": 6589,
+    "kind": "place-lod",
+    "place": "a19156",
+    "from": 1,
+    "to": 0,
+    "x": 62,
+    "z": 86
+   },
+   {
+    "t": 6589,
+    "kind": "place-lod",
+    "place": "57ed3b",
+    "from": 2,
+    "to": 1,
+    "x": 63.934342677373984,
+    "z": 126.81560463466371
+   },
+   {
+    "t": 7187,
+    "kind": "environment"
+   },
+   {
+    "t": 7549,
+    "kind": "environment"
+   },
+   {
+    "t": 8250,
+    "kind": "environment"
+   },
+   {
+    "t": 9217,
+    "kind": "environment"
+   },
+   {
+    "t": 15550,
+    "kind": "animal-lod",
+    "herd": "herd",
+    "coarse": true,
+    "distance": 164
+   },
+   {
+    "t": 17449,
+    "kind": "environment"
+   },
+   {
+    "t": 18188,
+    "kind": "environment"
+   },
+   {
+    "t": 29188,
+    "kind": "environment"
+   },
+   {
+    "t": 31183,
+    "kind": "shadow-request",
+    "jump": false
+   },
+   {
+    "t": 31190,
+    "kind": "shadow-slice",
+    "slice": 1,
+    "count": 4
+   },
+   {
+    "t": 31220,
+    "kind": "shadow-slice",
+    "slice": 2,
+    "count": 4
+   },
+   {
+    "t": 31251,
+    "kind": "shadow-slice",
+    "slice": 3,
+    "count": 4
+   },
+   {
+    "t": 31286,
+    "kind": "shadow-swap",
+    "slice": 4,
+    "count": 4
+   },
+   {
+    "t": 32186,
+    "kind": "environment"
+   },
+   {
+    "t": 33116,
+    "kind": "environment"
+   },
+   {
+    "t": 38149,
+    "kind": "environment"
+   },
+   {
+    "t": 39187,
+    "kind": "environment"
+   },
+   {
+    "t": 39882,
+    "kind": "shadow-request",
+    "jump": false
+   },
+   {
+    "t": 39884,
+    "kind": "shadow-slice",
+    "slice": 1,
+    "count": 4
+   },
+   {
+    "t": 39919,
+    "kind": "shadow-slice",
+    "slice": 2,
+    "count": 4
+   },
+   {
+    "t": 39953,
+    "kind": "shadow-slice",
+    "slice": 3,
+    "count": 4
+   },
+   {
+    "t": 39985,
+    "kind": "shadow-swap",
+    "slice": 4,
+    "count": 4
+   },
+   {
+    "t": 40983,
+    "kind": "environment"
+   },
+   {
+    "t": 43716,
+    "kind": "environment"
+   },
+   {
+    "t": 49649,
+    "kind": "environment"
+   }
+  ]
+ }
+]
