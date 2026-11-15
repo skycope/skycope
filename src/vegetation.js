@@ -9,7 +9,7 @@ import {
 } from "./terrain.js";
 import { seededRandom } from "./random.js";
 import { createHabitat, sampleHabitat, graniteAt } from "./habitat.js";
-import { groundCover } from "./ground-detail.js";
+import { groundCover, shoreClear } from "./ground-detail.js";
 import { foliageDemand, demandRadius } from "./plant-growth.js";
 import { MATERIAL_HEX } from "./material-palette.js";
 import { plantClear } from "./place-layout.js"; // places:
@@ -325,6 +325,17 @@ export function vegetationLayout(seed) {
     });
   }
   understoryLayout(seed, plants, patch);
+  // Nothing below the dry-sand line or within the swash's reach; plants
+  // thin in over the dry sand above it (dune grass first, then the rest).
+  {
+    const shore = seededRandom(seed ^ 0x5bd1e995);
+    let n = 0;
+    for (const p of plants) {
+      const clear = p.kind === "grass" ? shoreClear(p.x, p.z, undefined, 4.5, 6.5) : shoreClear(p.x, p.z, undefined, 5.5, 9);
+      if (shore() < clear) plants[n++] = p;
+    }
+    plants.length = n;
+  }
   // places: nothing grows through a landmark (place-layout.js).
   { let n = 0; for (const p of plants) if (plantClear(seed, p.kind, p.x, p.z, p.height)) plants[n++] = p; plants.length = n; }
   // Stable identities and a regional age; every candidate keeps its kind, so
@@ -416,18 +427,22 @@ function understoryLayout(seed, plants, patch) {
       const z = ISLAND.z + gz + random() * cell;
       const roll = random();
       const inland = shoreDistance(x, z);
-      if (inland < 2.2) continue;
+      // Nothing on the wet sand or in the swash's reach (shoreClear).
+      const clear = shoreClear(x, z, inland, 5.5, 9);
+      if (clear <= 0) continue;
       const shade = shadeAt(x, z);
-      const { scrub, sourfig } = groundCover(x, z, inland, shade * 0.4);
+      const { scrub } = groundCover(x, z, inland, shade * 0.4);
       const granite = graniteAt(x, z, inland);
       // Clumps and gaps at a few metres: a patch field thins the cover.
       const clump = noise2(x * 0.42 + patch, z * 0.38 - patch) * 0.7 + noise2(x * 1.1 - 3, z * 1.1 + 7) * 0.3;
       const open = smoothstep(0.14, 0.4, clump);
-      // Closed fynbos inland, thinning toward the dunes. Under the crowns
+      // Closed fynbos well inland, sparse at the dune edge with sand and
+      // grass between the bushes, rising to closed cover up the slope (by
+      // ~18 m inland). Under the crowns
       // it carries on as thicket (shade-tolerant blombos and pelargonium,
       // lower and a little sparser), so the floor between trunks is cover,
       // not bare soil.
-      const cover = Math.max(scrub, smoothstep(4, 9, inland) * 0.95) * open * (1 - granite * 0.8) * (1 - shade * 0.12);
+      const cover = Math.max(scrub * 0.8, smoothstep(7, 18, inland) * 0.95) * clear * open * (1 - granite * 0.8) * (1 - shade * 0.12);
       let species = null;
       if (roll < cover * 0.92) {
         const site = noise2(x * 0.06 + drift, z * 0.05 - drift);
@@ -435,8 +450,10 @@ function understoryLayout(seed, plants, patch) {
         const pick = smoothstep(0.22, 0.78, noise2(x * 0.23 + drift, z * 0.21 + drift * 0.5)) * 0.999;
         const list = site > 0.58 || shade > 0.3 ? THICKET : HEATH;
         species = list[Math.min(list.length - 1, Math.floor(pick * list.length))];
-        if (inland < 6 && random() < 0.6) species = "dune";
-      } else if (roll < cover * 0.92 + sourfig * 0.5 * open) species = "sourfig";
+        if (inland < 10 && random() < 0.6) species = "dune";
+      }
+      // (Sour fig is not grown as a mass: a creeping mat must lie on the
+      // sand, so it is painted on the ground: forest.js, groundCover.)
       if (!species) continue;
       const sp = SPECIES[species];
       // Smaller toward the sea wind and in the shade; neighbours alike.
@@ -1445,6 +1462,7 @@ function growTurf(seed, layout, turf, masses = []) {
     const theta = random() * Math.PI * 2;
     const inland = 1.6 + Math.pow(random(), 0.85) * 55;
     const { x, z } = islandPoint(theta, inland);
+    if (random() >= shoreClear(x, z, inland, 4.5, 6.5)) continue;
     // Bare patches: paths and blowouts where the field dips.
     const field = noise2(x * 0.12 + patch, z * 0.1 - patch) * 0.7 + noise2(x * 0.5, z * 0.5) * 0.3;
     if (field < 0.3 + (1 - smoothstep(2, 6, inland)) * 0.25) continue;

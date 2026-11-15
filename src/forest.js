@@ -1041,7 +1041,9 @@ if ( scrub > 0.02 && coverNear > 0.0 ) {
 // going red-bronze where they are stressed, starred with magenta flowers.
 float figCover = 0.0;
 float figRelief = 0.0;
-if ( sourfig > 0.02 && coverNear > 0.0 ) {
+// (Drawn right up to the eye, unlike the scrub: a creeping mat is flat
+// in life too.)
+if ( sourfig > 0.02 ) {
   // Rosettes of finger leaves with dark gaps between them.
   float f1Fade = smoothstep( 0.2, 0.5, px * 16.0 );
   float f1 = f1Fade < 1.0 ? mix( smoothstep( 0.35, 0.65, dNoise( coast * 16.0 + 4.0 ) ), 0.5, f1Fade ) : 0.5;
@@ -1053,7 +1055,7 @@ if ( sourfig > 0.02 && coverNear > 0.0 ) {
   float figEdge = mix( 0.84, 0.66, sourfig );
   float figN = matN + ( fingers - 0.5 ) * 0.08 + ( lobes - 0.5 ) * 0.06;
   float figAA = fwidth( figN ) * 1.5 + 0.01;
-  figCover = smoothstep( figEdge - figAA, figEdge + 0.06 + figAA, figN ) * ( 1.0 - bushCover ) * smoothstep( 0.02, 0.2, sourfig ) * coverNear;
+  figCover = smoothstep( figEdge - figAA, figEdge + 0.06 + figAA, figN ) * ( 1.0 - bushCover ) * smoothstep( 0.02, 0.2, sourfig );
   vec3 fig = mix( vec3( 0.045, 0.07, 0.024 ), vec3( 0.1, 0.052, 0.03 ), smoothstep( 0.62, 0.85, dNoise( coast * 0.9 + 8.0 ) ) );
   fig *= ( 0.35 + fingers * 1.1 ) * ( 0.6 + lobes * 0.8 ) * 0.85;
   vec2 fg = coast * 6.0;
@@ -1061,10 +1063,10 @@ if ( sourfig > 0.02 && coverNear > 0.0 ) {
   float bloom = step( 0.92, dHash( fid + 17.0 ) ) * ( 1.0 - smoothstep( 0.03, 0.05, length( fract( fg ) - 0.3 - 0.4 * vec2( dHash( fid + 2.0 ), dHash( fid + 5.0 ) ) ) ) );
   bloom = mix( bloom, 0.015, smoothstep( 0.006, 0.02, px ) );
   fig = mix( fig, vec3( 0.5, 0.05, 0.28 ), bloom );
-  diffuseColor.rgb *= 1.0 - smoothstep( figEdge - 0.1, figEdge, matN ) * ( 1.0 - figCover ) * 0.15 * sourfig * coverNear;
+  diffuseColor.rgb *= 1.0 - smoothstep( figEdge - 0.1, figEdge, matN ) * ( 1.0 - figCover ) * 0.15 * sourfig;
   diffuseColor.rgb = mix( diffuseColor.rgb, fig, figCover );
   sandGlint *= 1.0 - figCover;
-  figRelief = smoothstep( figEdge - 0.04, figEdge + 0.12, figN ) * ( 1.0 - bushCover ) * ( 0.012 + fingers * 0.008 ) * coverNear;
+  figRelief = smoothstep( figEdge - 0.04, figEdge + 0.12, figN ) * ( 1.0 - bushCover ) * ( 0.012 + fingers * 0.008 );
 }
 // The shade floor's mats: round leaves 2–5 cm across (pennywort, wild
 // violet, seedlings) packed edge to edge with dark gaps, each its own tone,
