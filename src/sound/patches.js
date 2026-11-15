@@ -10,125 +10,112 @@
 // plus `chance` (0…1, the layer plays that often), `count` and `spacing`
 // (a run of grains), and `pick` ranges written as [lo, hi]. Gains are
 // linear envelope peaks into the bus, before its fader. Every hit varies
-// ±12 % gain, ±6 % filter frequency and ±15 % length.
+// ±3 dB in level, ±10 % in filter frequency, ±15 % in length and up to
+// 12 ms in time.
 
 export const SURFACE = { rock: 0, wetSand: 1, drySand: 2, scrub: 3, forest: 4, grass: 5, timber: 6, metal: 7, shallows: 8, pebbles: 9, deck: 10 };
 export const SURFACE_NAMES = Object.fromEntries(Object.entries(SURFACE).map(([k, v]) => [v, k]));
 
-const grain = (lo, hi, extra = {}) => ({ noise: "white", type: "bandpass", f: [lo, hi], q: 1.5, attack: 0.003, tail: [0.022, 0.04], gain: 0.01, ...extra });
+// Footsteps (reworked 15 Nov after the owner heard the first pass as
+// "off"). A cat's walk is close to silent: a faint soft compression on
+// sand, a whisper of blades in grass, almost nothing on rock, a soft low
+// pad on timber. So every recipe here is filtered noise only (nothing
+// pitched except the boiler's iron), with attacks of 8–15 ms, low-passed,
+// with short tails, and quiet: walking sits about 20 LU under the home
+// beach's bed and is masked by it most of the time. Only a run is clearly
+// audible, and still soft. Each step varies ±3 dB, ±10 % in its filters and
+// up to 12 ms in time; hind paws are a little softer and darker.
+const soft = (colour, type, f, q, attack, tail, gain, extra = {}) => ({ noise: colour, type, f, q, attack, tail, gain, ...extra });
 
 export const STEPS = {
-  // Soft, no click, a little "shh" as the grains settle.
+  // A faint soft compression and the barest "shh".
   [SURFACE.drySand]: {
-    says: "soft and whispery",
-    trim: 3.9,
+    says: "a faint soft compression, barely there",
+    trim: 0.87,
     layers: [
-      { noise: "white", type: "lowpass", f: 1100, to: 420, q: 0.7, attack: 0.014, tail: 0.095, gain: 0.03 },
-      { noise: "white", type: "bandpass", f: 3200, q: 1.2, attack: 0.008, tail: 0.04, gain: 0.005, at: 0.025 },
+      soft("pink", "bandpass", 600, 0.7, 0.014, 0.06, 0.03, { to: 420 }),
+      soft("white", "bandpass", 1800, 0.7, 0.012, 0.035, 0.009),
     ],
   },
-  // Denser and darker, firm ground under it, now and then a suck.
+  // Denser and darker: a damp pad.
   [SURFACE.wetSand]: {
-    says: "dark and firm",
-    trim: 1.88,
+    says: "a damp, darker pad",
+    trim: 0.77,
     layers: [
-      { noise: "pink", type: "bandpass", f: 480, q: 0.9, attack: 0.008, tail: 0.06, gain: 0.05 },
-      { noise: "white", type: "bandpass", f: 900, q: 1, attack: 0.006, tail: 0.04, gain: 0.012 },
-      { tone: "sine", hz: 180, to: 120, attack: 0.004, tail: 0.035, gain: 0.003 },
-      { noise: "white", type: "bandpass", f: 2400, q: 6, attack: 0.002, tail: 0.018, gain: 0.006, at: 0.04, chance: 1 / 3 },
+      soft("pink", "bandpass", 380, 0.8, 0.01, 0.05, 0.04),
+      soft("pink", "lowpass", 900, -3, 0.01, 0.03, 0.006),
     ],
   },
-  // Blades brushing over soft soil.
+  // A whisper of blades.
   [SURFACE.grass]: {
-    says: "a light brushing",
-    trim: 5.4,
-    layers: [
-      { ...grain(5500, 8000), count: [2, 3], spacing: [0.008, 0.014] },
-      { noise: "brown", type: "lowpass", f: 300, q: 0, attack: 0.004, tail: 0.05, gain: 0.002 },
-    ],
+    says: "a whisper of blades",
+    trim: 1.38,
+    layers: [soft("pink", "bandpass", 2600, 0.8, 0.012, [0.035, 0.05], 0.02, { count: [1, 2], spacing: [0.015, 0.025] })],
   },
-  // As grass, plus one step in four a twig.
+  // Low bush and restio: a soft brush, a little body.
   [SURFACE.scrub]: {
-    says: "brushing, a twig now and then",
-    trim: 5.7,
+    says: "a soft brush through low bush",
+    trim: 1.17,
     layers: [
-      { ...grain(3500, 6000), count: [2, 3], spacing: [0.008, 0.014] },
-      { noise: "brown", type: "lowpass", f: 300, q: 0, attack: 0.004, tail: 0.05, gain: 0.003 },
-      { noise: "white", type: "bandpass", f: 2200, q: 9, attack: 0.001, tail: 0.012, gain: 0.016, chance: 0.25, at: 0.01 },
+      soft("pink", "bandpass", 2000, 0.8, 0.01, [0.04, 0.06], 0.02, { count: 2, spacing: [0.015, 0.03] }),
+      soft("brown", "lowpass", 300, -3, 0.01, 0.04, 0.005),
     ],
   },
-  // Leaf litter: one more grain, a soft thump under it, the twig.
+  // Leaf litter under the trees: a soft dry settle.
   [SURFACE.forest]: {
-    says: "leaf litter, an occasional twig",
-    trim: 5.1,
+    says: "a soft settle in leaf litter",
+    trim: 1.02,
     layers: [
-      { ...grain(2500, 5000, { tail: [0.03, 0.05] }), count: [3, 4], spacing: [0.008, 0.016] },
-      { noise: "brown", type: "lowpass", f: 380, q: 0, attack: 0.004, tail: 0.06, gain: 0.005 },
-      { noise: "white", type: "bandpass", f: 2200, q: 9, attack: 0.001, tail: 0.012, gain: 0.016, chance: 0.25, at: 0.012 },
+      soft("pink", "bandpass", 1500, 0.7, 0.01, [0.045, 0.07], 0.02, { count: 2, spacing: [0.02, 0.03] }),
+      soft("brown", "lowpass", 350, -3, 0.01, 0.04, 0.006),
     ],
   },
-  // A cat on stone is nearly silent; the tick of a claw is what you hear.
+  // Rock and made stone (the stoep, steps, the cairn): almost nothing.
   [SURFACE.rock]: {
-    says: "nearly silent, a claw tick",
-    trim: 6.9,
-    layers: [
-      { noise: "white", type: "bandpass", f: 4200, q: 4, attack: 0.001, tail: 0.014, gain: 0.016 },
-      { tone: "sine", hz: 420, attack: 0.001, tail: 0.025, gain: 0.0004 },
-      { noise: "white", type: "highpass", f: 5000, q: 0, attack: 0.0005, tail: 0.006, gain: 0.003, at: 0.004, chance: 0.3, running: 1 },
-    ],
+    says: "almost nothing",
+    trim: 1.75,
+    layers: [soft("pink", "bandpass", 900, 0.7, 0.008, 0.025, 0.012)],
   },
-  // A knock with a body under it (the keel, a sill, a limb).
-  [SURFACE.timber]: {
-    says: "a soft wooden knock",
-    trim: 0.83,
-    layers: [
-      { noise: "brown", type: "lowpass", f: 500, q: 0, attack: 0.002, tail: 0.045, gain: 0.03 },
-      { modes: [[210, 0.16, 1], [340, 0.12, 0.6]], gain: 0.02 },
-    ],
-  },
-  // The boat's deck: lower and hollow (send B).
-  [SURFACE.deck]: {
-    says: "a hollow knock on the deck",
-    trim: 0.76,
-    sendB: 0.2,
-    layers: [
-      { noise: "brown", type: "lowpass", f: 450, q: 0, attack: 0.002, tail: 0.05, gain: 0.03 },
-      { modes: [[150, 0.2, 1], [260, 0.15, 0.6]], gain: 0.022 },
-    ],
-  },
-  // Inside the boiler: the ring is the point; each step hangs.
-  [SURFACE.metal]: {
-    says: "a ringing metal step",
-    trim: 0.36,
-    layers: [
-      { modes: [[196, 0.95, 1], [418, 0.75, 0.6], [733, 0.6, 0.4], [1210, 0.45, 0.25]], gain: 0.016, tick: { noise: "white", type: "bandpass", f: 2500, q: 0.8, attack: 0.0005, tail: 0.004, gain: 0.02 } },
-      { noise: "white", type: "highpass", f: 6000, q: 0, attack: 0.0005, tail: 0.005, gain: 0.01 },
-    ],
-  },
-  // A plip, then drops.
-  [SURFACE.shallows]: {
-    says: "a plip, then drops",
-    trim: 2.5,
-    layers: [
-      { noise: "pink", type: "bandpass", f: 1100, to: 500, q: 1.4, attack: 0.006, tail: 0.11, gain: 0.035 },
-      { bubble: [700, 1500], ratio: 1.6, attack: 0.002, tail: 0.03, gain: 0.008, at: [0.03, 0.09], count: [1, 2], spacing: [0.02, 0.05] },
-    ],
-  },
-  // Stones shifting: three clicks over 40 ms, the last with a tap.
+  // Shingle and shell: a soft grit shifting.
   [SURFACE.pebbles]: {
-    says: "stones shifting",
-    trim: 12,
+    says: "a soft grit shifting",
+    trim: 2.09,
+    layers: [soft("pink", "bandpass", 1400, 1, 0.008, 0.03, 0.012, { count: 2, spacing: [0.02, 0.03] })],
+  },
+  // Timber (the keelson, the boat ashore, the milkwood's limb): a soft low pad.
+  [SURFACE.timber]: {
+    says: "a soft low pad on wood",
+    trim: 0.89,
+    layers: [soft("pink", "bandpass", 260, 0.8, 0.01, 0.05, 0.035)],
+  },
+  // The boat's deck: lower, a touch hollow.
+  [SURFACE.deck]: {
+    says: "a soft low pad, a touch hollow",
+    trim: 0.94,
+    sendB: 0.15,
+    layers: [soft("pink", "bandpass", 210, 0.8, 0.01, 0.06, 0.035)],
+  },
+  // Inside the boiler: the one pitched step. A soft pad that the iron
+  // rings with, quietly; the drum (world.js) carries it on.
+  [SURFACE.metal]: {
+    says: "a soft pad that the iron answers with a faint ring",
+    trim: 0.29,
     layers: [
-      { noise: "white", type: "bandpass", f: [1400, 2400], q: 7, attack: 0.0005, tail: 0.014, gain: 0.012, count: 3, spacing: [0.012, 0.016] },
-      { tone: "sine", hz: 300, attack: 0.001, tail: 0.02, gain: 0.0003, at: 0.035 },
+      soft("brown", "lowpass", 450, -3, 0.008, 0.04, 0.02),
+      { modes: [[196, 0.7, 1], [418, 0.55, 0.6], [733, 0.45, 0.4], [1210, 0.35, 0.25]], gain: 0.008, attack: 0.006 },
     ],
+  },
+  // The swash: a soft wet pad, no plinks.
+  [SURFACE.shallows]: {
+    says: "a soft wet pad",
+    trim: 1.19,
+    layers: [soft("pink", "bandpass", 900, 1, 0.012, 0.08, 0.03, { to: 500 })],
   },
 };
 
-// `trim` on each surface is set by measurement (scripts/sound-measure.mjs)
-// so that, walking, wet and dry sand land at the same loudness, grass and
-// scrub 2–3 dB under them, rock 6 dB under (nearly silent), timber and
-// metal a little over (the knock and the ring are the point).
+// `trim` on each surface is set by measurement (scripts/sound-footsteps.mjs)
+// so that, walking, wet and dry sand land level, grass 2 dB under, rock 6
+// dB under, timber and the deck 1–2 dB over, the boiler 4 dB over.
 
 // The longest a footstep may last (s), for the tests.
 export const STEP_MAX_SECONDS = { default: 0.25, [SURFACE.metal]: 1.4, [SURFACE.timber]: 0.4, [SURFACE.deck]: 0.45 };
@@ -138,12 +125,13 @@ const pickInt = (core, x) => (Array.isArray(x) ? Math.floor(core.rand(x[0], x[1]
 
 // Plays a list of layers into voice `v`. `scale` multiplies every gain,
 // `shorten` every tail; `running` turns on layers marked `running: 1`.
-export function playLayers(core, v, layers, { scale = 1, shorten = 1, running = false, at = 0, vary = true } = {}) {
+export function playLayers(core, v, layers, { scale = 1, shorten = 1, running = false, at = 0, vary = true, fscale = 1, jitter = 0 } = {}) {
   if (!v) return 0;
   let end = v.t;
-  const g = (x) => (vary ? core.vary(x, 0.12) : x) * scale;
-  const f = (x) => (vary ? core.vary(x, 0.06) : x);
+  const g = (x) => (vary ? x * 10 ** ((core.random() * 2 - 1) * 3 / 20) : x) * scale;
+  const f = (x) => (vary ? core.vary(x, 0.1) : x) * fscale;
   const len = (x) => (vary ? core.vary(x, 0.15) : x) * shorten;
+  if (vary && jitter) at += core.random() * jitter;
   for (const layer of layers) {
     const chance = running && layer.running ? layer.running : layer.chance ?? 1;
     if (chance < 1 && core.random() >= chance) continue;
@@ -158,7 +146,7 @@ export function playLayers(core, v, layers, { scale = 1, shorten = 1, running = 
         end = Math.max(end, core.tone(v, { type: layer.tone, hz, to: layer.to ? layer.to * (hz / layer.hz) : null, attack: layer.attack, hold: layer.hold ?? 0, tail: len(pick(core, layer.tail)), gain: g(layer.gain), at: offset, partials: layer.partials }));
       } else if (layer.modes) {
         const tick = layer.tick ? { ...layer.tick, gain: g(layer.tick.gain), tail: len(layer.tick.tail) } : null;
-        end = Math.max(end, core.modes(v, { modes: layer.modes.map(([hz, t60, gm]) => [hz, t60 * shorten, gm]), gain: g(layer.gain), at: offset, tick }));
+        end = Math.max(end, core.modes(v, { modes: layer.modes.map(([hz, t60, gm]) => [hz, t60 * shorten, gm]), gain: g(layer.gain), at: offset, tick, attack: layer.attack ?? 0.0015 }));
       } else if (layer.bubble) {
         end = Math.max(end, core.bubble(v, { f: f(pick(core, layer.bubble)), ratio: layer.ratio ?? 1.6, attack: layer.attack ?? 0.002, tail: len(pick(core, layer.tail)), gain: g(layer.gain), at: offset }));
       }

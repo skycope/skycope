@@ -7,7 +7,7 @@ import { render, SR } from "../tests/audio/render.js";
 import { AUDITION_BASE as BASE } from "../src/sound/catalog.js";
 import { SURFACE, SURFACE_NAMES } from "../src/sound/patches.js";
 import { SCENES } from "../tests/audio/scenes.js";
-import { spectrogram } from "./sound-evidence.mjs";
+import { spectrogram } from "./spectrogram.mjs";
 import * as A from "../tests/audio/analysis.js";
 
 // A cat's walk: four paws a stride, one every ~0.22 s (front, hind alternate).

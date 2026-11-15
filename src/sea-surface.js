@@ -1,4 +1,4 @@
-import { shoreDistance, ISLAND } from "./terrain.js";
+import { shoreDistance, groundHeight, ISLAND } from "./terrain.js";
 
 // The sea where the cat is, on the CPU: a port of the geometric part of
 // wave_surface (the breaking train, the shorter shore swells and the long
@@ -166,7 +166,10 @@ export function createSea(seed, modes) {
       return height(x, z, -inland, shoreAlong(x, z), dx / r, dz / r, false, true);
     },
     // The water surface at (x, z), or -Infinity where the sand is dry; and
-    // the flow a floating body is carried by. `ground` is the sand height.
+    // the flow a floating body is carried by. `ground` is the surface under
+    // the body (the sand, or a boulder top or a beached deck): the swash
+    // film lies on the sand, never on top of a rock or a hull, so a dry
+    // boulder at the tideline stays dry (code review, finding 2).
     at(x, z, ground) {
       const inland = shoreDistance(x, z);
       const along = shoreAlong(x, z);
@@ -180,7 +183,8 @@ export function createSea(seed, modes) {
         // The swash film over the sand, a few centimetres deep.
         const { film, depth: behind, flow } = swashState(along, inland, time, swell);
         if (film > 0.2) {
-          out.level = Math.max(out.level, ground + film * Math.min(0.06, 0.008 + behind * 0.03));
+          const sand = Math.min(ground, groundHeight(x, z));
+          out.level = Math.max(out.level, sand + film * Math.min(0.06, 0.008 + behind * 0.03));
           if (inland > -0.5) {
             out.flowX += (-dx / r) * flow * 0.5 * film;
             out.flowZ += (-dz / r) * flow * 0.5 * film;
