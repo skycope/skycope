@@ -323,8 +323,9 @@ export function succulentGeometry(detail = 1) {
 // bakes the occlusion: dark at the foot, darker still in the creases where
 // lumps meet and on a lump's inward side, light on the crown; and each
 // sprig's lighter midrib and, on a few, a dry tip. `leafFlutter` lets only
-// the sprig tips flutter. `detail` 3, 2, 1, 0: 501, 242, 106 and 18
-// triangles (the finest only within a few metres of the eye).
+// the sprig tips flutter. `detail` 3, 2, 1, 0: 501, 277, 140 and 24
+// triangles (the finest only within a few metres of the eye; eight sectors at the
+// coarse levels: six read as hexagonal pyramids from the beach).
 export function shrubMassGeometry(detail = 3) {
   const m = mesher();
   const random = seededRandom(67);
@@ -338,7 +339,7 @@ export function shrubMassGeometry(detail = 3) {
     lumps.push([Math.cos(a) * (0.98 - r), 0.24 + random() * 0.12, Math.sin(a) * (0.98 - r), r]);
   }
   lumps.push([0.12, 0.72, -0.1, 0.32]);
-  const [keep, sectors, rings, sprigs, grow] = [[7, 9, 3, 30, 1], [7, 6, 2, 16, 1], [5, 6, 1, 8, 1.1], [1, 6, 1, 0, 1.6]][3 - detail];
+  const [keep, sectors, rings, sprigs, grow] = [[7, 9, 3, 30, 1], [7, 7, 2, 16, 1], [5, 8, 1, 10, 1.1], [1, 8, 1, 0, 1.6]][3 - detail];
   const occlusion = (p, n) => {
     const foot = 0.46 + 0.54 * Math.pow(Math.min(1, Math.max(0, (p.y + 0.05) / 0.9)), 0.75);
     // Facing into the bush (toward its axis) or down: a crease.

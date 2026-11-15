@@ -9,7 +9,7 @@ import {
 } from "./terrain.js";
 import { seededRandom } from "./random.js";
 import { createHabitat, sampleHabitat, graniteAt } from "./habitat.js";
-import { groundCover } from "./ground-detail.js";
+import { groundCover, shoreClear } from "./ground-detail.js";
 import { foliageDemand, demandRadius } from "./plant-growth.js";
 import { MATERIAL_HEX } from "./material-palette.js";
 import { plantClear } from "./place-layout.js"; // places:
@@ -161,7 +161,12 @@ export function vegetationLayout(seed) {
     // Groves and gaps: trees gather where a grove field is high (sheltered
     // hollows and kloofs) with open fynbos between them; the odd tree stands
     // alone in the heath. (An even scatter read as an orchard.)
-    const grove = noise2(x * 0.05 + patch * 0.7, z * 0.045 - patch * 0.3) * 0.75 + shelter * 0.25;
+    // Behind each beach, where the slope rises from the dunes, a belt of
+    // coastal thicket trees (milkwood, sea guarrie) in clumps of a few with
+    // fynbos between: the first trees a visitor sees from the sand.
+    const belt = smoothstep(7, 10, inland) * (1 - smoothstep(18, 26, inland)) *
+      smoothstep(0.45, 0.62, noise2(x * 0.13 + patch * 0.4, z * 0.13 - patch * 0.2));
+    const grove = Math.max(noise2(x * 0.05 + patch * 0.7, z * 0.045 - patch * 0.3) * 0.75 + shelter * 0.25, belt * 0.72);
     const inGrove = smoothstep(0.42, 0.6, grove);
     if (random() > (0.3 + shelter * 0.8) * (0.3 + edge * 0.7) * (0.1 + 0.9 * inGrove)) continue;
     // A spatial habitat field selects related traits across a grove, not per-row models.
@@ -325,6 +330,17 @@ export function vegetationLayout(seed) {
     });
   }
   understoryLayout(seed, plants, patch);
+  // Nothing below the dry-sand line or within the swash's reach; plants
+  // thin in over the dry sand above it (dune grass first, then the rest).
+  {
+    const shore = seededRandom(seed ^ 0x5bd1e995);
+    let n = 0;
+    for (const p of plants) {
+      const clear = p.kind === "grass" ? shoreClear(p.x, p.z, undefined, 4.5, 6.5) : shoreClear(p.x, p.z, undefined, 5.5, 9);
+      if (shore() < clear) plants[n++] = p;
+    }
+    plants.length = n;
+  }
   // places: nothing grows through a landmark (place-layout.js).
   { let n = 0; for (const p of plants) if (plantClear(seed, p.kind, p.x, p.z, p.height)) plants[n++] = p; plants.length = n; }
   // Stable identities and a regional age; every candidate keeps its kind, so
@@ -347,16 +363,16 @@ export function vegetationLayout(seed) {
 // shrubs stand in it, straw and ochre where plants are old or dry, and the
 // few flowers are small and muted.
 const SPECIES = {
-  renoster: { hsl: [0.2, 0.16, 0.29], spread: [0.38, 0.75], tall: [0.66, 0.92] },
-  erica: { hsl: [0.22, 0.24, 0.22], spread: [0.28, 0.52], tall: [0.72, 0.95], bloom: 0.4, flowers: [[0.87, 0.24, 0.6], [0.93, 0.22, 0.7], [0.12, 0.1, 0.86]] },
+  renoster: { hsl: [0.22, 0.16, 0.3], spread: [0.38, 0.75], tall: [0.66, 0.92] },
+  erica: { hsl: [0.18, 0.25, 0.24], spread: [0.28, 0.52], tall: [0.72, 0.95], bloom: 0.4, flowers: [[0.87, 0.24, 0.6], [0.93, 0.22, 0.7], [0.12, 0.1, 0.86]] },
   pelargonium: { hsl: [0.25, 0.26, 0.24], spread: [0.38, 0.68], tall: [0.66, 0.92], bloom: 0.35, flowers: [[0.85, 0.28, 0.66], [0.9, 0.2, 0.74]] },
-  blombos: { hsl: [0.27, 0.27, 0.19], spread: [0.5, 0.92], tall: [0.7, 0.98] },
-  restiold: { hsl: [0.13, 0.24, 0.31], spread: [0.28, 0.52], tall: [0.66, 0.9] },
-  dune: { hsl: [0.17, 0.12, 0.33], spread: [0.25, 0.5], tall: [0.6, 0.9] },
+  blombos: { hsl: [0.29, 0.3, 0.18], spread: [0.5, 0.92], tall: [0.7, 0.98] },
+  restiold: { hsl: [0.13, 0.22, 0.3], spread: [0.28, 0.52], tall: [0.66, 0.9] },
+  dune: { hsl: [0.16, 0.13, 0.33], spread: [0.25, 0.5], tall: [0.6, 0.9] },
   sourfig: { hsl: [0.2, 0.3, 0.24], spread: [0.4, 0.85], tall: [0.18, 0.28], bloom: 0.25, flowers: [[0.86, 0.3, 0.62], [0.14, 0.42, 0.66]] },
 };
 // Drifts: one species holds a few metres of slope, as real fynbos does.
-const HEATH = ["renoster", "renoster", "erica", "renoster", "pelargonium", "renoster", "erica", "blombos", "restiold", "renoster"];
+const HEATH = ["renoster", "renoster", "erica", "restiold", "renoster", "pelargonium", "renoster", "erica", "blombos", "restiold", "renoster", "erica"];
 const THICKET = ["blombos", "blombos", "pelargonium", "renoster", "erica"];
 
 // The understory: fynbos shrubs, one rounded mass each, closing the ground
@@ -416,18 +432,22 @@ function understoryLayout(seed, plants, patch) {
       const z = ISLAND.z + gz + random() * cell;
       const roll = random();
       const inland = shoreDistance(x, z);
-      if (inland < 2.2) continue;
+      // Nothing on the wet sand or in the swash's reach (shoreClear).
+      const clear = shoreClear(x, z, inland, 5.5, 9);
+      if (clear <= 0) continue;
       const shade = shadeAt(x, z);
-      const { scrub, sourfig } = groundCover(x, z, inland, shade * 0.4);
+      const { scrub } = groundCover(x, z, inland, shade * 0.4);
       const granite = graniteAt(x, z, inland);
       // Clumps and gaps at a few metres: a patch field thins the cover.
       const clump = noise2(x * 0.42 + patch, z * 0.38 - patch) * 0.7 + noise2(x * 1.1 - 3, z * 1.1 + 7) * 0.3;
       const open = smoothstep(0.14, 0.4, clump);
-      // Closed fynbos inland, thinning toward the dunes. Under the crowns
+      // Closed fynbos well inland, sparse at the dune edge with sand and
+      // grass between the bushes, rising to closed cover up the slope (by
+      // ~18 m inland). Under the crowns
       // it carries on as thicket (shade-tolerant blombos and pelargonium,
       // lower and a little sparser), so the floor between trunks is cover,
       // not bare soil.
-      const cover = Math.max(scrub, smoothstep(4, 9, inland) * 0.95) * open * (1 - granite * 0.8) * (1 - shade * 0.12);
+      const cover = Math.max(scrub * 0.8, smoothstep(7, 18, inland) * 0.95) * clear * open * (1 - granite * 0.8) * (1 - shade * 0.12);
       let species = null;
       if (roll < cover * 0.92) {
         const site = noise2(x * 0.06 + drift, z * 0.05 - drift);
@@ -435,8 +455,10 @@ function understoryLayout(seed, plants, patch) {
         const pick = smoothstep(0.22, 0.78, noise2(x * 0.23 + drift, z * 0.21 + drift * 0.5)) * 0.999;
         const list = site > 0.58 || shade > 0.3 ? THICKET : HEATH;
         species = list[Math.min(list.length - 1, Math.floor(pick * list.length))];
-        if (inland < 6 && random() < 0.6) species = "dune";
-      } else if (roll < cover * 0.92 + sourfig * 0.5 * open) species = "sourfig";
+        if (inland < 10 && random() < 0.6) species = "dune";
+      }
+      // (Sour fig is not grown as a mass: a creeping mat must lie on the
+      // sand, so it is painted on the ground: forest.js, groundCover.)
       if (!species) continue;
       const sp = SPECIES[species];
       // Smaller toward the sea wind and in the shade; neighbours alike.
@@ -656,17 +678,18 @@ function growMass(plant, random, { masses, flowers }) {
   const sp = SPECIES[plant.species] ?? SPECIES.blombos;
   const spread = plant.spread ?? Math.max(0.35, plant.height * 0.6);
   const height = plant.height;
-  let seat = terrainHeight(plant.x, plant.z);
-  for (let i = 0; i < 6; i++) {
-    const a = (i / 6) * Math.PI * 2;
-    seat = Math.min(seat, terrainHeight(plant.x + Math.cos(a) * spread * 0.85, plant.z + Math.sin(a) * spread * 0.85));
-  }
-  seat -= 0.02;
+  // Seated on a slope by leaning with most of it (three quarters: a bush
+  // hugs the ground but grows up, not out) and sinking the rest, so the
+  // downhill rim meets the ground and the uphill side is buried by only a
+  // few centimetres. (Sat at the lowest ground under its rim and leaning
+  // half the slope, a bush on the steep backslope of a beach was buried
+  // to half its height uphill: a flat plate in the slope.)
   const gx = (terrainHeight(plant.x + 0.5, plant.z) - terrainHeight(plant.x - 0.5, plant.z));
   const gz = (terrainHeight(plant.x, plant.z + 0.5) - terrainHeight(plant.x, plant.z - 0.5));
+  const slope = Math.hypot(gx, gz);
+  const seat = terrainHeight(plant.x, plant.z) - 0.25 * slope * spread * 0.85 - 0.02;
   const flag = plant.exposure * 0.12;
-  // Lean: half the slope (the mass hugs the ground), plus the wind.
-  const up = new THREE.Vector3(-gx * 0.45 - PREVAILING.x * flag, 1, -gz * 0.45 - PREVAILING.z * flag).normalize();
+  const up = new THREE.Vector3(-gx * 0.75 - PREVAILING.x * flag, 1, -gz * 0.75 - PREVAILING.z * flag).normalize();
   const yaw = random() * Math.PI * 2;
   const rotation = new THREE.Euler().setFromQuaternion(
     new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), up).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw)),
@@ -682,7 +705,9 @@ function growMass(plant, random, { masses, flowers }) {
   const moist = smoothstep(0.25, 0.75, noise2(plant.x * 0.045 + 7, plant.z * 0.05 - 3)) * 2 - 1;
   const silver = random() < 0.04 ? 1 : 0;
   const color = hslColour(
-    h + (random() - 0.5) * 0.04 - dry * 0.07 + moist * 0.018 - silver * 0.03,
+    // (Dry goes to straw and ochre, never to salmon or stone: hue held at
+    // 0.13.)
+    Math.max(0.13, h + (random() - 0.5) * 0.04 - dry * 0.07 + moist * 0.018 - silver * 0.03),
     (s * (0.8 + random() * 0.4) + dry * 0.08 + moist * 0.035) * (1 - silver * 0.35),
     l * (0.78 + random() * 0.44) + dry * 0.05 - moist * 0.03 + silver * 0.05,
   );
@@ -1445,6 +1470,7 @@ function growTurf(seed, layout, turf, masses = []) {
     const theta = random() * Math.PI * 2;
     const inland = 1.6 + Math.pow(random(), 0.85) * 55;
     const { x, z } = islandPoint(theta, inland);
+    if (random() >= shoreClear(x, z, inland, 4.5, 6.5)) continue;
     // Bare patches: paths and blowouts where the field dips.
     const field = noise2(x * 0.12 + patch, z * 0.1 - patch) * 0.7 + noise2(x * 0.5, z * 0.5) * 0.3;
     if (field < 0.3 + (1 - smoothstep(2, 6, inland)) * 0.25) continue;

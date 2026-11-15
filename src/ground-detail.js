@@ -91,12 +91,22 @@ function stick(x, z, radius, length, yaw) {
 export function groundCover(x, z, inland = shoreDistance(x, z), shade = 0) {
   const dither = noise2(x * 0.7 + 3.1, z * 0.7) * 3 - 1.5;
   const clearings = noise2(x * 0.075 + 17, z * 0.083 - 5) * 0.7 + noise2(x * 0.21, z * 0.19 + 9) * 0.3;
-  const scrub = smoothstep(3.2, 10, inland + dither) *
+  const scrub = smoothstep(6, 14, inland + dither) *
     smoothstep(0.26, 0.5, clearings) *
     // Under a crown the scrub carries on as lower, sparser thicket.
     (1 - smoothstep(0.22, 0.6, shade) * 0.4);
-  const sourfig = smoothstep(1.8, 3.2, inland + dither * 0.3) *
-    (1 - smoothstep(6.5, 10, inland + dither)) *
-    smoothstep(0.38, 0.62, noise2(x * 0.09 + 40, z * 0.11 - 12));
+  // Sour fig creeps over the dry dune sand, above the swash's reach, in
+  // scattered mats.
+  const sourfig = shoreClear(x, z, inland, 5.5, 8) *
+    (1 - smoothstep(10, 14, inland + dither)) *
+    smoothstep(0.5, 0.7, noise2(x * 0.09 + 40, z * 0.11 - 12));
   return { scrub, sourfig };
+}
+
+// Where anything may grow, 0-1: nothing on the wet sand or within the
+// swash's reach (the run-up comes ~4.5 m up the beach, 0.35 m above the
+// sea), fading in over the dry sand above it. `from`/`to`: the fade, in
+// metres inland; heights follow (the beach rises ~7.5 cm a metre there).
+export function shoreClear(x, z, inland = shoreDistance(x, z), from = 4.5, to = 7) {
+  return smoothstep(from, to, inland) * smoothstep(0.35, 0.35 + (to - from) * 0.12, groundHeight(x, z));
 }

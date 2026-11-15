@@ -583,6 +583,20 @@ gl_Position = projectionMatrix * mvPosition;
 const OCCLUSION_VERTEX_GLSL = /* glsl */ `
 #ifdef MASS
 varying vec3 vMassP;
+float massVertexHash( vec3 p ) {
+  p = fract( p * 0.3183099 + 0.1 );
+  p *= 17.0;
+  return fract( p.x * p.y * p.z * ( p.x + p.y + p.z ) );
+}
+float massVertexNoise( vec3 p ) {
+  vec3 i = floor( p );
+  vec3 f = fract( p );
+  f = f * f * ( 3.0 - 2.0 * f );
+  return mix(
+    mix( mix( massVertexHash( i ), massVertexHash( i + vec3( 1, 0, 0 ) ), f.x ), mix( massVertexHash( i + vec3( 0, 1, 0 ) ), massVertexHash( i + vec3( 1, 1, 0 ) ), f.x ), f.y ),
+    mix( mix( massVertexHash( i + vec3( 0, 0, 1 ) ), massVertexHash( i + vec3( 1, 0, 1 ) ), f.x ), mix( massVertexHash( i + vec3( 0, 1, 1 ) ), massVertexHash( i + vec3( 1, 1, 1 ) ), f.x ), f.y ),
+    f.z );
+}
 #endif
 attribute float canopyShade;
 uniform vec3 shadowCentre;
@@ -731,11 +745,48 @@ void massLeaves( inout vec3 albedo ) {
   // The colour drift across a bush (a few leaves' worth) survives further.
   float tone = massNoise( vMassP * 6.0 + 11.3 );
   vec3 drift = vec3( 1.0 + ( tone - 0.5 ) * 0.12, 1.0, 1.0 - ( tone - 0.5 ) * 0.16 ) * ( 0.95 + tone * 0.1 );
+  // Leaf clusters a hand across with dark gaps between them: what makes a
+  // bush read as foliage, not a smooth stone, from tens of metres. Averaged
+  // to its mean where a cluster would be under a couple of pixels.
+  vec3 cq = vMassP * 9.0;
+  float clusterFade = 1.0 - smoothstep( 0.4, 1.0, length( fwidth( cq ) ) );
+  float cluster = massNoise( cq + 4.1 ) * 0.7 + massNoise( cq * 2.1 - 2.3 ) * 0.3;
+  drift *= mix( 0.86, 0.62 + 0.62 * smoothstep( 0.3, 0.7, cluster ), clusterFade );
   if ( near <= 0.0 ) { albedo *= drift; return; }
   // Sparse lit leaf tips over the darker body of the bush.
   float leaf = massNoise( q );
   float lit = smoothstep( 0.58, 0.78, leaf );
   albedo *= drift * mix( 1.0, 0.86 + 0.42 * lit, near );
+}
+`;
+
+// A bush's outline is leaf clusters and twigs against the sky, not a dome's
+// edge. Toward the silhouette (the surface turning away from the eye) leaf
+// clusters are bitten out by a world-space noise (a dithered discard: the
+// land canvas's alpha must stay 1, it is composited over the sky; and the
+// foliage shader already discards for the lens, so early-z is not lost
+// here), so the edge frays into clusters with light between them, and the
+// back of the mass shows through as inner foliage. Clusters ~8 cm near,
+// ~20 cm further, each averaged away where it would be under a pixel; far
+// off the outline is the vertex shader's lobes alone (bites the size of a
+// whole bush cut the tops off and left flat plates). Some
+// bushes (a quarter, by the instance's hash) are open and twiggy: the bites
+// reach further in.
+const MASS_FRINGE_GLSL = /* glsl */ `
+{
+  float facing = abs( dot( normal, normalize( vViewPosition ) ) );
+  float twiggy = step( 0.75, vGlint );
+  float rim = 1.0 - smoothstep( 0.0, mix( 0.28, 0.45, twiggy ), facing );
+  vec3 fineQ = vMassP * 12.0;
+  vec3 coarseQ = vMassP * 5.0;
+  float fineFade = 1.0 - smoothstep( 0.35, 0.9, length( fwidth( fineQ ) ) );
+  float coarseFade = 1.0 - smoothstep( 0.35, 0.9, length( fwidth( coarseQ ) ) );
+  float clusters = mix( 0.5, massNoise( coarseQ + 3.7 ), coarseFade ) * 0.55 + mix( 0.5, massNoise( fineQ ), fineFade ) * 0.45;
+  // Bitten where the clusters are thin; never in the middle of the face.
+  float bite = rim * ( 0.9 + 0.25 * twiggy ) - clusters;
+  float cut = smoothstep( -0.06, 0.06, bite ) * max( coarseFade, fineFade );
+  float dither = fract( sin( dot( floor( gl_FragCoord.xy ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
+  if ( cut > 0.5 + ( dither - 0.5 ) * 0.8 ) discard;
 }
 `;
 
@@ -1041,7 +1092,9 @@ if ( scrub > 0.02 && coverNear > 0.0 ) {
 // going red-bronze where they are stressed, starred with magenta flowers.
 float figCover = 0.0;
 float figRelief = 0.0;
-if ( sourfig > 0.02 && coverNear > 0.0 ) {
+// (Drawn right up to the eye, unlike the scrub: a creeping mat is flat
+// in life too.)
+if ( sourfig > 0.02 ) {
   // Rosettes of finger leaves with dark gaps between them.
   float f1Fade = smoothstep( 0.2, 0.5, px * 16.0 );
   float f1 = f1Fade < 1.0 ? mix( smoothstep( 0.35, 0.65, dNoise( coast * 16.0 + 4.0 ) ), 0.5, f1Fade ) : 0.5;
@@ -1053,7 +1106,7 @@ if ( sourfig > 0.02 && coverNear > 0.0 ) {
   float figEdge = mix( 0.84, 0.66, sourfig );
   float figN = matN + ( fingers - 0.5 ) * 0.08 + ( lobes - 0.5 ) * 0.06;
   float figAA = fwidth( figN ) * 1.5 + 0.01;
-  figCover = smoothstep( figEdge - figAA, figEdge + 0.06 + figAA, figN ) * ( 1.0 - bushCover ) * smoothstep( 0.02, 0.2, sourfig ) * coverNear;
+  figCover = smoothstep( figEdge - figAA, figEdge + 0.06 + figAA, figN ) * ( 1.0 - bushCover ) * smoothstep( 0.02, 0.2, sourfig );
   vec3 fig = mix( vec3( 0.045, 0.07, 0.024 ), vec3( 0.1, 0.052, 0.03 ), smoothstep( 0.62, 0.85, dNoise( coast * 0.9 + 8.0 ) ) );
   fig *= ( 0.35 + fingers * 1.1 ) * ( 0.6 + lobes * 0.8 ) * 0.85;
   vec2 fg = coast * 6.0;
@@ -1061,10 +1114,10 @@ if ( sourfig > 0.02 && coverNear > 0.0 ) {
   float bloom = step( 0.92, dHash( fid + 17.0 ) ) * ( 1.0 - smoothstep( 0.03, 0.05, length( fract( fg ) - 0.3 - 0.4 * vec2( dHash( fid + 2.0 ), dHash( fid + 5.0 ) ) ) ) );
   bloom = mix( bloom, 0.015, smoothstep( 0.006, 0.02, px ) );
   fig = mix( fig, vec3( 0.5, 0.05, 0.28 ), bloom );
-  diffuseColor.rgb *= 1.0 - smoothstep( figEdge - 0.1, figEdge, matN ) * ( 1.0 - figCover ) * 0.15 * sourfig * coverNear;
+  diffuseColor.rgb *= 1.0 - smoothstep( figEdge - 0.1, figEdge, matN ) * ( 1.0 - figCover ) * 0.15 * sourfig;
   diffuseColor.rgb = mix( diffuseColor.rgb, fig, figCover );
   sandGlint *= 1.0 - figCover;
-  figRelief = smoothstep( figEdge - 0.04, figEdge + 0.12, figN ) * ( 1.0 - bushCover ) * ( 0.012 + fingers * 0.008 ) * coverNear;
+  figRelief = smoothstep( figEdge - 0.04, figEdge + 0.12, figN ) * ( 1.0 - bushCover ) * ( 0.012 + fingers * 0.008 );
 }
 // The shade floor's mats: round leaves 2–5 cm across (pennywort, wild
 // violet, seedlings) packed edge to edge with dark gaps, each its own tone,
@@ -1712,6 +1765,21 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
           vGlint = 0.0;
         #endif
         ${taper ? "transformed.xz *= mix( 1.0, taper, clamp( position.y + 0.5, 0.0, 1.0 ) );" : ""}
+        #if defined( MASS ) && defined( USE_INSTANCING )
+        {
+          // Every bush its own outline: the shared mass is pushed out and
+          // pulled in radially from its foot by a noise seeded by where the
+          // bush stands, in lobes a few tens of centimetres across, and its
+          // top raised or lowered, so no two bushes (at any level of detail)
+          // are the same smooth dome. Multiplicative, so it shrinks with the
+          // LOD fade; the foot stays on the ground.
+          vec3 seedP = position * 2.6 + vec3( instanceMatrix[3].x, 0.0, instanceMatrix[3].z ) * 0.731;
+          float lobes = massVertexNoise( seedP ) * 0.55 + massVertexNoise( seedP * 2.3 + 5.1 ) * 0.3 + massVertexNoise( seedP * 5.3 - 2.7 ) * 0.15;
+          float up = smoothstep( 0.0, 0.35, position.y );
+          transformed.xz *= 1.0 + ( lobes - 0.5 ) * 0.75 * up;
+          transformed.y *= 1.0 + ( ( massVertexNoise( vec3( instanceMatrix[3].xz * 0.37, 1.7 ) + position * 0.9 ) - 0.5 ) * 0.4 + ( lobes - 0.5 ) * 0.25 ) * up;
+        }
+        #endif
         ${
           flutter
             ? /* glsl */ `
@@ -1888,7 +1956,8 @@ export function patchMaterial(material, shared, { sway = false, flutter = 0, fol
     if (mass)
       shader.fragmentShader = shader.fragmentShader
         .replace("void main() {", `${MASS_LEAF_GLSL}\nvoid main() {`)
-        .replace("#include <color_fragment>", "#include <color_fragment>\n  massLeaves( diffuseColor.rgb );");
+        .replace("#include <color_fragment>", "#include <color_fragment>\n  massLeaves( diffuseColor.rgb );")
+        .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>\n${MASS_FRINGE_GLSL}`);
     if (bent) {
       // Bent normals: blend each leaf's normal toward its foliage mass's
       // outward direction, so a crown shades like a soft volume while each

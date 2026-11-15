@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { groundHeight, shoreDistance, noise2, smoothstep } from "./terrain.js";
 import { MATERIAL_HEX } from "./material-palette.js";
+import { shoreClear } from "./ground-detail.js";
 
 // The ground you could kneel on. Between the tufts and shrubs the ground
 // mesh is paint; close to the cat that reads as a smooth slope. A carpet of
@@ -85,7 +86,8 @@ export function nearCell(field, ix, iz, cell, layer, out = {}) {
   out.z = z;
   out.kind = NEAR_KIND.none;
   const inland = shoreDistance(x, z);
-  if (inland < 1.6) return out;
+  // Nothing on the wet sand or within the swash's reach (ground-detail.js).
+  if (inland < 4.5 || hash(ix, iz, 13 + layer * 7) >= shoreClear(x, z, inland, 4.5, 6.5)) return out;
   const m = field.sample(x, z);
   if (m.rocky > 0.45) return out;
   // Plants grow in clumps with gaps between them, not as an even sprinkle:
