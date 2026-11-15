@@ -8,21 +8,34 @@
 // be left out of a level (`kept` bit clear), so far levels keep a subset.
 //
 // Ground chunks still group instances for culling and draw calls, but the
-// level is chosen per instance: a chunk straddling a boundary draws its near
-// instances at one level and its far ones at the next, instead of the whole
-// 20 m chunk at the level of its centre. No pops: over a band before each
-// boundary the vertex shader shrinks an instance the next level drops, and
-// grows one it keeps toward the next level's size (`lodFade`: band start,
-// band width, scale at start, scale at end; forest.js LOD_FADE_GLSL), so the
-// swap itself happens between two parts of the same size.
+// level is chosen per instance, by its own distance.
+//
+// Nothing may be seen to swap. Over a band before each boundary an instance
+// is drawn at BOTH levels: the coarser one already there, just inside (90%
+// of its size, growing to full), the finer one shrinking away round it, so
+// the plant's outline never jumps and the change is spread over metres.
+// An instance a coarser level drops shrinks to nothing over the band; one
+// that first appears at a level (a far level keeping a subset, or none
+// before) grows in from nothing. The vertex shader evaluates all of this
+// from the live eye (`lodFade`; forest.js LOD_FADE_GLSL), and an instance is
+// packed into every level it could be in before the next re-pack (a margin
+// as large as the eye may move meanwhile), so a late re-pack is never seen.
 
-// The fade band before a level's start: a fifth of the distance, 1.5–8 m.
+// The fade band before a level's start: an eighth of the distance, 1.2–5 m.
+// (Both levels are drawn across it: wider costs triangles.)
 export function fadeWidth(start) {
-  return Math.min(8, Math.max(1.5, start * 0.2));
+  return Math.min(5, Math.max(1.2, start * 0.12));
 }
 
-// The level an instance this far away draws at. `bias` (≤ 1) pulls every
-// level in (the render budget's knob, quality.js lodBias).
+// The margin every level's window is packed with: more than the eye may
+// move before a per-instance chunk is re-packed (packDue, 60% of it).
+export function packMargin(near) {
+  return 0.5 + 0.025 * near;
+}
+
+// The level an instance this far away draws at (the finest one it is
+// fully in). `bias` (≤ 1) pulls every level in (the render budget's knob,
+// quality.js lodBias).
 export function levelAt(distance, levels, bias = 1) {
   let level = 0;
   for (let i = 1; i < levels.length; i++) {
@@ -73,16 +86,19 @@ export function chunkRange(chunk, eye) {
   return [Math.sqrt(near), Math.sqrt(far)];
 }
 
-// The level the whole chunk draws at when no instance can be in another
-// level or in a fade band, else -1 (choose per instance).
+// The level the whole chunk draws at when every instance is well inside
+// it (in no fade band, by more than the eye can move before the chunk is
+// checked again), else -1 (choose per instance).
 export function chunkLevel(chunk, eye, bias = 1) {
   const [near, far] = chunkRange(chunk, eye);
   const levels = chunk.levels;
   const level = levelAt(near, levels, bias);
+  const m = packMargin(near);
+  if (level > 0 && near < levels[level].start * bias + m) return -1;
   const next = levels[level + 1];
   if (!next) return level;
   const boundary = next.start * bias;
-  return far < boundary - fadeWidth(boundary) ? level : -1;
+  return far < boundary - fadeWidth(boundary) - m ? level : -1;
 }
 
 // Does the chunk need packing again for this eye and bias?
@@ -91,56 +107,76 @@ export function packDue(chunk, eye, bias) {
   const level = chunkLevel(chunk, eye, bias);
   if (level >= 0) return level !== chunk.state;
   if (chunk.state !== -1) return true;
-  // Per instance: again once the eye has moved a fraction of the distance
-  // (the fade bands hide the lag).
+  // Per instance: again once the eye has moved part of the margin the
+  // windows were packed with.
   const [near] = chunkRange(chunk, eye);
   const moved = Math.hypot(eye[0] - chunk.eye[0], eye[1] - chunk.eye[1], eye[2] - chunk.eye[2]);
-  return moved > 0.5 + 0.03 * near;
+  return moved > packMargin(near) * 0.6;
 }
 
 // Writes each level's instances into `outputs[level]` (an object of
 // Float32Arrays by field name, plus `fade`, 4 per instance) and returns how
 // many each level draws.
+//
+// `fade` per instance, in centre distance from the eye: the band over which
+// it grows in (start, width: negative grows from nothing, positive from 90%),
+// and the band over which it shrinks away (end, width; end 0: never). A mesh
+// without the attribute reads (0, 0, 0, 1): full size.
 export function packChunk(chunk, eye, bias = 1) {
   const { count, positions, radii, kept, fields, levels } = chunk;
   const outputs = chunk.outputs;
   const whole = chunkLevel(chunk, eye, bias);
   const counts = levels.map(() => 0);
   const starts = levels.map((l) => l.start * bias);
+  const widths = starts.map((s) => fadeWidth(s));
+  const m = packMargin(chunkRange(chunk, eye)[0]);
   for (let i = 0; i < count; i++) {
-    let level = whole;
-    if (level < 0) {
+    let d = 0;
+    if (whole < 0) {
       const dx = positions[i * 3] - eye[0], dy = positions[i * 3 + 1] - eye[1], dz = positions[i * 3 + 2] - eye[2];
-      level = levelAt(Math.sqrt(dx * dx + dy * dy + dz * dz) - radii[i], levels, bias);
+      d = Math.sqrt(dx * dx + dy * dy + dz * dz) - radii[i];
     }
-    if (!(kept[i] & (1 << level))) continue;
-    const out = outputs[level];
-    const k = counts[level]++;
-    const grow = levels[level].grow;
-    for (const field of fields) {
-      const { name, size, data } = field;
-      const target = out[name];
-      if (name === "matrix") {
-        for (let c = 0; c < 16; c++) target[k * 16 + c] = data[i * 16 + c] * (c < 12 && c % 4 !== 3 ? grow : 1);
+    for (let level = 0; level < levels.length; level++) {
+      if (!(kept[i] & (1 << level))) continue;
+      // Its window: from the start of the band into it to the end of the
+      // band out of it, with the margin.
+      if (whole >= 0) {
+        if (level !== whole) continue;
       } else {
-        for (let c = 0; c < size; c++) target[k * size + c] = data[i * size + c];
+        const from = level > 0 ? starts[level] - widths[level] - m : -Infinity;
+        const to = level + 1 < levels.length ? starts[level + 1] + m : Infinity;
+        if (d < from || d > to) continue;
       }
-    }
-    // The fade toward the next level, in centre distance (radius added).
-    const fade = out.fade;
-    const next = levels[level + 1];
-    if (next) {
-      const boundary = starts[level + 1];
-      const width = fadeWidth(boundary);
-      fade[k * 4] = boundary - width + radii[i];
-      fade[k * 4 + 1] = width;
-      fade[k * 4 + 2] = 1;
-      fade[k * 4 + 3] = kept[i] & (1 << (level + 1)) ? next.grow / grow : 0;
-    } else {
-      fade[k * 4] = 1e9;
-      fade[k * 4 + 1] = 1;
-      fade[k * 4 + 2] = 1;
-      fade[k * 4 + 3] = 1;
+      const out = outputs[level];
+      const k = counts[level]++;
+      const grow = levels[level].grow;
+      for (const field of fields) {
+        const { name, size, data } = field;
+        const target = out[name];
+        if (name === "matrix") {
+          for (let c = 0; c < 16; c++) target[k * 16 + c] = data[i * 16 + c] * (c < 12 && c % 4 !== 3 ? grow : 1);
+        } else {
+          for (let c = 0; c < size; c++) target[k * size + c] = data[i * size + c];
+        }
+      }
+      const fade = out.fade;
+      if (level > 0) {
+        // In over the band before this level's start: from 90% where the
+        // finer level drew it too, from nothing where it did not.
+        const from = !!(kept[i] & (1 << (level - 1)));
+        fade[k * 4] = starts[level] - widths[level] + radii[i];
+        fade[k * 4 + 1] = from ? widths[level] : -widths[level];
+      } else {
+        fade[k * 4] = 0;
+        fade[k * 4 + 1] = 0;
+      }
+      if (level + 1 < levels.length) {
+        fade[k * 4 + 2] = starts[level + 1] + radii[i];
+        fade[k * 4 + 3] = widths[level + 1];
+      } else {
+        fade[k * 4 + 2] = 0;
+        fade[k * 4 + 3] = 1;
+      }
     }
   }
   chunk.state = whole;
@@ -153,8 +189,23 @@ export function packChunk(chunk, eye, bias = 1) {
 
 // The scale the vertex shader gives an instance at centre distance `d`
 // (mirrors LOD_FADE_GLSL in forest.js; used by tests).
+// Coming in beside a finer level, an instance swells from nothing to 90%
+// over the first quarter of the band, hidden inside the finer one (which
+// holds its size until a fifth of the way in), then to full as the finer
+// one shrinks away over the rest.
 export function fadeScale(fade, d) {
-  const t = Math.min(1, Math.max(0, (d - fade[0]) / Math.max(fade[1], 1e-3)));
-  const s = t * t * (3 - 2 * t);
-  return fade[2] + (fade[3] - fade[2]) * s;
+  const smooth = (t) => { t = Math.min(1, Math.max(0, t)); return t * t * (3 - 2 * t); };
+  const t = (d - fade[0]) / Math.max(Math.abs(fade[1]), 1e-3);
+  const grown = fade[1] < 0 ? smooth(t) : smooth(t * 4) * (0.9 + 0.1 * smooth(t));
+  const shrunk = fade[2] > 0 ? 1 - smooth((d - (fade[2] - fade[3] * 0.8)) / Math.max(fade[3] * 0.8, 1e-3)) : 1;
+  return grown * shrunk;
+}
+
+// The bias the packer follows toward the render budget's: in small steps a
+// few frames apart, so a budget change moves every boundary by a few
+// percent at a time (each step a slight shift inside the fade bands)
+// instead of moving them all at once.
+export function easeBias(current, target) {
+  if (current === undefined || Math.abs(target - current) <= 0.02) return target;
+  return current + Math.sign(target - current) * 0.02;
 }

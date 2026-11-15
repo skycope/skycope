@@ -21,7 +21,7 @@ import { bridgeCrevices } from "./walker.js"; // solid:
 import { MATERIAL_HEX, MATERIAL_LINEAR } from "./material-palette.js";
 import { groundDetailData, groundCover } from "./ground-detail.js";
 import { createNearGround } from "./near-ground.js";
-import { createLodChunk, packChunk, packDue, chunkRange } from "./instance-lod.js"; // lod:
+import { createLodChunk, packChunk, packDue, chunkRange, easeBias } from "./instance-lod.js"; // lod:
 import { magicUniforms, MAGIC_LIGHT_DECLARATIONS, MAGIC_LIGHT_GLSL } from "./land-magic.js"; // land-magic:
 import {
   finish,
@@ -2832,8 +2832,9 @@ function addInstances(scene, geometry, material, instances, shadows, far = null,
     keep: level.keep ?? null,
     start: level.distance,
   }))];
-  // Only sets whose levels change an instance's size need the fade.
-  const fades = levels.some((level, i) => i > 0 && (level.grow !== levels[i - 1].grow || level.keep));
+  // Every set with more than one level cross-fades between them (a change
+  // of geometry at one size is still a visible swap).
+  const fades = levels.length > 1;
   const lodMaterial = fades ? withLodFade(material) : material;
   const depthMaterial = shadowGrow || fades ? lodDepthMaterial(shadowGrow || 1) : null;
   const tapered = instances[0].taper !== undefined;
@@ -2955,8 +2956,17 @@ function packLod(group, eye, bias) {
   // A jump (home, a teleport) or the first frame packs everything now.
   const jump = !state.eye || Math.hypot(at[0] - state.eye[0], at[1] - state.eye[1], at[2] - state.eye[2]) > 15;
   state.eye = at;
+  // The render budget's bias is followed a step at a time, the next step
+  // only once the last has been packed everywhere (instance-lod.js easeBias).
+  if (jump) state.bias = bias;
+  state.bias ??= bias;
   const due = [];
-  for (const chunk of chunks) if (packDue(chunk, at, bias)) due.push(chunk);
+  for (const chunk of chunks) if (packDue(chunk, at, state.bias)) due.push(chunk);
+  if (!due.length && state.bias !== bias) {
+    state.bias = easeBias(state.bias, bias);
+    return;
+  }
+  bias = state.bias;
   if (!due.length) return;
   if (!jump) due.sort((a, b) => chunkRange(a, at)[0] - chunkRange(b, at)[0]);
   let budget = jump ? Infinity : LOD_PACK_BUDGET;
@@ -2981,17 +2991,23 @@ function packLod(group, eye, bias) {
   }
 }
 
-// The vertex stage of the fade (instance-lod.js fadeScale): by its centre's
-// distance from the eye, an instance shrinks toward a level that drops it,
-// or grows toward the size a coarser level draws it at. A mesh without the
-// attribute reads (0, 0, 0, 1): scale 1.
+// The vertex stage of the cross-fade (instance-lod.js fadeScale): by its
+// centre's distance from the live eye, an instance grows in over the band
+// before its level (hidden inside the finer level's copy, then to full as
+// that shrinks away; from nothing where no finer level drew it) and shrinks
+// away over the band before the next. A mesh without the attribute reads
+// (0, 0, 0, 1): scale 1.
 const LOD_FADE_GLSL = /* glsl */ `
 #include <begin_vertex>
 #ifdef USE_INSTANCING
 {
   vec3 lodOrigin = ( modelMatrix * vec4( instanceMatrix[3].xyz, 1.0 ) ).xyz;
-  float lodT = clamp( ( distance( lodOrigin, lodEye ) - lodFade.x ) / max( lodFade.y, 1e-3 ), 0.0, 1.0 );
-  transformed *= mix( lodFade.z, lodFade.w, lodT * lodT * ( 3.0 - 2.0 * lodT ) );
+  float lodD = distance( lodOrigin, lodEye );
+  float lodT = ( lodD - lodFade.x ) / max( abs( lodFade.y ), 1e-3 );
+  float lodIn = smoothstep( 0.0, 1.0, lodT );
+  float lodGrown = lodFade.y < 0.0 ? lodIn : smoothstep( 0.0, 1.0, lodT * 4.0 ) * ( 0.9 + 0.1 * lodIn );
+  float lodShrunk = lodFade.z > 0.0 ? 1.0 - smoothstep( 0.0, 1.0, ( lodD - ( lodFade.z - lodFade.w * 0.8 ) ) / max( lodFade.w * 0.8, 1e-3 ) ) : 1.0;
+  transformed *= lodGrown * lodShrunk;
 }
 #endif
 `;
