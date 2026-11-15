@@ -1,0 +1,278 @@
+[
+  {
+    "name": "before-noon-clear-desktop",
+    "firstPaint": 664,
+    "firstContentfulPaint": 664,
+    "mainRequested": 1359,
+    "mainFetched": 3377,
+    "marks": {
+      "painted": 1467,
+      "start": 3436,
+      "gpu": 3465,
+      "island": 6086,
+      "world": 12019,
+      "shaders": 12173
+    },
+    "states": {
+      "leaving": 13079,
+      "settling": 14579,
+      "gone": 16479
+    },
+    "ready": 13079,
+    "timeOrigin": 1794722785514,
+    "frames": 980
+  },
+  {
+    "name": "before-dusk-clear-desktop",
+    "firstPaint": 660,
+    "firstContentfulPaint": 660,
+    "mainRequested": 1373,
+    "mainFetched": 3381,
+    "marks": {
+      "painted": 1498,
+      "start": 3445,
+      "gpu": 3458,
+      "island": 6113,
+      "world": 14571,
+      "shaders": 14933
+    },
+    "states": {
+      "leaving": 16214,
+      "settling": 17724,
+      "gone": 19638
+    },
+    "ready": 16214,
+    "timeOrigin": 1794722806623.8,
+    "frames": 1054
+  },
+  {
+    "name": "before-night-clear-desktop",
+    "firstPaint": 700,
+    "firstContentfulPaint": 700,
+    "mainRequested": 1370,
+    "mainFetched": 3381,
+    "marks": {
+      "painted": 1540,
+      "start": 3476,
+      "gpu": 3502,
+      "island": 6336,
+      "world": 19982,
+      "shaders": 20497
+    },
+    "states": {
+      "leaving": 22545,
+      "settling": 24256,
+      "gone": 25963
+    },
+    "ready": 22545,
+    "timeOrigin": 1794722831375.6,
+    "frames": 638
+  },
+  {
+    "name": "before-noon-overcast-desktop",
+    "firstPaint": 772,
+    "firstContentfulPaint": 772,
+    "mainRequested": 1391,
+    "mainFetched": 3413,
+    "marks": {
+      "painted": 1612,
+      "start": 3533,
+      "gpu": 3561,
+      "island": 6400,
+      "world": 17689,
+      "shaders": 18123
+    },
+    "states": {
+      "leaving": 20472,
+      "settling": 22061,
+      "gone": 23925
+    },
+    "ready": 20472,
+    "timeOrigin": 1794722870347,
+    "frames": 757
+  },
+  {
+    "name": "before-dusk-overcast-desktop",
+    "firstPaint": 700,
+    "firstContentfulPaint": 700,
+    "mainRequested": 1385,
+    "mainFetched": 3400,
+    "marks": {
+      "painted": 1573,
+      "start": 3539,
+      "gpu": 3562,
+      "island": 6616,
+      "world": 17724,
+      "shaders": 18243
+    },
+    "states": {
+      "leaving": 20256,
+      "settling": 21771,
+      "gone": 23684
+    },
+    "ready": 20256,
+    "timeOrigin": 1794722900435.8,
+    "frames": 1142
+  },
+  {
+    "name": "before-night-overcast-desktop",
+    "firstPaint": 668,
+    "firstContentfulPaint": 668,
+    "mainRequested": 1363,
+    "mainFetched": 3373,
+    "marks": {
+      "painted": 1486,
+      "start": 3454,
+      "gpu": 3476,
+      "island": 6152,
+      "world": 12901,
+      "shaders": 13122
+    },
+    "states": {
+      "leaving": 13987,
+      "settling": 15501,
+      "gone": 17901
+    },
+    "ready": 13987,
+    "timeOrigin": 1794722929370.5,
+    "frames": 1014
+  },
+  {
+    "name": "before-noon-clear-phone",
+    "firstPaint": 680,
+    "firstContentfulPaint": 680,
+    "mainRequested": 1369,
+    "mainFetched": 3381,
+    "marks": {
+      "painted": 1476,
+      "start": 3457,
+      "gpu": 3471,
+      "island": 6158,
+      "world": 13091,
+      "shaders": 13302
+    },
+    "states": {
+      "leaving": 16371,
+      "settling": 18220,
+      "gone": 19781
+    },
+    "ready": 16371,
+    "timeOrigin": 1794722951466.1,
+    "frames": 1072
+  },
+  {
+    "name": "before-dusk-clear-phone",
+    "firstPaint": 676,
+    "firstContentfulPaint": 676,
+    "mainRequested": 1376,
+    "mainFetched": 3389,
+    "marks": {
+      "painted": 1498,
+      "start": 3465,
+      "gpu": 3478,
+      "island": 6165,
+      "world": 12706,
+      "shaders": 12961
+    },
+    "states": {
+      "leaving": 13745,
+      "settling": 15251,
+      "gone": 17452
+    },
+    "ready": 13745,
+    "timeOrigin": 1794722974807.1,
+    "frames": 1116
+  },
+  {
+    "name": "before-night-clear-phone",
+    "firstPaint": 668,
+    "firstContentfulPaint": 668,
+    "mainRequested": 1374,
+    "mainFetched": 3388,
+    "marks": {
+      "painted": 1483,
+      "start": 3453,
+      "gpu": 3465,
+      "island": 6130,
+      "world": 12920,
+      "shaders": 13099
+    },
+    "states": {
+      "leaving": 13933,
+      "settling": 15434,
+      "gone": 17633
+    },
+    "ready": 13933,
+    "timeOrigin": 1794722996130.4,
+    "frames": 1122
+  },
+  {
+    "name": "before-noon-overcast-phone",
+    "firstPaint": 656,
+    "firstContentfulPaint": 656,
+    "mainRequested": 1371,
+    "mainFetched": 3383,
+    "marks": {
+      "painted": 1474,
+      "start": 3449,
+      "gpu": 3458,
+      "island": 6098,
+      "world": 12694,
+      "shaders": 12862
+    },
+    "states": {
+      "leaving": 13721,
+      "settling": 15228,
+      "gone": 17316
+    },
+    "ready": 13721,
+    "timeOrigin": 1794723017885.9,
+    "frames": 1094
+  },
+  {
+    "name": "before-dusk-overcast-phone",
+    "firstPaint": 664,
+    "firstContentfulPaint": 664,
+    "mainRequested": 1375,
+    "mainFetched": 3387,
+    "marks": {
+      "painted": 1470,
+      "start": 3452,
+      "gpu": 3469,
+      "island": 6110,
+      "world": 12323,
+      "shaders": 12604
+    },
+    "states": {
+      "leaving": 13685,
+      "settling": 15211,
+      "gone": 17237
+    },
+    "ready": 13685,
+    "timeOrigin": 1794723039221.2,
+    "frames": 1029
+  },
+  {
+    "name": "before-night-overcast-phone",
+    "firstPaint": 700,
+    "firstContentfulPaint": 700,
+    "mainRequested": 1381,
+    "mainFetched": 3390,
+    "marks": {
+      "painted": 1529,
+      "start": 3500,
+      "gpu": 3522,
+      "island": 6307,
+      "world": 13747,
+      "shaders": 13987
+    },
+    "states": {
+      "leaving": 14917,
+      "settling": 16426,
+      "gone": 18450
+    },
+    "ready": 14917,
+    "timeOrigin": 1794723061098.2,
+    "frames": 1150
+  }
+]

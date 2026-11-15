@@ -1,0 +1,22 @@
+[
+  {
+    "firstPaint": 176,
+    "firstContentfulPaint": 176,
+    "mainRequested": 339,
+    "mainFetched": 549,
+    "marks": {
+      "painted": 409,
+      "start": 3869,
+      "gpu": 3900,
+      "island": 5064,
+      "world": 7689,
+      "shaders": 7893
+    },
+    "details": {},
+    "states": {
+      "leaving": 8886
+    },
+    "ready": 8886,
+    "timeOrigin": 1794725344284.9
+  }
+]

@@ -1,0 +1,410 @@
+[
+  {
+    "name": "after-noon-clear-desktop",
+    "firstPaint": 752,
+    "firstContentfulPaint": 2248,
+    "mainRequested": 1528,
+    "mainFetched": 3551,
+    "marks": {
+      "painted": 1526,
+      "start": 3681,
+      "gpu": 3703,
+      "island": 6557,
+      "world": 15503,
+      "view": 15505,
+      "shaders": 15665,
+      "ready": 17145,
+      "shown": 17222
+    },
+    "details": {
+      "view": {
+        "pitch": -0.2788462687157254
+      },
+      "ready": {
+        "pitch": -0.2788462687157254,
+        "veilPitch": -0.2788462687157254
+      }
+    },
+    "states": {
+      "leaving": 17228,
+      "gone": 18897
+    },
+    "ready": 17145,
+    "timeOrigin": 1794726464771.6,
+    "frames": 1072
+  },
+  {
+    "name": "after-dusk-clear-desktop",
+    "firstPaint": 700,
+    "firstContentfulPaint": 2296,
+    "mainRequested": 1557,
+    "mainFetched": 3572,
+    "marks": {
+      "painted": 1555,
+      "start": 3673,
+      "gpu": 3685,
+      "island": 6633,
+      "world": 16622,
+      "view": 16623,
+      "shaders": 16861,
+      "ready": 18284,
+      "shown": 18365
+    },
+    "details": {
+      "view": {
+        "pitch": -0.2788462687157254
+      },
+      "ready": {
+        "pitch": -0.2788462687157254,
+        "veilPitch": -0.2788462687157254
+      }
+    },
+    "states": {
+      "leaving": 18371,
+      "gone": 19990
+    },
+    "ready": 18284,
+    "timeOrigin": 1794726488615.3,
+    "frames": 1219
+  },
+  {
+    "name": "after-night-clear-desktop",
+    "firstPaint": 664,
+    "firstContentfulPaint": 2264,
+    "mainRequested": 1541,
+    "mainFetched": 3561,
+    "marks": {
+      "painted": 1539,
+      "start": 3662,
+      "gpu": 3679,
+      "island": 6547,
+      "world": 15826,
+      "view": 15828,
+      "shaders": 16035,
+      "ready": 17226,
+      "shown": 17344
+    },
+    "details": {
+      "view": {
+        "pitch": -0.2788462687157254
+      },
+      "ready": {
+        "pitch": -0.2788462687157254,
+        "veilPitch": -0.2788462687157254
+      }
+    },
+    "states": {
+      "leaving": 17349,
+      "gone": 19024
+    },
+    "ready": 17226,
+    "timeOrigin": 1794726513436.6,
+    "frames": 1104
+  },
+  {
+    "name": "after-noon-overcast-desktop",
+    "firstPaint": 696,
+    "firstContentfulPaint": 2248,
+    "mainRequested": 1498,
+    "mainFetched": 3505,
+    "marks": {
+      "painted": 1497,
+      "start": 3630,
+      "gpu": 3655,
+      "island": 6532,
+      "world": 13744,
+      "view": 13745,
+      "shaders": 13829,
+      "ready": 14618,
+      "shown": 14676
+    },
+    "details": {
+      "view": {
+        "pitch": -0.2788462687157254
+      },
+      "ready": {
+        "pitch": -0.2788462687157254,
+        "veilPitch": -0.2788462687157254
+      }
+    },
+    "states": {
+      "leaving": 14680,
+      "gone": 16293
+    },
+    "ready": 14618,
+    "timeOrigin": 1794726537304.8,
+    "frames": 1083
+  },
+  {
+    "name": "after-dusk-overcast-desktop",
+    "firstPaint": 688,
+    "firstContentfulPaint": 2240,
+    "mainRequested": 1520,
+    "mainFetched": 3535,
+    "marks": {
+      "painted": 1518,
+      "start": 3605,
+      "gpu": 3616,
+      "island": 6422,
+      "world": 16005,
+      "view": 16006,
+      "shaders": 16200,
+      "ready": 17280,
+      "shown": 17356
+    },
+    "details": {
+      "view": {
+        "pitch": -0.2788462687157254
+      },
+      "ready": {
+        "pitch": -0.2788462687157254,
+        "veilPitch": -0.2788462687157254
+      }
+    },
+    "states": {
+      "leaving": 17362,
+      "gone": 19027
+    },
+    "ready": 17280,
+    "timeOrigin": 1794726558553.3,
+    "frames": 1180
+  },
+  {
+    "name": "after-night-overcast-desktop",
+    "firstPaint": 704,
+    "firstContentfulPaint": 2300,
+    "mainRequested": 1570,
+    "mainFetched": 3587,
+    "marks": {
+      "painted": 1568,
+      "start": 3674,
+      "gpu": 3688,
+      "island": 6562,
+      "world": 13381,
+      "view": 13382,
+      "shaders": 13524,
+      "ready": 14438,
+      "shown": 14507
+    },
+    "details": {
+      "view": {
+        "pitch": -0.2788462687157254
+      },
+      "ready": {
+        "pitch": -0.2788462687157254,
+        "veilPitch": -0.2788462687157254
+      }
+    },
+    "states": {
+      "leaving": 14511,
+      "gone": 16180
+    },
+    "ready": 14438,
+    "timeOrigin": 1794726581689.9,
+    "frames": 1036
+  },
+  {
+    "name": "after-noon-clear-phone",
+    "firstPaint": 696,
+    "firstContentfulPaint": 2212,
+    "mainRequested": 1485,
+    "mainFetched": 3497,
+    "marks": {
+      "painted": 1483,
+      "start": 3578,
+      "gpu": 3592,
+      "island": 6216,
+      "world": 12063,
+      "view": 12065,
+      "shaders": 12181,
+      "ready": 12982,
+      "shown": 13035
+    },
+    "details": {
+      "view": {
+        "pitch": -0.2788462687157254
+      },
+      "ready": {
+        "pitch": -0.2788462687157254,
+        "veilPitch": -0.2788462687157254
+      }
+    },
+    "states": {
+      "leaving": 13041,
+      "gone": 14644
+    },
+    "ready": 12982,
+    "timeOrigin": 1794726601968,
+    "frames": 1029
+  },
+  {
+    "name": "after-dusk-clear-phone",
+    "firstPaint": 696,
+    "firstContentfulPaint": 2244,
+    "mainRequested": 1506,
+    "mainFetched": 3523,
+    "marks": {
+      "painted": 1504,
+      "start": 3595,
+      "gpu": 3604,
+      "island": 6305,
+      "world": 14884,
+      "view": 14886,
+      "shaders": 15025,
+      "ready": 15805,
+      "shown": 15873
+    },
+    "details": {
+      "view": {
+        "pitch": -0.2788462687157254
+      },
+      "ready": {
+        "pitch": -0.2788462687157254,
+        "veilPitch": -0.2788462687157254
+      }
+    },
+    "states": {
+      "leaving": 15879,
+      "gone": 17493
+    },
+    "ready": 15805,
+    "timeOrigin": 1794726621636.7,
+    "frames": 1144
+  },
+  {
+    "name": "after-night-clear-phone",
+    "firstPaint": 696,
+    "firstContentfulPaint": 2284,
+    "mainRequested": 1541,
+    "mainFetched": 3560,
+    "marks": {
+      "painted": 1538,
+      "start": 3647,
+      "gpu": 3657,
+      "island": 6426,
+      "world": 13948,
+      "view": 13951,
+      "shaders": 14080,
+      "ready": 14883,
+      "shown": 14933
+    },
+    "details": {
+      "view": {
+        "pitch": -0.2788462687157254
+      },
+      "ready": {
+        "pitch": -0.2788462687157254,
+        "veilPitch": -0.2788462687157254
+      }
+    },
+    "states": {
+      "leaving": 14940,
+      "gone": 16549
+    },
+    "ready": 14883,
+    "timeOrigin": 1794726643060.6,
+    "frames": 1102
+  },
+  {
+    "name": "after-noon-overcast-phone",
+    "firstPaint": 696,
+    "firstContentfulPaint": 2252,
+    "mainRequested": 1506,
+    "mainFetched": 3520,
+    "marks": {
+      "painted": 1504,
+      "start": 3601,
+      "gpu": 3614,
+      "island": 6219,
+      "world": 12097,
+      "view": 12099,
+      "shaders": 12180,
+      "ready": 12940,
+      "shown": 13002
+    },
+    "details": {
+      "view": {
+        "pitch": -0.2788462687157254
+      },
+      "ready": {
+        "pitch": -0.2788462687157254,
+        "veilPitch": -0.2788462687157254
+      }
+    },
+    "states": {
+      "leaving": 13006,
+      "gone": 14616
+    },
+    "ready": 12940,
+    "timeOrigin": 1794726663599.4,
+    "frames": 989
+  },
+  {
+    "name": "after-dusk-overcast-phone",
+    "firstPaint": 684,
+    "firstContentfulPaint": 2236,
+    "mainRequested": 1507,
+    "mainFetched": 3520,
+    "marks": {
+      "painted": 1506,
+      "start": 3590,
+      "gpu": 3597,
+      "island": 6245,
+      "world": 14573,
+      "view": 14576,
+      "shaders": 14729,
+      "ready": 15767,
+      "shown": 15841
+    },
+    "details": {
+      "view": {
+        "pitch": -0.2788462687157254
+      },
+      "ready": {
+        "pitch": -0.2788462687157254,
+        "veilPitch": -0.2788462687157254
+      }
+    },
+    "states": {
+      "leaving": 15849,
+      "gone": 17464
+    },
+    "ready": 15767,
+    "timeOrigin": 1794726681850.3,
+    "frames": 1191
+  },
+  {
+    "name": "after-night-overcast-phone",
+    "firstPaint": 708,
+    "firstContentfulPaint": 2292,
+    "mainRequested": 1540,
+    "mainFetched": 3552,
+    "marks": {
+      "painted": 1538,
+      "start": 3624,
+      "gpu": 3633,
+      "island": 6291,
+      "world": 12144,
+      "view": 12146,
+      "shaders": 12254,
+      "ready": 12896,
+      "shown": 12942
+    },
+    "details": {
+      "view": {
+        "pitch": -0.2788462687157254
+      },
+      "ready": {
+        "pitch": -0.2788462687157254,
+        "veilPitch": -0.2788462687157254
+      }
+    },
+    "states": {
+      "leaving": 12948,
+      "gone": 14560
+    },
+    "ready": 12896,
+    "timeOrigin": 1794726703680.8,
+    "frames": 968
+  }
+]
