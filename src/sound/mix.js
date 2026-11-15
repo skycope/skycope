@@ -23,7 +23,9 @@ export const BUSES = {
   // well under the bed (the owner: "sound design is off (for footsteps)").
   foley: { target: -46, short: -40, priority: 2 },
   voice: { target: -34, short: -28, priority: 5 },
-  world: { target: -36, short: -28, priority: 3 },
+  // world: the boat under way, aboard (until 15 Nov a penguin bray every 8 s
+  // at 10 m, −36; animals now pass the fauna governor, rare and far).
+  world: { target: -48, short: -44, priority: 3 },
   magic: { target: -34, short: -26, priority: 4 },
   music: { target: -40, short: -34, priority: 4 },
 };

@@ -48,7 +48,6 @@ export const CUES = [
   // 1 · the beach
   { id: "beach-noon", n: 1, name: "Beach at noon (scene, 30 s)", says: "low slow sea that breathes, a wave rushing up every few seconds, light wind, maybe one gull; quiet enough to work to", seconds: 30, scene: () => ({ ...base, sea: 0.85, seaPan: 0.5, wind: 7, shore: 4, trees: 0 }) },
   { id: "wave", n: 1, name: "One breaking wave", says: "a rush that falls in pitch, then a hiss of foam", seconds: 4, play: (s) => s._qa.beds.update({ ...base, sea: 1, shore: 4 }) },
-  { id: "gull", n: 1, name: "A kelp gull over the shore", says: "a falling nasal 'kee-ow', one to three, far off", seconds: 2, play: (s) => s._qa.beds.gull(CAT, 0.5) },
 
   // 2 · footsteps
   // Each "paw" entry is four steps of a walk (left hind, left fore, right
@@ -85,8 +84,8 @@ export const CUES = [
   { id: "meow-short", n: 5, name: "Short greeting meow (an animal close)", says: "quicker and brighter", seconds: 0.8, play: (s) => s._qa.foley.meow({ short: true }) },
   { id: "chirrup", n: 5, name: "Chirrup", says: "a questioning 'mrrp?'", seconds: 0.6, play: (s) => s.chirrup() },
   { id: "wisp", n: 5, name: "The wisp's answer", says: "three small glassy notes skipping up", seconds: 1.5, play: (s) => s.play("wisp", { distance: 4 }) },
-  { id: "haw", n: 5, name: "A penguin's soft 'haw' back (8 m left)", says: "one short soft honk", seconds: 0.8, play: (s) => s._qa.world.haw({ at: right(-8), ref: 8 }) },
-  { id: "owl", n: 5, name: "The owl in the milkwood (25 m ahead)", says: "a soft 'hoo, hooo', the second lower and longer", seconds: 2, play: (s) => s.play("owl", { at: ahead(25, { y: 6 }) }) },
+  { id: "haw", n: 5, name: "A penguin's soft 'haw' back (8 m left)", says: "one short soft honk", seconds: 0.8, play: (s) => s.wild({ source: "penguins", type: "answer", ...right(-8) }) },
+  { id: "owl", n: 5, name: "The owl in the milkwood (25 m ahead)", says: "a soft 'hoo, hooo', the second lower and longer", seconds: 2, play: (s) => s.wild({ source: "owl", type: "idle", ...ahead(25, { y: 6 }) }) },
   { id: "tower-echo", n: 5, name: "The lighthouse throwing a meow back (25 m)", says: "the meow, late and dark", seconds: 1.8, play: (s) => s.towerEcho(25) },
 
   // 6 · purr
@@ -133,14 +132,19 @@ export const CUES = [
   { id: "ceremony-fireflies", n: 10, name: "Ceremony phrase: fireflies (music off)", says: "small and glassy, with an afterglow", seconds: 8, play: (s) => s.ceremony("fireflies") },
 
   // 11 · animals
-  { id: "penguin-bray", n: 11, name: "Penguin bray (10 m right)", says: "hiccuping honks, then a long donkey bray", seconds: 3, play: (s) => s.wild({ source: "penguins", type: "bray", ...right(10) }) },
-  { id: "penguin-scatter", n: 11, name: "Penguins scattering (8 m)", says: "three quick haws and wing pats", seconds: 1.5, play: (s) => s.wild({ source: "penguins", type: "threat", ...right(8) }) },
-  { id: "seal-bark", n: 11, name: "Seal bark (20 m left)", says: "gruff bleating barks", seconds: 2.5, play: (s) => s.wild({ source: "seals", type: "bark", ...right(-20) }) },
-  { id: "seal-snort", n: 11, name: "Seal lifting its head (8 m)", says: "a snort", seconds: 0.6, play: (s) => s.wild({ source: "seals", type: "blow", ...right(-8) }) },
-  { id: "whale-blow", n: 11, name: "Whale blow (90 m)", says: "a deep wet exhale far out", seconds: 3.5, play: (s) => s.wild({ source: "whale", type: "blow", ...ahead(90) }) },
-  { id: "whale-slap", n: 11, name: "Whale tail slap (90 m)", says: "a crack, a heavy wash", seconds: 3, play: (s) => s.wild({ source: "whale", type: "slap", ...ahead(90) }) },
-  { id: "tortoise-hiss", n: 11, name: "Tortoise withdrawing (1 m)", says: "a short hiss; you must be close", seconds: 0.6, play: (s) => s.wild({ source: "tortoise", type: "hiss", ...right(1) }) },
-  { id: "oystercatchers", n: 11, name: "Oystercatchers flushed (10 m)", says: "piping 'kleep-kleep', quickening, then wings", seconds: 2.5, play: (s) => s.wild({ source: "oystercatchers", type: "flush", ...right(10) }) },
+  // Animals are rare, quiet events at a distance (reworked 15 Nov after
+  // "some dominating animal noise"); each entry is one, from where it is
+  // usually heard.
+  { id: "penguin-bray", n: 11, name: "The penguin colony from the spawn beach (30 m right)", says: "a soft far-off honk or two; faint under the sea", seconds: 3, play: (s) => s.wild({ source: "penguins", type: "bray", ...right(30) }) },
+  { id: "penguin-near", n: 11, name: "A penguin calling close by (8 m right)", says: "the same soft honk, nearer: still not a donkey", seconds: 3, play: (s) => s.wild({ source: "penguins", type: "bray", ...right(8) }) },
+  { id: "penguin-startled", n: 11, name: "A penguin startled by the cat (5 m)", says: "one short soft haw", seconds: 1, play: (s) => s.wild({ source: "penguins", type: "honk", ...right(5) }) },
+  { id: "seal-bark", n: 11, name: "A seal across the rocks (40 m left)", says: "one or two soft gruff barks", seconds: 2.5, play: (s) => s.wild({ source: "seals", type: "bark", ...right(-40), gain: 1 }) },
+  { id: "seal-snort", n: 11, name: "A seal lifting its head (8 m)", says: "a soft snort", seconds: 0.6, play: (s) => s.wild({ source: "seals", type: "blow", ...right(-8) }) },
+  { id: "whale-blow", n: 11, name: "The whale blowing far out (110 m)", says: "a deep wet exhale, far off", seconds: 3.5, play: (s) => s.wild({ source: "whale", type: "blow", ...ahead(110) }) },
+  { id: "whale-slap", n: 11, name: "The whale's tail on the water (110 m)", says: "a soft heavy wash, far off", seconds: 2, play: (s) => s.wild({ source: "whale", type: "slap", ...ahead(110) }) },
+  { id: "tortoise-hiss", n: 11, name: "The tortoise withdrawing (1 m)", says: "a short soft hiss; you must be close", seconds: 0.6, play: (s) => s.wild({ source: "tortoise", type: "hiss", ...right(1) }) },
+  { id: "oystercatchers", n: 11, name: "Oystercatchers flushed (10 m)", says: "a few piping notes, then soft wings", seconds: 2, play: (s) => s.wild({ source: "oystercatchers", type: "flush", ...right(10) }) },
+  { id: "gull", n: 11, name: "A kelp gull over the water (45 m)", says: "a soft falling call, far off", seconds: 1.5, play: (s) => s._qa.beds.gull({ x: 0, z: 0, y: 0 }, 0, ahead(45, { y: 15 })) },
   { id: "crickets", n: 11, name: "Crickets at night, the cat walking through (scene, 10 s)", says: "chirps round you; the near ones stop as you walk past and come back after", seconds: 10,
     scene: (t) => ({ ...base, night: 1, trees: 1, cat: { ...CAT, x: t * 1.5, speed: t < 5 ? 1.5 : 0 } }) },
 

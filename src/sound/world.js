@@ -231,92 +231,99 @@ export function createWorld(core, { call }) {
 
   const at = (e) => ({ x: e.x, z: e.z, y: e.y });
 
-  // A penguin's soft "haw" (it looks at you); `up` raises the pitch.
+  // A penguin's soft "haw"; `up` raises the pitch.
   function haw(where, { up = 1, gain = 1 } = {}) {
     const v = core.voice({ bus: "world", ...where });
-    const f = core.rand(290, 310) * up;
-    core.voiced(v, { contour: [[0, f], [1, f * 0.87]], formants: [[700, 4, 1.4], [1400, 5, 0.8]], length: 0.18, gain: 0.03 * gain, rough: 0.3, roughRate: 40, attack: 0.02, release: 0.05 });
+    const f = core.rand(270, 320) * up;
+    core.voiced(v, { type: "triangle", contour: [[0, f], [1, f * 0.87]], formants: [[640, 2.2, 1.3], [1200, 2.5, 0.35]], length: 0.2, gain: 0.03 * gain, rough: 0.12, roughRate: 40, attack: 0.04, release: 0.07 });
     return v?.done();
   }
 
   function wings(where, { f = 1200, rate = 6, seconds = 1, gain = 0.012 } = {}) {
     const v = core.voice({ bus: "world", ...where });
     const n = Math.round(rate * seconds);
-    for (let i = 0; i < n; i++) core.noise(v, { colour: "white", type: "bandpass", f, q: 1, attack: 0.03, tail: 0.05, gain: gain * (1 - (i / n) * 0.7), at: i / rate });
+    for (let i = 0; i < n; i++) core.noise(v, { colour: "pink", type: "bandpass", f, q: 0.8, attack: 0.04, tail: 0.06, gain: gain * (1 - (i / n) * 0.7), at: i / rate });
     return v?.done();
   }
 
   function snort(where) {
     const v = core.voice({ bus: "world", ...where });
-    core.noise(v, { colour: "pink", type: "bandpass", f: 600, to: 300, q: 1.5, attack: 0.015, tail: 0.22, gain: 0.04 });
+    core.noise(v, { colour: "pink", type: "bandpass", f: 600, to: 300, q: 1, attack: 0.04, tail: 0.22, gain: 0.03 });
     return v?.done();
   }
 
   function hiss(where) {
     const v = core.voice({ bus: "world", ...where });
-    core.noise(v, { colour: "white", type: "highpass", f: 3000, q: 0, attack: 0.02, tail: 0.25, gain: 0.012 });
+    core.noise(v, { colour: "pink", type: "bandpass", f: 3000, q: 0.7, attack: 0.04, tail: 0.25, gain: 0.01 });
     return v?.done();
   }
 
   // Oystercatcher piping: "kleep" notes, accelerating, then slowing.
-  function kleep(where, { notes = 8 } = {}) {
+  function kleep(where, { notes = 5 } = {}) {
     const v = core.voice({ bus: "world", ...where });
     let tt = 0;
+    const f0 = core.rand(3200, 3700);
     for (let i = 0; i < notes; i++) {
-      core.tone(v, { hz: 3600, to: 3000, glide: 0.06, attack: 0.004, tail: 0.05, gain: 0.03, at: tt, partials: [[2, 0.25, 1]] });
+      core.tone(v, { hz: f0, to: f0 * 0.84, glide: 0.07, attack: 0.012, tail: 0.06, gain: 0.02, at: tt });
       const rate = i < notes * 0.6 ? 5 + (4 * i) / (notes * 0.6) : 9 - (4 * (i - notes * 0.6)) / (notes * 0.4);
       tt += 1 / rate;
     }
     return v?.done();
   }
 
+  // A whale's tail on the water, far out: a soft heavy wash.
   function tailSlap(where) {
     const v = core.voice({ bus: "world", ...where });
-    core.noise(v, { colour: "white", type: "highpass", f: 800, q: 0, attack: 0.001, tail: 0.008, gain: 0.2 });
-    core.noise(v, { colour: "pink", type: "lowpass", f: 1200, to: 200, q: 0, attack: 0.01, tail: 0.9, gain: 0.15 });
-    v?.done();
-    call("splash-big", { ...where, size: 1, delay: 0.05 });
+    core.noise(v, { colour: "pink", type: "lowpass", f: 900, to: 200, q: 0, attack: 0.03, tail: 1.1, gain: 0.15 });
+    return v?.done();
   }
 
-  // A wildlife event ({ source, type, x, z, gain }).
-  function wild(e) {
-    const where = { at: at(e) };
-    const g = e.gain ?? 1;
-    switch (`${e.source}:${e.type}`) {
-      case "penguins:bray":
-        return call("penguin-bray", { ...where, gain: 0.7 * g });
-      case "penguins:honk":
-        return haw({ ...where, ref: 8 }, { gain: g });
-      case "penguins:threat":
-        haw({ ...where, ref: 8 }, { up: 1.2, gain: g });
-        haw({ ...where, ref: 8, t: ctx.currentTime + 0.18 }, { up: 1.25, gain: g * 0.8 });
-        haw({ ...where, ref: 8, t: ctx.currentTime + 0.33 }, { up: 1.15, gain: g * 0.7 });
-        return wings({ ...where, ref: 8 }, { gain: 0.006 * g });
-      case "penguins:splash":
-        return call("splash-big", { ...where, size: 0.4, gain: g });
-      case "seals:bark":
-        return call("seal-bark", { ...where, gain: g });
-      case "seals:splash":
-        return call("splash-big", { ...where, size: 0.6, gain: g });
-      case "seals:blow":
-        return snort({ ...where, ref: 25, gain: g });
-      case "whale:blow":
-        return call("whale-blow", { ...where, gain: g });
-      case "whale:slap":
-      case "whale:fluke":
-        return tailSlap({ ...where, ref: 90, gain: g });
-      case "whale:breach":
-      case "whale:crash":
-        return call("splash-big", { ...where, size: 1.6, gain: g });
-      case "tortoise:hiss":
-        return hiss({ ...where, ref: 1.5 });
-      case "oystercatchers:flush":
-        kleep({ ...where, ref: 8 }, { notes: 8 });
-        return wings({ ...where, ref: 8 }, { f: 900, rate: 4, seconds: 2, gain: 0.012 });
-      case "oystercatchers:pipe":
-        return kleep({ ...where, ref: 8 }, { notes: 3 });
+  // An animal voice the fauna governor let through (fauna.js): `voice`
+  // the governor's name, `at` where, `place` its animal law at that
+  // distance ({ gain, cutoff, sendA }), `level` its trim, `startle`
+  // whether the cat set it off. Returns roughly how long it sounds.
+  function animal(voice, at, { place, level = 1, startle = false, law = null, ref = 8 } = {}) {
+    const where = { at, ref, law, gain: level };
+    const placed = { ...place, gain: place.gain * level };
+    switch (voice) {
+      case "penguin":
+        if (startle) {
+          haw(where, { up: 1.1 });
+          return 0.4;
+        }
+        call("penguin-bray", { at, placed });
+        return 2.4;
+      case "penguin-splash":
+      case "seal-splash":
+        call("splash-big", { at, placed, size: voice === "seal-splash" ? 0.5 : 0.3 });
+        return 1.2;
+      case "seal":
+        call("seal-bark", { at, placed });
+        return 1.6;
+      case "seal-snort":
+        snort(where);
+        return 0.4;
+      case "whale":
+        call("whale-blow", { at, placed });
+        return 2.9;
+      case "whale-slap":
+        tailSlap(where);
+        return 1.2;
+      case "whale-breach":
+        call("splash-big", { at, placed, size: 1.2 });
+        return 2.5;
+      case "tortoise":
+        hiss(where);
+        return 0.4;
+      case "oystercatcher":
+        kleep(where, { notes: 5 });
+        wings(where, { f: 900, rate: 4, seconds: 1.2, gain: 0.006 });
+        return 1.4;
+      case "owl":
+        call("owl", { at, placed });
+        return 1.5;
       default:
-        return null;
+        return 0;
     }
   }
 
@@ -393,7 +400,7 @@ export function createWorld(core, { call }) {
     painter,
     updateBoat,
     boatEvent,
-    wild,
+    animal,
     haw,
     wings,
     snort,

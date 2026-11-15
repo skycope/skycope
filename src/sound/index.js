@@ -20,6 +20,7 @@ import { createWorld } from "./world.js";
 import { createCues, WAKING_CUES, STORY_CUES, camel } from "./cues.js";
 import { SURFACE } from "./patches.js";
 import { createSurfaceResolver } from "./surface.js";
+import { createFauna, animalPlace } from "./fauna.js";
 
 const PREFS = { sound: "skycope.sound", music: "skycope.music" };
 export { WAKING_CUES, STORY_CUES };
@@ -28,7 +29,7 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
   let ctx = null;
   let enabled = readPref(storage, PREFS.sound, true);
   let musicOn = readPref(storage, PREFS.music, true);
-  let mix, core, beds, foley, weather, world, cues, score, musicSend, reverb;
+  let mix, core, beds, foley, weather, world, cues, score, musicSend, reverb, fauna;
   let spectacleSeen = false;
   let externalThunder = -Infinity;
   let nextThunder = 12;
@@ -76,7 +77,9 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
     musicSend.connect(reverb.input);
     mix.setLevel("music", musicOn ? 1 : 0, 0.01);
     score = createScore(core.counted, { out: mix.input("music"), send: musicSend, seed, ceremonyOut: mix.input("magic") });
-    beds = createBeds(core);
+    // Animal voices pass the fauna governor (fauna.js) before they sound.
+    fauna = createFauna(core);
+    beds = createBeds(core, { gate: (key, at) => fauna.allow(key, at) });
     foley = createFoley(core);
     weather = createWeather(core);
     world = createWorld(core, { call });
@@ -200,6 +203,7 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
       const dt = Math.min(0.1, Math.max(0, now - lastUpdate) || 1 / 30);
       lastUpdate = now;
       core.listener = listenerFrom(c.cat, c.camera);
+      fauna.update(c.cat, dt);
       const cat = c.cat;
       // In the boiler: under the wreck's cover (or as told).
       if (c.inside !== undefined) setInside(c.inside);
@@ -227,10 +231,7 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
       }
       // The owl in the milkwood, every few minutes at night.
       if ((c.night ?? 0) > 0.6 && scene.milkwood && cat && now > nextOwl) {
-        if (nextOwl > 0) {
-          core.noteHeard("owl:idle", owlAt());
-          call("owl", { at: owlAt(), gain: 0.8 });
-        }
+        if (nextOwl > 0) animal("owl:idle", owlAt());
         nextOwl = now + 180 + core.random() * 180;
       }
       // Places' own small sounds, every few seconds when near.
@@ -375,9 +376,9 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
       if (inside === "boiler") world.boilerBell(0.12 + length);
       // Answers: the owl from the milkwood at night; a penguin's haw.
       const cat = c.cat;
-      if (cat && (c.night ?? 0) > 0.6 && scene.milkwood && Math.hypot(cat.x - scene.milkwood.x, cat.z - scene.milkwood.z) < 40) call("owl", { at: owlAt(), delay: 1.5, gain: 0.9 });
+      if (cat && (c.night ?? 0) > 0.6 && scene.milkwood && Math.hypot(cat.x - scene.milkwood.x, cat.z - scene.milkwood.z) < 40) animal("owl:answer", owlAt(), {}, 1.5);
       if (cat && c.interest && /penguin/.test(c.interest.kind ?? "") && Math.hypot(c.interest.x - cat.x, c.interest.z - cat.z) < 10)
-        world.haw({ at: { x: c.interest.x, z: c.interest.z }, ref: 8, t: ctx.currentTime + 0.6 + core.random() * 0.4 });
+        animal("penguins:answer", { x: c.interest.x, z: c.interest.z }, {}, 0.6 + core.random() * 0.4);
       // The lighthouse throws the meow back, late and dark.
       if (cat && scene.lighthouse) {
         const d = Math.hypot(cat.x - scene.lighthouse.x, cat.z - scene.lighthouse.z);
@@ -412,10 +413,12 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
       if (live()) world.boatEvent(e, b);
     },
     // A wildlife event ({ source, type, x, z, gain }).
+    // A wildlife event ({ source, type, x, z, gain }): heard only if the
+    // fauna governor lets it through (rare, quiet, never merely because
+    // the cat stands near).
     wild(e) {
       if (!live()) return;
-      core.noteHeard(`${e.source}:${e.type}`, { x: e.x, z: e.z, y: e.y }, { gain: e.gain ?? 1 });
-      world.wild(e);
+      animal(`${e.source}:${e.type}`, { x: e.x, z: e.z, y: e.y }, e);
     },
     // Inside a place that changes how things sound ("boiler" or null).
     setInside(where) {
@@ -423,7 +426,7 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
     },
     // Tests and the audition page: the engine's parts.
     get _qa() {
-      return mix ? { ctx, mix, core, beds, foley, weather, world, cues, score, calls } : null;
+      return mix ? { ctx, mix, core, beds, foley, weather, world, cues, score, calls, fauna } : null;
     },
     dispose() {
       if (!context) ctx?.close();
@@ -434,6 +437,29 @@ export function createSound({ context = null, storage = defaultStorage(), seed =
   // The waking-light and story cues, each `state.sound.<name>?.(...)`.
   for (const name of [...WAKING_CUES, ...STORY_CUES.map(camel), "cue"])
     api[name] = (...args) => (live() && cues ? cues[name]?.(...args) : null);
+
+  // An animal voice through the governor: allowed → played with the
+  // animals' own distance law, after `delay` s.
+  function animal(key, at, e = {}, delay = 0) {
+    const rule = fauna.allow(key, at, e);
+    if (!rule) return false;
+    const place = animalPlace(fauna.where(at, rule.ref).d, rule.ref);
+    place.gain *= Math.min(1, e.gain ?? 1);
+    const law = (d) => animalPlace(d, rule.ref);
+    if (rule.voice === "owl") {
+      call("owl", { at, placed: { ...place, gain: place.gain * rule.level }, delay });
+      fauna.busy(ctx.currentTime + delay + 1.5);
+      return true;
+    }
+    if (rule.voice === "penguin" && (rule.startle || key === "penguins:answer")) {
+      world.haw({ at, ref: rule.ref, law, gain: rule.level, t: ctx.currentTime + delay });
+      fauna.busy(ctx.currentTime + delay + 0.4);
+      return true;
+    }
+    const len = world.animal(rule.voice, at, { place, level: rule.level, startle: rule.startle, law, ref: rule.ref });
+    fauna.busy(ctx.currentTime + len);
+    return true;
+  }
 
   function owlAt() {
     const m = scene.milkwood;

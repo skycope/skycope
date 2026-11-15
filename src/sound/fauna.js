@@ -15,7 +15,7 @@
 //     display, an oystercatcher's wary piping): a reaction voice only when
 //     the cat startles an animal, and then once (per species, 25 s);
 //   - distance falls off steeply ((ref / d) ^ 1.25) and dulls fast
-//     (12 kHz × exp(−d / 45), floor 700 Hz), so the colony is faint from the
+//     (12 kHz × exp(−d / 30), floor 700 Hz), so the colony is faint from the
 //     spawn point;
 //   - LEVEL trims each voice so that at its typical distance it peaks at
 //     least 9 LU under the home beach's bed (set by measurement:
@@ -28,7 +28,7 @@ export const RULES = {
   "penguins:threat": null, // the cat merely standing near
   "penguins:splash": { voice: "penguin-splash", idle: true, gap: [30, 70], ref: 6 },
   "seals:bark": { voice: "seal", idle: true, gap: [50, 110], ref: 8, startle: (e) => (e.gain ?? 0) >= 0.95 },
-  "seals:splash": { voice: "seal-splash", reaction: true, ref: 8 },
+  "seals:splash": { voice: "seal-splash", idle: true, gap: [30, 70], ref: 8 },
   "seals:blow": { voice: "seal-snort", idle: true, gap: [40, 90], ref: 6 },
   "whale:blow": { voice: "whale", idle: true, gap: [45, 120], ref: 40 },
   "whale:fluke": { voice: "whale-slap", idle: true, gap: [60, 150], ref: 40 },
@@ -46,12 +46,12 @@ export const RULES = {
 
 // Per-voice level trims (× the recipe), set by measurement so each peaks
 // ≥ 9 LU under the home beach's bed at its typical distance.
-export const LEVEL = { penguin: 1, "penguin-splash": 1, seal: 1, "seal-splash": 1, "seal-snort": 1, whale: 1, "whale-slap": 1, "whale-breach": 1, tortoise: 1, oystercatcher: 1, gull: 1, owl: 1 };
+export const LEVEL = { penguin: 1, "penguin-splash": 1, seal: 1.5, "seal-splash": 1, "seal-snort": 6, whale: 0.55, "whale-slap": 1, "whale-breach": 0.22, tortoise: 10, oystercatcher: 1, gull: 1, owl: 0.55 };
 // Where each is usually heard from (m), for that measurement.
 export const TYPICAL = { penguin: 30, "penguin-splash": 30, seal: 60, "seal-splash": 60, "seal-snort": 30, whale: 110, "whale-slap": 110, "whale-breach": 110, tortoise: 1.5, oystercatcher: 10, gull: 45, owl: 25 };
 
 export const BUDGET = { window: 6, reactionCooldown: 25, fadeStart: 60, fadeEnd: 180 };
-export const LAW = { exponent: 1.25, air: 45, top: 12000, floor: 700 };
+export const LAW = { exponent: 1.25, air: 30, top: 12000, floor: 700 };
 
 // Distance gain, air and reverb for an animal at `d` m with reference `ref`.
 export function animalPlace(d, ref) {
@@ -85,6 +85,8 @@ export function createFauna(core) {
     };
     if (rule === undefined) return hold("unknown");
     if (rule === null) return hold("the cat merely near");
+    // The animal's own reach (its event's gain falls to 0 with distance).
+    if ((e.gain ?? 1) < 0.03) return hold("beyond its reach");
     const species = rule.voice.split("-")[0];
     const startle = rule.reaction || rule.startle?.(e);
     if (now - lastVoice < BUDGET.window || now < busyUntil) return hold("another voice in the last 6 s");
