@@ -7,21 +7,31 @@
 //   fireflies  the old milkwood: lights in the air that follow the cat
 //   tideglow   the wreck: the sea and wet sand glow where anything stirs them
 //   lamp       the lighthouse: its lamp is lit and sweeps the island
-//   stars      the trig beacon: the sky leans close (figures, falling stars)
+//   stars      the sky: woken by the ending, not by a place (the light
+//              that fell goes home to the south celestial pole)
 //   seafolk    the rock pool: the sea's animals come to the cat
 //   boat       the fisherman's boat: it can be taken out on the water
-//   finale     every gift awake: the island's own answer
+//   home       the home lantern on the beach: the first light, the lesson
+//   finale     the ending has happened: the south star is in the sky
+// (story-and-wow.md: a fallen star leads the cat to light the island's
+// old lights; each lifts it higher; the last sends it home.)
 export const GIFTS = ["fireflies", "tideglow", "lamp", "stars", "seafolk", "boat"];
 
-// Which landmark (places.js poi id) keeps which gift.
+// The five lights below that a visitor lights; the sky is the ending's.
+export const LIGHTS = ["boat", "fireflies", "tideglow", "seafolk", "lamp"];
+
+// Which landmark (places.js poi id) keeps which light. The trig beacon on
+// the summit keeps none: it is where the ending starts.
 export const KEEPSAKES = {
   milkwood: "fireflies",
   wreck: "tideglow",
   lighthouse: "lamp",
-  beacon: "stars",
   pool: "seafolk",
   boat: "boat",
 };
+
+// Every level the record eases: the six gifts, the home lantern, the ending.
+export const LEVELS = [...GIFTS, "home", "finale"];
 
 // Each gift's colour: the colour of its light (linear RGB; waking.js is the
 // one table). The wisp carries the colours of the gifts it has woken.
@@ -30,11 +40,11 @@ export { GIFT_COLOURS };
 
 // `force`: gifts awake from the start (`?perf&magic=all` or a comma list).
 export function createMagic({ force = [] } = {}) {
-  const awake = new Set(force.filter((g) => GIFTS.includes(g) || g === "finale"));
+  const awake = new Set(force.filter((g) => LEVELS.includes(g)));
   // Levels ease toward 0 or 1; `wakeAt` is the clock time each was woken
   // (-Infinity if it was already awake at load), for one-off ceremonies.
-  const levels = Object.fromEntries([...GIFTS, "finale"].map((g) => [g, awake.has(g) ? 1 : 0]));
-  const wakeAt = Object.fromEntries([...GIFTS, "finale"].map((g) => [g, awake.has(g) ? -Infinity : Infinity]));
+  const levels = Object.fromEntries(LEVELS.map((g) => [g, awake.has(g) ? 1 : 0]));
+  const wakeAt = Object.fromEntries(LEVELS.map((g) => [g, awake.has(g) ? -Infinity : Infinity]));
   const listeners = new Set();
   let clock = 0;
   return {
@@ -50,7 +60,11 @@ export function createMagic({ force = [] } = {}) {
     //          frame): position [x, y, z], glow (0 hidden … ~1.6 flaring;
     //          ~0.6 at rest by day, more at night), colour [r, g, b], and
     //          visible (false until it first appears).
+    //   ending the ending's sky (journey.js), or null: { star 0…1 the
+    //          south star's brightness, swell 0…1 its arrival bloom, pen
+    //          0…1.2 the Southern Cross and its pointer drawing }.
     waking: null,
+    ending: null,
     call: null,
     wisp: { position: [0, -100, 0], glow: 0, colour: [1, 0.95, 0.85], visible: false },
     get clock() {
@@ -59,6 +73,10 @@ export function createMagic({ force = [] } = {}) {
     isAwake: (gift) => awake.has(gift),
     get allAwake() {
       return GIFTS.every((g) => awake.has(g));
+    },
+    // The five lights below all lit: the ending can begin.
+    get allLit() {
+      return LIGHTS.every((g) => awake.has(g));
     },
     // Wake a gift now (ceremony: listeners hear it once) or restore it
     // silently from an earlier visit (`quiet`).
@@ -112,5 +130,5 @@ export function parseMagicForce(search) {
   if (!params.has("perf")) return [];
   const value = params.get("magic");
   if (!value) return [];
-  return value === "all" ? [...GIFTS, "finale"] : value.split(",");
+  return value === "all" ? LEVELS : value.split(",");
 }

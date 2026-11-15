@@ -13,6 +13,7 @@ import { createMeshProfiler } from "./mesh-profiler.js";
 import { createArchipelago } from "./archipelago.js";
 import { createLens } from "./lens.js";
 import { createPlaces } from "./places.js"; // places:
+import { buildHomeLantern, homeLanternSite, HOME_LANTERN } from "./place-home.js"; // story: the home lantern
 import { createWisp } from "./wisp.js"; // wisp: the little light that leads the cat
 import { surfaceOf } from "./walker.js"; // solid: boulder tops for the fireflies
 import { createLandMagic, lightWithMagic, finaleBlaze } from "./land-magic.js"; // land-magic:
@@ -100,6 +101,15 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
   forest.obstacles.trunks.push(...places.obstacles.trunks);
   forest.obstacles.domes.push(...places.obstacles.domes);
   forest.obstacles.blockers = places.blockers; // solid: camera and body solids (blockers.js)
+  // story: the home lantern on the beach, the first light (place-home.js).
+  const homeSite = homeLanternSite(forest.obstacles);
+  const home = buildHomeLantern(homeSite, { light });
+  home.lod.near.position.set(homeSite.x, 0, homeSite.z);
+  home.lod.near.matrixAutoUpdate = false;
+  home.lod.near.updateMatrix();
+  land.add(home.lod.near, home.extra);
+  forest.obstacles.trunks.push(...home.surfaces.trunks);
+  places.blockers.push(...home.surfaces.solids);
   // land-look: the ground darkens round the landmarks' feet (forest.js).
   forest.groundContact(land, [places.group]);
   // land-magic: the gifts' light on the land (uniforms in forest.js shared).
@@ -114,6 +124,8 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     const at = wakingSource(gift, { pois: places.pois, blockers: places.blockers, surface: gift === "seafolk" ? surfaceOf(forest.obstacles) : groundHeight });
     return at && { x: at[0], y: at[1] + (gift === "seafolk" ? 0.25 : 0), z: at[2], colour, reach, power, gift };
   }).filter(Boolean);
+  // story: the home lantern's pool of light on the sand, once it is lit.
+  practicals.push({ ...home.lamp, colour: HOME_LANTERN.colour, reach: HOME_LANTERN.reach, power: HOME_LANTERN.power, gift: "home" });
   const landMagic = createLandMagic({ shared: land.userData.forestShared, lamps: places.lamps, practicals, beacon: places.beacon, light });
   const fauna = createFauna(land, seed);
   const cat = createCat(land, { light });
@@ -258,6 +270,8 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
     landMagic: perf ? landMagic : null, // land-magic: `?perf` QA
     // waking: the places a gift's light is kindled from (waking.js wakingSource).
     wakingPlaces: { crown: places.crown, beacon: places.beacon },
+    // story: the home lantern (coast metres): its post and its lamp.
+    home: { x: homeSite.x, z: homeSite.z, lamp: home.lamp },
     nightLand: perf ? NIGHT_LAND : null, // land-look: `?perf` tuning
     shadows: perf ? shadows : null, // shadow: `?perf` QA of the sliced refresh
     // land-magic: the lighthouse lamp this frame (coast metres; `angle` is
@@ -323,6 +337,7 @@ export function createLandscape(canvas, seed, { light = false } = {}) {
       }
       magicScan++;
       places.update({ time, night, wind, eye: [flight.x, flight.y, flight.z], pose, lamp: gifts.lamp, lights: gifts.lampLights }); // places:
+      home.update({ time, night, lit: levels?.home ?? 0, since: magic?.waking?.gift === "home" ? magic.waking.age : (magic?.clock ?? 0) - (magic?.wakeAt?.home ?? Infinity) }); // story: the home lantern
       const sinA = Math.sin(flight.azimuth);
       const cosA = Math.cos(flight.azimuth);
       const hx = (sinA + cosA) * Math.SQRT1_2;
